@@ -1,0 +1,144 @@
+---
+title: 编辑帖子
+---
+
+<div id="introduction">
+  # 介绍
+</div>
+
+X API v2 端点提供已编辑帖子的元数据。_编辑帖子_ 功能最初于 2022 年 9 月 1 日在 X 员工中开启测试。从该日期起，符合条件的帖子可在 30 分钟内编辑，且最多编辑 5 次。_自 2022 年 9 月 29 日起创建的所有帖子对象_ 都包含帖子编辑元数据，即便该帖子从未被编辑。每次编辑帖子，都会生成一个新的帖子 ID。帖子的编辑历史可通过将这些 ID 串接起来描述，并以原始 ID 开始。此外，如果编辑链中的任一帖子被删除，该链中的所有帖子也会随之删除。
+
+使用 X API v2，开发者可以了解：
+
+- 帖子在创建时是否符合可编辑条件。某些帖子（例如含投票或定时发布的帖子）不可编辑。
+- 帖子在 30 分钟内可编辑，且最多可编辑 5 次。对于可编辑的帖子，你可以查看是否仍有剩余编辑时间以及还可编辑的次数。
+- 你是否正在查看帖子的已编辑版本（在大多数情况下，除非通过帖子 ID 请求特定历史版本，否则 API 将返回帖子的最新版本）。
+- 帖子的完整编辑历史。
+- 归因到帖子各版本的互动数据。
+
+帖子的编辑历史包含三个组成部分：
+
+1. 默认情况下，帖子载荷会包含一个帖子 ID 数组，表示该帖子的编辑历史。此信息由 `edit_history_tweet_ids` 指定，它是帖子载荷中的默认字段。该数组至少包含一个 ID，即原始、未编辑帖子的 ID。当只有一个 ID 时，表示该帖子没有编辑历史。
+2. 你可以在 [tweet.fields](/zh/x-api/fundamentals/fields) 参数中指定 `edit_controls` 来获取信息，例如帖子在创建时是否可编辑、距离可编辑窗口结束还剩多少时间（如有），以及剩余可编辑次数。
+3. 最后，你可以在 [expansion](/zh/x-api/fundamentals/expansions) 参数中指定 `edit_history_tweet_ids`，以获取该帖子编辑历史中每个帖子的 Post 对象。
+
+大多数帖子都符合编辑条件。但以下类型的帖子不符合：
+
+- 推广帖子
+- 帖子包含投票
+- 对他人线程的回复
+- 转帖（注意：引用推文可编辑）
+- nullcast 帖子
+- 社区帖子
+- 超级关注帖子
+- 协作帖子
+
+示例
+
+---
+
+下面的示例演示开发者如何使用 X API v2 请求已编辑帖子的元数据。
+
+注意：以下示例使用用户帖子时间线端点，但你可以对所有返回帖子的端点（例如帖子查找、搜索、过滤流等）使用相同的参数（字段与扩展）来请求这些元数据。
+
+<div id="default-behavior">
+  ### 默认行为
+</div>
+
+默认情况下，当您向 X API v2 中任何返回 Post 对象的端点发起 API 请求时，您将获得：
+
+- Post ID
+- Post 文本
+- 一个包含该 Post 编辑历史所涉及 Post ID 的数组。如果仅返回一个 ID，则表示该 Post 未被编辑。
+
+**请求：**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**示例响应：**
+
+```{
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"]
+    }
+  ]
+}
+```
+
+### 使用 edit\_controls 获取更多数据
+
+如果你想获取更多与编辑相关的帖子元数据，例如帖子在创建时是否具备可编辑资格，以及距离编辑窗口结束还剩多久，可以通过使用 tweet.fields 参数并将其设置为 edit\_control 来请求这些信息。
+
+**请求：**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**示例响应：**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ]
+}
+```
+
+<div id="getting-post-objects-for-all-posts-in-a-posts-edit-history">
+  ### 获取某条帖子编辑历史中所有帖子的 Post 对象
+</div>
+
+上述示例返回了某条帖子编辑历史中的帖子 ID 数组。如果你想获取这些帖子 ID 各自对应的实际 Post 对象，可以使用 expansions 参数并将其设置为 `edit_history_tweet_ids`。组成编辑历史的 Post 对象会在 includes 对象中返回。 
+
+**请求：**
+
+```bash
+      curl --location --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control&expansions=edit_history_tweet_ids' --header 'Authorization: Bearer $BEARER_TOKEN'`
+```
+
+**示例响应：**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "id": "1514991667853602822",
+        "text": "we need an eidt button",
+        "edit_history_tweet_ids": [
+          "1514991667853602822",
+          "1514991667853602823"
+        ],
+        "edit_controls": {
+          "is_edit_eligible": true,
+          "editable_until": "2022-04-21 09:35:20.311",
+          "edits_remaining": 4
+        }
+      }
+    ]
+  }
+}
+```

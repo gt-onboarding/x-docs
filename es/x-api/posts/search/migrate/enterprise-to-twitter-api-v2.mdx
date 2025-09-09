@@ -1,0 +1,136 @@
+---
+title: v1 a v2 (Enterprise)
+sidebarTitle: v1 a v2 (Enterprise)
+---
+
+<div id="enterprise-compared-to-x-api-v2">
+  ### Comparación entre Enterprise y la API de X v2
+</div>
+
+**Similitudes**
+
+- Paginación
+- Zona horaria
+- Compatibilidad con el historial de edición de publicaciones y metadatos
+
+**Diferencias**
+
+- URLs de endpoints
+- Requisito de App y Proyecto
+- Períodos de tiempo disponibles
+- Formato de los datos de respuesta
+- Métodos HTTP
+- Formatos de hora en la solicitud
+- Parámetros de la solicitud
+- Operadores de filtrado
+
+<div id="similarities">
+  #### Similitudes
+</div>
+
+**Paginación**
+
+Si bien v2 tiene funciones de paginación adicionales (nuevos parámetros que permiten navegar usando IDs de publicaciones con `since_id` y `until_id`), tanto enterprise como v2 permiten paginar por tiempo (`fromDate` y `toDate` en enterprise, y `start_time` y `end_time` en v2).
+ 
+
+**Zona horaria**
+
+Como se indicó en la sección de paginación, puede navegar por diferentes páginas de datos usando el tiempo tanto en enterprise como en v2. En ambos casos, usará UTC como zona horaria al utilizar estos parámetros.
+
+**Compatibilidad con el historial de edición de publicaciones y metadatos**
+
+Ambas versiones proporcionan metadatos que describen cualquier historial de edición. Consulte las [referencias de la API de búsqueda](/es/x-api/posts/recent-search) y la [página de fundamentos sobre ediciones de publicaciones](/es/x-api/fundamentals/edit-posts) para obtener más detalles. 
+
+<div id="differences">
+  #### Diferencias
+</div>
+
+**URLs de endpoints**
+
+- Endpoints de Enterprise:
+  - 30 días - `http://gnip-api.x.com/search/30day/accounts/:account_name/:label.json`
+  - Archivo completo - `http://gnip-api.x.com/search/fullarchive/accounts/:account_name/:label.json`
+- Endpoints de la API de X v2
+  - Recientes (7 días) - `https://api.x.com/2/tweets/search/recent`
+  - Archivo completo - `https://api.x.com/2/tweets/search/all`
+
+**Requisito de App y Proyecto**
+
+Los endpoints de la API de X v2 requieren que uses credenciales de un Proyecto al autenticar tus solicitudes. Todos los endpoints de la API de X v1.1 pueden usar credenciales de Apps independientes o de Apps asociadas a un Proyecto.
+ 
+
+**Períodos de tiempo disponibles**
+
+Tanto la API de Enterprise como la API de X v2 ofrecen endpoints que te permiten recuperar datos filtrados de Publicaciones para el archivo completo de Publicaciones.
+
+Sin embargo, la API de X v2 no ofrece un endpoint con período de 30 días como sí lo hace la API de Enterprise. En su lugar, ofrece el mencionado archivo completo o un período de 7 días, que se alinean con Native Enriched a v2 y [Activity Streams a v2](/es/x-api/migrate/data-format-migration#migrating-from-activity-streams-data-format-to-v2), lo cual puede ayudarte a mapear campos de Enterprise a los campos más nuevos de v2. Esta guía también te proporcionará la expansión específica y el parámetro de campo que necesitarás pasar con tu solicitud de v2 para devolver campos específicos.
+ 
+
+**Formato de datos de respuesta**
+
+Una de las mayores diferencias entre el [formato de respuesta de Enterprise](https://developer.x.com/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) y [el formato de la API de X v2](/es/x-api/fundamentals/data-dictionary) es cómo seleccionas qué campos se devuelven en tu payload.
+
+Para la Search API de Enterprise, recibes muchos de los campos de respuesta de forma predeterminada y luego tienes la opción de usar parámetros para identificar qué campos o conjuntos de campos deben devolverse en el payload.
+
+La versión de la API de X v2 solo entrega de forma predeterminada los campos `id` y `text` de la Publicación. Para solicitar cualquier campo u objeto adicional, deberás utilizar los parámetros [fields](/es/x-api/fundamentals/fields) y [expansions](/es/x-api/fundamentals/expansions). Cualquier campo de Publicación que solicites desde estos endpoints se devolverá en el objeto principal de la Publicación. Cualquier objeto y campo expandido de usuario, medio, encuesta o lugar se devolverá en un objeto `includes` dentro de tu respuesta. Luego puedes hacer coincidir cualquier objeto expandido con el objeto de la Publicación haciendo coincidir los ID ubicados tanto en la Publicación como en el objeto expandido.
+
+Te recomendamos leer más sobre estos nuevos parámetros en sus respectivas guías, o nuestra guía sobre [cómo usar fields y expansions](/es/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions).
+
+Además de los cambios en cómo solicitas ciertos campos, la API de X v2 también introduce nuevos diseños JSON para los objetos devueltos por las APIs, incluidos los objetos de [Publicación](/es/x-api/fundamentals/data-dictionary#tweet) y [usuario](/es/x-api/fundamentals/data-dictionary#user).
+
+- En el nivel raíz de JSON, los endpoints estándar devuelven objetos de Publicación en un arreglo `statuses`, mientras que la API de X v2 devuelve un arreglo `data`.
+- En lugar de referirse a “statuses” Retweeted y Quoted, el JSON de la API de X v2 se refiere a Tweets Retweeted y Quoted. Muchos campos heredados y en desuso, como `contributors` y `user.translator_type`, se están eliminando.
+- En lugar de usar tanto `favorites` (en el objeto de Publicación) como `favourites` (en el objeto de usuario), la API de X v2 usa el término like.
+- X adopta la convención de no escribir en el payload los valores JSON sin contenido (por ejemplo, `null`). Los atributos de Publicación y usuario solo se incluyen si tienen valores no nulos.
+   
+
+También introdujimos un nuevo conjunto de campos en el objeto de la Publicación, entre ellos:
+
+- Un campo [conversation\_id](/es/x-api/fundamentals/conversation-id)
+- Dos nuevos campos de [annotations](/es/x-api/fundamentals/post-annotations), incluidos context y entities
+- Varios campos nuevos de [metrics](/es/x-api/fundamentals/metrics)
+- Un nuevo campo `reply_setting`, que muestra quién puede responder a una Publicación determinada
+
+Y una última nota. La respuesta premium incluye un objeto `requestParameters` en el nivel raíz, que contiene los parámetros que incluiste en tu solicitud. La versión v2, en cambio, contiene un objeto `meta` en el nivel raíz que incluye `newest_id`, `oldest_id`, `result_count` y `next_token` si hay una página adicional de resultados.
+
+**Métodos HTTP**
+
+La versión empresarial de la API permite enviar la solicitud como un método HTTP POST con un cuerpo JSON o como un método HTTP GET con una cadena de consulta.
+
+La versión v2 solo permite usar el método HTTP GET con una cadena de consulta.
+ 
+
+**Formatos de tiempo de la solicitud**
+
+La versión empresarial de este endpoint utiliza el siguiente formato de fecha/hora tanto en los parámetros de paginación como en el campo de respuesta `timePeriod`: `YYYYMMDDHHmm`
+
+El endpoint v2 utiliza el formato de fecha/hora ISO 8601/RFC 3339 tanto en los parámetros de paginación como en los campos de respuesta `start` y `end`: `YYYY-MM-DDTHH:mm:ssZ`
+ 
+
+**Parámetros de la solicitud**
+
+A continuación se muestra una tabla de los parámetros de solicitud para Enterprise y la API de X v2:
+
+| Enterprise | Search Posts v2 |
+| :--- | :--- |
+| query | query |
+| maxResults | max\_results |
+| fromDate (YYMMDDHHmm) | start\_time (YYYY-MM-DDTHH:mm:ssZ) |
+| toDate (YYMMDDHHmm) | end\_time (YYYY-MM-DDTHH:mm:ssZ) |
+|     | since\_id |
+|     | until\_id |
+| next | next\_token or pagination\_token |
+
+**Operadores de filtrado**
+
+Si bien los operadores entre Enterprise y la API de X v2 son en su mayoría los mismos, existen algunas diferencias en la disponibilidad de operadores y se introdujeron algunos operadores nuevos únicamente en la versión de la API de X v2.
+
+Para ver una tabla completa de los operadores disponibles para la API de X v2, Enterprise e incluso Premium y Standard, visita la [página de migración de Search Posts](/es/x-api/posts/search/migrate/overview).
+
+**Próximos pasos**
+
+[Consulta nuestra guía de inicio rápido para la búsqueda de archivo completo de la API de X v2](/es/x-api/posts/search/quickstart/full-archive-search)
+
+[Revisa la referencia de la API para la búsqueda de archivo completo](/es/x-api/posts/full-archive-search)
+
+[Consulta algunos ejemplos de código para estos endpoints](https://github.com/xdevplatform/Twitter-API-v2-sample-code)

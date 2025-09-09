@@ -1,0 +1,305 @@
+---
+title: "Arricchimento dati: Enterprise"
+---
+
+<div id="introduction">
+  ## Introduzione
+</div>
+
+`Enterprise`
+
+Gli enrichment Enterprise sono metadati aggiuntivi inclusi nel payload di risposta di alcune API dei dati. Sono disponibili esclusivamente con piani in abbonamento a pagamento.
+
+La tabella seguente offre una breve descrizione di ciascun enrichment:
+
+| Enrichment: | Descrizione: |
+| :--- | :--- |
+| URL espansi e migliorati | Espande automaticamente gli URL abbreviati (es. bitly) inclusi nel corpo di un Post e fornisce i metadati HTML Title e Description dalla pagina di destinazione. |
+| Oggetto delle regole corrispondenti | Indica quale o quali regole hanno fatto match con i Post ricevuti. L’oggetto restituisce il tag della regola e l’ID della regola nell’oggetto di risposta. |
+| Metadati del sondaggio | Indica la presenza di un sondaggio in un Post, include l’elenco delle opzioni del sondaggio e riporta sia la durata del sondaggio sia l’orario di scadenza. |
+| Geolocalizzazione del profilo | Dati derivati dalla posizione del profilo utente, incluse le coordinate \[longitudine, latitudine] (ove possibile) e i metadati relativi al luogo. |
+
+<div id="expanded-and-enhanced-urls">
+  ### URL espanse e potenziate
+</div>
+
+L’arricchimento delle URL espanse e potenziate espande automaticamente le URL abbreviate incluse nel corpo di un Post e include l’URL risultante come metadato nel payload. Inoltre, questo arricchimento fornisce anche i metadati della pagina HTML dai campi `title` e `description` della pagina di destinazione.
+
+**Dettagli importanti:**
+
+- Per risolvere un link abbreviato, il nostro sistema invia richieste HTTP HEAD all’URL fornito e segue eventuali redirect fino a raggiungere l’URL finale. Questo URL finale (NON il contenuto della pagina) viene quindi incluso nel payload di risposta.
+
+- L’arricchimento delle URL aggiunge tra 5 e 10 secondi di latenza ai flussi in tempo reale
+
+- Per le richieste effettuate all’API Ricerca dell’archivio completo, i dati di arricchimento delle URL espanse sono disponibili solo per Post di 13 mesi o più recenti.
+
+- L’arricchimento delle URL non è disponibile per i link ai Post (inclusi i post citati), i link ai Moments e i link ai profili inclusi in un Post. 
+   
+
+<div id="post-payload">
+  #### Payload del post
+</div>
+
+L’arricchimento Expanded ed Enhanced delle URL è disponibile all’interno dell’oggetto `entities` del payload del post, in particolare in `entities.urls.unwound`. Fornisce i seguenti campi di metadati:
+
+- URL espansa - `unwound.url`
+- Stato HTTP dell’espansione - `unwound.status`
+- Titolo HTML dell’URL espansa - limite 300 caratteri - `unwound.title`
+- Descrizione HTML dell’URL espansa - limite 1000 caratteri - `unwound.description`
+
+**Questo è un esempio di un [oggetto entities](/it/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#x-entities) con l’arricchimento URL:**
+
+```
+"entities": {
+    "hashtags": [
+
+    ],
+    "urls": [
+      {
+        "url": "https:\/\/t.co\/HkTkwFq8UT",
+        "expanded_url": "http:\/\/bit.ly\/2wYTb9y",
+        "display_url": "bit.ly\/2wYTb9y",
+        "unwound": {
+          "url": "https:\/\/www.forbes.com\/sites\/laurencebradford\/2016\/12\/08\/11-websites-to-learn-to-code-for-free-in-2017\/",
+          "status": 200,
+          "title": "11 Websites To Learn To Code For Free In 2017",
+          "description": "It\u2019s totally possible to learn to code for free...but what are the best resources to achieve that? Here are 11 websites where you can get started."
+        },
+        "indices": [
+          10,
+          33
+        ]
+      }
+    ],
+    "user_mentions": [
+
+    ],
+    "symbols": [
+
+    ]
+  },
+```
+
+**Questo è un esempio di un oggetto entities contenente un link del post non arricchito:**
+
+```
+"entities": {
+  "urls": [{
+    "url": "https://t.co/SywNbZdDmb",
+    "expanded_url": "https://x.com/XDevelopers/status/1050118621198921728",
+    "display_url": "x.com/XDevelopers/s…",
+     "indices": [
+        142,
+        165
+     ]
+   }
+  ]
+}
+```
+
+<div id="filtering-operators">
+  #### Operatori di filtraggio
+</div>
+
+I seguenti operatori filtrano e forniscono una corrispondenza tokenizzata sui campi correlati dei metadati dell’URL:
+
+**url:**
+
+- Esempio: “url:tennis”
+- Corrispondenza tokenizzata su qualsiasi URL espanso che includa la parola “tennis”
+- Può anche essere usato come filtro per includere o escludere link da un sito web specifico, ad esempio “url:npr.org”
+
+**url\_title:**
+
+- Esempio: “url\_title:tennis”
+- Corrispondenza tokenizzata su qualsiasi titolo HTML dell’URL espanso che includa la parola “tennis”
+- Corrisponde ai dati del titolo HTML inclusi nel payload, limitati a 300 caratteri.
+
+**url\_description:**
+
+- Esempio: “url\_description:tennis”
+- Corrispondenza tokenizzata su qualsiasi descrizione HTML dell’URL espanso che includa la parola “tennis”
+- Corrisponde alla descrizione HTML inclusa nel payload, limitata a 1000 caratteri.
+   
+
+<div id="http-status-codes">
+  #### Codici di stato HTTP
+</div>
+
+L’arricchimento degli URL espansi fornisce anche il codice di stato HTTP per l’URL finale che stiamo tentando di risolvere. Nei casi normali, sarà 200. Altri valori della serie 400 indicano problemi nella risoluzione dell’URL.
+
+Possono essere restituiti vari codici di stato quando si tenta di risolvere un URL. Durante il processo di risoluzione, se riceviamo un reindirizzamento, lo seguiremo indefinitamente finché non:
+
+- Raggiungiamo un codice della serie 200 (successo)
+- Raggiungiamo un codice di una serie diversa dai reindirizzamenti (errore)
+- Si verifica un timeout perché l’URL finale non può essere risolto in un tempo ragionevole (restituisce 408 - timeout)
+- Si verifica un’eccezione di qualche tipo
+   
+
+Se si verifica un’eccezione, utilizziamo la seguente mappatura tra cause e codici di stato restituiti:
+
+| Motivo | Codice di stato restituito |
+| :--- | :--- |
+| Eccezioni SSL | 403 (Forbidden) |
+| Risoluzione non consentita dall’URL | 405 |
+| Timeout del socket | 408 (Timeout) |
+| Eccezione host sconosciuto | 404 (Not Found) |
+| Operazione non supportata | 404 (Not Found) |
+| Eccezione di connessione | 404 (Not Found) |
+| Argomento non valido | 400 (Bad Request) |
+| Tutto il resto | 400 (Bad Request) |
+
+<div id="matching-rules">
+  ### Regole di corrispondenza
+</div>
+
+L’arricchimento delle regole di corrispondenza è un oggetto di metadati che indica quale o quali regole hanno fatto corrispondenza con i Post ricevuti. È utilizzato più frequentemente con il flusso PowerTrack.
+
+La corrispondenza avviene tramite una verifica di corrispondenza esatta dei termini contenuti in una regola, analizzando il contenuto dell’attività con e senza punteggiatura. La corrispondenza non fa distinzione tra maiuscole e minuscole. Quando il contenuto contiene tutti i termini definiti nella regola, a livello radice sarà presente un oggetto matching\_rules che indica la/le regola/e che hanno determinato la corrispondenza.
+
+**PowerTrack**
+
+I Post recapitati tramite PowerTrack (in tempo reale, Replay e storico) conterranno l’oggetto matching\_rules come segue:
+
+```
+"matching_rules": [{
+        "tag": null,
+        "id": 907728589029646336,
+        "id_str": "907728589029646336"
+    }]
+```
+
+In PowerTrack, l’oggetto `matching_rules` riflette tutte le regole che hanno corrisposto al risultato in questione. In altre parole, se più di una regola corrisponde a un determinato Post, questo verrà recapitato una sola volta, ma l’elemento `matching_rules` conterrà tutte le regole che hanno fatto corrispondenza.
+
+<div id="poll-metadata">
+  ### Metadati del sondaggio
+</div>
+
+I metadati del sondaggio sono un arricchimento gratuito disponibile in tutti i prodotti (API in tempo reale e storiche) nei payload arricchiti in formato nativo. I metadati segnalano la presenza di un sondaggio in un Post, includono l’elenco delle opzioni e riportano sia la durata del sondaggio sia l’orario di scadenza. Questo arricchimento semplifica il rilevamento della presenza di un sondaggio e consente il rendering corretto di un Post con sondaggio per la visualizzazione.
+
+<div id="important-details">
+  ##### Dettagli importanti:
+</div>
+
+- Disponibile in tutte le API Enterprise (PowerTrack, Replay, Search, Historical PowerTrack)
+  - _Nota:_ per Replay e Historical PowerTrack, questi metadati sono stati resi disponibili per la prima volta il 22/02/2017.
+- Non include informazioni sui voti né risultati dei sondaggi
+- Al momento non supporta filtri/operatori
+- Disponibile solo in **formato nativo arricchito**
+  - Il formato nativo arricchito è un’impostazione controllata dall’utente che può essere modificata in qualsiasi momento tramite la Console: _Select a Product (PowerTrack, Replay, Search) > Settings tab > Output Format (Leave data in its original format)_
+
+<div id="post-payload">
+  #### Payload del post
+</div>
+
+Il post con sondaggio conterrà i seguenti metadati nell’oggetto “entities.polls” del payload:
+
+- Un array “options” con fino a quattro opzioni che includono la posizione (1-4) e il testo dell’opzione
+- Data di scadenza del sondaggio
+- Durata del sondaggio
+
+Consulta il payload di esempio riportato di seguito per ulteriori dettagli.
+
+<div id="sample-payload">
+  #### Payload di esempio
+</div>
+
+Di seguito è riportato un frammento del payload nel formato nativo arricchito che evidenzia i metadati del sondaggio aggiunti:
+
+```json
+"entities":{
+          "hashtags":[],
+          "urls":[],
+          "user_mentions":[],
+          "symbols":[],
+          "polls":[
+             {
+                "options":[
+                   {
+                      "position":1,
+                      "text":"The better answer"
+                   },
+                   {
+                      "position":2,
+                      "text":"The best answer"
+                   }
+                ],
+                "end_datetime":"Sat Feb 04 15:33:11 +0000 2017",
+                "duration_minutes":1440
+             }
+          ]
+       },
+```
+
+<div id="profile-geo">
+  ### Geo del profilo
+</div>
+
+<div id="introduction">
+  #### Introduzione
+</div>
+
+Molti profili utente su X includono informazioni pubbliche sulla posizione fornite dall’utente. Questi dati sono restituiti come una normale stringa in user.location (vedere [Dizionario dei dati dell’oggetto User](/it/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)). Il Profile Geo Enrichment aggiunge geodati strutturati pertinenti al valore di user.location, geocodificando e normalizzando le stringhe di posizione quando possibile. Sia le coordinate di latitudine/longitudine sia i metadati dei luoghi correlati vengono aggiunti a user.derived.locations _solo_ quando inclusi come parte del payload del Post nei prodotti API enterprise. Questi dati sono disponibili quando si utilizza [il formato nativo arricchito](/it/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) e possono essere filtrati con una combinazione di [regole PowerTrack](/it/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators).
+
+<Note>
+  **Nota:** Alcuni dei geodati di supporto utilizzati per creare il Profile Geo Enrichment provengono da GeoNames.org e sono utilizzati da X ai sensi della [licenza Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/us/legalcode).
+</Note>
+
+I dati di Profile Geo saranno inclusi nelle API PowerTrack, Replay, Volume Stream, Search e Historical PowerTrack di X.
+
+<div id="profile-geo-data">
+  #### Dati geografici del profilo
+</div>
+
+| Nome del campo nativo arricchito | Valore di esempio | Descrizione |
+| :--- | :--- | :--- |
+| user.derived.locations.country | United States | Il Paese di provenienza dell’utente che ha creato il Post. |
+| user.derived.locations.country\_code | US  | Un codice Paese ISO-3166 a due lettere che corrisponde al Paese di provenienza dell’utente che ha creato il Post. |
+| user.derived.locations.locality | Birmingham | La località (in genere la città) di provenienza dell’utente che ha creato il Post. |
+| user.derived.locations.region | Alabama | La regione (in genere stato/provincia) di provenienza dell’utente che ha creato il Post. |
+| user.derived.locations.sub\_region | Jefferson County | La sottoregione (in genere la contea) di provenienza dell’utente che ha creato il Post. |
+| user.derived.locations.full\_name | Birmingham, Alabama, United States | Il nome completo (esclusa la sottoregione) del luogo di provenienza dell’utente che ha creato il Post. |
+| User.derived.locations.geo | Vedi sotto | Un array che include un valore lat/long per una coordinata che corrisponde alla posizione con la granularità più fine del luogo di provenienza dell’utente che ha creato il Post. |
+
+Le API Historical PowerTrack, Search e PowerTrack supportano il filtraggio basato sui dati geografici del profilo. Consultare la documentazione del prodotto pertinente per maggiori dettagli sugli operatori disponibili per il filtraggio dei dati geografici del profilo.
+
+<div id="sample-payload">
+  #### Payload di esempio
+</div>
+
+```
+{
+    "user": {
+        "derived": {
+            "locations": \[
+                {
+                    "country": "United States",
+                    "country_code": "US",
+                    "locality": "Birmingham",
+                    "region": "Alabama",
+                    "sub_region": "Jefferson County",
+                    "full_name": "Birmingham, Alabama, United States",
+                    "geo": {
+                        "coordinates": \[
+                            -86.80249,
+                            33.52066
+                        \],
+                        "type": "point"
+                    }
+                }
+            \]
+        }
+    }
+}
+```
+
+<div id="limitations">
+  #### Limitazioni
+</div>
+
+- L’arricchimento Profile Geo cerca di determinare la scelta migliore per il luogo geografico descritto nella stringa della posizione del profilo. Il risultato potrebbe non essere accurato in tutti i casi a causa di fattori come la presenza di più luoghi con nomi simili o nomi ambigui.
+- Se nel campo posizione del profilo dell’utente (actor.location) non è presente un valore, non tenteremo di effettuare una classificazione.
+- Livello di precisione: se un arricchimento Profile Geo può essere determinato con sufficiente certezza solo a livello di paese o regione, le geografie di livello inferiore come subRegion e locality saranno omesse dal payload.
+- L’arricchimento Profile Geo fornisce coordinate lat/long (un singolo punto) che corrispondono al livello di precisione dei risultati dell’arricchimento. Queste coordinate rappresentano il centro geografico del luogo risultante dall’arricchimento. Ad esempio, se il livello di precisione è quello di Paese, tali coordinate saranno impostate sul centro geografico di quel Paese.
+- Gli operatori PowerTrack forniti per le proprietà dell’indirizzo (locality/region/country/country code) sono intenzionalmente granulari per consentire molte combinazioni di regole. Quando si tenta di indirizzare una località specifica che condivide un nome con un’altra, considera di combinare le regole di indirizzo. Ad esempio, quanto segue eviterebbe corrispondenze per “San Francisco, Philippines”: profile\_locality:"San Francisco" profile\_region:California. Quando si creano regole che indirizzano singoli campi Profile Geo, tieni presente che ogni livello aggiuntivo di granularità limiterà i risultati visualizzati. In alcuni casi, quando si tenta di analizzare dati provenienti da una città, potresti voler affidarti solo a una regola di regione in cui la regione presenta una sovrapposizione significativa con la città; ad es., la città di Zurigo, Svizzera, può essere efficacemente indirizzata insieme alle aree circostanti con profile\_region:"Zurich".
+- Uso con Post con geolocalizzazione nativa: l’arricchimento Profile Geo fornisce un tipo alternativo di geografia per un Post, diverso dal valore di geolocalizzazione nativo nel payload. Questi due tipi di geografia possono essere combinati per acquisire tutti i possibili post relativi a un’area specifica (in base ai geodati disponibili), sebbene non siano concettualmente equivalenti.

@@ -1,0 +1,450 @@
+---
+title: 合规 Firehose API
+---
+
+> **请注意**
+>
+> 我们在 X API v2 中推出了一款新的合规工具：[批量合规](/zh/x-api/compliance/batch-compliance)。该工具允许你上传包含大量帖子或用户 ID 的数据集，以获取其合规状态，从而确定哪些数据需要处理，以使你的数据集符合合规要求。
+
+> 此外，“批量合规”和“合规 Firehose”均已更新以支持帖子编辑。针对合规 Firehose，新增了“tweet\_edit”事件。更多详情请参阅[合规数据对象](/zh/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects)文档。要了解编辑帖子的元数据如何运作，请查看[编辑帖子基础](/zh/x-api/fundamentals/edit-posts)页面。
+
+<div id="overview">
+  ## 概览
+</div>
+
+`Enterprise`
+
+X 的核心价值之一是捍卫并尊重用户的声音。这包括在用户删除、修改或编辑其在 X 上选择分享的内容时，尊重其期望与意图。我们相信，这对于全球最大的公共、实时信息平台之一的长期健康至关重要。X 将控制权交到用户手中，使每位用户能够掌控自己的 X 使用体验。我们认为，接收 X 数据的企业用户有责任尊重终端用户的期望与意图。
+
+有关 X 平台上可能发生的各类合规事件的更多信息，请参阅我们的文章：[在 X 上尊重用户意图](/zh/x-api/enterprise-gnip-2.0/fundamentals/firehouse#honoring-user-intent-on-twitter)。
+
+任何通过 API 使用 X 数据的开发者或公司都有义务尽一切合理努力来落实对用户内容变更的尊重。此义务涵盖用户事件，如删除、修改以及共享选项的变更（例如，内容变为受保护或被限制）。这也包括用户编辑其帖子之时。请参阅[开发者政策](https://developer.x.com/en/developer-terms/policy)和/或你的 X 数据协议中的具体条款，以了解此义务如何影响你对 X 数据的使用。
+
+X 提供以下解决方案，用于传递这些用户合规事件的信息，以及特定帖子或用户是否公开可见。下文对这些解决方案及其通用集成模式作简要概述：
+
+<div id="get-statuseslookup-and-get-userslookup">
+  #### GET statuses/lookup 和 GET users/lookup
+</div>
+
+- 格式：REST API。参见：[GET statuses/lookup](https://developer.x.com/en/docs/x-api/v1/tweets/post-and-engage/api-reference/get-statuses-lookup) 和 [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup)。
+
+- 这些端点始终返回任何帖子编辑的最新版本。编辑功能推出后创建的所有帖子，其对应的 Post 对象都会包含帖子编辑元数据，即使该帖子从未被编辑。
+
+- 对于所有帖子，在创建后超过 30 分钟发起的请求将体现该帖子的最终状态。
+
+- 根据调用方在 API 请求中的定义，返回特定帖子或用户的可用性信息。
+
+- 可用于对特定帖子/用户组当前可用性进行临时抽查。
+
+- 适合需要在某一时刻检查某个帖子或用户当前状态的客户。
+
+- 这些 API 为需要检查某条内容可用性的客户提供了有用的机制，例如：
+  1. 展示帖子
+  2. 以一对一方式与帖子或用户互动
+  3. 通过允许的文件下载将 X 内容分发给第三方
+  4. 长期存储帖子
+
+<div id="compliance-firehose-enterprise-only">
+  #### 合规 Firehose（仅限企业版）
+</div>
+
+- 格式：流式 API。参见：[Compliance Firehose](/zh/x-api/enterprise-gnip-2.0/fundamentals/firehouse#api-reference)。
+- 提供 X 上[合规活动](/zh/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects)的实时流。这些活动包括帖子被编辑的时间点。
+- 可用于在平台出现新的合规事件时，维护一组已存储数据的合规状态。
+- 适用于长期接入并存储大量 X 数据的客户。
+
+<div id="guides">
+  ## 指南
+</div>
+
+<div id="compliance-best-practices">
+  ### **合规最佳实践**
+</div>
+
+<div id="recommendations-best-practices">
+  #### **建议与最佳实践**
+</div>
+
+- **构建可存储数值型 Post ID 和 User ID 的数据存储架构**：合规事件通常要求对该用户的所有帖子采取操作。由于所有合规消息仅以数值型 ID 传递，务必设计能基于数值型 ID 维护帖子与用户关系的存储架构。数据使用方需要同时按 Post ID 和 User ID 监控合规事件，并能相应更新本地数据存储。
+
+- **构建覆盖所有合规状态的架构**：根据各类应用处理合规活动的方式，可能需要向数据存储添加其他元数据。例如，数据使用方可能会在现有数据库中添加元数据，以便在受 status\_withheld 消息影响的国家/地区限制内容展示。
+
+- **处理转发删除**：转发是一种特殊的帖子，原始消息作为嵌套对象包含在转发中。在这种情况下，转发会引用两个 Post ID——一个是转发本身的 ID，另一个是原始消息的 ID（位于嵌套对象中）。当原始消息被删除时，会针对原始 ID 发出帖子删除消息。帖子删除事件通常会触发所有转发的删除事件。然而，某些情况下可能不会全部发送，客户端系统应能容忍转发删除不完整。删除原始 ID 通常已足以删除所有后续转发。最佳实践是在存储转发时引用原始 Post ID，并在收到帖子删除事件时删除所有被引用的转发。
+
+<div id="compliance-data-objects">
+  ### 合规数据对象
+</div>
+
+<div id="compliance-firehose-api">
+  #### **合规 Firehose API**
+</div>
+
+可能的合规事件类型包括帖子（或“status”）事件和用户事件，下面描述了多种类型。 
+
+请注意：
+
+- 在[此处](https://support.x.com/articles/14016)了解更多关于用户状态的信息，关于已删除帖子的开发者政策请见[此处](https://dev.x.com/overview/terms/policy#3.Update_Respect_Users_Control_and_Privacy)。
+- 合规 Firehose 已更新，提供“tweet\_edit”事件。 
+- 若干用户删除、保护和暂停事件不一定是永久性的，可能在不同状态之间反复切换。这些包括：user\_delete、user\_undelete、user\_protect、user\_unprotect，以及 user\_suspend、user\_unsuspend。
+- 仅当用户未选择对其账户执行 user\_undelete 时，user\_delete 之后的第 30 天才会触发相应的 status\_delete。用户可能会撤销 user\_delete，因此其所有帖子的删除在 30 天后可能不会发生。
+- user\_suspend 将持续有效，除非发生 user\_unsuspend 事件。其不受任何“30 天”时间窗口的影响。
+
+请参阅“建议操作”列，了解如何处理各类事件以尊重终端用户的隐私与意图。
+
+| 原始消息类型 | 对象 | 永久（是/否） | 建议操作 |
+| :--- | :--- | :--- | :--- |
+| delete | Status | 是 | 删除关联的帖子。 |
+| status\_withheld | Status | 是 | 在 status\_withheld 消息列出的特定国家/地区屏蔽关联的帖子。 |
+| drop | Status | 否 | 将帖子从公开视图中移除。 |
+| undrop | Status | 否 | 该状态可再次显示并视为公开。 |
+| tweet\_edit | Status | 是 | 采用并在适用时展示新的编辑内容。 |
+| user\_delete | User | 否 | 屏蔽或删除关联用户的所有帖子。 |
+| user\_undelete | User | 否 | 关联用户的所有帖子可再次显示并视为公开。 |
+| user\_protect | User | 否 | 屏蔽或删除关联用户的所有帖子。 |
+| user\_unprotect | User | 否 | 关联用户的所有帖子可再次显示并视为公开。 |
+| user\_suspend | User | 否 | 屏蔽或删除关联用户的所有帖子。 |
+| user\_unsuspend | User | 否 | 关联用户的所有帖子可再次显示并视为公开。 |
+| scrub\_geo | User | 是 | 删除 X 为该用户在 scrub\_geo 消息中指定帖子之前发布的所有帖子所提供的全部地理数据。请注意，用户后续的帖子可能包含可使用的地理数据。 |
+| user\_withheld | User | 是 | 在 user\_withheld 消息列出的特定国家/地区屏蔽关联用户的帖子。 |
+| delete | Favorite | 是 | 删除关联的点赞/收藏。 |
+
+<div id="payload-examples">
+  #### **有效负载示例**
+</div>
+
+请参见下方上表所述各项合规事件的有效负载示例。
+
+**帖子编辑**
+
+```json
+{"tweet_edit":
+   {
+     "id": "1557445923210514432"
+     "initial_tweet_id": "1557433858676740098",
+     "edit_tweet_ids": ["1557433858676740098", "1557445923210514432"],
+     "timestamp_ms": "1660155761384"
+   }
+ }
+```
+
+<div id="post-delete">
+  ##### 删除帖子事件
+</div>
+
+```json
+{
+  "delete": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220608",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="post-withheld">
+  ##### 帖子被限制显示
+</div>
+
+```json
+{
+  "status_withheld": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220608",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "withheld_in_countries": [
+      "XY"
+    ],
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="drop">
+  ##### 丢弃
+</div>
+
+```json
+{
+  "drop": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220600",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="undrop">
+  ##### 取消丢弃
+</div>
+
+```json
+{
+  "undrop": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220600",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="scrub-geo">
+  #### 擦除地理信息
+</div>
+
+```json
+{
+  "scrub_geo": {
+    "user_id": 519761961,
+    "up_to_status_id": 411552403083628540,
+    "up_to_status_id_str": "411552403083628544",
+    "user_id_str": "519761961",
+    "timestamp_ms": "1432228180345"
+  }
+}
+```
+
+<div id="user-delete">
+  ##### 用户删除事件
+</div>
+
+```json
+{
+  "user_delete": {
+    "id": 771136850,
+    "timestamp_ms": "1432228153548"
+  }
+}
+```
+
+<div id="user-undelete">
+  ##### 用户撤销删除
+</div>
+
+```json
+{
+  "user_undelete": {
+    "id": 796250066,
+    "timestamp_ms": "1432228149062"
+  }
+}
+```
+
+<div id="user-withheld">
+  ##### 用户受限展示
+</div>
+
+```json
+{
+  "user_withheld": {
+    "user": {
+      "id": 1375036644,
+      "id_str": "1375036644"
+    },
+    "withheld_in_countries": [
+      "XY"
+    ],
+    "timestampMs": "2014-08-27T23:49:41.839+00:00"
+  }
+}
+```
+
+<div id="user-protect">
+  ##### 用户保护
+</div>
+
+```json
+{
+  "user_protect": {
+    "id": 3182003550,
+    "timestamp_ms": "1432228177137"
+  }
+}
+```
+
+<div id="user-unprotect">
+  ##### 取消保护用户
+</div>
+
+```json
+{
+  "user_unprotect": {
+    "id": 2911076065,
+    "timestamp_ms": "1432228180113"
+  }
+}
+```
+
+<div id="user-suspend">
+  ##### 用户账号暂停
+</div>
+
+```json
+{
+  "user_suspend": {
+    "id": 3120539094,
+    "timestamp_ms": "1432228194217"
+  }
+}
+```
+
+<div id="user-unsuspend">
+  ##### 解除用户账号停用
+</div>
+
+```json
+{
+  "user_unsuspend": {
+    "id": 3293130873,
+    "timestamp_ms": "1432228193828"
+  }
+}
+```
+
+<div id="integrating-compliance-firehose">
+  ### 集成 Compliance Firehose
+</div>
+
+Compliance Firehose 是一套实时流式 API，用于投递在 X 平台上发生的合规事件。若需了解合规事件的类型以及它们在 X 上的生成机制，请参阅我们的文章 [在 X 上尊重用户意愿](/zh/x-api/enterprise-gnip-2.0/fundamentals/firehouse#honoring-user-intent-on-twitter)。
+
+请注意，Post 和 User 事件是分别投递的，且应独立处理（即，Post 删除并不意味着会有 User 事件，反之亦然）。部分 User 事件并非永久生效，可能在不同状态之间反复切换。这些事件包括：user\_delete、user\_undelete、user\_protect、user\_unprotect、user\_suspend、user\_unsuspend。
+
+仅当用户未选择对其账户执行 user\_undelete 时，user\_delete 发生后 30 天才会触发 status\_deletes。用户可能撤销一次 user\_delete，从而使其所有 Post 在 30 天后的删除不会发生。
+
+user\_suspend 是一种状态，除非发生 user\_unsuspend 事件，否则始终保持不变。它们不受任何 30 天期限规则的影响。
+
+绝不可将合规事件直接展示给你的软件用户，或以其他方式将其并入你的产品或用户体验中。这些事件仅用于维护合规性并尊重 X 用户的操作。
+
+<div id="integrating-with-the-compliance-firehose">
+  #### **与 Compliance Firehose 集成**
+</div>
+
+要将 Compliance Firehose 集成到你的系统中，你需要构建一套集成以完成以下工作：
+
+1. 为 Compliance Firehose 的每个流式 API 分区建立流式连接
+2. 处理高数据量——使用异步流程将流式摄取与后续处理解耦
+3. 在因任何原因断开连接时，自动重新连接到各流分区
+4. 按照上述指南处理与你已存储的帖子和用户数据相关的合规事件
+
+<div id="honoring-user-intent-on-twitter">
+  ### 尊重 Twitter 上的用户意图
+</div>
+
+我们认为，尊重 X 用户的隐私与意图，对这一全球最大规模的公共实时信息平台之一的长期健康至关重要。X 将隐私控制权交到用户手中，使个人能够掌控自己的 X 使用体验。作为 X 数据的商业使用者，我们共同有责任尊重终端用户的隐私与行为，从而维系这种信任与尊重的环境。
+
+平台上帖子和用户账户可能发生的各种变化都会影响其展示方式。影响隐私与意图的操作在状态（帖子）层级和用户层级上均有定义。这些操作包括：
+
+<div id="user">
+  #### 用户
+</div>
+
+| 操作 | 说明 |
+| :--- | :--- |
+| 保护账号 | X 用户可随时将其账号设置为受保护或取消保护。受保护账号要求用户逐一手动批准每位被允许查看其帖子的人。<br />更多信息，参见[关于公开与受保护的帖子](https://support.x.com/articles/14016-about-public-and-protected-tweets)。 |
+| 删除账号 | X 用户可随时决定删除其账号及所有相关状态消息。X 会在删除后保留账号信息 30 天，以防用户选择撤销删除并重新激活其账号。 |
+| 清除位置信息 | X 用户可随时从过去的帖子中移除所有位置信息，此操作称为“scrub geo”（清除位置信息）。 |
+| 暂停账号 | X 保留暂停违反 X 规则或被怀疑遭到入侵或被攻破的账号的权利。账号暂停仅可由 X 撤销（解除暂停）。 |
+| 局部限制账号 | X 保留不时在特定国家/地区对某些内容实施被动性地域限制的权利。被限制的账号仅可由 X 取消限制。<br />更多信息，参见[按国家/地区限制的内容](https://support.x.com/articles/20169222-country-withheld-content)。 |
+
+<div id="status">
+  #### 状态
+</div>
+
+| 操作 | 描述 |
+| :--- | :--- |
+| 删除状态 | X 用户可以随时删除状态。已删除的状态无法恢复，并会被永久移除。 |
+| 屏蔽状态 | X 保留按需在特定国家/地区屏蔽访问某些内容的权利。被屏蔽的状态只能由 X 取消屏蔽。   <br />更多信息，请参见 [按国家/地区屏蔽的内容](https://support.x.com/articles/20169222-country-withheld-content)。 |
+
+<div id="keeping-track-of-user-and-status-changes">
+  #### 跟踪用户与状态变更
+</div>
+
+由于上述任一操作，用户或状态的状态可能在任何时间发生变化，这会影响 X 数据使用方应如何处理所有关联内容的可用性与隐私。当这些操作发生时，会发送相应的合规消息，表明某个用户或状态的状态已发生变化。
+
+<div id="api-reference">
+  ## API 参考
+</div>
+
+<div id="get-compliancefirehose">
+  ### **GET compliance/firehose**
+</div>
+
+<div id="methods">
+  #### 方法
+</div>
+
+| 方法 | 说明 |
+| :--- | :--- |
+| [GET /compliance/:stream](#Connect) | 连接到数据流 |
+
+<div id="authentication">
+  #### 身份验证
+</div>
+
+对 Compliance Firehose API 的所有请求都必须使用 HTTP 基本身份验证。该认证使用您在 console.gnip.com 登录账户时的有效电子邮件地址与密码组合构建。每个请求都必须在 Authorization 标头中携带凭证。
+
+<div id="get-compliancestream">
+  #### GET /compliance/:stream
+</div>
+
+建立到合规 firehose 数据流的持久连接，合规事件将通过该连接传递。
+
+|     |     |
+| :--- | :--- |
+| **请求方法** | HTTP GET |
+| **连接类型** | Keep-Alive |
+| **URL** | 可在仪表板中该流的 API 帮助页面找到，结构类似如下：  <br />  <br /><br />[https://gnip-stream.x.com/stream/compliance/accounts/:account\_name/publishers/twitter/:stream\_label.json?partition=1](https://gnip-stream.x.com/stream/compliance/accounts/:account_name/publishers/twitter/:stream_label.json?partition=1)<br /><br />**注意：** 必须包含“partition”参数。你需要连接所有 8 个分区，每个分区包含总量的 12.5%，才能消费完整的数据流。 |
+| **压缩** | Gzip。要使用 Gzip 压缩连接到该流，只需在连接请求中发送 Accept-Encoding 头。该头应如下所示：  <br />  <br />Accept-Encoding: gzip |
+| **字符编码** | UTF-8 |
+| **响应格式** | JSON。你的请求头应指定响应为 JSON 格式。 |
+| **速率限制** | 每 60 秒 10 个请求。 |
+| **读取超时** | 在你的客户端上设置读取超时，并确保其值大于 30 秒。 |
+| **对推文编辑的支持** | 所有推文编辑都会触发“tweet\_edit”合规事件。详见[Compliance Data Objects](/zh/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects)文档。 |
+
+**示例 Curl 请求**
+
+以下示例请求通过命令行中的 cURL 完成：
+
+```bash
+curl --compressed -v -uexample@customer.com "https://gnip-stream.x.com/stream/compliance/accounts/:account_name/publishers/twitter/:stream_label.json?partition=1"
+```
+
+_注意：_ 上述请求仅连接到合规 firehose 的 `partition=1` —— 你需要连接所有 8 个分区才能消费该数据流的全部内容。
+
+<div id="response-codes">
+  #### 响应代码
+</div>
+
+API 可能会对这些请求返回以下响应。大多数错误代码会在响应正文中附带一条包含更多详细信息的字符串。对于非 200 的响应，客户端应尝试重新连接。
+
+| 状态 | 文本 | 定义 |
+| :--- | :--- | :--- |
+| 200 | 成功 | 连接已成功建立，新的活动将在到达时通过该连接发送。 |
+| 401 | 未授权 | 由于凭据无效导致 HTTP 身份验证失败。请使用你的凭据登录 console.gnip.com，确保在请求中正确使用这些凭据。 |
+| 406 | 不可接受 | 通常在客户端未正确包含用于从流中接受 gzip 编码的请求头时发生，但也可能在其他情况下出现。响应将包含类似于“This connection requires compression. To enable compression, send an ‘Accept-Encoding: gzip’ header in your request and be ready to uncompress the stream as it is read on the client end.”的 JSON 消息。 |
+| 429 | 速率受限 | 你的应用已超出连接请求的限制。 |
+| 503 | 服务不可用 | Twitter 服务器出现问题。请使用指数退避策略重新连接。若 [X API 状态页面](https://api.twitterstat.us/) 上未发布有关此问题的通知，请联系支持。 |
+
+<div id="other-recommendations-best-practices">
+  #### 其他建议与最佳实践
+</div>
+
+- **构建可存储数值型 Tweet ID 与 User ID 的数据存储架构**：用户合规消息要求对该用户的所有推文采取相应操作。由于所有合规消息仅通过数值型 ID 传递，务必设计存储架构，基于数值型 ID 维护推文与用户之间的关联。数据使用方需要同时按 Tweet ID 和 User ID 监控合规事件，并能够相应地更新本地数据存储。
+
+- **构建涵盖所有合规状态的架构**：根据各应用处理合规活动的方式，可能需要向数据存储添加其他元数据。例如，数据使用方可能会在现有数据库中添加元数据，以便在受 status\_withheld 消息影响的国家/地区限制内容展示。
+
+- **处理转推删除**：转推是一种特殊推文，其中原始消息作为对象嵌套在转推内。在这种情况下，转推中会引用两个 Tweet ID：一个是转推的 ID，另一个是原始消息的 ID（包含在嵌套对象中）。当原始消息被删除时，会针对原始 ID 发出推文删除消息；随后不会针对所有转推逐一发出删除消息。删除原始 ID 即可删除所有后续的转推。

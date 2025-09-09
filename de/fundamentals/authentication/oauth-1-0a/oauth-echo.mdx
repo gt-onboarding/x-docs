@@ -1,0 +1,47 @@
+---
+title: OAuth Echo
+sidebarTitle: OAuth Echo
+---
+
+import { Button } from "/snippets/de/button.mdx";
+
+
+<div id="oauth-echo">
+  ### OAuth Echo
+</div>
+
+OAuth Echo ist ein Verfahren, um die OAuth-Autorisierung bei der Interaktion mit einer API sicher an eine Drittpartei zu delegieren.
+
+An dieser Interaktion sind vier Parteien beteiligt:
+
+* **der Benutzer**, der X über eine bestimmte, autorisierte X-Anwendung nutzt
+* **der Consumer**, also die X-Anwendung, die versucht, mit dem Medienanbieter eines Drittanbieters zu interagieren (z. B. der Foto-Sharing-Seite)
+* **der Delegator**, also der Medienanbieter eines Drittanbieters
+* **der Service Provider**, alias X selbst
+     
+
+Im Wesentlichen bereiten Sie eine Anfrage für den Delegator vor, die dieser im Namen einer Anwendung und eines Benutzers an die X-API sendet. Fügen Sie die ansonsten signierte OAuth-Anfrage in einen HTTP-Header ein und bitten Sie den Delegator, diese Anfrage an X zu senden, nachdem der Zwischenschritt abgeschlossen ist.
+
+Hier ein Beispiel: Der Benutzer möchte ein Foto hochladen. Der Consumer ruft beim Delegator per POST den Upload auf. Der POST sollte das Bild enthalten, aber er sollte auch zwei zusätzliche Elemente als HTTP-Header enthalten:
+
+* `x-auth-service-provider` — dies ist der Zielbereich, an den die Identitätsdelegation gesendet werden soll — im Fall von X setzen Sie dies auf https://api.x.com/1.1/account/verify_credentials.json. iOS5-basierte X-Integrationen fügen dieser URL einen zusätzlichen application_id-Parameter hinzu, der ebenfalls zur Berechnung der oauth_signature verwendet wird, die in x-verify-credentials-authorization genutzt wird.
+* `x-verify-credentials-authorization` — Der Consumer sollte alle erforderlichen OAuth-Parameter erstellen, sodass er https://api.x.com/1.1/account/verify_credentials.json unter Verwendung von OAuth im HTTP-Header aufrufen könnte (z. B. sollte es aussehen wie OAuth oauth_consumer_key="...", oauth_token="...", oauth_signature_method="...", oauth_signature="...", oauth_timestamp="...", oauth_nonce="...", oauth_version="...").
+     
+
+Beachten Sie, dass die gesamte Transaktion innerhalb eines Zeitfensters stattfinden muss, in dem der `oauth_timestamp` noch gültig ist.
+
+Alternativ können diese beiden Parameter anstelle der Übermittlung im Header im POST als x_auth_service_provider und x_verify_credentials_authorization gesendet werden — denken Sie in diesem Fall daran, die Parameter in die Basiszeichenkette der OAuth-Signatur zu escapen und einzubeziehen — ähnlich wie beim Encoden von Parametern in jeder Anfrage. Es ist am besten, HTTP-Header zu verwenden, um die Vorgänge so weit wie möglich zu trennen.
+
+Das Ziel des Delegators besteht an diesem Punkt darin, zu überprüfen, dass der Benutzer tatsächlich die Person ist, für die er sich ausgibt, bevor die Medien gespeichert werden. Sobald der Delegator alle oben genannten Daten über seine Upload-Methode erhalten hat, sollte er das Bild vorübergehend speichern und dann einen Aufruf an den im x-auth-service-provider-Header angegebenen Endpunkt konstruieren — in diesem Fall https://api.x.com/1.1/account/verify_credentials.json — unter Verwendung desselben OAuth-Authentifizierungs-Headers, der vom Consumer im Header x-verify-credentials-authorization bereitgestellt wurde.
+ 
+
+<div id="oauth-echo-best-practices">
+  #### Best Practices für OAuth Echo
+</div>
+
+Verwenden Sie die in `x-auth-service-provider` angegebene URL für das Lookup, nicht einen hart codierten Wert. Apple iOS fügt beispielsweise allen OAuth-Anfragen einen zusätzlichen Parameter application_id hinzu, und dessen Vorhandensein sollte in jeder Phase von OAuth Echo erhalten bleiben.
+
+Für den OAuth-Autorisierungsteil nehmen Sie den Header-Wert in `x-verify-credentials-authorization` und setzen ihn als eigenen Authorization-Header für den Aufruf an den Service Provider. Überprüfen Sie der Vollständigkeit halber, dass der Wert in `x-auth-service-provider` korrekt ist.
+
+* Wenn der Service Provider einen HTTP 200 zurückgibt, ist alles in Ordnung. Der Delegator sollte das Bild dauerhaft speichern, eine URL generieren und sie zurückgeben.
+* Wenn der Service Provider keinen HTTP 200 zurückgibt, verwerfen Sie das Bild und geben anschließend einen Fehler an den Consumer zurück.

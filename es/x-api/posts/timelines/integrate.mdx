@@ -1,0 +1,159 @@
+---
+title: Guía de integración
+sidebarTitle: Guía de integración
+---
+
+<div id="how-to-integrate-with-the-timelines-endpoints">
+  ## Cómo integrar los endpoints de Timelines
+</div>
+
+Esta página contiene información sobre varias herramientas y conceptos clave que debe conocer al integrar los endpoints de Timelines en su sistema. Hemos dividido la página en las siguientes secciones:
+
+- [Herramientas útiles](#helpful-tools)
+- Conceptos clave
+  - [Autenticación](#authentication)
+  - [Portal para desarrolladores, Proyectos y Apps](#portal)
+  - [Límites de solicitudes](#rate-limits)
+  - [Campos y expansiones](#fields)
+  - [Métricas de publicaciones](/es/x-api/posts/timelines#timelines-integration-guide)
+  - [Paginación](#pagination)
+  - [Filtrado de resultados](#filtering)
+  - [Límites de tuits (límite de publicaciones) y volumen de publicaciones devueltas](#caps)
+  - [Edición de publicaciones](#edits)
+  - [Casos límite](#edge)[](#edge)
+
+<div id="helpful-tools">
+  ### Herramientas útiles
+</div>
+
+Antes de explorar algunos conceptos clave, recomendamos utilizar una de las siguientes herramientas o ejemplos de código para empezar a probar la funcionalidad de estos endpoints.
+
+**Ejemplos de código**
+
+¿Le interesa configurar estos endpoints con código en su lenguaje de programación preferido? Tenemos varios ejemplos de código disponibles que puede usar como punto de partida en nuestra [página de GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code).
+
+**Bibliotecas**
+
+Aproveche una de nuestras [bibliotecas de terceros de la comunidad](/es/x-api/tools-and-libraries/overview) para ayudarle a comenzar. Puede encontrar una biblioteca compatible con los endpoints de la v2 buscando la etiqueta de versión correspondiente.
+
+**Postman**
+
+Postman es una excelente herramienta para probar estos endpoints. Cada solicitud de Postman incluye todos los parámetros de ruta y de cuerpo para ayudarle a comprender rápidamente qué está disponible. Para obtener más información sobre nuestras colecciones de Postman, visite nuestra página [Uso de Postman](/es/tutorials/postman-getting-started).
+
+<div id="key-concepts">
+  ### Conceptos clave
+</div>
+
+**Autenticación**
+
+Todos los endpoints de la API de X v2 requieren que las solicitudes estén [autenticadas](/es/resources/fundamentals/authentication) con un conjunto de credenciales, también conocidas como claves y tokens. Puede usar OAuth 1.0a User Context u OAuth 2.0 Authorization Code con PKCE para autenticar solicitudes a estos endpoints. Puede usar OAuth 2.0 App-Only para la cronología de publicaciones de un usuario y la cronología de menciones de un usuario.
+
+[OAuth 1.0a User Context](/es/resources/fundamentals/authentication#oauth-1-0a-2) requiere utilizar sus API Keys, user Access Tokens y un conjunto adicional de parámetros para [crear un encabezado de autorización](https://developer-staging.x.com/resources/fundamentals/authentication/authorizing-a-request), que luego incluirá en su solicitud. Los Access Tokens deben estar asociados con el usuario en cuyo nombre realiza la solicitud. Si desea generar un conjunto de Access Tokens para otro usuario, este debe autorizar su App mediante el [flujo OAuth de 3 patas](https://developer-staging.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens).
+
+Tenga en cuenta que OAuth 1.0a puede ser complejo de usar. Si no está familiarizado con este método de autenticación, le recomendamos usar una [biblioteca](/es/x-api/tools-and-libraries/overview), una herramienta como Postman, o bien OAuth 2.0 para autenticar sus solicitudes. Si desea solicitar una publicación o métricas privadas desde estos endpoints, deberá usar OAuth 1.0a User Context u OAuth 2.0 Authorization Code con PKCE, lo que garantizará que cuente con los permisos adecuados del usuario propietario de ese contenido.
+
+[OAuth 2.0 App-Only](/es/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) solo requiere incluir un [OAuth 2.0 App Access Token](/es/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) en su solicitud. Puede generar un App Access Token directamente en una App de desarrollador, o generarlo usando el endpoint [POST oauth2/token](/es/resources/fundamentals/authentication#post-oauth2-token). Puede usarlo para la cronología de publicaciones de un usuario o la cronología de menciones de un usuario.
+
+[OAuth 2.0 Authorization Code con PKCE](/es/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3) permite un mayor control sobre el alcance (scope) de una aplicación y flujos de autorización entre múltiples dispositivos. OAuth 2.0 le permite elegir alcances de granularidad fina que le otorgan permisos específicos en nombre de un usuario.
+
+Para habilitar OAuth 2.0 en su App, debe activarlo en la configuración de autenticación de su App, ubicada en la sección de configuración de la App en el portal para desarrolladores.
+
+<Info>
+  **Tenga en cuenta**
+
+  Si solicita los siguientes [campos](/es/x-api/fundamentals/fields), se requiere OAuth 1.0a User Context u OAuth 2.0 Authorization Code:
+
+  - `tweet.fields.non_public_metrics`
+  - `tweet.fields.promoted_metrics`
+  - `tweet.fields.organic_metrics`
+  - `media.fields.non_public_metrics`
+  - `media.fields.promoted_metrics`
+  - `media.fields.organic_metrics`
+</Info>
+
+**[](/es/x-api/fundamentals/pagination)Portal para desarrolladores, Proyectos y Apps de desarrollador**
+
+Para trabajar con cualquier endpoint de la API de X v2, debe [registrarse para obtener una cuenta de desarrollador](https://developer.x.com/en/portal/petition/essential/basic-info), configurar un [Proyecto](/es/resources/fundamentals/projects) dentro de esa cuenta y crear una [App de desarrollador](/es/resources/fundamentals/developer-apps) dentro de ese Proyecto. Las claves y tokens de esa App de desarrollador funcionarán para estos endpoints de cronologías.
+
+**Límites de uso**
+
+Cada día, muchos miles de desarrolladores realizan solicitudes a la API de X. Para ayudar a gestionar el volumen, se aplican [límites de uso](/es/x-api/fundamentals/rate-limits) a cada endpoint que restringen la cantidad de solicitudes que cada desarrollador puede realizar en nombre de una app o de un usuario autenticado.
+
+Se aplican diferentes límites de uso para estos endpoints según el método de autenticación utilizado. Los límites a nivel de app aplican a una App que realiza solicitudes usando OAuth 2.0 App-Only, mientras que el límite a nivel de usuario aplica a solicitudes realizadas en nombre del usuario que autorizó, usando OAuth 1.0a User Context. Estos dos límites se basan en la frecuencia de solicitudes dentro de una ventana de 15 minutos.
+
+Por ejemplo, una app que use la autenticación OAuth 2.0 App-Only para ambos endpoints de cronologías puede hacer 1500 solicitudes (incluidas las de paginación) a la cronología de publicaciones del usuario y 450 solicitudes (incluidas las de paginación) a la cronología de menciones del usuario en un período de 15 minutos. Esa misma app, dentro del mismo período de 15 minutos, con dos usuarios autorizados diferentes (usando OAuth 1.0a en contexto de usuario) puede hacer 900 solicitudes (incluidas las de paginación) a la cronología de publicaciones del usuario y 180 solicitudes (incluidas las de paginación) a la cronología de menciones del usuario por cada usuario autenticado.
+
+La cronología de inicio en orden cronológico inverso tiene un límite por usuario de 180 solicitudes por ventana de 15 minutos. Con este endpoint puedes obtener todas las Publicaciones creadas en una cronología durante los últimos 7 días, así como las 800 más recientes independientemente de la fecha de creación.
+
+**Campos y expansiones**
+
+La API de X v2 te permite seleccionar exactamente qué datos quieres que devuelva la API usando [campos](/es/x-api/fundamentals/fields) y [expansiones](/es/x-api/fundamentals/expansions). El parámetro expansions te permite expandir objetos referenciados en el payload. Por ejemplo, este endpoint te permite solicitar objetos de encuesta, lugar, medios y otros usando el parámetro expansions.
+
+El parámetro fields te permite seleccionar exactamente qué campos dentro de los distintos objetos de datos deseas recibir. De forma predeterminada, el objeto principal de Publicación devuelto por estos endpoints incluye los campos id y text. Para recibir campos adicionales como author\_id o public\_metrics, tendrás que solicitarlos específicamente usando los parámetros fields. Algunos campos importantes que podrías considerar usar en tu integración son nuestros datos de encuesta, [métricas](/es/x-api/fundamentals/metrics), [anotaciones de Publicación](/es/x-api/fundamentals/post-annotations) y los campos de [ID de conversación](/es/x-api/fundamentals/conversation-id).
+
+Hemos añadido una guía sobre [cómo usar campos y expansiones](/es/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) conjuntamente en nuestro [diccionario de datos de la API de X v2](/es/x-api/fundamentals/data-dictionary).
+
+**Métricas de Publicación**
+
+Los endpoints de la API de X v2 te permiten solicitar métricas de Publicación directamente desde el objeto de Publicación devuelto, siempre que incluyas los fields adecuados en tu solicitud.
+
+Existen algunas limitaciones con las métricas de Publicación de las que debes estar al tanto, específicamente relacionadas con la privacidad del usuario y los siguientes campos de respuesta:
+
+- `tweet.fields.non_public_metrics`
+- `tweet.fields.promoted_metrics`
+- `tweet.fields.organic_metrics`
+- `media.fields.non_public_metrics`
+- `media.fields.promoted_metrics`
+- `media.fields.organic_metrics`
+
+Los campos mencionados incluyen datos de métricas privadas, lo que significa que debes estar autorizado por el autor de la Publicación para recuperar estos datos en su nombre cuando uses el endpoint de la cronología de publicaciones del usuario; es decir, debes usar [OAuth 1.0a en contexto de usuario](/es/resources/fundamentals/authentication) o el [flujo de Código de Autorización OAuth 2.0 con PKCE](/es/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3).
+
+Por ejemplo, para recibir `non_public_metrics` de la cronología de publicaciones del usuario con ID 1234, deberás incluir en tu solicitud los tokens de acceso asociados con ese usuario. Puedes hacer que los usuarios autoricen tu app y recibir un conjunto de tokens de acceso asociados a ellos usando el [flujo OAuth de 3 patas](/es/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow).
+
+Si estás usando la cronología de menciones del usuario, los campos mencionados no estarán disponibles a menos que el autor que menciona haya autorizado tu app a acceder a sus métricas privadas y estés usando los tokens de acceso de ese usuario al hacer la solicitud con OAuth 1.0a en contexto de usuario.
+
+Todas las `non_public_metrics`, organic\_metrics y promoted\_metrics solo están disponibles para Publicaciones creadas en los últimos 30 días. Esto significa que, cuando solicites los campos mencionados, los resultados se ajustarán automáticamente para incluir únicamente Publicaciones de los últimos 30 días.
+
+Si se solicitan estos campos, solo se devolverán las Publicaciones que sean autoría del usuario autenticado; todas las demás Publicaciones devolverán un mensaje de error.
+
+**Paginación**
+
+Estos endpoints utilizan paginación para que las respuestas se devuelvan rápidamente. En los casos en que haya más resultados de los que pueden enviarse en una única respuesta (hasta 100 Publicaciones para los endpoints de cronologías), tendrás que paginar. Usa el parámetro max\_results para indicar cuántos resultados se devolverán por página y el parámetro pagination\_token para obtener la siguiente página de resultados. Puedes obtener más información en nuestra [guía de paginación](/es/x-api/fundamentals/pagination).
+
+**Filtrado de resultados**
+
+Estos endpoints incluyen varios parámetros que puedes usar para filtrar resultados. Con start\_date y end\_date puedes acotar los resultados a un periodo específico. Si prefieres usar IDs de publicaciones para seleccionar un conjunto específico de publicaciones, puedes usar since\_id y until\_id. La cronología de publicaciones de usuario también tiene un parámetro exclude que puede eliminar Retweets y respuestas de tus resultados. 
+
+**Límites de publicaciones y volumen de publicaciones devueltas**
+
+Los endpoints de la cronología de publicaciones de usuario y de menciones de usuario están limitados en la cantidad de publicaciones que pueden devolver en un mes determinado. El endpoint de la cronología de inicio en orden cronológico inverso no está sujeto a esta limitación.
+
+Independientemente del endpoint de cronologías que uses, las publicaciones devueltas contarán para los [Límites de tuits (límite de publicaciones)](/es/x-api/fundamentals/post-cap) a nivel de Proyecto. El uso se muestra en el portal para desarrolladores, y el “mes” comienza en el día de renovación de tu suscripción que se muestra en el [panel del portal para desarrolladores](https://developer.x.com/en/portal/dashboard). 
+
+El endpoint de la cronología de publicaciones de usuario solo devolverá las 3200 publicaciones más recientes publicadas en la cronología de un usuario. Si configuras start\_time y end\_time en un periodo que incluya publicaciones más allá de las 3200 más recientes, recibirás una respuesta correcta, pero sin publicaciones.
+
+También es importante señalar que, si pasas excludes=replies en tus solicitudes de cronología de publicaciones de usuario, solo se devolverán las 800 publicaciones más recientes.
+
+El endpoint de la cronología de menciones de usuario solo devolverá las 800 menciones de publicaciones más recientes.
+
+El endpoint de la cronología de inicio en orden cronológico inverso devuelve las últimas 3200 publicaciones.
+
+**Ediciones de publicaciones**
+
+Las publicaciones que sean elegibles para edición pueden editarse hasta cinco veces en los 30 minutos posteriores a la publicación original. Los endpoints de búsqueda siempre proporcionarán la versión más reciente de la publicación. Si solo solicitas publicaciones que se publicaron hace 30 minutos o más, siempre recibirás la versión final de la publicación. Sin embargo, si tienes un caso de uso casi en tiempo real y estás consultando publicaciones publicadas en los últimos treinta minutos, esas publicaciones podrían haberse editado después de que las recibiste. Estas publicaciones pueden rehidratarse con la búsqueda o con el endpoint de Post Lookup para confirmar su estado final. Para obtener más información sobre cómo funcionan las ediciones de publicaciones, consulta la página [Conceptos fundamentales de edición de publicaciones](/es/x-api/fundamentals/edit-posts).  
+
+**Casos límite**
+
+- Al solicitar métricas no públicas en el endpoint de la cronología de publicaciones de usuario para publicaciones que tienen más de 30 días, puedes ver un next\_token en la respuesta con un recuento de resultados de 0. Para evitar este problema, asegúrate de que el periodo solicitado con el parámetro non\_public\_metrics esté dentro de los 30 días más recientes. Además, el valor mínimo de max\_results debe ser 10. Esto puede ayudar a evitar este escenario, pero aún podría ocurrir.
+
+- Solicitar métricas promocionadas para publicaciones que no fueron promocionadas devuelve una respuesta vacía, en lugar de datos de la publicación. Nuestro equipo está trabajando actualmente en corregir este problema.
+
+- Para un Retweet que contenga texto de la publicación de más de 140 caracteres, el campo text se truncará en lugar de devolver el texto completo de la publicación. La solución a corto plazo es expandir la publicación referenciada y recuperar el texto completo desde la expansión. Este es un error que corregiremos en el futuro.
+
+**Próximos pasos**
+
+\[Haz tu primera solicitud a un endpoint de cronologías]/x-api/posts/timelines#getting-started-with-reverse-chronological-home-timeline "Haz tu primera solicitud a un endpoint de cronologías")
+
+[Consulta la lista completa de parámetros, campos y más en nuestras páginas de Referencia de API](/es/x-api/posts/timelines#api-reference-index)
+
+[Obtén soporte o soluciona un error](https://developer.x.com/en/support/x-api)

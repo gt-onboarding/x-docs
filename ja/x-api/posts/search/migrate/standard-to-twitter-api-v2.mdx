@@ -1,0 +1,196 @@
+---
+title: v1 から v2 へ
+sidebarTitle: v1 から v2 へ
+---
+
+<div id="standard-v11-compared-to-x-api-v2">
+  ### Standard v1.1 と X API v2 の比較
+</div>
+
+v1.1 の [search/posts](/ja/x-api/posts/search/introduction) を利用してきた方に向けて、このガイドでは Standard と X API v2 の検索用 Posts エンドポイントの共通点と相違点を分かりやすく説明します。
+
+- **類似点**
+  - OAuth 1.0a ユーザーコンテキストと OAuth 2.0 アプリ限定
+  - 投稿の編集履歴およびメタデータのサポート
+- **相違点**
+  - エンドポイント URL
+
+  - アプリおよびプロジェクトの要件
+
+  - レスポンスデータの形式
+
+  - リクエストパラメータ
+
+  - 新しいクエリ演算子
+
+  - AND / OR の演算子優先順位 
+
+<div id="similarities">
+  #### 類似点
+</div>
+
+**OAuth 1.0a User Context と OAuth 2.0 App-Only 認証**
+
+v1.1 の search/posts と X API v2 の recent search エンドポイントは、[OAuth 1.0a User Context](/ja/resources/fundamentals/authentication) と [OAuth 2.0 App-Only](/ja/resources/fundamentals/authentication#oauth-2-0) の両方をサポートしています。 
+
+そのため、以前に標準の v1.1 search エンドポイントを使用していた場合は、X API v2 に移行しても同じ認証方式を引き続き使用できます。 
+
+利用する認証ライブラリ／パッケージによっては、App-Only 認証が最も手軽に始められる方法で、シンプルなリクエストヘッダーで設定できます。App Access Token の生成方法については、[OAuth 2.0 App-Only ガイド](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)を参照してください。 
+
+X API v2 エンドポイントで非公開データや広告メトリクスを取得したい場合は、OAuth 1.0a User Context を使用し、取得対象の投稿を行ったユーザーに紐づくユーザーアクセストークンを渡す必要があります。 
+
+**投稿の編集履歴およびメタデータのサポート**
+
+どちらのバージョンも、編集履歴を示すメタデータを提供します。詳細は [search API リファレンス](/ja/x-api/posts/recent-search) および [投稿の編集の基礎](/ja/x-api/fundamentals/edit-posts)を参照してください。 
+
+<div id="differences">
+  #### 相違点
+</div>
+
+**エンドポイント URL**
+
+- 標準 v1.1 エンドポイント:
+  - https://api.x.com/1.1/search/tweets
+
+- X API v2 エンドポイント:
+  - https://api.x.com/2/tweets/search/recent
+     
+
+**アプリおよびプロジェクト要件**
+
+X API v2 の各エンドポイントでは、リクエスト認証時に [developer App](/ja/resources/fundamentals/developer-apps) の資格情報のうち、[Project](/ja/resources/fundamentals/projects) に関連付けられているものを使用する必要があります。X API v1.1 のすべてのエンドポイントでは、スタンドアロンの App か、Project に関連付けられた App の資格情報を使用できます。 
+
+**レスポンスのデータ形式**
+
+標準 v1.1 と X API v2 のエンドポイントの大きな違いのひとつは、ペイロードに返すフィールドの選び方です。
+
+標準エンドポイントでは、多くのレスポンスフィールドがデフォルトで返され、さらにパラメータを使って、ペイロードに含めるフィールドやフィールドセットを指定できます。
+
+X API v2 では、デフォルトで返されるのは Post の id と text フィールドのみです。追加のフィールドやオブジェクトを要求するには、[fields](/ja/x-api/fundamentals/fields) と [expansions](/ja/x-api/fundamentals/expansions) パラメータを使用する必要があります。これらのエンドポイントで要求した Post の各フィールドは、プライマリの Post オブジェクトに含まれて返されます。展開された user、media、poll、place の各オブジェクトおよびフィールドは、レスポンス内の includes オブジェクトに含まれて返されます。Post と展開オブジェクトの双方にある ID を突き合わせることで、展開オブジェクトを Post オブジェクトに紐づけられます。 
+
+これらの新しいパラメータについては、それぞれのガイドや、[fields と expansions の使い方](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)のガイドをご覧になることを推奨します。 
+
+また、標準 v1.1 のフィールドを新しい v2 のフィールドへマッピングするのに役立つ [data format migration guide](/ja/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2) も用意しています。このガイドでは、特定のフィールドを返すために v2 のリクエストで渡す必要がある具体的な expansion と field パラメータも示しています。 
+ 
+
+特定のフィールドの要求方法の変更に加えて、X API v2 では API が返すオブジェクト（[Post](/ja/x-api/fundamentals/data-dictionary#tweet) や [user](/ja/x-api/fundamentals/data-dictionary#user) オブジェクトなど）に対して新しい JSON 設計も導入しています。
+
+- JSON のルートレベルでは、標準エンドポイントは Post オブジェクトを statuses 配列で返しますが、X API v2 は data 配列を返します。 
+- Retweeted と Quoted を「statuses」と呼ぶ代わりに、X API v2 の JSON では Retweeted と Quoted Tweets として扱います。contributors や user.translator\_type などの多くのレガシー／非推奨フィールドは削除されます。 
+- （Post オブジェクト内の）favorites と（user オブジェクト内の）favourites を併用する代わりに、X API v2 では like という用語を使用します。 
+- X では、値を持たない JSON 値（たとえば null）はペイロードに書き出さないという規約を採用しています。Post と user の属性は、非 null の値がある場合にのみ含まれます。 
+   
+
+さらに、[Post オブジェクト](/ja/x-api/fundamentals/data-dictionary#tweet)に次の新しいフィールドを導入しました:
+
+- [conversation\_id](/ja/x-api/fundamentals/conversation-id) フィールド
+- context と entities を含む 2 つの新しい [annotations](/ja/x-api/fundamentals/post-annotations) フィールド
+- 複数の新しい [metrics](/ja/x-api/fundamentals/metrics) フィールド 
+- 特定の Post に誰が返信できるかを示す新しい reply\_setting フィールド
+
+<div id="request-parameters">
+  #### リクエストパラメータ
+</div>
+
+以下の標準 v1.1 リクエストパラメータには、X API v2 での対応があります：
+
+| 標準検索 v1.1 | Search Posts v2 |
+| :--- | :--- |
+| q   | query |
+|     | start\_time (YYYY-MM-DDTHH:mm:ssZ) |
+| until (YYYY-MM-DD) | end\_time (YYYY-MM-DDTHH:mm:ssZ) |
+| since\_id | since\_id |
+| max\_id | until\_id |
+| count | max\_results |
+| レスポンスは search\_metadata.next\_results を提供 | next\_token |
+
+また、X API v2 ではサポートされない標準の Search Posts リクエストパラメータもあります：
+
+| **標準 v1.1 パラメータ** | **詳細** |
+| :--- | :--- |
+| geocode | Basic Access レベルの Search Posts はジオ演算子をサポートしません。 |
+| locale | 標準検索ではクエリの言語指定に使われていましたが、完全には実装されませんでした。 |
+| lang | Search Posts エンドポイントは、目的の言語にマッチするための lang クエリ演算子を提供します。 |
+| include\_entities | Post のエンティティは常に含まれます。 |
+| result\_type | Search Posts エンドポイントは、エンゲージメントレベルに関係なく、条件に一致するすべての Post を返します。 |
+| extended | X API v2 は最大 280 文字の Post をネイティブにサポートする設計です。v2 には「拡張」Post の概念はありません。 |
+
+以下は、Standard リクエストと Search Posts リクエストの違いを示すリクエスト例です：
+
+|     |     |
+| :--- | :--- |
+| **Standard v1.1** | **X API v2** |
+| https://api.x.com/1.1/search/tweets.json?q=snow\&count=50 | https://api.x.com/2/tweets/search/recent?query=snow\&max\_results=50 |
+
+これらのリクエストはいずれも、キーワード snow を含む最新 50 件の Post を返します。v2 のリクエストは、一致した Post の既定の id と text フィールドを返します。以下は、JSON ペイロードに追加の Post およびユーザーフィールドを指定する例です：
+
+|     |
+| :--- |
+| **X API v2** |
+| https://api.x.com/2/tweets/search/recent?query=snow\&max\_results=50\&tweet.fields=id,created\_at,author\_id,text,source,entities,attachments\&user.fields=id,name,username,description |
+
+**新しいクエリ演算子**
+
+Search Posts は、2 つの新しい X API v2 機能をサポートする新しい演算子を導入します： 
+
+- **[Conversation IDs](/ja/x-api/fundamentals/conversation-id)** - X 上で会話が展開されると、その会話に属する Post を示す会話 ID が利用可能になります。会話内のすべての Post の conversation\_id には、その会話を開始した Post の ID が設定されます。 
+  - `conversation_id:`
+- **[X Annotations](/ja/x-api/fundamentals/post-annotations)** は Post に関するコンテキスト情報を提供し、エンティティ注釈とコンテキスト注釈を含みます。エンティティは人、場所、製品、組織で構成されます。コンテキストは、ドメイン（トピック）であり、抽出されたエンティティが属するカテゴリです。たとえば、Post で言及された人物には、アスリート、俳優、政治家などを示すコンテキストが付与される場合があります。  
+  - context: 関心のあるコンテキストで注釈付けされた Post にマッチします。 
+  - entity: 関心のあるエンティティで注釈付けされた Post にマッチします。 
+
+     
+
+#### AND / OR の演算子の優先順位 
+
+検索クエリを組み立てる基本は、OR と AND の論理的なグルーピングを用いることです。標準の検索 API では OR が AND より先に適用されますが、Search Posts エンドポイント（および Premium と Enterprise 版）では AND が OR より先に適用されます。これは両者間でクエリを変換する際に極めて重要な違いです。 
+
+例えば標準検索では、キーワード「storm」を含み、さらに「colorado」という語または #COwx ハッシュタグに言及する投稿にマッチさせたい場合、次の検索クエリで実現できます:
+
+storm #COwx OR colorado
+
+Search Posts の演算子の優先順位では、AND が OR より先に適用されます。したがって上記のクエリは次のものと同等になります: 
+
+(storm #COwx) OR colorado
+
+しかし、この規則では、投稿が「colorado」に言及していれば、「storm」や #COwx ハッシュタグに言及しているかどうかに関係なくマッチしてしまいます。加えて、キーワード「storm」と #COwx ハッシュタグの両方に言及している投稿にもマッチします。 
+
+意図どおりにクエリを動作させるには、OR の節をまとめてグループ化する必要があります。元の標準クエリを Search Posts 用に翻訳すると次のようになります:
+
+storm (#COwx OR colorado)
+
+これら 2 つの規則はマッチングの挙動が大きく異なります。2019年10月の 1 カ月間では、元の規則は 1,175,000 件超の投稿にマッチしますが、正しく変換した規則は約 5,600 件にマッチします。AND と OR の扱いには十分注意し、必要に応じて括弧を使用してください。 
+
+<div id="curl-requests">
+  #### cURL リクエスト
+</div>
+
+**以下のセクションでは、標準の v1.1 エンドポイントと、それに対応する v2 エンドポイントの cURL リクエストを示します。**
+
+これらのリクエストは \[OAuth 2.0 App-Only]\(https://developer.x.com(/resources/fundamentals/authentication#app-only-authentication-and-oauth-2-0-bearer-token). を使用して行われます。以下の cURL リクエストを実行するには、Authorization ヘッダー内の ACCESS\_TOKEN をアプリのアクセス トークンに置き換えてください。v2 エンドポイントでは、そのアプリのアクセス トークンが [developer App](/ja/resources/fundamentals/developer-apps/overview) 内の [Project](/ja/resources/fundamentals/projects/overview) に属している必要があります。
+
+v1.1 エンドポイントから返されるレスポンス ペイロードは、v2 エンドポイントのものとは異なります。v2 では、デフォルトのフィールドに加えて、[fields](/ja/x-api/fundamentals/fields) および [expansions](/ja/x-api/fundamentals/expansions) パラメータで要求したフィールドもレスポンスに含まれます。これらのパラメータを使用して、返却されるフィールドのセットを変更できます。
+
+**標準 v1.1 [GET search/tweets](https://developer.x.com/en/docs/twitter-api/v1/tweets/search/api-reference/get-search-tweets) と v2 [GET tweets/search/recent](/ja/x-api/posts/recent-search) エンドポイント**
+
+```bash
+      curl --request GET \
+  --url 'https://api.x.com/1.1/search/tweets.json?q=from%3ATwitterDev%20-is%3Aretweet&count=100' \
+  --header 'Authorization: Bearer $ACCESS_TOKEN'
+```
+
+```bash
+      curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3ATwitterDev%20-is%3Aretweet&tweet.fields=created_at%2Cconversation_id%2Centities&max_results=100' \
+  --header 'Authorization: Bearer $ACCESS_TOKEN'
+```
+
+**次のステップ**
+
+[X API v2 の recent search クイックスタートをご覧ください](/ja/x-api/posts/search/quickstart/recent-search)
+
+[recent search の API リファレンスを確認する](/ja/x-api/posts/recent-search)
+
+[これらのエンドポイントのサンプルコードを確認する](https://github.com/xdevplatform/Twitter-API-v2-sample-code "これらのエンドポイントのサンプルコードを確認する")
+
+[recent search への最初のリクエストの手順ガイド](/ja/x-api/getting-started/make-your-first-request "recent search への最初のリクエストの手順ガイド")

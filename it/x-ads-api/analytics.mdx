@@ -1,0 +1,1461 @@
+---
+title: Analytics
+---
+
+import { Button } from '/snippets/it/button.mdx';
+
+<div id="introduction">
+  ## Introduzione
+</div>
+
+Le metriche di analytics aiutano partner e inserzionisti a comprendere le prestazioni dei contenuti che promuovono su X. Questo include informazioni come impression, clic, visualizzazioni video e spesa. Inoltre, partner e inserzionisti possono ottenere metriche dettagliate per vari segmenti dei pubblici raggiunti.
+
+L’API X Ads supporta due modalità per recuperare metriche dettagliate sulle prestazioni delle campagne: sincrona e asincrona. Con le chiamate di analytics sincrone, le metriche richieste vengono restituite nella risposta. Con gli endpoint di analytics asincroni, le metriche richieste sono disponibili in un file di risultati scaricabile dopo che il relativo job ha terminato l’elaborazione. L’endpoint sincrono supporta intervalli temporali brevi ed è ideale per ottimizzazioni delle campagne in tempo reale. Gli endpoint asincroni supportano intervalli temporali molto più lunghi e sono quindi pensati per recuperare molti più dati, ideali per generare report o integrazioni storiche.
+
+<div id="details">
+  ## Dettagli
+</div>
+
+<div id="synchronous-vs-asynchronous">
+  ### Sincrono vs. asincrono
+</div>
+
+Le differenze tra gli endpoint di analisi sincroni e asincroni sono riassunte nella tabella seguente. Queste informazioni aiutano gli sviluppatori a scegliere quale set di endpoint utilizzare.
+
+| Funzionalità | Sincrono | Asincrono |
+|:---------|:------------|:--------------|
+| Rate limiting | A livello utente: 250 richieste/15 minuti | A livello account: 100 job concorrenti\* |
+| Intervallo temporale | 7 giorni | 90 giorni (non segmentato)<br />45 giorni (segmentato) |
+| Segmentazione | No | Sì |
+| Contenuto della risposta | Dati delle metriche | Stato di elaborazione del job\*\* |
+| Casi d’uso consigliati | Ottimizzazione in tempo reale<br />Richieste dell’interfaccia utente | Sincronizzazioni periodiche pianificate<br />Backfill dei dati storici |
+
+<Note>
+  \* Indica il numero massimo di job che possono trovarsi nello stato di elaborazione in un dato momento.
+
+  \*\* Al termine dell’elaborazione del job, viene restituito un URL da cui è possibile scaricare il file dei risultati compresso (gzip).
+
+  Al di fuori di ciò, gli endpoint offrono la stessa funzionalità.
+</Note>
+
+<div id="use-cases">
+  ### Casi d'uso
+</div>
+
+Esistono tre principali casi d’uso per le analisi.
+
+1. Ottimizzazione in tempo reale: utilizzo delle metriche di performance per aggiornare le campagne attive
+2. Sincronizzazione: sincronizzazioni pianificate in background
+3. Onboarding di nuovi account: recupero retrospettivo dei dati storici
+
+L’endpoint di analisi sincrone può essere utilizzato per l’ottimizzazione in tempo reale, per aggiornare le campagne in base alle variazioni delle metriche negli ultimi 5–15 minuti. Entrambi gli endpoint possono essere utilizzati per la sincronizzazione delle analisi. Tieni presente che l’intervallo temporale desiderato e l’eventuale necessità di segmentazione determineranno quale endpoint usare. L’onboarding di nuovi account deve essere eseguito esclusivamente tramite gli endpoint di analisi asincrone. (L’endpoint di analisi sincrone non dovrebbe mai essere usato per recuperare grandi volumi di dati.)
+
+Gli endpoint di analisi asincrone possono alimentare dashboard e altri elementi dell’interfaccia utente se le metriche vengono sincronizzate da un processo backend. La tua implementazione dovrebbe evitare di chiamare gli endpoint di analisi asincrone per evadere richieste dell’interfaccia utente.
+
+<div id="request-options">
+  ### Opzioni della richiesta
+</div>
+
+Le richieste di analisi sono limitate agli account pubblicitari e, pertanto, richiedono l’ID dell’account nel percorso della risorsa. Le opzioni della richiesta, elencate di seguito, sono specificate come parametri di query. Sono richiesti i seguenti tipi di valori.
+
+- Entità: il tipo di entità e fino a 20 ID di entità per cui vuoi richiedere le analisi
+- Intervallo temporale: orari di inizio e di fine, espressi in ISO 8601
+  - **Nota:** devono essere espressi in ore intere
+- Gruppi di metriche: uno o più insiemi di metriche correlate (vedi Metriche e segmentazione per l’elenco delle metriche all’interno di ciascun gruppo)
+- Granularità: specifica il livello di aggregazione con cui restituire le metriche
+- Posizionamento: determina se le metriche vengono acquisite per annunci erogati su X o al di fuori di X
+  - **Nota:** è possibile specificare un solo valore di posizionamento per richiesta
+
+Usa i parametri di richiesta `start_time` ed `end_time` per specificare un intervallo temporale. Questi valori devono essere allineati con la granularità specificata come segue.
+
+1. `TOTAL`: specifica un intervallo temporale qualsiasi (entro i limiti dell’endpoint)
+2. `DAY`: sia l’ora di inizio sia l’ora di fine devono coincidere con la mezzanotte nel fuso orario dell’account
+3. `HOUR`: specifica un intervallo temporale qualsiasi (entro i limiti dell’endpoint)
+
+L’ora di fine è esclusiva. Ad esempio, una richiesta con `start_time=2019-01-01T00:00:00Z` ed `end_time=2019-01-02T00:00:00Z` restituirà un solo giorno di metriche di analisi (non due), poiché questo intervallo copre soltanto 24 ore.
+
+**Segmentazione**
+
+Disponibile solo tramite i nostri endpoint di analisi asincrone, la segmentazione consente a partner e inserzionisti di ottenere metriche suddivise per specifici valori di targeting. Per richiedere metriche segmentate, usa il parametro di richiesta `segmentation_type`. Per maggiori dettagli sulle opzioni di segmentazione, vedi [Metriche e segmentazione](/it/x-ads-api/analytics#metrics-and-segmentation).
+
+<div id="faqs">
+  ## Domande frequenti
+</div>
+
+Perché i numeri dell'API X Ads non corrispondono a quelli mostrati nell'interfaccia X Ads?
+
+- Assicurati di aver richiesto i dati per tutti i posizionamenti: `ALL_ON_TWITTER`, `PUBLISHER_NETWORK`, `SPOTLIGHT` e `TREND`.
+- Ricorda che gli orari di fine nell'API X Ads sono esclusivi; nell'interfaccia Ads sono inclusivi.
+
+Perché i numeri cambiano a seconda di quando richiedo i dati?
+
+- Non appena le metriche di reporting sono disponibili, puoi recuperarle. Sono disponibili quasi in tempo reale. Tuttavia, questi risultati iniziali sono stime e, di conseguenza, è previsto che cambino. Le metriche vengono finalizzate dopo 24 ore, con l'eccezione dei dati di spesa.
+- Le metriche di spesa sono generalmente definitive entro 3 giorni dall'evento. Tuttavia, elaboriamo i dati di fatturazione fino a 14 giorni dalla data dell'evento (ad esempio, per il filtraggio dello spam).
+
+Come posso determinare quali ID entità richiedere per un periodo di tempo specifico?
+
+- Usa l'[endpoint Entità attive](/it/x-ads-api/analytics#active-entities-2)
+
+Perché tutti i valori nella risposta di analytics sono `null`?
+
+- È probabile che la campagna non abbia erogato nel periodo di tempo richiesto.
+- Usa l'[endpoint Entità attive](/it/x-ads-api/analytics#active-entities-2) per determinare per quali entità recuperare le analisi e per quale periodo di tempo.
+
+Perché l'API mostra valori `null` mentre l'interfaccia mostra 0?
+
+- L'interfaccia sceglie di visualizzare questi valori come 0, ma i valori sono equivalenti.
+
+Come posso richiedere metriche associate a un posizionamento granulare, come la timeline di X?
+
+- Supportiamo i seguenti valori di posizionamento nelle analytics: `ALL_ON_TWITTER`, `PUBLISHER_NETWORK`, `SPOTLIGHT` e `TREND` (ossia la [X Audience Platform](/it/x-ads-api/audiences)).
+
+È possibile recuperare metriche per entità eliminate o messe in pausa?
+
+- Sì. Lo stato dell'entità non influisce sulla disponibilità delle metriche di analytics.
+
+Perché i valori segmentati non corrispondono a quelli non segmentati?
+
+- Non ci si aspetta che i dati segmentati si sommino al 100% ai dati non segmentati, a causa del modo in cui queste informazioni vengono derivate.
+
+È possibile richiedere dati segmentati per più dimensioni?
+
+- Non supportiamo la multi-segmentazione.
+
+<div id="best-practices">
+  ## Best Practices
+</div>
+
+Alcune best practice per la raccolta dei dati di [analytics](/it/x-ads-api/analytics) tramite l'API X Ads.
+
+<div id="rate-limiting-and-retries">
+  ### Limitazione della frequenza e retry
+</div>
+
+- Per le query soggette a limitazione della frequenza (quelle che restituiscono un codice di stato `HTTP 429`), è necessario esaminare l’header `x-rate-limit-reset` e ritentare solo al momento indicato o successivamente.
+- Per le query che restituiscono un codice di stato `HTTP 503 Service Unavailable`, è necessario esaminare l’header `retry-after` e ritentare solo dopo il tempo indicato.
+- Le applicazioni che non rispettano i tempi indicati per i retry potrebbero vedersi revocato o limitato l’accesso all’API X Ads senza preavviso.
+
+<div id="analytics-metrics-in-a-nutshell">
+  ### Metriche di analytics in breve
+</div>
+
+- Tutte le metriche di analytics sono congelate e non cambiano dopo 24 ore, con l’eccezione di `billed_charge_local_micro`.
+- La metrica `billed_charge_local_micro` è una stima per un massimo di 3 giorni dopo la restituzione dei dati.
+- Dopo 24 ore, questa metrica può diminuire a causa di accrediti per spesa in eccesso (annunci erogati dopo l’`end_time` indicato) e per eventi fatturabili identificati come junk. Dopo 24 ore le variazioni di questa metrica sono minime.
+- Consulta [Analytics](/it/x-ads-api/analytics) per ulteriori informazioni.
+
+<div id="fetching-real-time-non-segmented-data">
+  ### Recupero di dati in tempo reale non segmentati
+</div>
+
+- Fornire sempre sia `start_time` sia `end_time`.
+- Non estrarre dati per entità più vecchie di 7 giorni.
+- Richiedere (idealmente) dati con granularità `HOUR`, poiché è sempre possibile aggregare e consolidare le metriche per ottenere la granularità `DAY` e `TOTAL`.
+- Richiedere (idealmente) dati a livello di `line_items` e `promoted_tweets`, poiché è sempre possibile aggregare e consolidare queste metriche per ottenere i totali sull’intera gerarchia delle entità pubblicitarie (cioè a livello di campagna, strumento di finanziamento o account).
+- Salvare e archiviare localmente i valori delle metriche di analisi.
+- Non interrogare ripetutamente dati più vecchi di 30 giorni. Questi dati non cambieranno e dovrebbero essere memorizzati localmente.
+- Tutti i dati non segmentati sono in tempo reale e dovrebbero essere disponibili entro pochi secondi dal verificarsi di un evento.
+- Raggruppare le metriche di conversione e quelle non di conversione in richieste separate.
+
+<div id="fetching-segmented-data">
+  ### Recupero di dati segmentati
+</div>
+
+- Fare riferimento alle linee guida sopra per “Recupero di dati in tempo reale non segmentati”. Ulteriori indicazioni sono fornite di seguito.
+- Per la maggior parte dei tipi di dati segmentati, in alcuni casi i dati possono risultare incompleti fino a 1 ora. I dati segmentati per `INTERESTS` possono subire ritardi fino a 12 ore.
+- I dati segmentati non necessariamente si aggregano al 100% ai dati non segmentati, a causa del modo in cui queste informazioni vengono derivate.
+
+<div id="fetching-historical-data">
+  ### Recupero dei dati storici
+</div>
+
+- Quando esegui un backfill dei dati (ad esempio aggiungendo un nuovo account inserzionista), potrebbe essere necessario suddividere le richieste in intervalli più piccoli di `start_time` e `end_time`.
+- Limita le richieste a finestre temporali di 30 giorni.
+- Applica un throttling a queste richieste e distribuiscile nel tempo per non esaurire i limiti di frequenza previsti per questi recuperi.
+
+<div id="sample">
+  ### Esempio
+</div>
+
+Puoi trovare uno script di esempio che illustra alcune di queste best practice (`fetch_stats`) nel nostro repository [ads-platform-tools su GitHub](https://github.com/xdevplatform/ads-platform-tools).
+
+<div id="metrics-by-objective">
+  ## Metriche per obiettivo
+</div>
+
+Le metriche applicabili a un'entità dipendono dall'[obiettivo della campagna](/it/x-ads-api/campaign-management). Usa questa guida per determinare i Gruppi di metriche pertinenti da recuperare per ciascun tipo di obiettivo e come calcolare ulteriori metriche derivate.
+
+<div id="engagements">
+  ### `ENGAGEMENTS`
+</div>
+
+**Gruppi di metriche rilevanti:** `ENGAGEMENT` e `BILLING`. `MEDIA` è pertinente se nei creativi sono presenti contenuti multimediali.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| Tasso di engagement | `engagements/impressions` |
+| CPE | `billed_charge_local_micro/engagements` |
+| Tasso di visualizzazione dei media | `media_views/impressions` |
+
+<div id="website_clicks-and-website_conversions">
+  ### `WEBSITE_CLICKS` e `WEBSITE_CONVERSIONS`
+</div>
+
+**Gruppi di metriche rilevanti:** `ENGAGEMENT`, `BILLING` e `WEB_CONVERSION`. `MEDIA` è inoltre applicabile se nei creativi vengono utilizzati contenuti multimediali.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| Tasso di clic | `clicks/impressions` |
+| CPLC | `billed_charge_local_micro/clicks` |
+| Conversioni totali | `conversion_custom` + `conversion_site_visits` + `conversion_sign_ups` + `conversion_downloads` + `conversion_purchases` |
+| Tasso di conversione | Conversioni totali / `impressions` |
+| CPA | `billed_charge_local_micro` / Conversioni totali |
+
+<div id="app_installs-and-app_engagements">
+  ### `APP_INSTALLS` e `APP_ENGAGEMENTS`
+</div>
+
+**Gruppi di metriche rilevanti:** `ENGAGEMENT`, `BILLING`, `MOBILE_CONVERSION` e `LIFE_TIME_VALUE_MOBILE_CONVERSION`. `MEDIA` e `VIDEO` sono inoltre applicabili se nelle creatività viene utilizzata una app card con contenuti media o video.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| Tasso di clic sull'app | `app_clicks/impressions` |
+| CPAC | `billed_charge_local_micro/app_clicks` |
+| CPI | `billed_charge_local_micro/mobile_conversion_installs` |
+
+<div id="followers">
+  ### `FOLLOWERS`
+</div>
+
+**Gruppi di metriche rilevanti:** `ENGAGEMENT` e `BILLING`. `MEDIA` è inoltre applicabile se nei creativi vengono utilizzati contenuti multimediali.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo metrica esposta |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| Tasso di follow | `follows/impressions` |
+| CPF | `billed_charge_local_micro/follows` |
+| Tasso di visualizzazione dei media | `media_views/impressions` |
+
+<div id="lead_generation">
+  ### `LEAD_GENERATION`
+</div>
+
+**Gruppi di metriche rilevanti:** `ENGAGEMENT` e `BILLING`. `MEDIA` è applicabile anche se nelle creatività sono presenti contenuti multimediali.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| Lead | `card_engagements` |
+| Tasso di lead | `card_engagements/impressions` |
+| Costo per lead | `billed_charge_local_micro/card_engagements` |
+
+<div id="video_views">
+  ### `VIDEO_VIEWS`
+</div>
+
+**Gruppi di metriche pertinenti:**`ENGAGEMENT`, `BILLING` e `VIDEO`.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| Tasso di visualizzazione video | `video_total_views/impressions` |
+| Costo per visualizzazione | `billed_charge_local_micro/video_total_views` |
+
+<div id="video_views_preroll">
+  ### `VIDEO_VIEWS_PREROLL`
+</div>
+
+**Gruppi di metriche pertinenti:** `ENGAGEMENT`, `BILLING` e `VIDEO`.
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| Tasso video | `video_total_views/impressions` |
+| Costo per visualizzazione | `billed_charge_local_micro/video_total_views` |
+
+<div id="metrics-and-segmentation">
+  ## Metriche e segmentazione
+</div>
+
+Questo documento offre una panoramica delle metriche disponibili nella nostra [Analytics](/it/x-ads-api/analytics) per ciascun tipo di entità, nonché della segmentazione disponibile per ciascuna metrica.
+
+|     |     |     |     |     |     |     |     |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+|     | Gruppi di metriche |     |     |     |     |     |     |
+| Entità | [`ENGAGEMENT`](#engagement) | [`BILLING`](#BILLING) | [`VIDEO`](#VIDEO) | [`MEDIA`](#MEDIA) | [`WEB_CONVERSION`](#WEB_CONVERSION) | [`MOBILE_CONVERSION`](#MOBILE_CONVERSION) | [`LIFE_TIME_VALUE_MOBILE_CONVERSION`](#LIFE_TIME_VALUE_MOBILE_CONVERSION) |
+| `ACCOUNT` | ✔\*  |     |     |     |     |     |     |
+| `FUNDING_INSTRUMENT` | ✔\*  | ✔   |     |     |     |     |     |
+| `CAMPAIGN` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `LINE_ITEM` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `PROMOTED_TWEET` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `MEDIA_CREATIVE` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `ORGANIC_TWEET` | ✔   |     | ✔   |     |     |     |     |
+
+\*Alcune metriche della famiglia `ENGAGEMENT` non sono disponibili a livello di account e di funding instrument. Consulta la sezione `ENGAGEMENT` per i dettagli.
+
+<div id="available-metrics-by-metrics-group">
+  ### Metriche disponibili per gruppo di metriche
+</div>
+
+<div id="engagement">
+  #### `ENGAGEMENT`
+</div>
+
+|     |     |     |     |     |
+| :--- | :--- | :--- | :--- | :--- |
+| Metric | Descrizione | Segmentazione disponibile | Tipo di dato | Disponibile per account / strumento di finanziamento |
+| `engagements` | Numero totale di interazioni | ✔   | Array di int | ✔   |
+| `impressions` | Numero totale di impression | ✔   | Array di int | ✔   |
+| `retweets` | Numero totale di retweet | ✔   | Array di int | ✔   |
+| `replies` | Numero totale di risposte | ✔   | Array di int | ✔   |
+| `likes` | Numero totale di like | ✔   | Array di int | ✔   |
+| `follows` | Numero totale di follower acquisiti | ✔   | Array di int | ✔   |
+| `card_engagements` | Numero totale di interazioni con la Card | ✔   | Array di int |     |
+| `clicks` | Numero totale di clic, inclusi i like e altre interazioni | ✔   | Array di int |     |
+| `app_clicks` | Numero di tentativi di installazione o apertura dell’app | ✔   | Array di int |     |
+| url\_clicks | Numero totale di clic sul link o sulla Website Card in un annuncio, inclusi quelli earned | ✔   | Array di int |     |
+| `qualified_impressions` | Numero totale di impression qualificate | ✔   | Array di int |     |
+| `carousel_swipes` | Numero totale di swipe su immagini o video del Carousel | ✔   | Array di int |     |
+
+<div id="billing">
+  #### `BILLING`
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metrica | Descrizione | Segmentazione disponibile | Tipo di dato |
+| `billed_engagements` | Numero totale di interazioni fatturate | ✔   | Array di interi |
+| `billed_charge_local_micro` | Spesa totale in micro (valuta locale) | ✔   | Array di interi |
+
+<div id="video">
+  #### `VIDEO`
+</div>
+
+Avviso sulle modifiche alla definizione delle metriche video:
+
+La metrica `video_total_views` all'interno del gruppo di metriche `VIDEO` conterà tutte le visualizzazioni con almeno il 50% dell’area del video visibile per 2 secondi, in linea con lo standard MRC.
+
+La nostra definizione originale di visualizzazione video, pari al 100% in view per almeno 3 secondi, continuerà a essere disponibile come nuova metrica `video_3s100pct_views` nel gruppo di metriche `VIDEO`. Per continuare a fare offerte ed essere addebitati in base alla definizione originale, usare la nuova unità di offerta `VIEW_3S_100PCT`.
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metric | Description | Segmentation Available | Data Type |
+| `video_total_views` | Numero totale di visualizzazioni video | ✔   | Array di int |
+| `video_views_25` | Numero totale di visualizzazioni in cui è stato visto almeno il 25% del video | ✔   | Array di int |
+| `video_views_50` | Numero totale di visualizzazioni in cui è stato visto almeno il 50% del video | ✔   | Array di int |
+| `video_views_75` | Numero totale di visualizzazioni in cui è stato visto almeno il 75% del video | ✔   | Array di int |
+| `video_views_100` | Numero totale di visualizzazioni in cui è stato visto il 100% del video | ✔   | Array di int |
+| `video_cta_clicks` | Numero totale di clic sulla call to action | ✔   | Array di int |
+| `video_content_starts` | Numero totale di avvii della riproduzione del video | ✔   | Array di int |
+| `video_3s100pct_views` | Numero totale di visualizzazioni in cui sono stati riprodotti almeno 3 secondi con il 100% in view (metrica precedente `video_total_views`) | ✔   | Array di int |
+| `video_6s_views` | Numero totale di visualizzazioni in cui sono stati visti almeno 6 secondi del video | ✔   | Array di int |
+| `video_15s_views` | Numero totale di visualizzazioni in cui sono stati visti almeno 15 secondi del video o il 95% della durata totale | ✔   | Array di int |
+
+<div id="media">
+  #### `MEDIA`
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metrica | Descrizione | Segmentazione disponibile | Tipo di dato |
+| `media_views` | Numero totale di visualizzazioni (riproduzione automatica e clic) dei contenuti multimediali tra Video, Vine, GIF e Immagini. | ✔   | Array di interi |
+| `media_engagements` | Numero totale di clic sui contenuti multimediali tra Video, Vine, GIF e Immagini. | ✔   | Array di interi |
+
+<div id="web_conversion">
+  #### `WEB_CONVERSION`
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metric | Descrizione | Segmentazione disponibile | Tipo di dati |
+| `conversion_purchases` | Numero di conversioni di tipo PURCHASE e il relativo importo di vendita e quantità dell’ordine | Solo `PLATFORMS` | Oggetto JSON |
+| `conversion_sign_ups` | Numero di conversioni di tipo SIGN\_UP e il relativo importo di vendita e quantità dell’ordine | Solo `PLATFORMS` | Oggetto JSON |
+| `conversion_site_visits` | Numero di conversioni di tipo SITE\_VISIT e il relativo importo di vendita e quantità dell’ordine | Solo `PLATFORMS` | Oggetto JSON |
+| `conversion_downloads` | Numero di conversioni di tipo DOWNLOAD e il relativo importo di vendita e quantità dell’ordine | Solo `PLATFORMS` | Oggetto JSON |
+| `conversion_custom` | Numero di conversioni di tipo CUSTOM e il relativo importo di vendita e quantità dell’ordine | Solo `PLATFORMS` | Oggetto JSON |
+
+<div id="mobile_conversion">
+  #### `MOBILE_CONVERSION`
+</div>
+
+Le statistiche sulle conversioni su mobile sono disponibili solo per gli account inserzionista abilitati a MACT.
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metric | Descrizione | Segmentazione disponibile | Tipo di dato |
+| `mobile_conversion_spent_credits` | Suddivisione delle conversioni mobile di tipo SPENT\_CREDIT per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_installs` | Suddivisione delle conversioni mobile di tipo INSTALL per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_content_views` | Suddivisione delle conversioni mobile di tipo CONTENT\_VIEW per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_add_to_wishlists` | Suddivisione delle conversioni mobile di tipo ADD\_TO\_WISHLIST per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_checkouts_initiated` | Suddivisione delle conversioni mobile di tipo CHECKOUT\_INITIATED per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_reservations` | Suddivisione delle conversioni mobile di tipo RESERVATION per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_tutorials_completed` | Suddivisione delle conversioni mobile di tipo TUTORIAL\_COMPLETED per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_achievements_unlocked` | Suddivisione delle conversioni mobile di tipo ACHIEVEMENT\_UNLOCKED per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_searches` | Suddivisione delle conversioni mobile di tipo SEARCH per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_add_to_carts` | Suddivisione delle conversioni mobile di tipo ADD\_TO\_CART per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_payment_info_additions` | Suddivisione delle conversioni mobile di tipo PAYMENT\_INFO\_ADDITION per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_re_engages` | Suddivisione delle conversioni mobile di tipo RE\_ENGAGE per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_shares` | Suddivisione delle conversioni mobile di tipo SHARE per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_rates` | Suddivisione delle conversioni mobile di tipo RATE per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_logins` | Suddivisione delle conversioni mobile di tipo LOGIN per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_updates` | Suddivisione delle conversioni mobile di tipo UPDATE per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_levels_achieved` | Suddivisione delle conversioni mobile di tipo LEVEL\_ACHIEVED per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_invites` | Suddivisione delle conversioni mobile di tipo INVITE per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| `mobile_conversion_key_page_views` | Suddivisione delle conversioni mobile di tipo KEY\_PAGE\_VIEW per post\_view e post\_engagement | ✔   | Oggetto JSON |
+| mobile\_conversion\_downloads | Dettaglio delle conversioni mobile di tipo DOWNLOAD per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| mobile\_conversion\_purchases | Dettaglio delle conversioni mobile di tipo PURCHASE per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| mobile\_conversion\_sign\_ups | Dettaglio delle conversioni mobile di tipo SIGN\_UP per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+| mobile\_conversion\_site\_visits | Dettaglio delle conversioni mobile di tipo SITE\_VISIT per post\_view, post\_engagement, assisted, order\_quantity e sale\_amount | ✔   | Oggetto JSON |
+
+<div id="life_time_value_mobile_conversion">
+  #### `LIFE_TIME_VALUE_MOBILE_CONVERSION`
+</div>
+
+Le statistiche sulle conversioni mobile nel ciclo di vita sono disponibili solo per gli account inserzionista abilitati per MACT.
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metric | Descrizione | Segmentazione disponibile | Tipo di dati |
+| `mobile_conversion_lifetime_value_purchases` | Dettaglio delle conversioni mobile di tipo PURCHASE |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_sign_ups` | Dettaglio delle conversioni mobile di tipo SIGN\_UP |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_updates` | Dettaglio delle conversioni mobile di tipo UPDATE |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_tutorials_completed` | Dettaglio delle conversioni mobile di tipo TUTORIAL\_COMPLETED |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_reservations` | Dettaglio delle conversioni mobile di tipo RESERVATION |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_add_to_carts` | Dettaglio delle conversioni mobile di tipo ADD\_TO\_CART |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_add_to_wishlists` | Dettaglio delle conversioni mobile di tipo ADD\_TO\_WISHLIST |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_checkouts_initiated` | Dettaglio delle conversioni mobile di tipo CHECKOUT\_INITIATED |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_levels_achieved` | Dettaglio delle conversioni mobile di tipo LEVEL\_ACHIEVED |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_achievements_unlocked` | Dettaglio delle conversioni mobile di tipo ACHIEVEMENT\_UNLOCKED |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_shares` | Dettaglio delle conversioni mobile di tipo SHARE |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_invites` | Dettaglio delle conversioni mobile di tipo INVITE |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_payment_info_additions` | Dettaglio delle conversioni mobile di tipo PAYMENT\_INFO\_ADDITION |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_spent_credits` | Dettaglio delle conversioni mobile di tipo SPENT\_CREDIT |     | Oggetto JSON |
+| `mobile_conversion_lifetime_value_rates` | Dettaglio delle conversioni mobile di tipo RATE |     | Oggetto JSON |
+
+<div id="segmentation">
+  ### Segmentazione
+</div>
+
+Il reporting della segmentazione consente di recuperare metriche suddivise in base ai valori di un determinato tipo di targeting. La segmentazione è disponibile solo tramite [query di analisi asincrone](/it/x-ads-api/analytics#asynchronous-analytics) a causa della complessità aggiuntiva significativa.
+
+La segmentazione **non** è supportata per le entità `MEDIA_CREATIVE` o `ORGANIC_TWEET`.
+
+Alcuni tipi di segmentazione richiedono parametri aggiuntivi. Sono documentati di seguito.
+
+Quando si segmenta per `CITIES` o `POSTAL_CODES`, l'API restituirà **solo** le località targettizzate. La segmentazione per regioni e aree metropolitane restituirà sia località targettizzate che non targettizzate.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| Tipo di segmentazione | parametro `country` richiesto | parametro `platform` richiesto |
+| `AGE` |     |     |
+| `APP_STORE_CATEGORY` |     |     |
+| `AUDIENCES` |     |     |
+| `CITIES` | ✔   |     |
+| `CONVERSATIONS` |     |     |
+| `CONVERSION_TAGS` |     |     |
+| `DEVICES` |     | ✔   |
+| `EVENTS` |     |     |
+| `GENDER` |     |     |
+| `INTERESTS` |     |     |
+| `KEYWORDS` |     |     |
+| `LANGUAGES` |     |     |
+| `LOCATIONS` |     |     |
+| `METROS` | ✔   |     |
+| `PLATFORMS` |     |     |
+| `PLATFORM_VERSIONS` |     | ✔   |
+| `POSTAL_CODES` | ✔   |     |
+| `REGIONS` | ✔   |     |
+| `SLIDES` |     |     |
+| `SIMILAR_TO_FOLLOWERS_OF_USER` |     |     |
+| `TV_SHOWS` |     |     |
+
+<div id="derived-metrics">
+  ## Metriche derivate
+</div>
+
+Le metriche di una campagna dipendono dal relativo [obiettivo della campagna](/it/x-ads-api/campaign-management). Usa questa guida per determinare come calcolare le metriche derivate da utilizzare in base agli obiettivi in uso.
+
+Qualsiasi `metric` senza parentesi graffe è una metrica restituita dagli endpoint di [analytics](/it/x-ads-api/analytics#synchronous-analytics) dell’API X Ads. Qualsiasi nome racchiuso tra \{parentesi graffe} indica una metrica derivata per quella categoria.
+
+<div id="engagements">
+  ### INTERAZIONI
+</div>
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Total Engagements} | `promoted_account_follows + promoted_tweet_search_engagements + promoted_tweet_timeline_engagements + promoted_tweet_profile_engagements` oppure `promoted_account_follows + promoted_tweet_search_clicks + promoted_tweet_search_replies + promoted_tweet_search_retweets + promoted_tweet_search_follows + promoted_tweet_timeline_clicks + promoted_tweet_timeline_replies + promoted_tweet_timeline_retweets + promoted_tweet_timeline_follows + promoted_tweet_profile_clicks + promoted_tweet_profile_replies + promoted_tweet_profile_retweets + promoted_tweet_profile_follows` |
+| \{Engagement Rate} | `{Total Engagements} / {Impressions}` |
+| {CPE} | `billed_charge_local_micro / {Total Engagements}` |
+| \{Media Views} | `promoted_tweet_timeline_media_views + promoted_tweet_search_media_views + promoted_tweet_profile_media_views` |
+| \{Media View Rate} | `{Media Views} / {Impressions}` |
+
+### WEBSITE\_CLICKS
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Link Clicks} | `promoted_tweet_search_url_clicks + promoted_tweet_timeline_url_clicks + promoted_tweet_profile_url_clicks` |
+| \{Click Rate} | `{Link Clicks} / {Impressions}` |
+| {CPLC} | `billed_charge_local_micro / {Link Clicks}` |
+| {Conversion} | `conversion_site_visits` |
+| \{Conversion Rate} | `conversion_site_visits / {Impressions}` |
+| {CPA} | `billed_charge_local_micro / conversion_site_visits` |
+
+### APP\_INSTALLS e APP\_ENGAGEMENTS
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{App Clicks} | `promoted_tweet_app_install_attempts + promoted_tweet_app_open_attempts + promoted_tweet_timeline_url_clicks + promoted_tweet_search_url_clicks` |
+| \{App Click Rate} | `{App Clicks} / {Impressions}` |
+| {CPAC} | `billed_charge_local_micro / {App Clicks}` |
+| {CPI} | `billed_charge_local_micro / mobile_conversion_installs` |
+
+### FOLLOWERS
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| {Impressions} | `promoted_account_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| {Follower} | `promoted_account_follows` |
+| \{Tasso di follow} | `promoted_account_follow_rate` |
+| {CPF} | `billed_charge_local_micro / promoted_account_follows` |
+| \{Visualizzazioni media} | `promoted_tweet_timeline_media_views + promoted_tweet_search_media_views + promoted_tweet_profile_media_views` |
+| \{Tasso di visualizzazione media} | `{Media Views} / {Impressions}` |
+
+### LEAD\_GENERATION
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo metrica esposta |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| {Leads} | `promoted_tweet_search_card_engagements + promoted_tweet_timeline_card_engagements + promoted_tweet_profile_card_engagements` |
+| \{Tasso di lead} | `{Leads} / {Impressions}` |
+| \{Costo per lead} | `billed_charge_local_micro / {Leads}` |
+
+### VIDEO\_VIEWS
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Video Views} | `promoted_video_total_views` |
+| \{Video Rate} | `promoted_video_total_views / {Impressions}` |
+| \{Cost Per View} | `billed_charge_local_micro / promoted_video_total_views` |
+
+### QUALIFIED\_IMPRESSIONS
+
+|     |     |
+| :--- | :--- |
+| Metrica derivata | Calcolo della metrica esposta |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Qualified Impressions} | `promoted_tweet_timeline_qualified_impressions + promoted_tweet_search_qualified_impressions + promoted_tweet_profile_qualified_impressions` |
+| \{Qualified Impression Rate} | `{Qualified Impressions} / {Impressions}` |
+| \{Cost Per 1000 Qualified Impressions } | `billed_charge_local_micro / {Qualified Impressions} / 1000` |
+
+<div id="custom">
+  ### PERSONALIZZATO
+</div>
+
+Per il `placement_type` `PROMOTED_ACCOUNT`, vedere l’obiettivo `FOLLOWERS` sopra. Per tutti gli altri posizionamenti con questo obiettivo, vedere `ENGAGEMENTS` per le relative metriche derivate.
+
+<div id="guides">
+  ## Guide
+</div>
+
+<div id="active-entities">
+  ### Entità
+</div>
+
+<div id="introduction">
+  #### Introduzione
+</div>
+
+L’[endpoint Entità attive](/it/x-ads-api/analytics#get-stats-accounts-account-id-active-entities) è progettato per essere utilizzato insieme ai nostri endpoint di analisi [sincroni](/it/x-ads-api/analytics#get-stats-accounts-account-id) e [asincroni](/it/x-ads-api/analytics#asynchronous-analytics), poiché indica per quali campagne richiedere le analisi. Lo fa restituendo dettagli sulle entità pubblicitarie e sul momento in cui le loro metriche sono cambiate. L’uso di questo endpoint semplificherà notevolmente il tuo codice e la logica di acquisizione delle analisi.
+
+Questa guida include informazioni e contesto sull’endpoint e sulla relativa fonte dati. Fornisce anche le [linee guida d’uso](#usage) e una serie di [esempi di richieste](#example), che mostrano come usare Entità attive insieme ai nostri endpoint di analisi. La [sezione Riepilogo](#summary) offre una descrizione a livello generale dell’approccio consigliato.
+
+<div id="data">
+  #### Dati
+</div>
+
+Ogni volta che cambia una metrica di un’entità pubblicitaria, registriamo informazioni su tale modifica. Questi eventi di modifica sono archiviati in intervalli orari e includono dettagli sull’entità, nonché l’intervallo temporale a cui si applica la modifica. Quest’ultimo è necessario perché gli eventi di modifica non corrispondono sempre al momento in cui sono stati registrati. Gli adeguamenti di fatturazione ne sono una causa frequente, ma non l’unica.
+
+<div id="endpoint">
+  #### Endpoint
+</div>
+
+<div id="request">
+  ### Richiesta
+</div>
+
+Le richieste per Entità attive sono inquadrate negli account pubblicitari e prevedono tre parametri di query obbligatori: `entity`, `start_time` e `end_time`.
+
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=PROMOTED_TWEET&start_time=2019-03-05T00:00:00Z&end_time=2019-03-06T00:00:00Z"`
+
+Sono supportati i seguenti valori per `entity`: `CAMPAIGN`, `FUNDING_INSTRUMENT`, `LINE_ITEM`, `MEDIA_CREATIVE`, `PROMOTED_ACCOUNT` e `PROMOTED_TWEET`. Ciò riflette i tipi di entità supportati dai nostri endpoint di analisi.
+
+I valori `start_time` e `end_time` devono essere espressi in formato [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) e indicano quali intervalli orari (bucket) interrogare. Devono essere espressi in ore intere.
+
+Questo endpoint supporta anche tre parametri opzionali che possono essere usati per filtrare i risultati: `funding_instrument_ids`, `campaign_ids` e `line_item_ids`. Questi operano a tutti i livelli della gerarchia degli annunci e con qualsiasi tipo di `entity` specificato.
+
+<div id="response">
+  ### Risposta
+</div>
+
+La risposta di Entità attive per la richiesta sopra è mostrata di seguito.
+
+```json
+    {
+      "request": {
+        "params": {
+          "account_id": "18ce54d4x5t",
+          "entity": "PROMOTED_TWEET",
+          "start_time": "2019-03-05T00:00:00Z",
+          "end_time": "2019-03-06T00:00:00Z"
+        }
+      },
+      "data": [
+        {
+          "entity_id": "2r0wxw",
+          "activity_start_time": "2019-03-04T20:55:20Z",
+          "activity_end_time": "2019-03-05T03:43:56Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        },
+        {
+          "entity_id": "2r30fn",
+          "activity_start_time": "2019-03-05T08:11:08Z",
+          "activity_end_time": "2019-03-05T14:40:59Z",
+          "placements": [
+            "ALL_ON_TWITTER",
+            "PUBLISHER_NETWORK"
+          ]
+        }
+      ]
+    }
+```
+
+L’array `data` include un oggetto per ogni entità che deve essere inclusa in una successiva richiesta di analisi. Non richiedere analisi per ID al di fuori di questo insieme.
+
+Ogni oggetto include quattro campi: `entity_id`, `activity_start_time`, `activity_end_time` e `placements`. Gli orari di inizio e fine dell’attività rappresentano l’intervallo temporale a cui si applicano gli eventi di modifica dell’entità associata e determinano quindi le date da specificare nelle successive richieste di analisi. L’array `placements` può includere i seguenti valori: `ALL_ON_TWITTER`, `PUBLISHER_NETWORK`, `SPOTLIGHT` e `TREND`. Indica quali posizionamenti devono essere richiesti per il relativo ID entità.
+
+<div id="usage">
+  #### Utilizzo
+</div>
+
+L’endpoint Entità attive dovrebbe guidare la modalità di invio delle richieste di analisi. Le seguenti linee guida d’uso sono state scritte per supportare la sincronizzazione delle analisi, consentendo ai partner di mantenere i propri archivi dati allineati con Twitter. In altre parole, descrivono come eseguire sincronizzazioni pianificate in background con cadenza regolare.
+
+Ci sono due decisioni che uno sviluppatore deve prendere.
+
+1. Con quale frequenza richiedere le informazioni sulle entità attive e, di conseguenza, con quale frequenza estrarre le analisi.
+2. Come utilizzare gli orari di inizio e fine attività per determinare i valori di `start_time` e `end_time` della richiesta di analisi.
+
+Questi aspetti sono trattati più nel dettaglio nelle due sottosezioni seguenti, dopo il riepilogo.
+
+<div id="summary">
+  ### Riepilogo
+</div>
+
+Utilizza l’endpoint Entità attive nel modo seguente per stabilire come effettuare le richieste di analisi. Segui questi passaggi dopo aver deciso con quale frequenza richiedere le informazioni sulle entità attive e, di conseguenza, con quale frequenza eseguire l’acquisizione delle analisi.
+
+1. Esegui la richiesta Entità attive.
+2. Suddividi la risposta per Posizionamento. Un gruppo per `ALL_ON_TWITTER`, uno per `PUBLISHER_NETWORK`, uno per `SPOTLIGHT` e uno per `TREND`.
+3. Per ciascun gruppo di posizionamento, procedi come segue.
+   1. Estrai gli ID delle entità.
+   2. Determina i valori `start_time` e `end_time` per le analisi.
+      - Trova il `activity_start_time` minimo. Arrotonda questo valore per difetto.
+      - Trova il `activity_end_time` massimo. Arrotonda questo valore per eccesso.
+   3. Esegui la/le richiesta/e di analisi.
+      - Raggruppa gli ID delle entità in batch da 20.
+      - Usa i valori `start_time` e `end_time` dal punto 3b.
+      - Specifica il valore `placement` appropriato.
+   4. Scrivi nel tuo archivio dati.
+
+Consulta [active\_entities.py](https://github.com/xdevplatform/twitter-python-ads-sdk/blob/master/examples/active_entities.py) come esempio che utilizza il Python SDK.
+
+<div id="frequency">
+  ### Frequenza
+</div>
+
+La risposta alla prima domanda determina l’intervallo di tempo da utilizzare nelle richieste di Entità attive. Ad esempio, se si richiedono informazioni sulle entità attive ogni ora, l’intervallo di tempo deve essere un’ora. Se si richiedono informazioni sulle entità attive una volta al giorno, l’intervallo di tempo deve essere un giorno. In altre parole, gli intervalli di tempo vanno scelti in modo che il `start_time` della richiesta corrente coincida con l’`end_time` della richiesta precedente.
+
+<Note>
+  **Nota**: Una finestra temporale va richiesta una sola volta. Richiedere la stessa finestra più di una volta comporta richieste di analisi superflue. (Eccezione di seguito.)
+</Note>
+
+Per i partner che desiderano richiedere analisi più volte all’interno dell’ora _corrente_, si applica lo stesso schema: la frequenza determina l’intervallo di tempo. La tabella seguente mostra esempi di timestamp di inizio e fine per Entità attive in questo scenario.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Orario della richiesta** | **timestamp `start_time`** | **timestamp `end_time`** |
+| 00:15:00 | 00:00:00 | 00:15:00 |
+| 00:30:00 | 00:15:00 | 00:30:00 |
+| 00:45:00 | 00:30:00 | 00:45:00 |
+| 01:00:00 | 00:45:00 | 01:00:00 |
+
+Dato il modo in cui vengono archiviati gli eventi di modifica, tutte e quattro le richieste di Entità attive sopra interrogano lo stesso bucket orario, il che è necessario per questo caso d’uso. Tuttavia, una volta trascorsa l’ora corrente, questo bucket orario non dovrebbe più essere interrogato.
+
+<div id="activity-times">
+  ### Orari di attività
+</div>
+
+Raccomandiamo il seguente approccio per lavorare con gli orari di inizio e fine attività. In tutti gli oggetti nella risposta di Entità attive, individua il `activity_start_time` minimo e il `activity_end_time` massimo. Modifica questi valori arrotondando per difetto l’orario minimo di inizio e arrotondando per eccesso l’orario massimo di fine. In particolare, imposta a zero ore, minuti e secondi in entrambi i timestamp e aggiungi un giorno all’orario di fine, come illustrato nella tabella seguente. Questi sono gli orari di inizio e fine che andranno specificati nelle successive richieste di analisi.
+
+|     |     |
+| :--- | :--- |
+| **Orari min e max di attività** | **Orari derivati** |
+| 2019-03-04T20:55:20Z  <br />  <br />2019-03-05T14:40:59Z | 2019-03-04T00:00:00Z  <br />  <br />2019-03-06T00:00:00Z |
+
+**Nota**: È importante includere i timestamp con ore, minuti e secondi impostati a zero. In caso contrario, se viene passata solo la data, presumeremo che tu stia richiedendo analisi con inizio e fine a mezzanotte nel fuso orario dell’account pubblicitario, cosa che potrebbe non essere desiderabile. Ad esempio, se l’orario minimo di inizio attività è 2019-02-28T01:30:07Z e il timestamp viene omesso per un account pubblicitario con offset -08:00:00, la richiesta di analisi perderà le modifiche avvenute tra le 01:30 e le 08:00.
+
+In alternativa, se preferisci richiedere analisi solo per la finestra temporale di attività restituita senza estenderla a giorni interi, puoi farlo. Con questo approccio, gli orari di inizio e fine derivati sarebbero rispettivamente 2019-03-04T20:00:00Z e 2019-03-05T15:00:00Z. (Nota che intervalli come questi non sono accettati se specifichi la Granularità `DAY` nella richiesta di analisi.)
+
+<div id="example">
+  #### Esempio
+</div>
+
+Questa sezione mostra come utilizzare le Entità attive insieme all’endpoint di analisi sincrone. (Le risposte sono state leggermente modificate per migliorarne la leggibilità.) In questo esempio, l’endpoint Entità attive viene chiamato allo scoccare di ogni ora, e ciascuna richiesta esamina l’ora precedente. La risposta determina come viene utilizzato l’endpoint di analisi sincrone.
+
+La prima richiesta alle Entità attive viene effettuata alle 03:00:00. La risposta indica che le metriche della line item dvcz7 sono cambiate e che tali eventi di modifica si applicano alla finestra compresa tra 02:02:55 e 02:28:12.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=LINE_ITEM&start_time=2019-02-11T02:00:00Z&end_time=2019-02-11T03:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": [
+        {
+          "entity_id": "dvcz7",
+          "activity_start_time": "2019-02-11T02:02:55Z",
+          "activity_end_time": "2019-02-11T02:58:12Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        }
+      ]
+    }
+```
+
+Sulla base di questi orari di inizio e fine attività e usando l’approccio descritto sopra, i valori `start_time` ed `end_time` per le analisi sono impostati rispettivamente su 2019-02-11T00:00:00Z e 2019-02-12T00:00:00Z. Notiamo che il terzo elemento in ciascuno degli array di metriche qui sotto è diverso da zero, come previsto in base alle informazioni sulle Entità attive.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=dvcz7&start_time=2019-02-11T00:00:00Z&end_time=2019-02-12T00:00:00Z&granularity=HOUR&metric_groups=ENGAGEMENT,VIDEO&placement=ALL_ON_TWITTER"`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 24,
+      "data": [
+        {
+          "id": "dvcz7",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  0,0,2792,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "engagements": [
+                  0,0,60,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "video_total_views": [
+                  0,0,1326,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "request": {}
+    }
+```
+
+La richiesta successiva alle Entità attive avviene alle 04:00:00 ed esamina solo l’ora precedente. Come menzionato sopra, una finestra temporale dovrebbe essere richiesta una sola volta. In base alla risposta, vediamo che gli eventi di modifica per questa line item si applicano a entrambe le 02:00:00 e 03:00:00. Nella richiesta di analisi successiva, ci aspettiamo di vedere modifiche per entrambe le ore.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity= LINE_ITEM&start_time=2019-02-11T03:00:00Z&end_time=2019-02-11T04:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": [
+        {
+          "entity_id": "dvcz7",
+          "activity_start_time": "2019-02-11T02:07:17Z",
+          "activity_end_time": "2019-02-11T03:49:22Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        }
+      ]
+    }
+```
+
+Oltre a vedere metriche diverse da zero per le 03:00:00, notiamo che impression, spesa e visualizzazioni video MRC sono state aggiornate rispetto ai valori precedenti. Le impression, ad esempio, sono ora 2.995 per l’ora 02:00:00, in aumento rispetto a 2.792. Questo dimostra come gli eventi di modifica registrati durante l’ora 03:00:00 si applichino all’ora 02:00:00.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=dvcz7&start_time=2019-02-11T00:00:00Z&end_time=2019-02-12T00:00:00Z&granularity=HOUR&metric_groups=ENGAGEMENT,VIDEO&placement=ALL_ON_TWITTER"`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 24,
+      "data": [
+        {
+          "id": "dvcz7",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  0,0,2995,734,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "engagements": [
+                  0,0,65,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "video_total_views": [
+                  0,0,1449,342,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "request": {}
+    }
+```
+
+La richiesta Entità attive alle 05:00:00, considerando ancora solo l’ora precedente, mostra che gli eventi di modifica si applicano solo all’ora 03:00:00. Le modifiche alle metriche di analisi nella richiesta successiva lo riflettono.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=LINE_ITEM&start_time=2019-02-11T04:00:00Z&end_time=2019-02-11T05:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": [
+        {
+          "entity_id": "dvcz7",
+          "activity_start_time": "2019-02-11T03:42:39Z",
+          "activity_end_time": "2019-02-11T03:48:48Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        }
+      ]
+    }
+```
+
+La risposta delle analisi mostra che sono cambiate solo le metriche per l’ora 03:00:00; i valori per l’ora 02:00:00 sono gli stessi della precedente richiesta di analisi.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids= dvcz7&start_time=2019-02-11T00:00:00Z&end_time=2019-02-12T00:00:00Z&granularity=HOUR&metric_groups=ENGAGEMENT,VIDEO&placement=ALL_ON_TWITTER"`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 24,
+      "data": [
+        {
+          "id": "dvcz7",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  0,0,2995,753,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "engagements": [
+                  0,0,65,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "video_total_views": [
+                  0,0,1449,351,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "request": {}
+    }
+```
+
+Infine, alle 06:00:00 non si registrano ulteriori eventi di modifica. Nota: questo non implica, però, che in futuro le metriche per questa line item non possano cambiare.
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=LINE_ITEM&start_time=2019-02-11T05:00:00Z&end_time=2019-02-11T06:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": []
+    }
+```
+
+<div id="asynchronous-guide">
+  ### Guida all’asincronia
+</div>
+
+<div id="api-reference">
+  ## Riferimenti API
+</div>
+
+<div id="asynchronous-analytics">
+  ### Analitiche asincrone
+</div>
+
+<div id="introduction">
+  #### Introduzione
+</div>
+
+Gli endpoint per le analisi asincrone consentono a partner e inserzionisti di richiedere metriche inviando richieste di creazione che il server elabora in modo asincrono (le definiamo “job” di analisi asincrone). Con questo approccio, la connessione del client non deve rimanere aperta fino all’evasione della richiesta.
+
+Questi endpoint, come il loro equivalente sincrono, consentono a partner e inserzionisti di richiedere statistiche dettagliate sulle prestazioni delle campagne. Supportano la richiesta di dati per account, strumenti di finanziamento, campagne, elementi di riga, Tweet promossi e creatività multimediali. La differenza rispetto all’endpoint sincrono è che gli endpoint per le analisi asincrone supportano intervalli temporali più lunghi, fino a 90 giorni, nonché la segmentazione. Ulteriori dettagli sulle differenze tra i due sono disponibili nella pagina [Panoramica delle analisi](/it/x-ads-api/analytics).
+
+A differenza dei nostri endpoint sincroni, il rate limiting si basa sul numero di job concorrenti per un determinato account. In altre parole, si basa sul numero di job che possono trovarsi in stato di elaborazione in un dato momento. Effettuiamo il conteggio a livello di account pubblicitario.
+
+<div id="usage">
+  #### Utilizzo
+</div>
+
+Il recupero delle metriche delle campagne tramite gli endpoint di analisi asincrona è un processo in più fasi. Comprende la creazione di un job, la verifica del completamento dell’elaborazione del job e, infine, il download dei dati. Il file dei dati deve essere decompresso. I quattro passaggi specifici sono descritti di seguito.
+
+1. Crea il job utilizzando l’endpoint [POST stats/jobs/accounts/:account\_id](/it/x-ads-api/analytics#asynchronous-analytics).
+2. Invia richieste a intervalli regolari all’endpoint [GET stats/jobs/accounts/:account\_id](/it/x-ads-api/analytics#asynchronous-analytics) per verificare se il job ha terminato l’elaborazione.
+3. Una volta che il job ha terminato l’elaborazione, scarica il file dei dati.
+4. Decomprimi il file dei dati.
+
+L’oggetto di risposta restituito nel file dei dati ha lo stesso schema JSON della risposta dell’endpoint di analisi sincrona.
+
+Le metriche di campagna segmentate sono disponibili solo tramite gli endpoint di analisi asincrona. Le metriche di campagna possono essere suddivise per località, genere, interessi, parole chiave e altro. Per un elenco completo delle opzioni, consulta la pagina [Metriche e segmentazione](/it/x-ads-api/analytics#metrics-and-segmentation). Per richiedere metriche segmentate, utilizza il parametro di richiesta `segmentation_type` quando crei il job.
+
+<div id="example">
+  #### Esempio
+</div>
+
+Questa sezione mostra come utilizzare gli endpoint di analisi asincrone.
+
+Inizia creando un job utilizzando l’endpoint [POST stats/jobs/accounts/:account\_id](/it/x-ads-api/analytics#asynchronous-analytics). Nell’esempio seguente vengono richieste metriche di engagement—come impression, like, clic, ecc.—per uno specifico line item nell’arco di una settimana. (Nota: l’intervallo di tempo richiesto si estende fino al 20 marzo escluso, poiché il timestamp è impostato a mezzanotte.)
+
+```
+$ twurl -X POST -H ads-api.x.com "/9/stats/jobs/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=el32n&start_time=2019-03-12T00:00:00Z&end_time=2019-03-20T00:00:00Z&granularity=TOTAL&placement=ALL_ON_TWITTER&metric_groups=ENGAGEMENT"
+```
+
+```json
+    {
+      "request": {
+        "params": {
+          "start_time": "2019-03-12T00:00:00Z",
+          "entity_ids": [
+            "el32n"
+          ],
+          "end_time": "2019-03-20T00:00:00Z",
+          "placement": "ALL_ON_TWITTER",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      },
+      "data": {
+        "start_time": "2019-03-12T00:00:00Z",
+        "segmentation_type": null,
+        "url": null,
+        "id_str": "1120829647711653888",
+        "entity_ids": [
+          "el32n"
+        ],
+        "end_time": "2019-03-20T00:00:00Z",
+        "country": null,
+        "placement": "ALL_ON_TWITTER",
+        "id": 1120829647711653888,
+        "expires_at": null,
+        "account_id": "18ce54d4x5t",
+        "status": "PROCESSING",
+        "granularity": "TOTAL",
+        "entity": "LINE_ITEM",
+        "created_at": "2019-04-23T23:19:46Z",
+        "platform": null,
+        "updated_at": "2019-04-23T23:19:46Z",
+        "metric_groups": [
+          "ENGAGEMENT"
+        ]
+      }
+    }
+```
+
+Questa risposta non restituisce le metriche del line item, ma fornisce informazioni sul job appena creato. L’ID del job è necessario per verificarne lo stato ed è presente sia negli attributi di risposta `id` sia `id_str`.
+
+Successivamente, verifica se il job creato utilizzando l’`id_str` della risposta precedente ha terminato l’elaborazione, come indicato da `"status": "SUCCESS"` nella risposta. Ciò significa che i dati sono pronti per il download. Il campo `url` contiene il link per il download.
+
+```
+$ twurl -H ads-api.x.com "/9/stats/jobs/accounts/18ce54d4x5t?job_ids=1120829647711653888"
+```
+
+```json
+    {
+      "request": {
+        "params": {
+          "job_ids": [
+            1120829647711653888
+          ]
+        }
+      },
+      "next_cursor": "1120828505715920896",
+      "data": [
+        {
+          "start_time": "2019-03-12T00:00:00Z",
+          "segmentation_type": null,
+          "url": "https://ton.twimg.com/advertiser-api-async-analytics/zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz",
+          "id_str": "1120829647711653888",
+          "entity_ids": [
+            "el32n"
+          ],
+          "end_time": "2019-03-20T00:00:00Z",
+          "country": null,
+          "placement": "ALL_ON_TWITTER",
+          "id": 1120829647711653900,
+          "expires_at": "2019-04-25T23:19:48Z",
+          "account_id": "18ce54d4x5t",
+          "status": "SUCCESS",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "created_at": "2019-04-23T23:19:46Z",
+          "platform": null,
+          "updated_at": "2019-04-23T23:19:48Z",
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      ]
+    }
+```
+
+Sebbene nell’esempio sopra venga passato un singolo ID job, in pratica è consigliabile usare il parametro `job_ids` per verificare lo stato di più job contemporaneamente, specificando fino a 200 ID job.
+
+Quindi, scarica il file di dati utilizzando il valore `url` indicato.
+
+```
+    $ wget https://ton.twimg.com/advertiser-api-async-analytics/zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz
+    --2019-04-23 17:52:12--  https://ton.twimg.com/advertiser-api-async-analytics/zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz
+    Resolving ton.twimg.com (ton.twimg.com)... 72.21.91.70
+    Connecting to ton.twimg.com (ton.twimg.com)|72.21.91.70|:443... connected.
+    HTTP request sent, awaiting response... 200 OK
+    Length: 381 [application/gzip]
+    Saving to: 'zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz'
+
+    zBkuuPeEVx-5OygDVcZpqNtwt51Z5 100%[=================================================>]     381  --.-KB/s    in 0s
+
+    2019-04-23 17:52:12 (5.27 MB/s) - 'zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz' saved [381/381]
+```
+
+Infine, estrai il file.
+
+```
+`$ gunzip zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz`
+```
+
+Il contenuto del file è il seguente.
+
+```json
+`$ cat zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 1,
+      "data": [
+        {
+          "id": "el32n",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  3482
+                ],
+                "tweets_send": null,
+                "qualified_impressions": null,
+                "follows": null,
+                "app_clicks": null,
+                "retweets": [
+                  102
+                ],
+                "unfollows": null,
+                "likes": [
+                  15
+                ],
+                "engagements": [
+                  171
+                ],
+                "clicks": [
+                  30
+                ],
+                "card_engagements": null,
+                "poll_card_vote": null,
+                "replies": null,
+                "carousel_swipes": null
+              }
+            }
+          ]
+        }
+      ],
+      "request": {
+        "params": {
+          "start_time": "2019-03-12T00:00:00Z",
+          "segmentation_type": null,
+          "entity_ids": [
+            "el32n"
+          ],
+          "end_time": "2019-03-20T00:00:00Z",
+          "country": null,
+          "placement": "ALL_ON_TWITTER",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "platform": null,
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      }
+    }
+```
+
+<div id="reach-and-average-frequency">
+  ### Copertura e frequenza media
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  Esegui in Postman
+</Button>
+
+#### GET stats/accounts/:account\_id/reach/campaigns[](#get-stats-accounts-account-id-reach-campaigns "Permalink a questo titolo")
+
+Recupera le metriche di copertura e frequenza media per le campagne specificate.
+
+<div id="resource-url">
+  ### URL della risorsa[](#resource-url "Permalink a questa sezione")
+</div>
+
+`https://ads-api.x.com/stats/accounts/:account_id/reach/campaigns`
+
+<div id="parameters">
+  ### Parametri[](#parameters "Permalink a questo titolo")
+</div>
+
+| Nome | Descrizione |
+| :--- | :--- |
+| account\_id  <br />_obbligatorio_ | Identificatore dell’account utilizzato. Compare nel percorso della risorsa ed è generalmente un parametro obbligatorio per tutte le richieste dell’API Inserzionisti, ad eccezione di [GET accounts](/it/x-ads-api/campaign-management#accounts). L’account specificato deve essere associato all’utente autenticato.<br /><br />Tipo: string<br /><br />Esempio: `18ce54d4x5t` |
+| campaign\_ids  <br />_obbligatorio_ | Limita la risposta alle campagne desiderate specificando un elenco di identificatori separati da virgole. È possibile fornire fino a 20 ID.<br /><br />**Nota**: È possibile fornire fino a 20 ID di campagna.<br /><br />Tipo: string<br /><br />Esempio: `8fgzf` |
+| end\_time  <br />_obbligatorio_ | Limita i dati recuperati all’ora di fine specificata, espressa in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: Deve essere espressa in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-26T07:00:00Z` |
+| start\_time  <br />_obbligatorio_ | Limita i dati recuperati all’ora di inizio specificata, espressa in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: Deve essere espressa in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-19T07:00:00Z` |
+
+<div id="example-request">
+  ### Esempio di richiesta[](#example-request "Permalink a questo titolo")
+</div>
+
+`GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t/reach/campaigns?campaign_ids=8fgzf&start_time=2017-05-19&end_time=2017-05-26`
+
+<div id="example-response">
+  ### Esempio di risposta[](#example-response "Permalink a questo titolo")
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "campaign_ids": [
+            "8fgzf"
+          ],
+          "start_time": "2017-05-19T00:00:00Z",
+          "end_time": "2017-05-26T00:00:00Z",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data_type": "reach",
+      "data": [
+        {
+          "id": "8fgzf",
+          "total_audience_reach": 1217,
+          "average_frequency": 1.01
+        }
+      ]
+    }
+```
+
+#### GET stats/accounts/:account\_id/reach/funding\_instruments[](#get-stats-accounts-account-id-reach-funding-instruments "Permalink to this headline")
+
+Recupera le metriche di copertura e frequenza media per gli strumenti di finanziamento specificati.
+
+### URL della risorsa[](#resource-url "Permalink a questo titolo")
+
+`https://ads-api.x.com/stats/accounts/:account_id/reach/funding_instruments`
+
+### Parametri[](#parameters "Permalink to this headline")
+
+| Nome | Descrizione |
+| :--- | :--- |
+| account\_id  <br />_obbligatorio_ | Identificatore dell'account utilizzato. Compare nel percorso della risorsa ed è in genere un parametro obbligatorio per tutte le richieste dell'API Advertiser, ad eccezione di [GET accounts](/it/x-ads-api/campaign-management#accounts). L'account specificato deve essere associato all'utente autenticato.<br /><br />Tipo: string<br /><br />Esempio: `18ce54d4x5t` |
+| funding\_instrument\_ids  <br />_obbligatorio_ | Limita la risposta agli strumenti di finanziamento desiderati specificando un elenco di identificatori separati da virgole. È possibile fornire fino a 20 ID.<br /><br />**Nota**: è possibile fornire fino a 20 ID di strumenti di finanziamento.<br /><br />Tipo: string<br /><br />Esempio: `lygyi` |
+| end\_time  <br />_obbligatorio_ | Limita i dati recuperati all'orario di fine specificato, espresso in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: deve essere espresso in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-26T07:00:00Z` |
+| start\_time  <br />_obbligatorio_ | Limita i dati recuperati all'orario di inizio specificato, espresso in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: deve essere espresso in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-19T07:00:00Z` |
+
+<div id="example-request">
+  ### Esempio di richiesta[](#example-request "Permalink a questo titolo")
+</div>
+
+```
+GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t/reach/funding_instruments?funding_instrument_ids=lygyi&start_time=2017-05-19&end_time=2017-05-26
+```
+
+<div id="example-response">
+  ### Esempio di risposta[](#example-response "Permalink a questo titolo")
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "funding_instrument_ids": [
+            "lygyi"
+          ],
+          "start_time": "2017-05-19T00:00:00Z",
+          "end_time": "2017-05-26T00:00:00Z",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data_type": "reach",
+      "data": [
+        {
+          "id": "lygyi",
+          "total_audience_reach": 1217,
+          "average_frequency": 1.01
+        }
+      ]
+    }
+```
+
+<div id="synchronous-analytics">
+  ### Analisi sincrona
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  Esegui in Postman
+</Button>
+
+#### GET stats/accounts/:account\_id[](#get-stats-accounts-account-id "Permalink a questo titolo")
+
+Recupera analisi sincrone per l’account corrente. È consentito un intervallo temporale massimo (`end_time` - `start_time`) di 7 giorni.
+
+### URL della risorsa[](#resource-url "Permalink a questo titolo")
+
+`https://ads-api.x.com/12/stats/accounts/:account_id`
+
+### Parametri[](#parameters "Permalink to this headline")
+
+| Nome | Descrizione |
+| :--- | :--- |
+| account\_id  <br />_obbligatorio_ | L'identificatore dell'account utilizzato. Compare nel percorso della risorsa ed è generalmente un parametro obbligatorio per tutte le richieste dell'API per inserzionisti, ad eccezione di [GET accounts](/it/x-ads-api/campaign-management#accounts). L'account specificato deve essere associato all'utente autenticato.<br /><br />Tipo: string<br /><br />Esempio: `18ce54d4x5t` |
+| end\_time  <br />_obbligatorio_ | Limita i dati recuperati all'orario di fine specificato, espresso in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: Deve essere espresso in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-26T07:00:00Z` |
+| entity  <br />_obbligatorio_ | Il tipo di entità per cui recuperare i dati.<br /><br />Tipo: enum<br /><br />Valori possibili: `ACCOUNT`, `CAMPAIGN`, `FUNDING_INSTRUMENT`, `LINE_ITEM`, `ORGANIC_TWEET`, `PROMOTED_ACCOUNT`, `PROMOTED_TWEET`, `MEDIA_CREATIVE` |
+| entity\_ids  <br />_obbligatorio_ | Le entità specifiche per cui recuperare i dati. Specificare un elenco di ID di entità separati da virgole.<br /><br />**Nota**: È possibile fornire fino a 20 ID di entità.<br /><br />Tipo: string<br /><br />Esempio: `8u94t` |
+| granularity  <br />_obbligatorio_ | Specifica il livello di granularità dei dati recuperati.<br /><br />Tipo: enum<br /><br />Valori possibili: `DAY`, `HOUR`, `TOTAL` |
+| metric\_groups  <br />_obbligatorio_ | Le metriche che devono essere restituite. Specificare un elenco di gruppi di metriche separati da virgole. Per maggiori informazioni, vedere [Metriche e segmentazione](/it/x-ads-api/analytics#metrics-and-segmentation).<br /><br />**Nota**: I dati `MOBILE_CONVERSION` vanno richiesti separatamente.<br /><br />Tipo: enum<br /><br />Valori possibili: `BILLING`, `ENGAGEMENT`, `LIFE_TIME_VALUE_MOBILE_CONVERSION`, `MEDIA`, `MOBILE_CONVERSION`, `VIDEO`, `WEB_CONVERSION` |
+| placement  <br />_obbligatorio_ | Limita i dati recuperati a uno specifico Posizionamento.<br /><br />**Nota**: È accettato un solo valore per richiesta. Per le entità con Posizionamento sia su X sia su X Audience Platform, sono necessarie richieste separate, una per ciascun valore di Posizionamento.<br /><br />Tipo: enum<br /><br />Valori possibili: `ALL_ON_TWITTER`, `PUBLISHER_NETWORK`, `SPOTLIGHT`, `TREND` |
+| start\_time  <br />_obbligatorio_ | Limita i dati recuperati all'orario di inizio specificato, espresso in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: Deve essere espresso in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-19T07:00:00Z` |
+
+<div id="example-request">
+  ### Esempio di richiesta[](#example-request "Permalink a questo titolo")
+</div>
+
+```
+GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=8u94t&start_time=2017-05-19&end_time=2017-05-26&granularity=TOTAL&placement=ALL_ON_TWITTER&metric_groups=ENGAGEMENT
+```
+
+<div id="example-response">
+  ### Esempio di risposta[](#example-response "Permalink a questo titolo")
+</div>
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 1,
+      "data": [
+        {
+          "id": "8u94t",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  1233
+                ],
+                "tweets_send": null,
+                "qualified_impressions": null,
+                "follows": null,
+                "app_clicks": null,
+                "retweets": null,
+                "likes": [
+                  1
+                ],
+                "engagements": [
+                  58
+                ],
+                "clicks": [
+                  58
+                ],
+                "card_engagements": null,
+                "poll_card_vote": null,
+                "replies": null,
+                "carousel_swipes": null
+              }
+            }
+          ]
+        }
+      ],
+      "request": {
+        "params": {
+          "start_time": "2017-05-19T07:00:00Z",
+          "segmentation_type": null,
+          "entity_ids": [
+            "8u94t"
+          ],
+          "end_time": "2017-05-26T07:00:00Z",
+          "country": null,
+          "placement": "ALL_ON_TWITTER",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "platform": null,
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      }
+    }
+```
+
+<div id="active-entities">
+  ### Entità attive
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  Esegui in Postman
+</Button>
+
+#### GET stats/accounts/:account\_id/active\_entities[](#get-stats-accounts-account-id-active-entities "Permalink to this headline")
+
+Recupera i dettagli su quali entità hanno avuto variazioni nelle metriche di analytics in un determinato periodo di tempo.
+
+Questo endpoint va utilizzato insieme ai nostri endpoint di analytics. I risultati di questo endpoint indicano per quali entità pubblicitarie richiedere le analytics. Consulta la nostra [Guida alle Entità attive](/it/x-ads-api/analytics#active-entities) per le linee guida d’uso.
+
+Gli eventi di modifica sono disponibili in raggruppamenti orari.
+
+- I valori `start_time` e `end_time` specificano quali raggruppamenti orari interrogare.
+- L’array `data` restituito includerà un oggetto per ogni entità da includere nelle successive richieste di analytics.
+- **IMPORTANTE**: Le date da specificare nelle successive richieste di analytics devono essere determinate in base ai valori `activity_start_time` e `activity_end_time`.
+  - Questi valori rappresentano gli intervalli di tempo a cui si applicano gli eventi di modifica memorizzati. Sono restituiti per entità.
+
+**Nota**: È consentito un intervallo di tempo massimo (`end_time` - `start_time`) di 90 giorni.
+
+### URL della risorsa[](#resource-url "Permalink a questo titolo")
+
+`https://ads-api.x.com/12/stats/accounts/:account_id/active_entities`
+
+### Parametri[](#parameters "Permalink to this headline")
+
+| Nome | Descrizione |
+| :--- | :--- |
+| account\_id  <br />_obbligatorio_ | L'identificatore dell'account utilizzato. Compare nel percorso della risorsa ed è in genere un parametro obbligatorio per tutte le richieste dell'API Inserzionisti, tranne [GET accounts](/it/x-ads-api/campaign-management#accounts). L'account specificato deve essere associato all'utente autenticato.<br /><br />Tipo: string<br /><br />Esempio: `18ce54d4x5t` |
+| end\_time  <br />_obbligatorio_ | Limita i dati recuperati all'orario di fine specificato, espresso in formato [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: Deve essere espresso in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-26T07:00:00Z` |
+| entity  <br />_obbligatorio_ | Il tipo di entità per cui recuperare i dati.<br /><br />Tipo: enum<br /><br />Valori possibili: `CAMPAIGN`, `FUNDING_INSTRUMENT`, `LINE_ITEM`, `MEDIA_CREATIVE`, `PROMOTED_ACCOUNT`, `PROMOTED_TWEET` |
+| start\_time  <br />_obbligatorio_ | Limita i dati recuperati all'orario di inizio specificato, espresso in formato [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />**Nota**: Deve essere espresso in ore intere (0 minuti e 0 secondi).<br /><br />Tipo: string<br /><br />Esempio: `2017-05-19T07:00:00Z` |
+| campaign\_ids  <br />_opzionale_ | Limita la risposta alle sole entità associate alle campagne desiderate specificando un elenco di identificatori separati da virgola. È possibile fornire fino a 200 ID.<br /><br />**Nota**: Mutuamente esclusivo con `funding_instrument_ids` e `line_item_ids`.<br /><br />Tipo: string<br /><br />Esempio: `8wku2` |
+| funding\_instrument\_ids  <br />_opzionale_ | Limita la risposta alle sole entità associate agli strumenti di finanziamento desiderati specificando un elenco di identificatori separati da virgola. È possibile fornire fino a 200 ID.<br /><br />**Nota**: Mutuamente esclusivo con `campaign_ids` e `line_item_ids`.<br /><br />Tipo: string<br /><br />Esempio: `lygyi` |
+| line\_item\_ids  <br />_opzionale_ | Limita la risposta alle sole entità associate alle linee di prodotto desiderate specificando un elenco di identificatori separati da virgola. È possibile fornire fino a 200 ID.<br /><br />**Nota**: Mutuamente esclusivo con `campaign_ids` e `line_item_ids`.<br /><br />Tipo: string<br /><br />Esempio: `8v7jo` |
+
+### Esempio di richiesta[](#example-request "Permalink to this headline")
+
+`GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t/active_entities?entity=PROMOTED_TWEET&start_time=2019-02-28&end_time=2019-03-01`
+
+### Esempio di risposta[](#example-response "Permalink to this headline")
+
+```json
+    {
+      "request": {
+        "params": {
+          "account_id": "18ce54d4x5t",
+          "entity": "PROMOTED_TWEET",
+          "start_time": "2019-02-28T08:00:00Z",
+          "end_time": "2019-03-01T08:00:00Z"
+        }
+      },
+      "data": [
+        {
+          "entity_id": "2mvb28",
+          "activity_start_time": "2019-02-28T01:30:07Z",
+          "activity_end_time": "2019-03-01T07:42:55Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        },
+        {
+          "entity_id": "2mvb29",
+          "activity_start_time": "2019-02-27T11:30:07Z",
+          "activity_end_time": "2019-03-01T07:42:50Z",
+          "placements": [
+            "ALL_ON_TWITTER",
+            "PUBLISHER_NETWORK"
+          ]
+        },
+        {
+          "entity_id": "2mvfan",
+          "activity_start_time": "2019-02-27T09:00:05Z",
+          "activity_end_time": "2019-03-01T06:06:36Z",
+          "placements": [
+            "PUBLISHER_NETWORK"
+          ]
+        },
+        {
+          "entity_id": "2n17dx",
+          "activity_start_time": "2019-02-28T02:02:26Z",
+          "activity_end_time": "2019-03-01T07:52:44Z",
+          "placements": [
+            "ALL_ON_TWITTER",
+            "PUBLISHER_NETWORK"
+          ]
+        }
+      ]
+    }
+```

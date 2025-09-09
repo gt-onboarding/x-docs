@@ -1,0 +1,86 @@
+---
+title: 介绍
+sidebarTitle: 介绍
+description: "X API v2 提供三个时间线端点：按时间倒序的首页时间线、用户帖子时间线和用户提及时间线。详见下文。"
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+这三个时间线端点支持已编辑的帖子。这些端点将始终返回最新版本以及完整的编辑历史。任何在其 30 分钟编辑窗口结束后收集的帖子都将代表其最终版本。编辑元数据包含一个数组，内含该帖子历史中所有版本的 ID。对于没有编辑历史的帖子，该数组仅包含一个 ID。对于已编辑过的帖子，该数组包含多个 ID，按升序排列以反映编辑顺序，最新版本位于数组的最后一个位置。要进一步了解帖子编辑的工作方式，请参阅[编辑帖子基础](/zh/x-api/fundamentals/edit-posts)页面。
+
+<div id="reverse-chronological-home-timeline">
+  ## 按时间倒序的主页时间线
+</div>
+
+此端点可让你检索经过身份验证的用户及其所关注账号发布的最新帖子、转帖和回复。
+
+由于你代表用户发起请求，必须使用 [OAuth 2.0（含 PKCE）授权码流程](/zh/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3) 或 [OAuth 1.0a 用户上下文](/zh/resources/fundamentals/authentication) 对这些端点进行身份验证。此端点对每位用户的速率限制为每 15 分钟 180 次请求。此端点可返回该时间线在过去 7 天内创建的所有帖子，以及不论创建日期的最近 800 条帖子。
+
+<div id="user-post-timeline">
+  ## 用户帖子时间线
+</div>
+
+用户帖子时间线端点提供对特定 X 账户已发布帖子（Posts）的访问。检索某个用户的帖子可帮助你构建诸如在用户界面中展示时间线、分析用户帖子以更好理解其内容、或以编程方式创建与其帖子互动的工作流等体验。该端点可访问某个 X 账户的最新帖子、转发（Retweets）、回复以及引用转发（Quote Tweets），类似于该用户个人资料时间线上显示的内容。
+
+下面是 @XDevelopers 的用户时间线：
+
+用户帖子时间线端点是一个 REST 端点，通过单一路径参数指示目标用户（按用户 ID）。该端点可返回该用户最近的 3,200 条帖子、转发、回复及引用转发。
+
+帖子按时间逆序返回，从最新开始。结果[分页](/zh/x-api/fundamentals/pagination)，每页最多 100 条帖子。提供分页令牌以便在大量帖子中翻页。还会随结果提供当前页面中最新与最旧帖子的帖子 ID 作为元数据，也可用于轮询时间线以获取最新帖子。用户帖子时间线还支持指定 start\_time 和 end\_time 参数，以接收在特定时间窗口内创建的帖子。 
+
+用户帖子时间线端点支持 [fields](/zh/x-api/fundamentals/fields) 和 [expansions](/zh/x-api/fundamentals/expansions) 参数，并返回[新的 JSON 数据格式](/zh/x-api/fundamentals/data-dictionary)。
+
+若要成功调用此端点，你需要使用 [OAuth 1.0a User Context](/zh/resources/fundamentals/authentication)、[OAuth 2.0 Authorization Code with PKCE](/zh/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3) 或 [OAuth 2.0 App-Only](/zh/resources/fundamentals/authentication#app-only-authentication-and-oauth-2-0-bearer-token) 身份验证方式对请求进行授权。当请求非公开指标、推广指标或受保护用户的时间线时，必须使用 OAuth 1.0a User Context 或 OAuth 2.0（含 PKCE）。
+
+用户帖子时间线端点旨在支持两种常见使用模式： 
+
+- “获取某用户的历史帖子”：向用户帖子时间线发起请求，在特定的近期时间范围内按时间顺序接收目标用户创作的帖子。可通过 start\_time 和 end\_time 设置时间范围，并分页获取完整结果。在某些情况下，如果该用户账户仅创作了最多 3,200 条帖子，则可以检索到其全部历史帖子。所包含的帖子取决于其公开可用性以及请求所使用的身份验证方式。
+
+- “轮询新帖子”：持续向用户帖子时间线发起请求，以检索某特定用户新近创作的帖子。可将上次收到的帖子 ID 作为参数，用于获取自上次帖子以来的任何新帖子。
+
+<div id="user-mention-timeline">
+  ## 用户提及时间线
+</div>
+
+用户提及时间线端点允许你请求提及特定 X 用户的帖子，例如某个 X 账号在帖子中提到了 @XDevelopers。结果还会包含对该用户帖子所做的回复。检索用户的提及可帮助你构建功能体验，例如快速发现谁在回复某位用户的帖子、谁在提及该用户，或以编程方式为其帖子创建互动工作流。该端点允许你请求单个用户的最新提及和回复，类似于 X 中用户的[提及通知](https://x.com/notifications/mentions)所显示的内容。
+
+用户提及时间线是一个 REST 端点，通过单个路径参数指定目标用户（用户 ID）。该端点最多可返回该用户最近的 800 条提及。
+
+帖子按时间倒序返回，从最新开始。结果[分页](/zh/x-api/fundamentals/pagination)，每页最多 100 条帖子。提供分页令牌以便浏览大型帖子集合。作为元数据，还会提供该页中最“新”和最“旧”的帖子 ID，可用于轮询时间线以获取最新帖子，或类似于 v1.1 [mentions\_timeline](https://developer.x.com/en/docs/twitter-api/v1/tweets/timelines/api-reference/get-statuses-mentions_timeline) 端点那样在时间线中导航。该端点还支持指定 start\_time 和 end\_time 参数，以接收在特定时间窗口内创建的帖子。 
+
+要成功调用该端点，你需要使用 [OAuth 1.0a 用户上下文](/zh/resources/fundamentals/authentication)、[OAuth 2.0 授权码（含 PKCE）](/zh/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3) 或 [OAuth 2.0 仅应用](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) 的身份验证方式为请求授权。当请求非公开指标、推广指标或受保护用户的时间线时，必须使用 OAuth 1.0a 用户上下文或 OAuth 2.0（含 PKCE）。
+
+用户提及时间线端点支持 [fields](/zh/x-api/fundamentals/fields) 和 [expansions](/zh/x-api/fundamentals/expansions) 参数，并返回[新的 JSON 数据格式](/zh/x-api/fundamentals/data-dictionary)。
+
+<Info>
+  **账户设置**
+
+  要访问这些端点，你需要：
+
+  - 已获批准的[开发者账号](https://developer.x.com/en/portal/petition/essential/basic-info)。
+  - 使用位于某个[项目](/zh/resources/fundamentals/projects)中的[开发者应用](/zh/resources/fundamentals/developer-apps)的密钥与令牌进行身份验证。 
+
+  在我们的[入门指南](/zh/x-api/getting-started/getting-access)中了解如何获取对 X API v2 端点的访问。
+</Info>
+
+<div className="flex space-x-2">
+  <Button href="/zh/x-api/posts/timelines/quickstart/reverse-chron-quickstart">
+    快速开始
+  </Button>
+
+  <Button href="https://app.getpostman.com/run-collection/9956214-784efcda-ed4c-4491-a4c0-a26470a67400">
+    在 Postman 中运行
+  </Button>
+
+  <Button href="https://developer.x.com/apitools/api?endpoint=%2F2%2Fusers%2F%7Bid%7D%2Ftweets&method=get">
+    使用 API Explorer 试用
+  </Button>
+</div>
+
+**相关资源**
+
+[了解如何使用 Postman 发起请求](/zh/tutorials/postman-getting-started)
+
+[排查错误](https://developer.x.com/en/support/x-api)
+
+\[访问此端点的 API 参考页面]\((/x-api/posts/tweets-lookup#curl-requests "访问此端点的 API 参考页面")

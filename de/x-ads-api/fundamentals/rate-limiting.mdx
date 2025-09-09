@@ -1,0 +1,80 @@
+---
+title: Rate Limiting
+---
+
+Die Advertiser-API unterliegt ähnlich wie die REST-API v1.1 einem Rate Limiting, wie hier dokumentiert: [REST API Rate Limiting in v1.1](https://developer.x.com/content/developer-twitter/en/docs/basics/rate-limits). Anders als bei der REST-API v1.1 gibt es jedoch keinen programmatischen Index der Limits pro Endpoint. Die Endpoint-Limits und Reset-Fenster werden über HTTP-Response-Header kommuniziert. Sämtliches Rate Limiting in der Ads-API nutzt OAuth 1.0A.
+
+<div id="user-level-and-ad-account-level-limits">
+  ## Limits auf Benutzer- und Werbekontoebene
+</div>
+
+Es gibt zwei Arten von Ratenlimits: auf Benutzertoken-Ebene und auf Werbekontoebene. Für eine Teilmenge der Endpunkte ist die Verwendung von Ratenlimits auf Werbekontoebene aktiviert. Ein Benutzertoken ist das [OAuth-Zugriffstoken](/de/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow), das Sie zur Authentifizierung und für Aufrufe der X-Ads-API verwenden. Jedes Benutzertoken kann Zugriff auf ein oder mehrere Werbekonten haben.
+
+Entwickler sollten das Ratenlimit auf Werbekontoebene verwenden, wenn es in den Antwort-Headern zurückgegeben wird, und nur auf das Limit auf Benutzerebene zurückgreifen, wenn kein Werbekonto-Limit vorhanden ist.
+
+Ratenlimits auf Benutzerebene werden über diese Header übermittelt: **x-rate-limit-limit**, **x-rate-limit-remaining** und **x-rate-limit-reset**.
+
+Für Endpunkte mit aktiviertem Ratenlimit auf Werbekontoebene werden die Limits über diese Header übermittelt: **x-account-rate-limit-limit**, **x-account-rate-limit-remaining** und **x-account-rate-limit-reset**.
+
+Die Ratenlimits auf Werbekontoebene werden nur für GET-Endpunkte bereitgestellt, um Anwendungen zu ermöglichen, Entitätsdaten (z. B. Kampagnen- oder Line-Item-Objekte) über ein einzelnes Benutzertoken zu synchronisieren, das auf mehrere Werbekonten zugreift. Für Schreibaktionen ist nicht garantiert, dass dieselben Ratenlimits auf Werbekontoebene gelten.
+
+Bei Endpunkten mit Ratenlimit auf Werbekontoebene ist das Ratenlimit auf Benutzerebene auf einen hohen Wert gesetzt, der ein globales Kontingent für Ihre gesamte Anwendung darstellt. Wenn verfügbar, sollte das Ratenlimit auf Werbekontoebene Vorrang bei der Steuerung Ihres Anfragevolumens haben.
+
+<div id="best-practices">
+  ## Best Practices
+</div>
+
+1. Speichern Sie in Ihrer Datenbank einen Zeitstempel des zuletzt synchronisierten Stands und fordern Sie, wo möglich, Daten mit der Option `sort_by=updated_at-desc` an. So können Sie den Synchronisierungsprozess beenden, sobald Sie Daten erreichen, die älter sind als Ihr zuletzt synchronisierter Zeitstempel. Dadurch vermeiden Sie redundante Synchronisierungen derselben Daten.
+
+2. Fordern Sie mehrere Entitäten in einer einzelnen Anfrage an: Einige Endpunkte erlauben eine kommagetrennte Liste von Werten, um mehrere ähnliche Datensätze abzurufen. Das kann die Gesamtzahl Ihrer Aufrufe reduzieren und das Rate-Limit effizienter nutzen.
+
+3. Fordern Sie den maximalen „count“ in Ihren Anfragen an: Einige Endpunkte wie [GET accounts/:account\_id/targeting\_criteria](/de/x-ads-api/campaign-management#targeting-criteria) sollten nachdrücklich mit dem maximalen Count-Wert aufgerufen werden, um 1000 Objekte statt des Standardwerts von 200 zurückzugeben.
+
+<div id="analytics-syncing">
+  ## Analytics-Synchronisierung
+</div>
+
+Weitere Informationen zu Rate Limits der Analytics-Endpunkte finden Sie im [Leitfaden zu Rate Limits für Analytics](/de/x-ads-api/analytics#best-practices).
+
+<div id="faqs">
+  ## FAQs
+</div>
+
+_Ist es möglich, die Rate Limits für ein bestimmtes Werbekonto oder unsere Anwendung zu erhöhen?_
+
+In der Regel können wir die Rate Limits nicht erhöhen; sie sind so festgelegt, dass sie selbst die größten Werbekonten unterstützen. Bitte setzen Sie zunächst die in diesem Dokument aufgeführten Best Practices um. Wenn die Rate Limits weiterhin Ihre Skalierung oder das Erreichen geschäftlicher Ziele beeinträchtigen, wenden Sie sich mit vollständigen Details zum Anwendungsfall und den damit verbundenen Anforderungen an Ihre X-Ads-API-Kontakte.
+
+<div id="scopes-of-rate-limiting">
+  ## Geltungsbereiche des Rate Limiting
+</div>
+
+<div id="scopes-for-this-doc">
+  ### Geltungsbereiche für dieses Dokument
+</div>
+
+- Kategorie: Alle Endpunkte, die in die angegebene Kategorie fallen, unterliegen einer Rate-Limitierung aus einem einzigen zugewiesenen Limit pro Zeitfenster.
+- Endpunkt: Jeder Endpunkt verfügt über ein eigenes, separates zugewiesenes Limit pro Zeitfenster.
+
+<div id="ads-api-rate-limit-chart">
+  ## Diagramm der Ratenlimits der X-Ads-API
+</div>
+
+<div id="ads-api-rate-limits">
+  ### Rate Limits der Ads-API
+</div>
+
+| Endpunkttyp | Geltungsbereich nach Endpunkt oder Kategorie | Rate Limit pro 1‑Minuten‑Fenster |
+| :--- | :--- | :--- |
+| Schreibvorgänge (POST, PUT, DELETE) | Kategorie | 450 |
+| Zielgruppen (Audience) | Endpunkt | 1500 |
+
+| Endpunkttyp | Geltungsbereich nach Endpunkt oder Kategorie | Rate Limit pro 15‑Minuten‑Fenster |
+| :--- | :--- | :--- |
+| Analytics (synchron) | Kategorie | 250 |
+| Core-Entity-Reads (Line Items, Campaigns usw.)<br /><br />Andere Account-Reads (andere GET-Endpunkte mit :account\_id) | Endpunkt (Werbekontoebene)<br /><br />Endpunkt (teilweise Werbekontoebene) | 10.000<br /><br />2000 |
+| Targeting-Kriterien (außer unten) | Kategorie | 400 |
+| Targeting-Kriterien (tv\_markets, tv\_shows) | Endpunkt | 2000 |
+| Audience Insights | Kategorie | 400 |
+| Keyword Insights | Kategorie | 500 |
+| Globale Reads (GET-Endpunkte ohne :account\_id) | Endpunkt | 5 |
+| Conversions | Endpunkt | 60.000 |

@@ -1,0 +1,238 @@
+---
+title: 仅应用身份验证与 OAuth 2.0 持有者令牌
+sidebarTitle: OAuth 2.0 仅应用（持有者令牌）
+---
+
+<div id="app-only-authentication-and-oauth-20-bearer-token">
+  ### 仅应用身份验证与 OAuth 2.0 Bearer Token
+</div>
+
+X 为应用提供代表应用自身（而非特定用户）发起已认证请求的能力。X 的实现基于 [OAuth 2 规范](http://tools.ietf.org/html/rfc6749) 的 [客户端凭证授权（Client Credentials Grant）](http://tools.ietf.org/html/rfc6749#section-4.4) 流程。
+
+仅应用身份验证不包含任何用户上下文，是一种由应用以自身名义发起 API 请求的身份验证方式。此方法适用于仅需对公共信息进行只读访问的开发者。
+
+你可以使用应用的消费者 API 密钥，或使用仅应用访问令牌（Bearer Token）来进行仅应用身份验证。这意味着你对 X API 的请求不得依赖已认证用户。
+
+使用仅应用身份验证，你可以执行以下操作：
+
+- 拉取用户时间线
+- 访问任意账户的关注与粉丝
+- 访问列表资源
+- 搜索推文
+
+请注意，只有使用 [OAuth 1.0a](/zh/resources/fundamentals/authentication/oauth-1-0a/api-key-and-secret) 或带有 PKCE 的 [OAuth 2.0 授权码流程](/zh/resources/fundamentals/authentication/oauth-2-0/authorization-code) 才能代表用户发起请求。[API 参考](/zh/resources/fundamentals/authentication/api-reference) 页面描述了使用某个 API 所需的身份验证方法。要执行以下操作，你需要具备用户身份验证与用户上下文，并持有一个[访问令牌](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)：
+
+- 发布推文或其他资源
+- 搜索用户
+- 使用任意地理相关端点
+- 访问私信或账户凭证
+- 获取用户的电子邮件地址
+
+<div id="auth-flow">
+  #### 认证流程
+</div>
+
+要使用此方法，您需要使用[仅应用访问令牌](/zh/resources/fundamentals/authentication/oauth-2-0/application-only)（也称为[Bearer 令牌](/zh/resources/fundamentals/authentication/oauth-2-0/bearer-tokens)）。您可以通过向 [POST oauth2/token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-token) 端点提交您的 consumer key 和 secret 来生成仅应用访问令牌（Bearer 令牌）。
+
+仅应用认证流程包括以下步骤：
+
+- 应用将其 consumer key 和 secret 编码为一组特定格式的凭据。
+- 应用向 [POST oauth2/token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-token) 端点发起请求，以这些凭据换取[仅应用访问令牌](/zh/resources/fundamentals/authentication/oauth-2-0/application-only)。
+- 访问 REST API 时，应用使用仅应用访问令牌进行身份验证。
+
+由于无需对请求进行签名，此方法比标准的 OAuth 1.0a 流程简单得多。
+
+<Frame>
+  <img src="/images/auth-5.png.twimg.1920.png" alt="" />
+</Frame>
+
+<div id="about-application-only-auth">
+  #### 关于仅应用程序身份验证
+</div>
+
+**令牌即密码**
+
+请牢记，consumer key 与 secret 以及应用仅限访问令牌（Bearer Token）本身可授予以应用程序名义发起请求的权限。应将这些值视为与密码同等敏感，且不得与不受信任的方共享或分发。
+
+**要求使用 SSL**
+
+所有请求（无论是获取还是使用令牌）都\_必须\_使用 HTTPS 端点。请遵循[使用 TLS 连接 X API](/zh/resources/fundamentals/authentication/guides/tls) 中的最佳实践——对等方**始终**应当被验证。
+
+**无用户上下文**
+
+使用仅应用程序身份验证发起请求时，不存在“当前用户”的概念。因此，[POST statuses/update](/zh/x-api/posts/creation-of-a-post) 等端点在仅应用程序身份验证下将无法使用。请参阅[使用 OAuth](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)，了解代表用户发起请求的更多信息。
+
+**速率限制**
+
+应用程序有两类速率限制池。
+
+以具有访问令牌的用户身份（即用户上下文）发起的请求，会从不同于仅应用程序身份验证的速率限制上下文中扣减。换言之，代表用户发起的请求不会消耗仅应用程序身份验证可用的速率限制，而通过仅应用程序身份验证发起的请求也不会消耗用于基于用户的身份验证的速率限制。
+
+阅读更多[API 速率限制](/zh/x-api/fundamentals/rate-limits)并[查看限制](https://developer.x.com/en/portal/products)。
+
+<div id="issuing-application-only-requests">
+  #### 发起仅应用请求
+</div>
+
+**步骤 1：对 consumer key 和 secret 进行编码**
+
+将应用的 consumer key 和 secret 编码为一组凭据以获取 Bearer Token 的步骤如下：
+
+1. 按照 [RFC 1738](http://www.ietf.org/rfc/rfc1738.txt) 对 consumer key 和 consumer secret 进行 URL 编码。请注意，在撰写本文时，这实际上不会改变 consumer key 和 secret，但仍应执行此步骤，以防这些值的格式将来发生变化。
+2. 将编码后的 consumer key、一个冒号字符“:”、以及编码后的 consumer secret 连接为一个字符串。
+3. 对上一步得到的字符串进行[Base64 编码](http://en.wikipedia.org/wiki/Base64)。
+
+下面是一些示例值，展示了此算法的结果。请注意，本页使用的 consumer secret 仅用于测试，无法用于真实请求。
+
+|     |     |
+| :--- | :--- |
+| Consumer key | xvz1evFS4wEEPTGEFPHBog |
+| Consumer secret | L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| RFC 1738 编码的 consumer<br /><br />key（无变化） | xvz1evFS4wEEPTGEFPHBog |
+| RFC 1738 编码的 consumer<br /><br />secret（无变化） | L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Bearer Token 凭据 | xvz1evFS4wEEPTGEFPHBog:L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Base64 编码的 Bearer Token 凭据 | :: eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJnNmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw== |
+
+**步骤 2：获取仅应用访问令牌（Bearer Token）**
+
+第 1 步计算的值必须通过向 [POST oauth2/token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-token) 发起请求来交换为仅应用访问令牌：
+
+- 请求必须是 HTTP POST 请求。
+- 请求必须包含 `Authorization` 头，值为 `Basic <第 1 步得到的 base64 编码值>.`
+- 请求必须包含 `Content-Type` 头，值为 `application/x-www-form-urlencoded;charset=UTF-8.`
+- 请求体必须为 `grant_type=client_credentials`。
+
+**示例请求（Authorization 头已换行）：**
+
+```json
+POST /oauth2/token HTTP/1.1
+Host: api.x.com
+User-Agent: My X App v1.0.23
+Authorization: Basic eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJn
+                     NmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw==
+Content-Type: application/x-www-form-urlencoded;charset=UTF-8
+Content-Length: 29
+Accept-Encoding: gzip
+
+grant\_type=client\_credentials
+```
+
+如果请求格式正确，服务器将返回一个 JSON 编码的载荷：
+
+**示例响应：**
+
+```json
+HTTP/1.1 200 OK
+Status: 200 OK
+Content-Type: application/json; charset=utf-8
+...
+Content-Encoding: gzip
+Content-Length: 140
+
+{"token\_type":"bearer","access\_token":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+```
+
+应用应验证返回对象中 `token_type` 键对应的值为 `bearer`。`access_token` 键对应的值是仅应用访问令牌（Bearer Token）。
+
+请注意，同一时间一个仅应用访问令牌只对应一个应用。使用相同凭据再次向 `/oauth2/token` 发起请求将返回同一个令牌，直到该令牌被作废。
+
+**步骤 3：使用仅应用访问令牌（Bearer Token）对 API 请求进行认证**
+
+仅应用访问令牌（Bearer Token）可用于向支持仅应用认证的 API 端点发起请求。要使用该访问令牌，构造一个常规的 HTTPS 请求，并包含 `Authorization` 头，其值为 `Bearer <第 2 步得到的 base64 bearer token 值>. Signing is not required.`
+
+**示例请求（Authorization 头已换行）：**
+
+```
+GET /1.1/statuses/user\_timeline.json?count=100&screen\_name=twitterapi HTTP/1.1
+Host: api.x.com
+User-Agent: My X App v1.0.23
+Authorization: Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAA
+                      AAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Accept-Encoding: gzip
+```
+
+**使应用仅访问令牌（Bearer 令牌）失效**
+
+如果应用仅访问令牌遭到泄露或因其他原因需要作废，请调用 [POST oauth2/invalidate\_token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token)。
+
+**示例请求（Authorization 头已换行展示）：**
+
+```bash
+POST /oauth2/invalidate_token HTTP/1.1
+Authorization: Basic eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJn
+                     NmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw==
+User-Agent: My X App v1.0.23
+Host: api.x.com
+Accept: */*
+Content-Length: 119
+Content-Type: application/x-www-form-urlencoded
+
+access_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+**示例响应：**
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 127
+...
+
+{"access_token":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+```
+
+<div id="common-error-cases">
+  #### 常见错误情况
+</div>
+
+本节介绍在协商与使用 Bearer Token 时常见的错误。请注意，这里不涵盖所有可能的错误响应——遇到未说明的错误代码或响应时请留意并妥善处理。
+
+**获取或撤销仅限应用的 Access Token 的无效请求**
+
+以下操作尝试会导致错误：
+
+- 使用无效请求获取仅限应用的 Access Token（Bearer Token）（例如，缺少 `grant_type=client_credentials`）。
+- 使用不正确或已过期的应用凭证获取或撤销仅限应用的 Access Token（Bearer Token）。
+- 使不正确或已被撤销的仅限应用的 Access Token（Bearer Token）失效。
+- 在短时间内过于频繁地获取仅限应用的 Access Token（Bearer Token）。
+
+将导致：
+
+```json
+HTTP/1.1 403 Forbidden
+Content-Length: 105
+Content-Type: application/json; charset=utf-8
+...
+
+{"errors":\[{"code":99,"label":"authenticity\_token\_error","message":"Unable to verify your credentials"}\]}
+```
+
+<div id="api-request-contains-invalid-app-only-access-token-bearer-token">
+  #### API 请求包含无效的仅应用访问令牌（Bearer Token）
+</div>
+
+使用错误或已撤销的访问令牌发起 API 请求将导致：
+
+```json
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+Content-Length: 61
+...
+
+{"errors":\[{"message":"Invalid or expired token","code":89}\]}
+```
+
+<div id="app-only-access-token-bearer-token-used-on-endpoint-which-doesnt-support-application-only-auth">
+  #### 在不支持仅应用程序授权的端点上使用仅应用程序访问令牌（Bearer Token）
+</div>
+
+对需要用户上下文的端点（例如 `statuses/home_timeline`）使用仅应用程序访问令牌（Bearer Token）将会返回：
+
+```json
+HTTP/1.1 403 Forbidden
+Content-Type: application/json; charset=utf-8
+Content-Length: 91
+...
+
+{"errors":\[{"message":"Your credentials do not allow access to this resource","code":220}\]}
+```

@@ -1,0 +1,104 @@
+---
+title: Mejores prácticas
+---
+
+import { Button } from "/snippets/es/button.mdx";
+
+Tus claves y tokens de API deben protegerse con sumo cuidado.
+
+Estas credenciales están directamente vinculadas a tu [App de desarrollador](/es/resources/fundamentals/developer-apps) y a las cuentas de X que te han autorizado a realizar solicitudes en su nombre. Si tus claves se ven comprometidas, actores maliciosos podrían usarlas para realizar solicitudes a los endpoints de X en nombre de tu App de desarrollador o de sus usuarios autorizados, lo que podría hacer que alcances límites de tasa inesperados, agotes tu asignación de acceso de pago o incluso provoques la suspensión de tu App de desarrollador.
+
+Las siguientes secciones incluyen prácticas recomendadas que deben considerarse al gestionar tus claves y tokens de API.
+
+<div id="regenerate-api-keys-and-tokens">
+  ## Regenerar claves y tokens de API
+</div>
+
+Si crees que tus claves de API se han expuesto, debes regenerarlas siguiendo estos pasos:
+
+1. Ve a la [página «Projects and Apps» del portal para desarrolladores](https://developer.x.com/en/portal/projects-and-apps.html).
+2. Haz clic en el ícono «Keys and tokens» (🗝 ) junto a la App correspondiente.
+3. Haz clic en el botón «Regenerate» junto al conjunto de claves y tokens que deseas regenerar.
+
+Si prefieres regenerar tus Access Tokens o Bearer Tokens de forma programática, puedes hacerlo usando nuestros endpoints de autenticación.
+
+- Si deseas regenerar tus Access Tokens, primero debes invalidarlos usando el endpoint [POST oauth/invalidate\_token](/es/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token) y luego regenerarlos usando el [flujo OAuth de 3 patas](/es/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens).
+- Si deseas regenerar tu Bearer Token, primero debes invalidarlo usando el endpoint [POST oauth2/invalidate\_token](/es/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token) y luego regenerarlo usando el endpoint [POST oauth2/token](/es/resources/fundamentals/authentication/api-reference#post-oauth2-token).
+
+<div id="having-a-central-file-for-your-secrets">
+  ## Tener un archivo central para tus secretos
+</div>
+
+Tener un archivo como .env o algún .yaml para almacenar tus secretos puede ser útil, pero asegúrate de contar con un .gitignore sólido que evite que los subas accidentalmente a un repositorio de Git. 
+
+<div id="environment-variables">
+  ## Variables de entorno
+</div>
+
+Escribir código que use variables de entorno puede resultar útil. 
+
+Un ejemplo de esto en Python es el siguiente:
+
+```python
+import os
+
+consumer_key = os.environ.get("CONSUMER_KEY")
+
+consumer_secret = os.environ.get("CONSUMER_SECRET")
+```
+
+En la terminal, querrás escribir algo como lo siguiente:
+
+```bash
+export CONSUMER_KEY='xxxxxxxxxxxxxxxxxxx'
+export CONSUMER_SECRET='xxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+<div id="source-code-and-version-control">
+  ## Código fuente y control de versiones
+</div>
+
+Los errores de seguridad más comunes que cometen los desarrolladores son tener claves y tokens de API incluidos en el código fuente dentro de sistemas de control de versiones accesibles, como GitHub y Bitbucket. Muchos de estos repositorios de código son de acceso público. Este error ocurre con tanta frecuencia en repositorios públicos que existen bots rentables que rastrean claves de API.
+
+- Use variables de entorno del servidor. Al almacenar las claves de API en variables de entorno, las mantiene fuera de su código y del control de versiones. Esto también le permite usar diferentes claves para distintos entornos con facilidad.
+- Use un archivo de configuración excluido del control de versiones. Agregue el nombre del archivo a su archivo [.gitignore](https://git-scm.com/docs/gitignore) para excluirlo del seguimiento del control de versiones.
+- Si elimina las claves de API de su código después de haber usado control de versiones, es probable que las claves sigan siendo accesibles consultando versiones anteriores de su base de código. Regeneré sus claves de API, como se describe en la siguiente sección.
+
+<div id="databases">
+  ## Bases de datos
+</div>
+
+Si necesita almacenar tokens de acceso en una base de datos, tenga en cuenta lo siguiente:
+
+- Restrinja el acceso a la base de datos de modo que los tokens de acceso solo puedan ser leídos por el propietario del token.
+- Limite los permisos de edición/escritura en la tabla que contiene los tokens de acceso; esto debe automatizarse mediante el sistema de gestión de claves.
+- Cifre los tokens de acceso antes de almacenarlos en cualquier almacén de datos.
+
+<div id="password-management-tools">
+  ## Herramientas de gestión de contraseñas
+</div>
+
+Las herramientas de gestión de contraseñas como 1Password o LastPass pueden ayudar a mantener tus claves y tokens en un lugar seguro. Es posible que quieras evitar compartirlos dentro de una herramienta de gestión de contraseñas compartida por el equipo.
+
+<div id="web-storage-cookies">
+  ## Almacenamiento web y cookies
+</div>
+
+Hay dos tipos de almacenamiento web: LocalStorage y SessionStorage. Estos se crearon como mejoras frente al uso de cookies, ya que la capacidad de almacenamiento del almacenamiento web es mucho mayor que la de las cookies. Sin embargo, cada una de estas opciones tiene distintos pros y contras.
+ 
+
+**Almacenamiento web: LocalStorage**
+
+Todo lo que se almacena en el almacenamiento web local es persistente. Esto significa que los datos permanecerán hasta que se eliminen explícitamente. Dependiendo de las necesidades de tu proyecto, esto puede ser positivo. No obstante, debes ser prudente al usar LocalStorage, ya que cualquier cambio o adición a los datos estará disponible en todas las visitas futuras a la página en cuestión. Por lo general, no recomendamos usar LocalStorage, aunque puede haber algunas excepciones. Si decides utilizar LocalStorage, conviene saber que respeta la política de mismo origen, por lo que todos los datos almacenados aquí solo estarán disponibles desde el mismo origen. Una ventaja de rendimiento adicional de usar LocalStorage es la disminución del tráfico cliente-servidor, ya que los datos no tienen que enviarse al servidor en cada solicitud HTTP.
+ 
+
+**Almacenamiento web: SessionStorage**
+
+SessionStorage es similar a LocalStorage, pero la diferencia clave es que no es persistente. Una vez que se cierra la ventana (o pestaña, según el navegador que utilices) que se usó para escribir en SessionStorage, los datos se pierden. Esto es útil para restringir el acceso de lectura a tu token dentro de una sesión de usuario. Usar SessionStorage suele ser preferible a LocalStorage en términos de seguridad. Al igual que LocalStorage, SessionStorage también se beneficia de la política de mismo origen y de la disminución del tráfico cliente-servidor.
+ 
+
+**Cookies**
+
+Las cookies son la forma más tradicional de almacenar datos de sesión. Puedes establecer un tiempo de expiración para cada cookie, lo que facilita su revocación y la restricción de acceso. Sin embargo, el tráfico cliente-servidor aumentará al usar cookies, ya que los datos se envían al servidor en cada solicitud HTTP. Si decides usar cookies, debes protegerte contra el secuestro de sesión. De forma predeterminada, las cookies se envían en texto claro a través de HTTP, lo que hace que su contenido sea vulnerable a la inspección de paquetes y/o a ataques de intermediario (man-in-the-middle), en los que los atacantes pueden modificar tu tráfico. Debes imponer siempre HTTPS para proteger tus datos en tránsito. Esto proporcionará confidencialidad, integridad (de los datos) y autenticación. No obstante, si tu aplicación web o sitio está disponible tanto por HTTP como por HTTPS, también querrás usar el indicador “Secure” en la cookie. Esto evitará que los atacantes puedan enviar a un usuario enlaces a la versión HTTP de tu sitio y escuchar la solicitud HTTP resultante generada.
+
+Otra defensa secundaria contra el secuestro de sesión cuando se usan cookies es volver a validar la identidad del usuario antes de realizar cualquier acción de alto impacto. Otro indicador a considerar para mejorar la seguridad de tus cookies es “HttpOnly”. Este indicador le indica al navegador que la cookie en cuestión solo será accesible desde el servidor especificado. Cualquier intento realizado por scripts del lado del cliente quedará prohibido por este indicador, ayudando así a proteger contra la mayoría de los ataques de cross-site scripting (XSS).

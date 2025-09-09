@@ -1,0 +1,120 @@
+---
+title: Best Practices
+sidebarTitle: Best Practices
+---
+
+Es gibt einige wichtige Konzepte, die Sie beim Verwenden des Endpunkts [`POST /2/media/upload`](/de/x-api/media/media-upload) verstehen sollten. Das Hochladen von Medien mit OAuth kann etwas komplex sein. Daher haben wir hier zusammengefasst, was Sie beachten sollten, und ein funktionierendes Beispiel bereitgestellt, wie dieser Endpunkt verwendet wird.
+
+<div id="keep-in-mind">
+  ## Beachten Sie
+</div>
+
+- Sie können bis zu 4 Fotos, 1 animiertes GIF oder 1 Video an einen Post anhängen.
+- Das übermittelte Bild sollte entweder der rohe Binärinhalt des Bildes oder base64-codierter Binärinhalt sein; eine weitere Kodierung oder das Escapen des Inhalts ist nicht erforderlich, solange der Content-Type korrekt gesetzt ist (im Zweifel: `application/octet-stream`).
+- Beim Senden von base64-codierten Bildern stellen Sie sicher, dass Sie „Content-Transfer-Encoding: base64“ für den Bildteil der Nachricht setzen.
+- Multipart-Nachrichten-Grenzen müssen in einer eigenen Zeile stehen und mit CRLF abgeschlossen sein.
+- Für funktionsfähige Beispiele, wie man mit diesem Endpoint POST-Anfragen stellt, empfehlen wir Tests mit [xurl](https://github.com/xdevplatform/xurl). Sehen Sie sich auch die verfügbaren [X Libraries](/de/resources/tools-and-libraries) an.
+- Verwenden Sie die in der API-Antwort bereitgestellte `media_id_string` für JavaScript und alle anderen Sprachen, die lange Ganzzahlen nicht exakt darstellen können.
+
+<div id="media-categories">
+  ## Medienkategorien
+</div>
+
+Der Parameter „Medienkategorie“ definiert den Verwendungszweck der hochzuladenden Mediendatei und kann sich auf Dateigrößenlimits oder andere für Medienuploads geltende Einschränkungen auswirken. Es ist wichtig, beim Hochladen die korrekte Medienkategorie zu verwenden, um Probleme bei der Nutzung der Medien zu vermeiden. Dabei handelt es sich um einen optionalen Wert, der in der INIT-Anfrage im Rahmen des Upload-Flows übermittelt wird. Wenn keine Medienkategorie angegeben ist, wird die hochgeladene Datei je nach Inhaltstyp als Medium für einen Post angenommen (`tweet_image`, `tweet_video` oder `tweet_gif`).
+
+Die häufigsten Medienkategorien sind:
+
+- `tweet_image`
+- `tweet_video`
+- `tweet_gif`
+- `dm_image`
+- `dm_video`
+- `dm_gif`
+- `subtitles`
+
+Wenn Sie Partner der X-Ads-API sind, beachten Sie bitte [diese Dokumentation](/de/x-ads-api/creatives#promoted-video) für weitere Informationen zur empfohlenen Medienkategorie für Promoted Video.
+
+<div id="image-specifications-and-recommendations">
+  ## Bildspezifikationen und Empfehlungen
+</div>
+
+Bilddateien müssen alle folgenden Kriterien erfüllen:
+
+- **Unterstützte Bildmedientypen**: `JPG`, `PNG`, `GIF`, `WEBP`
+- **Bildgröße**: `<= 5 MB`
+- **Größe animierter GIFs**: `<= 15 MB`
+
+Das oben genannte Dateigrößenlimit wird vom Media-Upload-Endpunkt durchgesetzt. Zusätzlich gibt es ein separates, produktspezifisches Dateigrößenlimit für Entitäten, das gilt, wenn die Endpunkte zur Post-Erstellung (oder ähnliche) mit `media_id` aufgerufen werden. Das Dateigrößenlimit und andere Einschränkungen können je nach Parameter `media_category` variieren.
+
+<div id="animated-gif-recommendations">
+  ## Empfehlungen für animierte GIFs
+</div>
+
+Ein GIF kann bei der Post-Erstellung fehlschlagen, selbst wenn es innerhalb der Dateigrößenbegrenzung liegt. Beachten Sie die folgenden Vorgaben, um die Erfolgsquote zu erhöhen.
+
+- **Auflösung**: `<= 1280x1080` (`width` x `height`)
+- **Anzahl der Frames**: `<= 350`
+- **Anzahl der Pixel**: `<= 300 million` (`width` \* `height` \* `num_frames`)
+- **Dateigröße**: `<= 15 MB`
+
+Um größere GIFs zu verarbeiten, verwenden Sie den Endpunkt für [chunked upload](/de/x-api/media/quickstart/media-upload-chunked) mit dem Parameter `media_category`. Dadurch kann der Server die GIF-Datei asynchron verarbeiten, was für größere Dateien erforderlich ist. Übergeben Sie `media_category=tweet_gif`, um das asynchrone Upload-Verhalten für Posts mit einem animierten GIF zu aktivieren.
+
+<div id="video-specifications-and-recommendations">
+  ## Videospezifikationen und Empfehlungen
+</div>
+
+Bitte verwenden Sie den asynchronen Pfad für Medien-Uploads.
+
+<div id="recommended">
+  ### Empfohlen
+</div>
+
+- **Video-Codec**: `H264 High Profile`
+- **Bildraten**: `30 FPS`, `60 FPS`
+- **Videoauflösung**: `1280x720` (Querformat), `720x1280` (Hochformat), `720x720` (Quadrat). Abonnierte Nutzer können ein 1080p-Video hochladen und es in 1080p wiedergeben. Nicht abonnierte Nutzer können ein 720p-Video hochladen und es in 720p wiedergeben.
+- **Minimale Videobitrate**: `5.000 kbps`
+- **Minimale Audiobitrate**: `128 kbps`
+- **Audio-Codec**: `AAC LC`
+- **Seitenverhältnis**: `16:9` (Quer- oder Hochformat), `1:1` (Quadrat)
+
+<div id="advanced">
+  ### Erweitert
+</div>
+
+- **Bildrate**: muss `60 FPS` oder weniger sein
+- **Abmessungen**: müssen zwischen `32x32` und `1280x1024` liegen
+- **Dateigröße**: darf `512 MB` nicht überschreiten
+- **Dauer**: muss zwischen `0,5 Sekunden` und `140 Sekunden` liegen
+- **Seitenverhältnis**: muss zwischen `1:3` und `3:1` liegen
+- **[Pixel-Seitenverhältnis](https://en.wikipedia.org/wiki/Pixel_aspect_ratio)**: muss `1:1` sein
+- **Pixelformat**: Es wird nur [YUV](https://en.wikipedia.org/wiki/YUV) 4:2:0 unterstützt
+- Audio muss [`AAC` mit Low-Complexity-Profil](https://en.wikipedia.org/wiki/Advanced_Audio_Coding#Modular_encoding) sein. (High-Efficiency-`AAC` wird nicht unterstützt)
+- Audio muss `Mono` oder `Stereo` sein, nicht 5.1 oder höher
+- Darf kein [`Open GOP`](https://en.wikipedia.org/wiki/Group_of_pictures) haben
+- Muss [`Progressive Scan`](https://en.wikipedia.org/wiki/Progressive_scan) verwenden
+
+<div id="additional-information">
+  ### Zusätzliche Informationen
+</div>
+
+In der Tabelle unten entspricht jede Zeile einer Empfehlung für Uploads, ist jedoch keine Voraussetzung. Alle Uploads werden zur Optimierung für mehrere Plattformen verarbeitet.
+
+| Ausrichtung | Breite | Höhe | Video-Bitrate | Audio-Bitrate |
+| :--- | :--- | :--- | :--- | :--- |
+| Querformat | 1280 | 720 | 2048K | 128K |
+| Querformat | 640 | 360 | 768K | 64K |
+| Querformat | 320 | 180 | 256K | 64K |
+| Hochformat | 720 | 1280 | 2048K | 128K |
+| Hochformat | 360 | 640 | 768K | 64K |
+| Hochformat | 180 | 320 | 256K | 64K |
+| Quadrat | 720 | 720 | 2048K | 128K |
+| Quadrat | 480 | 480 | 768K | 64K |
+| Quadrat | 240 | 240 | 256K | 32K |
+
+Ein Beispiel zum Hochladen von Medien finden Sie in der [Dokumentation zum chunked Media-Upload](/de/x-api/media/quickstart/media-upload-chunked).
+
+<div id="troubleshooting">
+  ### Fehlerbehebung
+</div>
+
+Bei Problemen mit den Media-APIs durchsuchen Sie die [Kategorie „Media API“](https://devcommunity.x.com/c/x-api/media-apis) in den Entwicklerforen nach einer Lösung.

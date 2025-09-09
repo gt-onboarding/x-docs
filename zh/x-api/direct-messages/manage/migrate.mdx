@@ -1,0 +1,79 @@
+---
+title: 迁移指南
+sidebarTitle: 迁移指南
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="comparing-v11-and-v2-manage-direct-message-endpoints">
+  ## 比较 v1.1 与 v2 私信管理端点
+</div>
+
+Direct Messages 端点的 v1.1 和 v2 版本都提供了创建私信的方法。本指南旨在帮助你理解两者的差异，并提供迁移到 v2 的参考信息。 
+
+两者之间的一个主要差异是 v1.1 仅支持一对一会话，而 v2 引入了对群组会话的支持。由此带来的一个结果是，v1.1 仅支持“message created”事件，而 v2 还支持与参与者加入和离开会话相关的事件。实际上，v2 的一项基础更新是将 dm\_conversations 作为核心 API 对象。   
+
+在 v1.1 中，有两个用于管理私信的端点：
+
+- POST direct\_messages/events/new - 创建一对一私信。此 v1.1 端点只能创建一对一消息，不支持群组消息。  
+
+- DELETE direct\_messages/events/destroy - 从认证用户的视图中删除一条一对一消息。 
+
+在 v2 中，有三种用于创建私信的 POST 方法： 
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - 创建一对一私信。该方法会将消息添加到现有的一对一会话，或创建一个新会话。:participant\_id 路径参数是接收消息账号的用户 ID。 
+
+- **POST /2/dm\_conversations** - 创建一个新的群组会话并向其中添加一条私信。此请求需要提供会话参与者列表。请注意，你可以使用相同的参与者列表创建多个会话。这些请求将始终返回一个新的会话 ID。 
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - 创建一条私信并将其添加到现有会话中。:dm\_conversation\_id 路径参数是该消息将被添加到的会话 ID。 
+
+一个重要细节是，会话和事件 ID 在 X 平台的 v1.1 和 v2 版本之间是共享的。这意味着这两个版本可以配合使用。例如，Direct Messages v1.1 端点提供了返回单个事件和删除事件的方法，而这些方法在 v2 中尚不可用。由于 ID 在 v1.1 和 v2 间是通用的，你可以基于 v2 提供的 ID 发起 v1.1 请求，或通过引用 X 应用中会话 URL 显示的会话 ID 来进行操作。
+
+下表比较了 v1.1 和 v2 私信管理端点的基础特性。此处列出的 X API v2 特性适用于所有私信查询端点。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Description** | **Standard v1.1** | **X API v2** |
+| Host domain | https://api.x.com | https://api.x.com |
+| Endpoint root path | [/1.1/direct\_messages](https://api.x.com/1.1/direct_messages) | [/2/dm\_conversations](https://api.x.com/2/users/:id/dm_conversations)<br /><br />私信会话被引入为基础 API 对象。   <br /><br />这些端点会返回 MessageCreate、ParticipantsJoin 和 ParticipantsLeave 事件。 |
+| HTTP methods supported | POST | POST |
+| Supports Group Direct Messages |     | ✔   |
+| Event types supported | message\_create | MessageCreate、ParticipantsJoin、ParticipantsLeave |
+| [Authentication](/zh/resources/fundamentals/authentication) | OAuth 1.0a User Context | OAuth 1.0a User Context<br /><br />OAuth 2 User Context（scopes: dm.read, dm.write） |
+| Requires the use of credentials from a [developer App](/zh/resources/fundamentals/authentication) associated with a X API v2 [Project](/zh/resources/fundamentals/projects) |     | ✔   |
+| Default request [rate limits](/zh/x-api/fundamentals/rate-limits)\*  <br />\*All requests require user tokens | 每位用户每 24 小时 1000 次请求  <br />每个应用每 24 小时 15000 次请求 | 每位用户每 15 分钟 200 次请求<br /><br />每位用户每 24 小时 1000 次请求<br /><br />每个应用每 24 小时 15000 次请求<br /><br />这些速率限制在所有 dm\_conversations POST 端点之间共享。 |
+
+下表将 v2 POST 方法与 v1.1 版本进行比较。请注意，这些 v2 功能通过支持群组会话扩展了可用能力。 
+
+**创建新的“一对一”私信**
+
+Path: POST /2/dm\_conversations/with/:participant\_id/messages
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **标准 v1.1** | **X API v2** |
+| 端点路径 | POST direct\_messages/events/new (message\_create) | POST /2/dm\_conversations/with/:participant\_id/messages |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits) | 每位用户每 24 小时 1000 次请求  <br />每个应用每 24 小时 15000 次请求 | 每位用户每 15 分钟 200 次请求<br /><br />每位用户每 24 小时 1000 次请求<br /><br />每个应用每 24 小时 15000 次请求<br /><br />这些速率限制在所有 dm\_conversations 的 POST 端点之间共享。 |
+| 支持群组私信 |     | ✔   |
+
+**创建新的群组私信会话并向其添加一条消息**
+
+路径：POST /2/dm\_conversations
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **标准 v1.1** | **X API v2** |
+| 端点路径 | 不支持 | POST /2/dm\_conversations |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits) |     | 每位用户每 15 分钟 200 次请求<br /><br />每位用户每 24 小时 1000 次请求<br /><br />每个应用每 24 小时 15000 次请求<br /><br />这些速率限制在所有 dm\_conversations 的 POST 端点之间共享。 |
+| 支持群组私信 |     | ✔   |
+
+**通过 ID 向现有会话添加一条私信**
+
+路径：POST /2/dm\_conversations/:dm\_conversation\_id/messages
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **标准 v1.1** | **X API v2** |
+| 端点路径 | 不支持 | POST /2/dm\_conversations/:dm\_conversation\_id/messages |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits) |     | 每位用户每 15 分钟 200 次请求<br /><br />每位用户每 24 小时 1000 次请求<br /><br />每个应用每 24 小时 15000 次请求<br /><br />这些速率限制在所有 dm\_conversations 的 POST 端点之间共享。 |
+| 支持群组私信 |     | ✔   |

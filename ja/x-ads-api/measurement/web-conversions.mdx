@@ -1,0 +1,945 @@
+---
+title: ウェブコンバージョン
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+<div id="conversion-api-set-up">
+  ## Conversion API の設定
+</div>
+
+### 前提条件 
+
+<div id="ads-api-access-new-applications">
+  #### **広告 API アクセス - 新規申請**
+</div>
+
+- Conversion API の主な要件は、[Developer Account](https://developer.x.com/en/portal/dashboard) と [Ads API Access](https://developer.x.com/en/docs/twitter-ads-api/getting-started) を保有していることです。手順は [Ads API Getting Started](https://developer.x.com/en/docs/twitter-ads-api/getting-started) ガイドに記載されています。以下にご留意ください。
+
+**手順 1: Developer Account**
+
+- [Developer Account](https://developer.x.com/en/portal/dashboard) を申請する際は、即時承認のためサブスクリプションの[プラン](https://developer.x.com/en/portal/products/)のいずれかにお申し込みください。 
+- **注**: ベストプラクティスとして、公式の会社の X ハンドルで開発者アカウントを作成し、Ads API アクセスを申請することを強く推奨します。開発者アカウントが個人の開発者ハンドルに紐づいている場合、必要になっても認証情報を移管する方法はありません。継続的な管理のため会社アカウント配下に置き、必要に応じて [Multi-user login](https://business.x.com/en/help/troubleshooting/multi-user-login-faq.html) をご利用ください。やむを得ず個人アカウントで運用する場合でも、最低限、デフォルト以外の設定（ヘッダー画像、アバター、自己紹介、自己紹介 URL）にし、二要素認証を有効にしてください。
+
+**手順 2: Ads API Application**
+
+- Ads API の申請にあたり、正しい **App** **ID** を用意してください。App ID は [Developer Portal](https://developer.x.com/en/portal/dashboard) の Projects & Apps で確認できます。例: 16489123
+- X の担当者に連絡し、Ads API へのアクセスをリクエストしてください。
+
+<div id="ads-api-access-existing-applications">
+  #### **広告 API アクセス - 既存のアプリケーション**
+</div>
+
+- すでに運用中の広告 API アプリケーションがある場合、そのアプリケーションと既存のアクセス トークンの両方を Conversion API に使用できます。
+
+<div id="access-tokens">
+  #### **アクセストークン**
+</div>
+
+- X 広告 API アプリケーションを所有するユーザーハンドル向けのユーザーアクセストークンは、Developer Portal から直接生成および取得できます。これは自身の X ハンドルでの利用を想定しているため「個人アクセストークン」と呼ばれます。認証および Developer Portal 全般の情報は[こちら](/ja/resources/fundamentals/authentication/overview)をご覧ください。
+- アプリケーション所有者以外のユーザーハンドル向けのユーザーアクセストークンは、3-legged OAuth フローで生成する必要があります。3-legged OAuth でアクセストークンを生成する方法には次のものがあります：
+  - [twurl ユーティリティを用いた Web ベース認可のコマンドライン](https://github.com/twitter/twurl#getting-started)
+  - [PIN ベース認可のコマンドライン](https://developer.x.com/resources/fundamentals/authentication/pin-based-oauth)
+  - [3-legged OAuth パターンを実装したカスタム Web フロー](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)
+- Conversion API で使用するユーザートークンは、AD\_MANAGER または ACCOUNT\_ADMIN のアクセスレベルを持つユーザーのものである必要があります。これは [authenticated\_user\_access](https://developer.x.com/en/docs/twitter-ads-api/campaign-management/api-reference/authenticated-user-access) エンドポイントで確認できます。
+- **注:** 上記の手順で作成されたトークン自体は、利用目的であれば AD\_MANAGER または ACCOUNT\_ADMIN のアクセスレベルを持たないユーザーと共有できます。
+
+<div id="steps">
+  ### **手順**
+</div>
+
+<div id="creating-the-conversion-api-event">
+  ### Conversion API イベントの作成
+</div>
+
+Conversion API を利用するには、Ads Manager で新しいコンバージョンイベントを作成するか、X Pixel で使用中の既存のイベントをそのまま使用します。Pixel と Conversion API のイベントで重複排除（デデュープ）を行う場合は、Pixel 用に作成した既存のイベントを使用してください。 
+
+<div id="option-1-using-an-existing-conversion-event-in-ads-manager">
+  ##### オプション 1: Ads Manager で既存のコンバージョンイベントを使用する
+</div>
+
+すでに X ピクセルで使用しているイベントをそのまま使用することも可能で、そのイベントから Event ID を取得する必要があります。同一のイベントに対して Pixel と Conversion API を併用する場合は、同一イベントにおける Pixel と Conversion API 間の重複を防ぐため、Pixel のコードスニペットと Conversion API リクエストの両方で重複排除キー（`conversion_id`）を使用してください。詳細は「d. Testing Events and Deduplication」セクションをご参照ください。 
+
+<div id="option-2-creating-a-new-conversion-event-in-ads-manager">
+  ##### オプション 2: Ads Manager で新しいコンバージョンイベントを作成する:
+</div>
+
+イベントを作成する前に、Events Manager で Event Source を作成しておくことが重要です。アカウントに Event Source（X Pixel）が追加されているか確認するには、Events Manager に移動し、左側のメニューに X Pixel があるかをご確認ください。
+
+まだ Event Source を追加していない場合は、以下の手順に従って Event Source を作成してください。
+
+1. ads.x.com にアクセス
+2. 左上の **Tools** セクションに移動し、**Events Manager** をクリック
+3. 右上の Add event source を選択して **Add an event source** を実行（左サイドバーに X Pixel Event Source がまだない場合）
+   1. X Pixel Event Source の ID が **Pixel ID** です
+
+これで Event Source と Pixel ID が用意できました。追跡したいコンバージョンイベント用に、Event Source 内にイベントを作成する必要があります。
+
+1. X Pixel Event Source 内で、右側の **Add events** を選択
+2. **Conversion API** でのインストールを選択
+3. API で使用するこのイベントの **Pixel ID** と **Event ID** が表示されます
+   1. イベントの ID が Event ID です
+4. Save をクリックすると、コンバージョンイベントが作成され、準備完了になります
+
+<div id="preparing-identifiers-for-conversion-events">
+  ### コンバージョンイベント用の識別子の準備
+</div>
+
+現在、少なくとも1つの識別子（Click ID（`twclid`）、メールアドレス、または電話番号）を渡す必要があります。IPアドレスまたはユーザーエージェントを使用する場合は、適切なコンバージョンマッチングのために2つ目の識別子も送信してください。
+
+より多くの識別子を渡すことで、コンバージョンマッチング率が向上します。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| 顧客マッチングフィールド | フォーマット | ハッシュ化は必要か |
+| X Click ID | X により生成（[詳細](https://business.x.com/en/help/campaign-measurement-and-analytics/conversion-tracking-for-websites.html#faq)） | 不要 |
+| メールアドレス | 先頭と末尾のスペースを削除 | 必要（SHA-256） |
+| 電話番号 | [E.164形式](https://en.wikipedia.org/wiki/E.164) | 必要（SHA-256） |
+
+|     |     |     |
+| :--- | :--- | :--- |
+| IPアドレス | 先頭と末尾のスペースを削除 | 不要 |
+| ユーザーエージェント | 先頭と末尾のスペースを削除 | 不要 |
+
+#### 1. X Click ID 識別子の準備 
+
+コンバージョンリクエストには常に Click ID を含めることを推奨します。
+
+ユーザーが遷移先のウェブサイトに到達した後、利用可能であればクエリ文字列パラメータ twclid から Click ID を取得してください。 
+
+基本的な JavaScript のコード例:
+
+```js
+var queryString = document.location.search;
+if (queryString.has('twclid') {
+  twitterClickID = getParam(queryString, 'twclid');
+  // 推奨される次の手順: ログへの記録、ローカルストレージへの保存
+}
+```
+
+推奨事項: 
+
+1. URL のクエリパラメータに存在する場合は、常に twclid の値を抽出する。
+
+2. 関連するフォームフィールドやコンバージョンイベント情報とともにデータを保存する。
+
+Click ID をコンバージョンイベントやワークフロー情報に紐づけることで、バッチ処理、複数のウェブサイト遷移フローに基づいてコンバージョンイベントを分析・生成するアルゴリズムの適用、一括アップロードなどのシナリオが可能になります。
+
+Event Source URL は[URL エンコード](https://en.wikipedia.org/wiki/Percent-encoding)されている必要があり、イベントをトリガーしたウェブページを表します。
+
+<div id="2-prepare-email-identifier">
+  #### 2. メール識別子の準備
+</div>
+
+サポート対象のカスタマーマッチング用フィールドは送信できますが、正規化し、必要に応じてプライバシー保護のためにハッシュ化してください。
+
+情報はソルトなしの SHA-256 でハッシュ化する必要があります。
+
+例：メールアドレス test@x.com は、次のハッシュ値で送信します：d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62。
+
+#### 3. 電話識別子を準備する 
+
+電話番号は [E.164 形式](https://en.wikipedia.org/wiki/E.164)で渡し、情報はソルトなしの SHA-256 でハッシュする必要があります。 
+
+例：米国の電話番号 +11234567890 は、次のハッシュ値として送信してください：1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231。
+
+<div id="4-prepare-ip-address-identifier">
+  #### 4. IP アドレス識別子の準備
+</div>
+
+IP アドレスは、他の識別子（twclid、メールアドレス、電話番号、またはユーザーエージェント）と組み合わせて渡す必要があります。この識別子についてハッシュ化は不要です。
+
+この値はドット区切りの10進表記で、ピリオドで区切られた4つの数値で表します。例として、ユーザーのIPアドレスは 8.25.197.25 のようになります。
+
+<div id="5-prepare-user-agent-identifier">
+  #### 5. ユーザーエージェント識別子を準備する
+</div>
+
+ユーザーエージェントは、別の識別子（twclid、メールアドレス、電話番号、またはIPアドレス）と一緒に渡す必要があります。この識別子についてハッシュ化は不要です。
+
+この識別子により、サーバーはリクエスト元のユーザーエージェントのアプリケーション、オペレーティングシステム、ベンダー、またはバージョンを特定できます。例えば、この値は Mozilla/5.0 (Macintosh; Intel Mac OS X 10\_15\_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 のように渡せます。
+
+<div id="constructing-the-conversion-event-request">
+  ### コンバージョンイベントリクエストの作成
+</div>
+
+`POST: version/measurement/conversions/:pixel_id`
+
+特定の広告アカウントにコンバージョンイベントを送信します。レスポンスコードが成功（HTTP 200 OK）であることを確認してください。エラーコードが返される可能性に備え、リトライ機構と基本的なログを用意することを推奨します。
+
+エンドポイントのURLおよびPOSTボディのパラメーターの詳細は、[API Reference](https://developer.x.com/en/docs/twitter-ads-api/measurement/api-reference/conversions) セクションを参照してください。 
+
+<div id="example-request-formatted-for-readability">
+  ### リクエスト例（可読性のため整形）
+</div>
+
+```json
+
+    twurl -H 'ads-api.x.com' -X POST '/12/measurement/conversions/oka17' --data '
+    {
+      "conversions":[
+         {
+            "conversion_time":"2022-02-18T01:14:00.603Z",
+            "event_id":"ol288",
+            "identifiers":[
+               {
+                  "twclid":"23opevjt88psuo13lu8d020qkn"
+               },
+               {
+                  "hashed_email":"d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62"
+               },
+               {
+                  "hashed_phone_number":"1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231"
+               },
+               {
+                  "ip_address":"1.0.0.0",
+                  "user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+               }
+            ],
+            "value":"20.00",
+            "number_items":3,
+            "conversion_id":"23294827",
+            "description":"Pet supply purchases",
+            "contents":[
+               {
+                  "content_id":"1",
+                  "content_name":"Blankets",
+                  "content_type":"Pet supplies",
+                  "content_price":100.99,
+                  "num_items":1,
+                  "content_group_id":"123"
+               }
+            ]
+         }
+      ]
+    }' --header 'Content-Type: application/json'
+
+```
+
+<div id="example-response">
+  ### 応答例
+</div>
+
+```json
+{"request": {
+ "params": {
+     "account_id":"18ce552mlaq"}
+ },
+ "data": {
+    "conversions_processed":1,
+     "debug_id":"ff02e052-36e4-47d6-bdf0-6d8986446562"}
+}
+```
+
+<div id="rate-limit">
+  ### レート制限
+</div>
+
+レート制限は、各アカウントあたり15分ごとに60,000件のイベントです。
+
+このリクエスト呼び出しの外側で、サーバーコードに以下のロジックを実装する必要が生じる場合がある点にご留意ください。
+
+1. 各イベントに対して正しいコンバージョンデータを送信できるよう、ユーザーアクションの計測（ログ記録）を行うこと
+
+2. 関連するプライバシー選択を行ったユーザーのコンバージョンイベントを除外するために必要なロジック——たとえば、広告主サイトでトラッキングや個人情報の販売をオプトアウトしている場合
+
+3. イベントトリガーやページとの統合により、イベントを捕捉してコンバージョンを送信すること
+
+<div id="testing-events-and-deduplication">
+  ### イベントのテストと重複除外
+</div>
+
+<div id="testing-events">
+  ### イベントのテスト
+</div>
+
+イベントでコンバージョンが正常に受信されると、12〜24時間以内に広告マネージャーのコンバージョントラッキングページで「Single event web tag」のステータスが「TRACKING」と表示されるはずです。Conversion API 経由でコンバージョンを送信しても、進行中のキャンペーンには影響しません。
+
+また、タグ ID ごとにコンバージョンイベントのアナリティクス結果を確認できます。
+
+- 広告マネージャーのデータエクスポート（[Analytics for Website Conversion Tracking のヘルプページ](https://business.x.com/en/help/campaign-measurement-and-analytics/conversion-tracking-for-websites.html)）
+
+- X 広告 API を介したデータエクスポート（segmentation\_type=CONVERSION\_TAGS） 
+
+<div id="duplication-between-pixel-and-conversion-api">
+  ### Pixel と Conversion API 間の重複排除
+</div>
+
+Pixel と Conversion API のリクエスト間でコンバージョンの重複を排除したい場合は、重複排除キーとして conversion\_id を使用できます。重複排除はイベント単位でのみ行われます。つまり、Pixel と CAPI のリクエスト間で重複排除を行うには、同じ conversion\_id を使用するだけでなく、両方のリクエストで同一のイベントを送信する必要があります。重複排除は、受信から 48 時間以内のイベントに対してのみ適用されます。
+
+<div id="conversion-tracking-overview">
+  ## コンバージョン計測（概要）
+</div>
+
+<div id="summary">
+  ### 概要
+</div>
+
+コンバージョントラッキングを使用すると、X 上の広告を閲覧・エンゲージした後に望ましいアクションを実行した X ユーザー数を測定できます。これにより、どのキャンペーンがサイト訪問、サインアップ、購入などのアクションを促しているかを把握できます。これによって広告主は、ダイレクトレスポンス広告の成果を評価するための X 外部での計測機能を得られ、費用対効果よく顧客を獲得できます。
+
+コンバージョンタグを使用すると、広告主はユーザーのコンバージョンを計測し、X 上の広告キャンペーンにひも付けることができます。これにより、獲得単価（CPA）目標の達成に向けたキャンペーン最適化に必要な可視性が得られます。
+
+コンバージョントラッキングで広告主が計測できるウェブサイト上のアクションにはさまざまな種類があります。広告キャンペーンで喚起したいアクションに応じて、1 つ以上を選択できます。
+
+- サイト訪問: ユーザーが広告主のサイトのランディングページを訪問する
+- 購入: ユーザーが広告主のサイトで商品またはサービスの購入を完了する
+- ダウンロード: ユーザーが広告主のサイトからホワイトペーパーやソフトウェアパッケージなどのファイルをダウンロードする
+- サインアップ: ユーザーが広告主のサービス、ニュースレター、またはメール配信に登録する
+- カスタム: 上記いずれのカテゴリにも当てはまらないカスタムアクションの総称
+
+X のコンバージョントラッキングは、広告主にコンバージョンアトリビューションの全体像を提供します。X 独自のコンバージョントラッキング機能の代替としてクライアントが使用している可能性のある、ユニーククリック URL とサードパーティトラッキングタグの組み合わせといったサードパーティ測定システムと比べ、X のコンバージョンタグは、ツイートの展開、リツイート、いいね、返信、フォロー、さらにインプレッションなど、ミッドファネルおよびアッパーファネルのエンゲージメントに起因するコンバージョンも広告主が計測できるようにします。
+
+<div id="faq">
+  ### よくある質問（FAQ）
+</div>
+
+<AccordionGroup>
+  <Accordion title="コンバージョントラッキングタグはどのように機能しますか？">
+    まず、広告主はコンバージョンタグ（X が提供するコードスニペット）を作成し、自社サイトに設置します。これで、ユーザーが指定のアクションを完了したときにコンバージョンを計測する準備が整います。
+
+    その後、ユーザーは X クライアント上で広告主の広告に接触し、広告主のサイトへ遷移してタグ付けされたアクションを実行します。ユーザーが、タグ設定時に広告主が指定したアトリビューションウィンドウ内にそのアクションを完了した場合、タグはそのユーザーが以前に X の広告と接触していたことを認識します。続いてタグが「発火」し、コンバージョンを生み出した広告に帰属できるよう、X のサーバーへ通知を送信します。
+  </Accordion>
+
+  <Accordion title="キャンペーン設定の過程で、そのキャンペーンに関連するトラッキングピクセルを選択できますか？">
+    いいえ、当社のプロダクトは特定のコンバージョンタグを特定のキャンペーンに紐づける設計にはなっていません。代わりに、一度タグを設定すると、どの広告が特定のタグでコンバージョンを促したかをシステムが自動的に追跡します。
+  </Accordion>
+
+  <Accordion title="コンバージョンタグのデフォルトのアトリビューションウィンドウ設定は何ですか？">
+    デフォルトのポストビュー・アトリビューションウィンドウ：1日
+
+    デフォルトのポストエンゲージメント・アトリビューション：14日
+
+    これらのデフォルトは、コンバージョンタグの設定時やタグ作成後の任意のタイミングで変更できます。ポストエンゲージメント・アトリビューションウィンドウの選択肢は 1、7、14、30、60、90 日です。ポストビュー・アトリビューションウィンドウの選択肢は なし、1、7、14、30、60、90 日です。
+  </Accordion>
+
+  <Accordion title="コンバージョンを効果的に促進する DR クリエイティブと戦略にはどのようなものがありますか？">
+    各クライアントの目標、状況、戦略は異なりますが、コンバージョントラッキングのアルファ／ベータに参加したクライアントで効果があったアイデアを以下に示します。
+
+    **クリエイティブ：**
+
+    - **オファー**：割引、プロモーション、または送料無料のオファーをプロモツイートと組み合わせて、アクションへの関心を高める
+    - **懸賞・コンテスト**：とくに著名ブランドでコンバージョンを促進
+    - **ツイート文言のテスト**：全大文字と小文字の比較（FREE と free、NOW と now など）
+    - **締め切り**：期限を設けて即時行動を促す（Offer Expires December 12! など）
+    - **魅力的な写真の追加**：視覚的に訴求力のある写真をツイートクリエイティブに用いることがコンバージョン促進に有効かどうか、テストする価値があります。結果はクライアントの提供内容によって異なる場合があります。
+
+    **ターゲティング：**
+
+    - @handle ターゲティングと関心カテゴリターゲティング：ツイート文言と @handle を想定オーディエンスに厳密に合わせることでコンバージョンを促進
+    - ニッチだがボリュームのあるキーワードの活用：コンサート領域では、アーティスト／ミュージシャン（例：名前）に関連するキーワードが有効であることが示されました。
+    - テーラードオーディエンス：TA Web とコンバージョントラッキングを併用したクライアントは、他のターゲティングを用いた対照群よりも低い CPA を達成
+
+    キャンペーンのセグメンテーションが細かいほど、レポートされるコンバージョン結果はよりアクションにつなげやすくなります。たとえば、50 個のキーワードで最適化するより、4 個のキーワードで構成されたキャンペーンのほうがはるかに最適化しやすくなります。
+  </Accordion>
+</AccordionGroup>
+
+<div id="troubleshooting-and-support-for-conversion-api">
+  ## Conversion API のトラブルシューティングとサポート
+</div>
+
+API 呼び出し後のエラーコードに関するご質問は、以下のセクションをご参照ください。その他のご質問については、遠慮なく X の担当者までご連絡ください。できるだけ早く解決に向けて対応いたします。 
+
+<div id="error-handling-and-explanation">
+  ### エラー処理と説明
+</div>
+
+1 回のリクエストは、含まれるすべてのコンバージョンでエラーが一切発生していない場合にのみ成功します。個々のコンバージョンでエラーが発生した場合、エンドポイントは該当するすべてのエラーを一覧で返します。
+
+<div id="x-ads-api-error-codes-overview">
+  ### X 広告 API のエラーコード概要
+</div>
+
+以下は X 広告 API におけるエラーコードの総合一覧です：
+
+[https://developer.x.com/en/docs/twitter-ads-api/response-codes](https://developer.x.com/en/docs/twitter-ads-api/response-codes)
+
+Conversion API の成功レスポンスは、200 番台の HTTP ステータスコードと、要求したオブジェクトを含む JSON ベースのペイロードによって示されます。
+
+<div id="when-there-is-a-500-series-http-code-its-related-to-a-server-issue-instead-of-your-request-or-account-set-up-please-check-the-x-api-status-page-or-the-developer-community-forum-in-case-others-are-having-similar-issues">
+  #### **500番台の HTTP コードが返された場合**、それはリクエストやアカウント設定ではなくサーバー側の問題です。ほかのユーザーにも同様の事象が発生していないか、[X API status page](https://api.twitterstat.us/) または [developer community forum](https://devcommunity.x.com/) をご確認ください。
+</div>
+
+<div id="when-there-is-a-400-series-http-code-the-common-cases-are">
+  #### 400 番台の HTTP コードが返される場合、一般的なケースは次のとおりです
+</div>
+
+- 400 Bad Request（リクエストが規格に準拠していない）
+
+- 401 Unauthorized（認証に関する問題）
+
+- 403 Forbidden（該当する Developer Account に関連する API アクセスの問題）
+
+- 404 Not Found（そのエンドポイントに対して URL またはパラメータが正しくない可能性がある）
+
+<div id="conversion-api-error-codes">
+  ### Conversion APIのエラーコード
+</div>
+
+<div id="400-bad-request-scenarios">
+  #### 400 Bad Request のシナリオ
+</div>
+
+| **理由** | **タイプ** | **エラーメッセージ** |
+| :--- | :--- | :--- |
+| 識別子の不足エラー（現在はハッシュ化済みメールまたは X click ID（twclid）） | 400 Bad Request | 少なくとも 1 つのユーザー識別子を指定する必要があります |
+| 無効なハッシュ化済みメール | 400 Bad Request | Hashed\_email は有効な SHA-256 ハッシュではありません |
+| event\_id の種別が単一イベントタグ（SET）ではない | 400 Bad Request | Event\_id (\<event\_id>) は単一イベントタグ（SET）ではありません |
+| 要求したコンバージョンイベントが上限を超過（現在は 1 リクエストあたり 500 イベント） | 400 Bad Request | コンバージョン数の上限は 500 です |
+| Event ID の不足 | 400 Bad Request | Event ID が見つかりませんでした |
+
+<div id="json-error-code-example">
+  #### JSON エラーコード例
+</div>
+
+<div id="request">
+  ##### リクエスト:
+</div>
+
+`POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dkt", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### エラーメッセージ:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"event_id (o6dkt) is not a single event tag (SET)","parameter":"event_id"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### リクエスト:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dl3", "identifiers": [{"twclid": ""}]}]}' --header 'Content-Type: application/json' `
+
+<div id="error-message">
+  #### エラーメッセージ:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"少なくとも1つのユーザー識別子を指定する必要があります","parameter":""}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### リクエスト:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dl3", "identifiers": [{"hashed_email": "abc"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### エラーメッセージ:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"hashed_email (abc) is not a valid SHA-256 hash","parameter":"hashed_email"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### リクエスト：
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt' --data '{"conversions":[{"conversion_time":"2022-06-16T01:14:00.603","event_id":"o6dl3","identifiers":[{"twclid":"23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### エラーメッセージ:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"時間は yyyy-MM-ddTHH:mm:ss.SSSZ の形式である必要がありますが、conversion_time に \"2022-06-16T01:14:00.603\" が指定されました","parameter":"conversion_time"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="401-unauthorized">
+  ### 401 Unauthorized
+</div>
+
+**理由**: 認証情報が不足している、または誤っています
+
+**解決策**: 次の3つの認証方法のいずれかを使用して、[セットアップドキュメント](https://developer.x.com/en/docs/twitter-ads-api/measurement/guides/conversion-api)の認証手順に従ってください。
+
+X 広告 API アプリケーションの所有者以外のハンドルのユーザーアクセストークンは、3-legged OAuth フローで生成する必要があります。3-legged OAuth でアクセストークンを生成する方法として、次のオプションがあります。
+
+- [twurl ユーティリティによる Web ベース認可を用いたコマンドライン](https://github.com/twitter/twurl#getting-started)
+
+- [PIN ベース認可を用いたコマンドライン](https://developer.x.com/resources/fundamentals/authentication/pin-based-oauth)
+
+- [3-legged OAuth パターンを実装したカスタム Web フロー](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)
+
+Conversion API で使用するユーザートークンは、AD\_MANAGER または ACCOUNT\_ADMIN のアクセスレベルを持つユーザーのものである必要があります。これは [authenticated\_user\_access](https://developer.x.com/en/docs/twitter-ads-api/campaign-management/api-reference/authenticated-user-access) エンドポイントで確認できます。
+
+<div id="403-access-forbidden">
+  ### 403 アクセス拒否
+</div>
+
+| 理由 | 種別 | エラーメッセージ |
+| :--- | :--- | :--- |
+| 使用しているデベロッパーアカウントには X 広告 API へのアクセス権がありません。[こちらからアクセスを申請してください](https://developer.x.com/en/docs/twitter-ads-api/apply)。 | 403 Unauthorized Client | このリクエストを行っている、id \<> のクライアントアプリケーションには X 広告 API へのアクセス権がありません。アプリケーションに advertiser-api のアクセス権が付与されていることを確認してください。使用中のアプリケーションを変更するには 'twurl accounts' および 'twurl set default \<username> \<key>' を使用してください。 |
+
+### 404 Not Found 
+
+| 原因 | 種別 | エラーメッセージ |
+| :--- | :--- | :--- |
+| リクエストURLまたはパラメータがこのエンドポイントに対して正しくありません | 404 Route Not Found | 要求されたリソースが見つかりませんでした |
+| pixel\_id／Universal Website Tag を所有するアカウントへのアクセス権がありません | 404 Not Found | User \<user\_id> には account \<account\_id> へのアクセス権がありません。ユーザーのハンドルを取得するには 'sn \<user\_id>' を使用してください。使用中のユーザーを変更するには 'twurl accounts' と 'twurl set default \u003Cusername\u003E' を使用してください。 |
+| event\_id が、ピクセルID（UWT ID）に関連付けられた提供アカウントに属していません | 404 Not Found | event\_id \<event\_id> は提供されたアカウントに属していません |
+
+<div id="json-error-code-example">
+  ### JSON エラーコード例
+</div>
+
+<div id="request">
+  #### リクエスト:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o8z6j'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"abc", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+**エラーメッセージ:**
+
+`{"errors":[{"code":"NOT_FOUND","message":"event_id (abc) does not belong to provided account","parameter":"event_id"},{"code":"INVALID_PARAMETER","message":"event_id (abc) is not a single event tag (SET)","parameter":"event_id"}],"request":{"params":{"account_id":"18ce55gze09"}}}`
+
+<div id="api-reference-index">
+  ## API リファレンス インデックス
+</div>
+
+完全な API リファレンスは、一覧からエンドポイントを選択してください：
+
+<div id="web-conversions">
+  ### ウェブコンバージョン
+</div>
+
+|     |     |
+| :--- | :--- |
+| コンバージョン API | [measurement/conversions/:pixel\_id](https://developer.x.com/en/docs/x-ads-api/measurement/web-conversions/api-reference/conversions) |
+| ウェブイベントタグ | [accounts/:account\_id/web\_event\_tags](https://developer.x.com/en/docs/x-ads-api/measurement/web-conversions/api-reference/web-event-tags) |
+
+<div id="web-conversions">
+  ### Web Conversions
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  Postman で実行
+</Button>
+
+`POST version/measurement/conversions/:pixel_id`
+
+単一の Event Tag ID に対して、ウェブサイトのコンバージョンイベントを送信します。
+
+レスポンスコードが成功（HTTP 200 OK）であることを確認してください。エラーコードが返された場合に備え、リトライ機構と基本的なログ記録を用意することを推奨します。
+
+レート制限は、アカウントごとに15分あたり100,000リクエストです（各リクエストで最大500イベント）。
+
+<div id="resource-url">
+  ##### リソースURL
+</div>
+
+`https://ads-api.x.com/12/measurement/conversions/:pixel_id`
+
+<div id="request-url-parameters">
+  ##### リクエスト URL パラメータ
+</div>
+
+| 名前 | 説明 |
+| :--- | :--- |
+| pixel\_id  <br />_必須_ | 広告アカウントの Base Tag ID。広告アカウントの Base Tag ID を base36 でエンコードした値です。<br /><br />型: string<br /><br />例: `o8z6j` |
+| conversions  <br />_必須_ | API リクエストの POST ボディ内のオブジェクト。コンバージョンイベントのリスト。最大 500 件のコンバージョンイベントを指定できます。サポートされるフィールドは下表を参照してください。<br /><br />型: array<br /><br />例: `"conversions":[{"conversion_time": "2022-02-18T01:14:00.603Z", "event_id":"o87ne", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}], "conversion_id": "23294827"}]` |
+
+<div id="conversions-object">
+  ###### conversions オブジェクト
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| conversion\_time  <br />_必須_ | 時刻。[ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) で表します。<br /><br />Type: string<br /><br />Example: `2017-10-05T00:00:00Z` |
+| event\_id  <br />_必須_ | 特定のイベントを示す base-36 形式の ID。この広告アカウント内で事前設定されたイベントに一致します。Events Manager の対応するイベントでは「ID」と呼ばれます。<br /><br />Type: string<br /><br />Example: `o87ne` または `tw-o8z6j-o87ne`（`tw-pixel_id-event-id`）のいずれも可 |
+| identifiers  <br />_必須_ | コンバージョンイベントの照合に使用する identifier オブジェクトのリスト。サポートされるフィールドは以下の表に記載しています。identifier オブジェクトは少なくとも 1 つ必要です。<br /><br />IP アドレスまたはユーザーエージェントを使用する場合は、適切なコンバージョン照合のために 2 つ目の identifier も送信する必要があります。<br /><br />Type: array<br /><br />Example: `"identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"},{"hashed_email": "e586883b2b4faf78d48300a79e0e15138d664cdf796ffb86e533170a9893eda8"}]` |
+| number\_items  <br />_任意_ | イベントで購入されるアイテム数。0 より大きい正の数である必要があります。<br /><br />Type: integer<br /><br />Example: `4` |
+| price\_currency  <br />_任意_ | イベントで購入されるアイテムの通貨。[ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) で表します。詳細は [Currency](https://developer.x.com/en/docs/twitter-ads-api/currency) を参照してください。<br /><br />Type: string<br /><br />Default: `USD`<br /><br />Example: `JPY` |
+| value  <br />_任意_ | イベントで購入されるアイテムの価格。`price_currency` の通貨で表されます。<br /><br />Type: double<br /><br />Example: `100.00` |
+| conversion\_id  <br />_任意_ | Pixel と Conversion API のコンバージョン間での重複排除に使用。_同一イベントタグ_ 内における Web Pixel と Conversion API のコンバージョンの重複排除に利用できるコンバージョンイベントの識別子。[Conversions Guide](https://developer.x.com/en/docs/twitter-ads-api/measurement/guides/conversion-api) の「Testing Events and Deduplication」セクションを参照してください。<br /><br />Type: string<br /><br />Example: `23294827` |
+| description  <br />_任意_ | コンバージョンに関する追加情報を含む説明。<br /><br />Type: string<br /><br />Example: `test conversion` |
+| contents  <br />_任意_ | より詳細な情報を提供するための、特定の製品／コンテンツに関する詳細のリスト。サポートされるフィールドは以下の表を参照してください。<br /><br />Type: array<br /><br />Example: `contents": [{"content_id": "1", "content_name": "Blankets", "content_type": "home improvement", "content_price": 100.99, "num_items": 1, "content_group_id": "123"}, {"content_id": "2"}]` |
+
+<div id="identifiers-object">
+  ###### identifiers オブジェクト
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| ********twclid********  <br />_状況により必須_ | クリック先の URL から抽出されたクリック ID。他の識別子が追加されていない場合は必須。<br /><br />Type: string<br /><br />Example: `26l6412g5p4iyj65a2oic2ayg2` |
+| ********hashed\_email********  <br />_状況により必須_ | [SHA256](https://en.wikipedia.org/wiki/SHA-2) でハッシュ化したメールアドレス。ハッシュ化前にテキストは小文字にし、前後の空白を削除する。他の識別子が追加されていない場合は必須。<br /><br />Type: string<br /><br />Example: `test-email@test.com` の場合 = `e586883b2b4faf78d48300a79e0e15138d664cdf796ffb86e533170a9893eda8` |
+| ********hashed\_phone\_number********  <br />_状況により必須_ | [E164](https://en.wikipedia.org/wiki/E.164) 形式の電話番号を [SHA256](https://en.wikipedia.org/wiki/SHA-2) でハッシュ化したもの。ハッシュ化前に電話番号は E164 形式である必要がある。他の識別子が追加されていない場合は必須。<br /><br />Type: string<br /><br />Example: `+11234567890` の場合 = `1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231` |
+| **ip\_address**  <br />_状況により必須_ | 4 つの数値をピリオドで区切ったドット表記の 10 進数で記述される値。<br /><br />IP アドレスは、他の識別子（twclid、メールアドレス、電話番号、または user agent）と組み合わせて渡す必要がある。<br /><br />Type: string<br /><br />Example: 8.25.197.25 |
+| \*\*user\_agent \*\*  <br />_状況により必須_ | この識別子により、サーバーは要求元のユーザーエージェントのアプリケーション、オペレーティングシステム、ベンダー、および／またはバージョンを識別できる。<br /><br />User Agent は、他の識別子（twclid、メールアドレス、電話番号、または IP アドレス）と組み合わせて渡す必要がある。<br /><br />Type: string<br /><br />Example: Mozilla/5.0 (Macintosh; Intel Mac OS X 10\_15\_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36. |
+
+<div id="contents-object">
+  ###### contents オブジェクト
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| content\_id  <br />_optional_ | SKU または GTIN。コンテンツを表す識別子。<br /><br />Type: string<br /><br />Example: `jhp` |
+| content\_group\_id  <br />_optional_ | 製品バリエーションのグループに関連付けられた ID。<br /><br />Type: integer<br /><br />Example: `group 1` |
+| content\_name  <br />_optional_ | 製品またはサービス名。<br /><br />Type: string<br /><br />Example: `radio flyer` |
+| content\_price  <br />_optional_ | 製品またはサービスの価格。<br /><br />Type: double<br /><br />Example: `5.00` |
+| content\_type  <br />_optional_ | 購入された製品のカテゴリ。<br /><br />Type: string<br /><br />Example: `clothes` |
+| num\_items  <br />_optional_ | 購入された製品数。<br /><br />Type: integer<br /><br />Example: `1` |
+
+<div id="response-parameters">
+  ##### レスポンスパラメータ
+</div>
+
+| 名前 | 説明 |
+| :--- | :--- |
+| conversions\_processed | 正常に処理されたコンバージョン数<br /><br />型: integer<br /><br />例: `1` |
+| debug\_id | 以降の調査に使用できるデバッグ用 UUID<br /><br />型: string<br /><br />例: `ff02e052-36e4-47d6-bdf0-6d8986446562` |
+
+<div id="example-request">
+  ##### リクエスト例
+</div>
+
+```json
+    twurl -H 'ads-api.x.com' -X POST '/12/measurement/conversions/oka17' --data '
+    {
+      "conversions":[
+         {
+            "conversion_time":"2022-02-18T01:14:00.603Z",
+            "event_id":"ol288",
+            "identifiers":[
+               {
+                  "twclid":"23opevjt88psuo13lu8d020qkn"
+               },
+               {
+                  "hashed_email":"d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62"
+               },
+               {
+                  "hashed_phone_number":"1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231"
+               },
+               {
+                  "ip_address":"1.0.0.0",
+                  "user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+               }
+            ],
+            "value":"20.00",
+            "number_items":3,
+            "conversion_id":"23294827",
+            "description":"Pet supply purchases",
+            "contents":[
+               {
+                  "content_id":"1",
+                  "content_name":"Blankets",
+                  "content_type":"Pet supplies",
+                  "content_price":100.99,
+                  "num_items":1,
+                  "content_group_id":"123"
+               }
+            ]
+         }
+      ]
+    }' --header 'Content-Type: application/json'
+```
+
+<div id="example-request">
+  ##### リクエスト例
+</div>
+
+```json
+    {
+       "request":{
+          "params":{
+             "account_id":"18ce552mlaq"
+          }
+       },
+       "data":{
+          "conversions_processed":1,
+          "debug_id":"ff02e052-36e4-47d6-bdf0-6d8986446562"
+       }
+    }
+```
+
+<div id="web-event-tags">
+  ### Web イベントタグ
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  Postman で実行
+</Button>
+
+`GET accounts/:account_id/web_event_tags`
+
+現在のアカウントに関連付けられている Web イベントタグの詳細を、一部またはすべて取得します。
+
+<div id="resource-url">
+  #### リソース URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags`
+
+<div id="parameters">
+  #### パラメータ
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| account\_id  <br />_必須_ | 利用するアカウントの識別子。リソースのパス内に含まれ、[GET accounts](/ja/x-ads-api/campaign-management#accounts) を除くすべての Advertiser API リクエストで通常必須のパラメータです。指定したアカウントは認証済みユーザーに関連付けられている必要があります。<br /><br />Type: string<br /><br />Example: `18ce54d4x5t` |
+| count  <br />_任意_ | リクエストごとに取得を試みるレコード数を指定します。<br /><br />Type: int<br /><br />Default: `200`  <br />Min, Max: `1`, `1000` |
+| cursor  <br />_任意_ | 次ページの結果を取得するためのカーソルを指定します。詳細は [Pagination](/ja/x-ads-api/introduction) を参照してください。<br /><br />Type: string<br /><br />Example: `8x7v00oow` |
+| sort\_by  <br />_任意_ | サポート対象の属性で昇順または降順に並べ替えます。詳細は [Sorting](/ja/x-ads-api/fundamentals/sorting) を参照してください。<br /><br />Type: string<br /><br />Example: `created_at-asc` |
+| web\_event\_tag\_ids  <br />_任意_ | カンマ区切りの ID リストを指定して、レスポンスを目的の Web イベントタグのみに絞り込みます。最大 200 個の ID を指定できます。<br /><br />Type: string<br /><br />Example: `o3bk1` |
+| with\_deleted  <br />_任意_ | 削除済みの結果を含めます。<br /><br />Type: boolean<br /><br />Default: `false`  <br />Possible values: `true`, `false` |
+| with\_total\_count  <br />_任意_ | `total_count` レスポンス属性を含めます。<br /><br />**Note**: このパラメータと `cursor` は相互に排他的です。<br /><br />**Note**: `total_count` を含むリクエストはレート制限が低く、現在は 15 分あたり 200 回に設定されています。<br /><br />Type: boolean<br /><br />Default: `false`  <br />Possible values: `true`, `false` |
+
+<div id="example-request">
+  #### リクエスト例
+</div>
+
+`GET https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags?web_event_tag_ids=o3bk1`
+
+<div id="example-response">
+  #### レスポンス例
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "web_event_tag_ids": [
+            "o3bk1"
+          ],
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "next_cursor": null,
+      "data": [
+        {
+          "name": "web event tag",
+          "view_through_window": 7,
+          "click_window": 7,
+          "embed_code": "<script src=\"//platform.x.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.x.com/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+          "id": "o3bk1",
+          "retargeting_enabled": false,
+          "last_tracked_at": "2021-05-22T17:00:04Z",
+          "status": "TRACKING",
+          "type": "DOWNLOAD",
+          "website_tag_id": "ny3od",
+          "deleted": false
+        }
+      ]
+    }
+```
+
+#### GET accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+現在のアカウントに紐づく特定のWebイベントタグを取得します。
+
+<div id="resource-url">
+  ##### リソースURL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  ##### パラメータ
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| account\_id  <br />_必須_ | 利用するアカウントの識別子。リソースのパス内に含まれ、[GET accounts](/ja/x-ads-api/campaign-management#accounts) を除くすべての Advertiser API リクエストで一般的に必須です。指定したアカウントは、認証済みユーザーに紐づいている必要があります。<br /><br />Type: string<br /><br />Example: `18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_必須_ | リクエストで操作対象となるWebイベントタグへの参照。<br /><br />Type: string<br /><br />Example: `o3bk1` |
+| with\_deleted  <br />_任意_ | 削除済みの結果をレスポンスに含めます。<br /><br />Type: boolean<br /><br />Default: `false`  <br />Possible values: `true`, `false` |
+
+<div id="example-request">
+  ##### リクエスト例
+</div>
+
+`GET https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1`
+
+<div id="example-response">
+  ##### レスポンス例
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src=\"//platform.x.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.x.com/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "TRACKING",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      }
+    }
+```
+
+#### POST accounts/:account\_id/web\_event\_tags
+
+現在のアカウントに紐づく新しいWebイベントタグを作成します。
+
+<div id="resource-url">
+  #### リソース URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags`
+
+<div id="parameters">
+  #### パラメータ
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| account\_id  <br />_required_ | 利用するアカウントの識別子。リソースのパス内に含まれ、[GET accounts](/ja/x-ads-api/campaign-management#accounts) を除くすべての Advertiser API リクエストで一般的に必須のパラメータです。指定したアカウントは認証済みユーザーに関連付けられている必要があります。<br /><br />Type: string<br /><br />Example: `18ce54d4x5t` |
+| click\_window  <br />_required_ | この Web タグのクリック計測ウィンドウ。<br /><br />**注**: 下記の値のみが有効です。<br /><br />Type: int<br /><br />Possible values: `1`, `7`, `14`, `30` |
+| name  <br />_required_ | Web タグの名前。<br /><br />Type: string<br /><br />Example: `Sample single conversion event` |
+| retargeting\_enabled  <br />_required_ | この Web タグでリターゲティングを有効にするかどうか。<br /><br />Type: boolean<br /><br />Possible values: `true`, `false` |
+| type  <br />_required_ | Web タグの種類。<br /><br />Type: enum<br /><br />Possible values: `ADDED_PAYMENT_INFO`, `ADD_TO_CART`, `ADD_TO_WISHLIST`, `CHECKOUT_INITIATED`, `CONTENT_VIEW`, `CUSTOM`, `DOWNLOAD`, `PRODUCT_CUSTOMIZATION`,`PURCHASE`, `SEARCH`, `SIGN_UP`, `SITE_VISIT`, `START_TRIAL`, `SUBSCRIBE`<br /><br />(UI 上では、`SITE_VISIT` は「Page view」、`SIGN_UP` は「Lead」と表示されます) |
+| view\_through\_window  <br />_required_ | この Web タグのビュースルー計測ウィンドウ。この値は常に `click_window` の値以下である必要があります。<br /><br />**注**: 下記の値のみが有効です。<br /><br />Type: int<br /><br />Possible values: `0`, `1`, `7`, `14`, `30` |
+
+<div id="example-request">
+  ##### リクエスト例
+</div>
+
+`POST https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags?click_window=7&name=web event tag&retargeting_enabled=false&type=SITE_VISIT&view_through_window=7`
+
+<div id="example-response">
+  #### 応答例
+</div>
+
+```json
+    {
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": null,
+        "status": "UNVERIFIED",
+        "type": "SITE_VISIT",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      },
+      "request": {
+        "params": {
+          "name": "web event tag",
+          "view_through_window": 7,
+          "click_window": 7,
+          "retargeting_enabled": false,
+          "account_id": "18ce54d4x5t",
+          "type": "SITE_VISIT"
+        }
+      }
+    }
+```
+
+#### PUT accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+現在のアカウントに紐づくWebイベントタグを更新します。
+
+<div id="resource-url">
+  ##### リソース URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  #### パラメーター
+</div>
+
+| Name | Description |
+| :--- | :--- |
+| account\_id  <br />_required_ | 利用するアカウントの識別子。リソースのパスに含まれ、[GET accounts](/ja/x-ads-api/campaign-management#accounts) を除くすべての Advertiser API リクエストで一般的に必須です。指定したアカウントは、認証済みユーザーに関連付けられている必要があります。<br /><br />Type: string<br /><br />Example: `18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_required_ | 現在のアカウント上の Web タグの識別子。<br /><br />Type: string<br /><br />Example: `o3bk1` |
+| click\_window  <br />_optional_ | この Web タグのクリック計測ウィンドウ。<br /><br />**Note**: 下記の値のみが受け付けられます。<br /><br />Type: int<br /><br />Possible values: `1`, `7`, `14`, `30` |
+| name  <br />_optional_ | Web タグの名前。<br /><br />Type: string<br /><br />Example: `Sample single conversion event` |
+| retargeting\_enabled  <br />_optional_ | この Web タグでリターゲティングを有効にするかどうか。<br /><br />Type: boolean<br /><br />Possible values: `true`, `false` |
+| type  <br />_optional_ | Web タグのタイプ。<br /><br />Type: enum<br /><br />Possible values: `ADDED_PAYMENT_INFO`, `ADD_TO_CART`, `ADD_TO_WISHLIST`, `CHECKOUT_INITIATED`, `CONTENT_VIEW`, `CUSTOM`, `DOWNLOAD`, `PRODUCT_CUSTOMIZATION`,`PURCHASE`, `SEARCH`, `SIGN_UP`, `SITE_VISIT`, `START_TRIAL`, `SUBSCRIBE`<br /><br />(UI 上では、`SITE_VISIT` は「Page view」、`SIGN_UP` は「Lead」と表示されます) |
+| view\_through\_window  <br />_optional_ | この Web タグのビュースルー計測ウィンドウ。常に `click_window` の値以下である必要があります。<br /><br />**Note**: 下記の値のみが受け付けられます。<br /><br />Type: int<br /><br />Possible values: `0`, `1`, `7`, `14`, `30` |
+
+<div id="example-request">
+  #### リクエスト例
+</div>
+
+`PUT https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1?type=DOWNLOAD`
+
+<div id="example-response">
+  #### レスポンス例
+</div>
+
+```json
+    {
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "UNVERIFIED",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      },
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "type": "DOWNLOAD",
+          "account_id": "18ce54d4x5t"
+        }
+      }
+    }
+```
+
+#### DELETE accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+現在のアカウントに紐づく特定のWebイベントタグを削除します。
+
+<div id="resource-url">
+  #### リソースURL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  ##### パラメータ
+</div>
+
+| 名前 | 説明 |
+| :--- | :--- |
+| account\_id  <br />_必須_ | 利用対象アカウントの識別子。リソースのパス内に含まれ、[GET accounts](/ja/x-ads-api/campaign-management#accounts) を除くすべての Advertiser API リクエストで一般に必須のパラメータです。指定したアカウントは認証済みユーザーに紐づいている必要があります。<br /><br />型: string<br /><br />例: `18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_必須_ | 現在のアカウントにある Web タグの識別子。<br /><br />型: string<br /><br />例: `o3bk1` |
+
+<div id="example-request">
+  ##### リクエスト例
+</div>
+
+`DELETE https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1`
+
+<div id="example-response">
+  ##### レスポンス例
+</div>
+
+```json
+    {
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "UNVERIFIED",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": true
+      },
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "account_id": "18ce54d4x5t"
+        }
+      }
+    }
+```

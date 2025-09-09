@@ -1,0 +1,106 @@
+---
+title: Consumindo dados em streaming
+sidebarTitle: Consumindo dados em streaming
+---
+
+<div id="building-a-client-to-consume-streaming-data">
+  ### Criando um cliente para consumir dados de streaming
+</div>
+
+Ao usar um endpoint de streaming, há algumas práticas recomendadas gerais a serem consideradas para otimizar o uso.  
+ 
+
+<div id="client-design">
+  #### Design do cliente
+</div>
+
+Ao criar uma solução com o endpoint de Fluxo filtrado, você precisará de um cliente que seja capaz de:
+
+1. Estabelecer uma conexão de streaming HTTPS com o endpoint de Fluxo filtrado.
+2. Enviar, de forma assíncrona, solicitações POST ao endpoint de regras do Fluxo filtrado para adicionar e excluir regras do fluxo.
+3. Lidar com baixos volumes de dados – manter a conexão de streaming, detectando objetos de Post e sinais de keep-alive.
+4. Lidar com altos volumes de dados – desacoplar a ingestão do fluxo do processamento adicional usando processos assíncronos e garantir que os buffers no cliente sejam esvaziados regularmente.
+5. Gerenciar o acompanhamento do consumo de volume no cliente.
+6. Detectar desconexões do fluxo, avaliar e reconectar-se ao fluxo automaticamente.
+    
+
+<div id="connecting-to-a-streaming-endpoint">
+  #### Conectando a um endpoint de streaming
+</div>
+
+Estabelecer uma conexão com endpoints de streaming da API do X v2 significa fazer uma solicitação HTTP de longa duração e processar a resposta de forma incremental. Conceitualmente, você pode pensar nisso como baixar um arquivo infinitamente longo via HTTP. Uma vez estabelecida a conexão, o servidor do X entregará eventos de post por meio da conexão enquanto ela permanecer aberta.
+ 
+
+<div id="consuming-data">
+  #### Consumindo dados
+</div>
+
+Observe que os campos individuais de objetos JSON não têm ordem definida e nem todos os campos estarão presentes em todas as circunstâncias. Da mesma forma, atividades distintas não são entregues em ordem de classificação, e mensagens duplicadas podem ser encontradas. Tenha em mente que, ao longo do tempo, novos tipos de mensagens podem ser adicionados e enviados pelo fluxo.
+
+Assim, seu cliente deve tolerar:
+
+- Campos em qualquer ordem
+- Campos inesperados ou ausentes
+- Posts fora de ordem
+- Mensagens duplicadas
+- Novos tipos de mensagens arbitrários chegando pelo fluxo a qualquer momento
+
+Além dos dados relevantes do Post e dos parâmetros de campos solicitados, os seguintes tipos de mensagens podem ser entregues em uma conexão de fluxo. Observe que esta lista pode não ser exaustiva — objetos adicionais podem ser introduzidos nos fluxos. Garanta que seu parser seja tolerante a formatos de mensagem inesperados.
+ 
+
+#### Buffering 
+
+Os endpoints de streaming enviarão dados para você assim que estiverem disponíveis, o que pode resultar em volumes altos em muitos casos. Se o servidor do X não puder gravar novos dados no stream imediatamente (por exemplo, se o seu cliente não estiver lendo rápido o suficiente; veja [como lidar com desconexões](/pt-BR/x-api/posts/filtered-stream#what-is-a-disconnection) para mais detalhes), ele fará o buffering do conteúdo no lado dele para permitir que seu cliente acompanhe. No entanto, quando esse buffer estiver cheio, será iniciada uma desconexão forçada para encerrar a conexão, e os Posts em buffer serão descartados e não reenviados. Veja abaixo mais detalhes.
+
+Uma forma de identificar momentos em que seu app está ficando para trás é comparar o carimbo de data e hora dos Posts recebidos com o horário atual e monitorar isso ao longo do tempo.
+
+Embora acúmulos no stream não possam ser completamente eliminados devido à possível latência e instabilidades na internet pública, eles podem ser amplamente mitigados com a configuração adequada do seu app. Para minimizar a ocorrência desses acúmulos:
+
+- Garanta que seu cliente esteja lendo o stream rápido o suficiente. Normalmente, você não deve fazer nenhum processamento real enquanto lê o stream. Leia o stream e repasse a atividade para outra thread/processo/armazenamento de dados para executar o processamento de forma assíncrona.
+- Garanta que seu data center tenha largura de banda de entrada suficiente para acomodar grandes volumes de dados sustentados, bem como picos significativamente maiores (por exemplo, 5–10x o volume normal). Para o Fluxo filtrado, o volume e a largura de banda correspondentes necessários do seu lado dependem totalmente de quais Posts suas regras estão correspondendo.
+   
+
+<div id="usage-tracking-and-rule-management">
+  #### Rastreamento de uso e gerenciamento de regras
+</div>
+
+Como as expectativas dos desenvolvedores sobre qual deve ser o volume de dados “normal” para seus fluxos variam, não temos uma recomendação geral quanto a uma porcentagem específica de diminuição/aumento nem a um período de tempo.
+
+Considere monitorar os volumes de dados do seu fluxo em busca de desvios inesperados. Uma redução no volume pode indicar um problema diferente de uma desconexão do fluxo. Nessa situação, o fluxo ainda estaria recebendo o sinal de keep-alive e provavelmente alguns novos dados de atividade. No entanto, uma queda significativa no número de Posts deve levá-lo a investigar se há algo causando a diminuição do volume de dados recebidos pelo seu aplicativo ou pela sua rede; verifique a [página de status](https://api.twitterstat.us/) para quaisquer avisos relacionados.
+
+Para criar esse tipo de monitoramento, você pode acompanhar o número de novos Posts que espera ver em um determinado intervalo de tempo. Se o volume de dados de um fluxo cair muito abaixo do limite especificado e não se recuperar dentro de um período definido, alertas e notificações devem ser acionados. Você também pode monitorar aumentos acentuados no volume de dados, especialmente se estiver modificando regras em um fluxo filtrado ou se ocorrer um evento que gere um pico na atividade de Posts.
+
+É importante observar que Posts entregues por meio de fluxo filtrado contam para o volume mensal total de Posts, e você deve acompanhar e ajustar o consumo para otimizar. Se o volume estiver alto, considere adicionar o operador sample: a cada uma de suas regras para reduzir de 100% de correspondência para sample:50 ou sample:25 quando necessário.
+
+Além disso, recomendamos implementar medidas no seu app que alertem sua equipe se o volume ultrapassar um limite predefinido e, possivelmente, adotar outras ações, como a exclusão automatizada de regras que estejam trazendo dados em excesso ou a desconexão completa do fluxo em circunstâncias extremas.
+ 
+
+<div id="responding-to-system-messages">
+  #### Respondendo a mensagens do sistema
+</div>
+
+Sinais de keep-alive
+Pelo menos a cada 20 segundos, o stream enviará um sinal de keep-alive (heartbeat) na forma de um retorno de carro \r\n pela conexão aberta para evitar que seu cliente atinja timeout. Seu aplicativo cliente deve ser tolerante aos caracteres \r\n no stream.
+
+Se seu cliente implementar corretamente um tempo limite de leitura na biblioteca HTTP, seu app poderá confiar no protocolo HTTP e na própria biblioteca para disparar um evento caso nenhum dado seja lido nesse período, e você não precisará monitorar explicitamente o caractere \r\n.
+
+Esse evento geralmente será uma exceção lançada ou algum outro evento, dependendo da biblioteca HTTP usada. É altamente recomendável encapsular seus métodos HTTP com manipuladores de erros/eventos para detectar esses timeouts. Em caso de timeout, seu aplicativo deve tentar se reconectar.
+
+Mensagens de erro
+Os endpoints de streaming v2 também podem entregar mensagens de erro no próprio stream. Abaixo está o formato básico dessas mensagens, juntamente com alguns exemplos. Observe que as mensagens entregues podem mudar, com novas mensagens sendo introduzidas. Os aplicativos clientes precisam ser tolerantes a alterações nos payloads de mensagens do sistema.
+
+Observe que as mensagens de erro terão links para a documentação que descreve como resolver o problema.
+
+Formato da mensagem:
+
+```{
+	"errors": [{
+		"title": "operational-disconnect",
+		"disconnect_type": "UpstreamOperationalDisconnect",
+		"detail": "This stream has been disconnected upstream for operational reasons.",
+		"type": "https://api.x.com/2/problems/operational-disconnect"
+	}]
+}
+```
+
+Observe que mensagens de erro indicando um desligamento forçado por buffer cheio podem nunca chegar ao seu cliente, se o acúmulo que causou o desligamento forçado impedir sua entrega. Assim, seu app não deve depender dessas mensagens para iniciar uma reconexão.

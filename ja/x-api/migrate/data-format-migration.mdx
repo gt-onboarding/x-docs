@@ -1,0 +1,972 @@
+---
+title: データフォーメーションの移行
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+<div id="introduction">
+  ## はじめに
+</div>
+
+X API v2 の提供開始に伴い、新しいデータレスポンス形式と、各種オブジェクトおよびフィールドのリクエスト方法を採用しました。これを総称して「X API v2 形式」と呼びます。 
+
+「一般的な相違点」セクションでは、Standard および Enterprise ユーザーに関係する変更点を確認できます。さらに、[standard v1.1 の Native 形式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)、Enterprise 向けの [Native Enriched 形式](/ja/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-tweet-object)、Enterprise 向けの [Activity Streams 形式](/ja/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#activity-object)についての個別ガイドも用意しており、フィールドのマッピングや、新しい v2 フィールドをリクエストする際に使用すべきフィールドおよび拡張（expansions）を説明しています。 
+
+- [Native 形式から X API v2 へ（standard v1.1）](/ja/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2) 
+- [Native Enriched から X API v2 へ（enterprise）](/ja/x-api/migrate/data-format-migration#migrating-from-native-enriched-data-format-to-v2)
+- [Activity Streams から X API v2 へ（enterprise）](/ja/x-api/migrate/data-format-migration#migrating-from-activity-streams-data-format-to-v2)
+
+また、[X API v1.1 のデータ形式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)と [X API v2 形式](/ja/x-api/introduction)の差分を素早く可視化できる[ビジュアルデータ形式移行ツール](/ja/x-api/migrate/data-format-migration#visual-data-format-migration-tool)もぜひご活用ください。
+
+<div id="general-differences">
+  ### 全般的な相違点
+</div>
+
+<div id="requesting-objects-and-fields">
+  #### オブジェクトとフィールドのリクエスト
+</div>
+
+pre-v2 エンドポイントと v2 の大きな違いの一つは、v2 ではデフォルトで返されるフィールドがごく一部に限られるのに対し、standard、premium、enterprise の各エンドポイントではデフォルトでほとんどのフィールドが返される点です。v2 では、デフォルトを超える追加データを明示的に取得するために、[fields](/ja/x-api/fundamentals/fields) と [expansions](/ja/x-api/fundamentals/expansions) というパラメータを使用します。これにより、不要なフィールドを取り込むことなく、必要なデータだけをリクエストできます。
+
+プライマリのデータオブジェクトに関連するフィールドをリクエストした場合、それらはデフォルトの値とともにそのプライマリオブジェクト内で返されます。一方、expansions パラメータで拡張オブジェクトをリクエストした場合は、セカンダリのオブジェクトが新しい includes オブジェクト内で返されます。両方に含まれる ID フィールドを使用することで、includes 内の拡張オブジェクトをプライマリオブジェクトに対応付けられます。
+
+たとえば、v2 の [Post lookup](/ja/x-api/posts/lookup/introduction) エンドポイントを使用し、リクエストに expansions=author\_id パラメータを含めた場合、プライマリの Post オブジェクト内に author\_id フィールドが返されるとともに、includes オブジェクト内には各 Post につき 1 つの user オブジェクトが返されます。各 user オブジェクトには、Post オブジェクトと照合するために使用できるデフォルトの id フィールドが含まれます。以下はその例です:
+
+```
+{
+  "data": [
+    {
+      "author_id": "2244994945",
+      "id": "1397568983931392004",
+      "text": "The Twitter Developer Platform. Ooh la la! https://t.co/iGTdPXBfOv https://t.co/Ze8z8EODdg"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "Twitter Dev",
+        "username": "TwitterDev"
+      }
+    ]
+  }
+}
+```
+
+<div id="updated-json-design">
+  #### 更新された JSON 設計
+</div>
+
+特定のフィールドのリクエスト方法の変更に加え、X API v2 では、API が返すオブジェクト（[Post](/ja/x-api/fundamentals/data-dictionary#tweet) や [user](/ja/x-api/fundamentals/data-dictionary#user) オブジェクトを含む）の JSON 設計も刷新しています。
+
+- JSON のルートレベルでは、従来のエンドポイントは Post オブジェクトを **statuses** 配列で返しますが、X API v2 は **data** 配列で返します。
+- リツイートおよび引用の「statuses」を参照する代わりに、X API v2 の JSON ではリツイートおよび引用の Tweet を参照します。**contributors** や **user.translator\_type** など、多くのレガシーおよび非推奨フィールドは削除されています。
+- **favorites**（Post オブジェクト内）と **favourites**（user オブジェクト内）の両方を使用する代わりに、X API v2 では用語として like を使用します。
+- X では、値を持たない JSON 値（例: null）はペイロードに含めないという慣例を採用しています。Post と user の属性は、非 null の値がある場合にのみ含まれます。 
+   
+
+<div id="new-v2-fields">
+  #### 新しい v2 フィールド
+</div>
+
+[Post オブジェクト](/ja/x-api/fundamentals/data-dictionary#tweet) に、次の新しいフィールド群を追加しました。
+
+- [conversation\_id](/ja/x-api/fundamentals/conversation-id) フィールド
+- 新たに追加された [annotations](/ja/x-api/fundamentals/post-annotations) フィールド（context と entities）の 2 種類
+- いくつかの新しい [metrics](/ja/x-api/fundamentals/metrics) フィールド
+- 新しい reply\_setting フィールド（特定の投稿に誰が返信できるかを示します）
+
+<div id="migrating-from-standard-v11s-data-format-to-v2">
+  ### 標準 v1.1 のデータ形式から v2 への移行
+</div>
+
+まだお読みでなければ、まずは[データ形式の移行](/ja/x-api/migrate/data-format-migration)のイントロダクションをご覧になることをおすすめします。[X API v1.1 のデータ形式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)と[X API v2 の形式](/ja/x-api/fundamentals/data-dictionary)の違いを素早く確認できる[ビジュアルデータ形式移行ツール](/ja/x-api/migrate/data-format-migration#visual-data-format-migration-tool)もご活用ください。
+
+標準 v1.1 のデータ形式はネイティブ形式とも呼ばれ、[standard v1.1](https://developer.x.com/en/docs/twitter-api/v1) の各エンドポイントで提供される主要な形式です。
+
+プレミアム製品をご利用の場合は、[ネイティブ拡張（enriched）ガイド](/ja/x-api/migrate/data-format-migration#migrating-from-native-enriched-data-format-to-v2)をご参照ください。エンタープライズのお客様は、Gnip コンソールでの設定に応じて、ネイティブ拡張またはアクティビティストリームをご利用の場合があります。 
+
+<div id="standard-v11-vs-v2-payload-structure">
+  #### Standard v1.1 と v2 のペイロード構造
+</div>
+
+次の表は、v1.1 の形式と比較して、v2 から受け取ることが想定される上位レベルのオブジェクトとフォーマットを示します。
+
+|     | **v1.1 の構造** | **v2 の構造** |
+| :--- | :--- | :--- |
+| **デフォルト** | \{<br />	~all tweet object fields~,<br />	"entities": \{<br />		"hashtags": \[],<br />		"symbols": \[],<br />		"user\_mentions": \[],<br />		"urls": \[],<br />		"media": \[]<br />	},<br />	"extended\_entities": {},<br />	"user": {},<br />	"place": {},<br />	"retweeted\_status/quoted\_status"<br />} | \{<br />	"data": \[\{<br />		"id",<br />		"text",<br /><br />      "edit\_history\_tweet\_ids"<br />	}]<br />} |
+| **[field と expansion](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) パラメータを指定した場合** |     | \{<br />	"data": \[\{<br />		~tweet object fields~,<br />		"entities": \{<br />			"hashtags": \[],<br />			"cashtags": \[],<br />			"mentions": \[],<br />			"urls": \[],<br />		},<br />		"attachments": \{<br /><br />        "media\_keys": \[],<br /><br />        "poll\_ids": \[]<br /><br />     }<br />	}],<br />	"includes": \[<br />		"tweets": \[~tweet objects~],<br />		"users": \[~user objects~],<br />		"media": \[~media objects~],<br />		"places": \[~place object~],<br /><br />      "polls": \[~poll object~]<br />	],<br /><br />   "matching\_rules": \[]<br />} |
+
+**フィールドのマッピング**
+
+次のセクションでは、どの v1.1 フィールドが v2 のフィールドに対応するか、また新しいフィールドを受け取るために必要な v2 のパラメータを説明します。
+ 
+
+<div id="tweet-object">
+  #### Tweet オブジェクト
+</div>
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Twitter 1.1 フォーマット** | **Twitter v2 フォーマット** | **必須の v2 パラメータ** |
+| created\_at | data.created\_at | tweet.fields=created\_at |
+| id  |     | N/A id は文字列 |
+| id\_str | data.id | default |
+| text | data.text | default |
+| full\_text |     | N/A text は完全な本文を含みます |
+| truncated |     | N/A text は完全な本文を含みます |
+| display\_text\_range |     | N/A text は完全な本文を含みます |
+| edit\_history | data.edit\_history\_tweet\_ids | default |
+| edit\_controls | data.edit\_controls | tweet.fields=edit\_controls |
+| editable | data.edit\_controls.is\_edit\_eligible | tweet.fields=edit\_controls |
+| entities | data.entities | tweet.fields=entities |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities |
+| entities.urls | data.entities.urls | tweet.fields=entities |
+| entities.media | includes.media | expansions=attachments.media\_keys |
+| extended\_entities | data.attachments | tweet\_fields=attachments |
+| in\_reply\_to\_status\_id |     | N/A referenced\_tweets.id は文字列 |
+| in\_reply\_to\_status\_id\_str | data.referenced\_tweets.id (if type=replied\_to) | expansions=referenced\_tweets.id |
+| in\_reply\_to\_user\_id |     | N/A in\_reply\_to\_user\_id は文字列 |
+| in\_reply\_to\_user\_id\_str | data.in\_reply\_to\_user\_id | tweet.fields=in\_reply\_to\_user\_id |
+| in\_reply\_to\_screen\_name | includes.users..username | tweet.fields=in\_reply\_to\_user\_id\&expansions=entities.mentions.username |
+| user | includes.users | expansions=author\_id |
+| geo | data.geo.place\_id | tweet.fields=geo |
+| coordinates | data.geo.place\_id | expansions=geo.place\_id |
+| place | data.geo.place\_id | expansions=geo.place\_id |
+| retweeted\_status | data.referenced\_tweets.id (if type=retweeted) | expansions=referenced\_tweets.id |
+| is\_quoted\_status |     | 利用不可 |
+| quoted\_status\_id |     | N/A referenced\_tweets.id は文字列 |
+| quoted\_status\_id\_str | data.referenced\_tweets.id (if type=quoted) | expansions=referenced\_tweets.id |
+| quoted\_status\_permalink |     | 利用不可 |
+| quoted\_status | data.referenced\_tweets (if type=quoted) | expansions=referenced\_tweets.id |
+| retweet\_count | data.public\_metrics.retweet\_count | tweet.fields=public\_metrics |
+| favorite\_count | data.public\_metrics.like\_count | tweet.fields=public\_metrics |
+| favorited |     | 利用不可 |
+| retweeted |     | 利用不可 |
+| possibly\_sensitive | data.possibly\_sensitive | tweet.fields=possibly\_sensitive |
+| lang | data.lang | tweet.fields=lang |
+| scopes |     | 利用不可 |
+| withheld | data.withheld | tweet.fields=withheld |
+
+**例**
+
+|     |     |
+| :--- | :--- |
+| **1.1 の Tweet オブジェクト**<br /><br />パラメータ付きの例:  <br /><br />https://api.x.com/1.1/statuses/lookup.json?id=1359554366051504129\&tweet\_mode=extended | **v2 の Tweet オブジェクトとリクエスト**<br /><br />パラメータ付きの例:  <br /><br />https://api.x.com/2/tweets?ids=1359554366051504129\&tweet.fields=attachments,author\_id,context\_annotations,conversation\_id,created\_at,entities,geo,id,in\_reply\_to\_user\_id,lang,possibly\_sensitive,public\_metrics,referenced\_tweets,reply\_settings,text,withheld || \{<br />	"created\_at": "Wed Feb 10 17:26:34 +0000 2021",<br />	"id": 1359554366051504129,<br />	"id\_str": "1359554366051504129",<br />	"text": "さあ、子犬アカウントをもう1つフォローしましょう。私たちはとがめません。\n\n新しい…にフォロー管理エンドポイントを導入します https:\\/\\/t.co\\/3cBZKZUevF",<br />	"truncated": true,<br />	"entities": \{<br />		"hashtags": \[],<br />		"symbols": \[],<br />		"user\_mentions": \[],<br />		"urls": \[\{<br />			"url": "https:\\/\\/t.co\\/3cBZKZUevF",<br />			"expanded\_url": "https:\\/\\/twitter.com\\/i\\/web\\/status\\/1359554366051504129",<br />			"display\_url": "twitter.com\\/i\\/web\\/status\\/1…",<br />			"indices": \[<br />				111,<br />				134<br />			]<br />		}]<br />	},<br />	<br />	"in\_reply\_to\_status\_id": null,<br />	"in\_reply\_to\_status\_id\_str": null,<br />	"in\_reply\_to\_user\_id": null,<br />	"in\_reply\_to\_user\_id\_str": null,<br />	"in\_reply\_to\_screen\_name": null,<br />	"user": \{<br />		...<br />	},<br />	"geo": null,<br />	"coordinates": null,<br />	"place": null,<br />	"contributors": null,<br />	"is\_quote\_status": false,<br />	"retweet\_count": 18,<br />	"favorite\_count": 98,<br />	"favorited": false,<br />	"retweeted": false,<br />	"possibly\_sensitive": false,<br />	"possibly\_sensitive\_appealable": false,<br />	"lang": "en"<br />} | \{<br />	"data": \[\{<br />		"id": "1359554366051504129",<br />		"text": "さあ、子犬アカウントをもう1つフォローしましょう。私たちはとがめません。\n\n新しい #TwitterAPI にフォロー管理エンドポイントを導入します。これで、v2 API を使ってアカウントのフォローとフォロー解除が可能になりました。詳しくは https://t.co/mtpd9VIMDa をご覧ください",<br />		"lang": "en",<br />		"conversation\_id": "1359554366051504129",<br />		"possibly\_sensitive": false,<br />		"reply\_settings": "everyone",<br />		"created\_at": "2021-02-10T17:26:34.000Z",<br />		"author\_id": "2244994945",<br />		"public\_metrics": \{<br />			"retweet\_count": 18,<br />			"reply\_count": 11,<br />			"like\_count": 98,<br />			"quote\_count": 7<br />		},<br />		"entities": \{<br />			"hashtags": \[\{<br />				"start": 110,<br />				"end": 121,<br />				"tag": "TwitterAPI"<br />			}],<br />			"urls": \[\{<br />				"start": 194,<br />				"end": 217,<br />				"url": "https://t.co/mtpd9VIMDa",<br />				"expanded\_url": "https://devcommunity.x.com/t/introducing-the-new-manage-follows-endpoints-to-the-twitter-api-v2/149465",<br />				"display\_url": "devcommunity.com/t/introducing-…",<br />				"images": \[\{<br />						"url": "https://pbs.twimg.com/news\_img/1359554367905427457/DczC72\_\_?format=jpg\&name=orig",<br />						"width": 1200,<br />						"height": 630<br />					},<br />					\{<br />						"url": "https://pbs.twimg.com/news\_img/1359554367905427457/DczC72\_\_?format=jpg\&name=150x150",<br />						"width": 150,<br />						"height": 150<br />					}<br />				],<br />				"status": 200,<br />				"title": "X API v2 に新しいフォロー管理エンドポイントを導入",<br />				"description": "フォローするか、しないか？ その問いに、X API v2 を使って自由に答えられるようになりました。本日、新しいフォロー管理エンドポイントを新しい Twitter API にリリースしたことをお知らせします。1か月少し前にフォロー参照エンドポイントを公開した際に予告したとおり、フォロー関係を管理する機能がついに登場です。これらは v1.1 API でも最も人気の高いエンドポイントの一部であり、X API v2 で幅広いユースケースを実現できることを楽しみにしています。W...",<br />				"unwound\_url": "https://devcommunity.x.com/t/introducing-the-new-manage-follows-endpoints-to-the-twitter-api-v2/149465"<br />			}]<br />		},<br />		"context\_annotations": \[\{<br />				"domain": \{<br />					"id": "46",<br />					"name": "ブランドカテゴリ",<br />					"description": "ブランドのバーティカル内でブランドの範囲を絞り込むカテゴリ"<br />				},<br />				"entity": \{<br />					"id": "781974596752842752",<br />					"name": "サービス"<br />				}<br />			},<br />			\{<br />				"domain": \{<br />					"id": "47",<br />					"name": "ブランド",<br />					"description": "ブランドや企業"<br />				},<br />				"entity": \{<br />					"id": "10045225402",<br />					"name": "Twitter"<br />				}<br />			}<br />		]<br />	}]<br />} |
+
+---
+
+<div id="user-object">
+  #### ユーザーオブジェクト
+</div>
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Twitter 1.1 形式** | **Twitter v2 形式** | **必要な v2 パラメータ** |
+| user\_id | data.author\_id | tweet.fields=author\_id |
+| user.id |     | 該当なし（includes.users.id を使用） |
+| user.id\_str | includes.users.id | expansions=author\_id |
+| user.name | includes.users.name | expansions=author\_id |
+| user.screen\_name | includes.user.username | expansions=author\_id |
+| user.location | includes.users.location | expansions=author\_id\&user.fields=location |
+| user.description | includes.users.description | expansions=author\_id\&user.fields=description |
+| user.url | includes.users.url | expansions=author\_id\&user.fields=entities |
+| user.entities | includes.users.entities |     |
+| user.entities.url.urls.url | includes.users.entities.url.urls.url |     |
+| user.entities.url.urls.expanded\_url | includes.users.entities.url.urls.expanded\_url | expansions=author\_id\&user.fields=entities |
+| user.entities.url.urls.display\_url | includes.users.entities.url.urls.display\_url | expansions=author\_id\&user.fields=entities |
+| user.entities.url.urls.display\_url.indicies\[0] | includes.users.entities.url.urls.start | expansions=author\_id\&user.fields=entities |
+| user.entities.url.urls.display\_url.indicies\[1] | includes.users.entities.url.urls.end | expansions=author\_id\&user.fields=entities |
+| user.protected | includes.users.protected | expansions=author\_id\&user.fields=protected |
+| user.followers\_count | includes.users.public\_metrics.followers\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.friends\_count | includes.users.public\_metrics.following\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.listed\_count | includes.users.public\_metrics.listed\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.created\_at | includes.users.created\_at | expansions=author\_id\&user.fields=created\_at |
+| user.favourites\_count |     |     |
+| user.verified | includes.users.verified | expansions=author\_id\&user.fields=verified |
+| user.statuses\_count | includes.users.public\_metrics.tweet\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.profile\_image\_url\_https | includes.users.profile\_image\_url | expansions=author\_id\&user.fields=profile\_image\_url |
+
+**例**
+
+|     |     |
+| :--- | :--- |
+| **1.1 のユーザーオブジェクト** | **v2 のユーザーオブジェクトとリクエスト** || "user": \{<br />	"id": 2244994945,<br />	"id\_str": "2244994945",<br />	"name": "Twitter Dev",<br />	"screen\_name": "TwitterDev",<br />	"location": "127.0.0.1",<br />	"description": "#TwitterDev チームの公式アカウント。#TwitterAPI に関する最新情報、ニュース、イベントをお届けします。",<br />	"url": "https:\\/\\/t.co\\/3ZX3TNiZCY",<br />	"entities": \{<br />		"url": \{<br />			"urls": \[\{<br />				"url": "https:\\/\\/t.co\\/3ZX3TNiZCY",<br />				"expanded\_url": "https:\\/\\/developer.x.com\\/en\\/community",<br />				"display\_url": "developer.x.com\\/en\\/community",<br />				"indices": \[<br />					0,<br />					23<br />				]<br />			}]<br />		},<br />		"description": \{<br />			"urls": \[]<br />		}<br />	},<br />	"protected": false,<br />	"followers\_count": 517232,<br />	"friends\_count": 2032,<br />	"listed\_count": 1722,<br />	"created\_at": "Sat Dec 14 04:35:55 +0000 2013",<br />	"favourites\_count": 2134,<br />	"utc\_offset": null,<br />	"time\_zone": null,<br />	"geo\_enabled": true,<br />	"verified": true,<br />	"statuses\_count": 3677,<br />	"lang": null,<br />	"contributors\_enabled": false,<br />	"is\_translator": false,<br />	"is\_translation\_enabled": false,<br />	"profile\_background\_color": "FFFFFF",<br />	"profile\_background\_image\_url": "http:\\/\\/abs.twimg.com\\/images\\/themes\\/theme1\\/bg.png",<br />	"profile\_background\_image\_url\_https": "https:\\/\\/abs.twimg.com\\/images\\/themes\\/theme1\\/bg.png",<br />	"profile\_background\_tile": false,<br />	"profile\_image\_url": "http:\\/\\/pbs.twimg.com\\/profile\_images\\/1354494203451961345\\/d8HkZl6p\_normal.jpg",<br />	"profile\_image\_url\_https": "https:\\/\\/pbs.twimg.com\\/profile\_images\\/1354494203451961345\\/d8HkZl6p\_normal.jpg",<br />	"profile\_banner\_url": "https:\\/\\/pbs.twimg.com\\/profile\_banners\\/2244994945\\/1611792896",<br />	"profile\_link\_color": "0084B4",<br />	"profile\_sidebar\_border\_color": "FFFFFF",<br />	"profile\_sidebar\_fill\_color": "DDEEF6",<br />	"profile\_text\_color": "333333",<br />	"profile\_use\_background\_image": false,<br />	"has\_extended\_profile": true,<br />	"default\_profile": false,<br />	"default\_profile\_image": false,<br />	"following": null,<br />	"follow\_request\_sent": null,<br />	"notifications": null,<br />	"translator\_type": "regular"<br />} | \{<br />	"data": \[\{<br />		"author\_id": "2244994945",<br />		"id": "1362876655061073928",<br />		"text": "私たちのリビングから皆さんのリビングへ 🐱‍💻🛋️ 開発者アドボケイトが、新しい #TwitterAPI を始める際に役立つ Twitch 配信やオンラインイベントを多数企画しています。詳細はスケジュールをご確認のうえ、もっと見たい内容があればぜひお知らせください！\n👇\nhttps://t.co/cixDY9qkvH"<br />	}],<br />	"includes": \{<br />		"users": \[\{<br />			"public\_metrics": \{<br />				"followers\_count": 517233,<br />				"following\_count": 2034,<br />				"tweet\_count": 3677,<br />				"listed\_count": 1727<br />			},<br />			"username": "TwitterDev",<br />			"entities": \{<br />				"url": \{<br />					"urls": \[\{<br />						"start": 0,<br />						"end": 23,<br />						"url": "https://t.co/3ZX3TNiZCY",<br />						"expanded\_url": "https://developer.x.com/en/community",<br />						"display\_url": "developer.x.com/en/community"<br />					}]<br />				},<br />				"description": \{<br />					"hashtags": \[\{<br />							"start": 17,<br />							"end": 28,<br />							"tag": "TwitterDev"<br />						},<br />						\{<br />							"start": 105,<br />							"end": 116,<br />							"tag": "TwitterAPI"<br />						}<br />					]<br />				}<br />			},<br />			"description": "#TwitterDev チームの公式アカウント。#TwitterAPI に関する最新情報、ニュース、イベントをお届けします。",<br />			"name": "Twitter Dev",<br />			"verified": true,<br />			"location": "127.0.0.1",<br />			"id": "2244994945",<br />			"protected": false,<br />			"url": "https://t.co/3ZX3TNiZCY",<br />			"profile\_image\_url": "https://pbs.twimg.com/profile\_images/1354494203451961345/d8HkZl6p\_normal.jpg",<br />			"created\_at": "2013-12-14T04:35:55.000Z"<br />		}]<br />	}<br />} |
+
+<div id="entities-and-expanded-entities-objects">
+  #### entities および expanded entities オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Twitter 1.1 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| entities | data.entities | tweet.fields=entities | object |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities | array of objects |
+| entities.hashtags.indices\[0] | data.entities.hashtags.start | tweet.fields=entities | number |
+| entities.hashtags.indices\[1] | data.entities.hashtags.end | tweet.fields=entities | number |
+| entities.hashtags.text | data.entities.hashtags.tag | tweet.fields=entities | string |
+| entities.urls | data.entities.urls | tweet.fields=entities | array of objects |
+| entities.urls.indices\[0] | data.entities.urls.start | tweet.fields=entities | number |
+| entities.urls.indices\[1] | data.entities.urls.end | tweet.fields=entities | number |
+| entities.urls.url | data.entities.urls.url | tweet.fields=entities | string |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities | array of objects |
+| entities.user\_mentions.indicies\[0] | data.entities.mentions.start | tweet.fields=entities | number |
+| entities.user\_mentions.indicies\[1] | data.entities.mentions.end | tweet.fields=entities | number |
+| entities.user\_mentions.screen\_name | data.entities.mentions.username | tweet.fields=entities | string |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities | array of objects |
+| entities.symbols.indices\[0] | data.entities.cashtags.start | tweet.fields=entities | number |
+| entities.symbols.indices\[1] | data.entities.cashtags.end | tweet.fields=entities | number |
+| entities.symbols.text | data.entities.cashtags.tag | tweet.fields=entities | string |
+| entities.media | includes.media | expansions=attachments.media\_keys | array of objects |
+| entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | string |
+| entities.media.type | includes.media.media.type | expansions=attachments.media\_keys | string |
+| entities.media.media\_url |     | N/A includes.media.url を使用 | string |
+| entities.media.media\_url\_https | includes.media.url | expansions=attachments.media\_keys\&media.fields=url | string |
+| entities.media.url |     |     |     |
+| entities.media.display\_url |     |     |     |
+| entities.media.expanded\_url |     |     |     |
+| entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | string |
+| extended\_entities | data.attachments | tweet\_fields=attachments | object |
+| extended\_entities | data.attachments.media\_keys | tweet.fields=attachments | array of objects |
+| extended\_entities.media | includes.media | expansions=attachments.media\_keys | array of objects |
+| extended\_entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | string |
+| extended\_entities.media.type | includes.media.media.type | expansions=attachments.media\_keys | string |
+| extended\_entities.media.sizes.thumb.w |     | 利用不可 |     |
+| extended\_entities.media.sizes.thumb.h |     | 利用不可 |     |
+| extended\_entities.media.sizes.thumb.resize |     | 利用不可 |     |
+| extended\_entities.media.sizes.large.w | includes.media.height | expansions=attachments.media\_keys\&media.fields=height |     |
+| extended\_entities.media.sizes.large.h | includes.media.width | expansions=attachments.media\_keys\&media.fields=width |     |
+| extended\_entities.media.sizes.large.resize |     | 利用不可 |     |
+| extended\_entities.media.sizes.small.w |     | 利用不可 |     |
+| extended\_entities.media.sizes.small.h |     | 利用不可 |     |
+| extended\_entities.media.sizes.small.resize |     | 利用不可 |     |
+| extended\_entities.media.sizes.medium.w |     | 利用不可 |     |
+| extended\_entities.media.sizes.medium.h |     | 利用不可 |     |
+| extended\_entities.media.sizes.medium.resize |     | 利用不可 |     |
+| extended\_entities.media.media\_url\_https | includes.media.url | expansions=attachments.media\_keys\&media.fields=url | string |
+| extended\_entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | string |
+| extended\_entities.media.video\_info.duration\_millis | includes.media.duration\_ms | expansions=attachments.media\_keys\&media.fields=duration\_ms | number |
+
+**例**
+
+|     |     |
+| :--- | :--- |
+| **v1.1 の Entities と extended\_entities（動画あり）** | **v2 の Entities、attachments、includes**<br /><br />https://api.x.com/2/tweets?ids=1370161532013735937\&expansions=attachments.media\_keys,entities.mentions.username\&tweet.fields=entities\&user.fields=created\_at,description,entities,location,name,profile\_image\_url,protected,public\_metrics,url,username,verified,withheld\&media.fields=duration\_ms,height,media\_key,preview\_image\_url,public\_metrics,type,url,width || "display\_url": "developer.x.com\\/en",<br />		"indices": \[<br />			91,<br />			114<br />		]<br />	}],<br />	"media": \[\{<br />		"id": 1370161464028196868,<br />		"id\_str": "1370161464028196868",<br />		"indices": \[<br />			115,<br />			138<br />		],<br />		"media\_url": "http:\\/\\/pbs.twimg.com\\/ext\_tw\_video\_thumb\\/1370161464028196868\\/pu\\/img\\/cGLCoXBHVktkwlC5.jpg",<br />		"media\_url\_https": "https:\\/\\/pbs.twimg.com\\/ext\_tw\_video\_thumb\\/1370161464028196868\\/pu\\/img\\/cGLCoXBHVktkwlC5.jpg",<br />		"url": "https:\\/\\/t.co\\/dz4oByygWA",<br />		"display\_url": "pic.x.com\\/dz4oByygWA",<br />		"expanded\_url": "https:\\/\\/twitter.com\\/furiouscamper\\/status\\/1370161532013735937\\/video\\/1",<br />		"type": "photo",<br />		"sizes": \{<br />			"thumb": \{<br />				"w": 150,<br />				"h": 150,<br />				"resize": "crop"<br />			},<br />			"small": \{<br />				"w": 383,<br />				"h": 680,<br />				"resize": "fit"<br />			},<br />			"large": \{<br />				"w": 720,<br />				"h": 1280,<br />				"resize": "fit"<br />			},<br />			"medium": \{<br />				"w": 675,<br />				"h": 1200,<br />				"resize": "fit"<br />			}<br />		}<br />	}]<br />},<br />"extended\_entities": \{<br />	"media": \[\{<br />		"id": 1370161464028196868,<br />		"id\_str": "1370161464028196868",<br />		"indices": \[<br />			115,<br />			138<br />		],<br />		"media\_url": "http:\\/\\/pbs.twimg.com\\/ext\_tw\_video\_thumb\\/1370161464028196868\\/pu\\/img\\/cGLCoXBHVktkwlC5.jpg",<br />		"media\_url\_https": "https:\\/\\/pbs.twimg.com\\/ext\_tw\_video\_thumb\\/1370161464028196868\\/pu\\/img\\/cGLCoXBHVktkwlC5.jpg",<br />		"url": "https:\\/\\/t.co\\/dz4oByygWA",<br />		"display\_url": "pic.x.com\\/dz4oByygWA",<br />		"expanded\_url": "https:\\/\\/twitter.com\\/furiouscamper\\/status\\/1370161532013735937\\/video\\/1",<br />		"type": "video",<br />		"sizes": \{<br />			"thumb": \{<br />				"w": 150,<br />				"h": 150,<br />				"resize": "crop"<br />			},<br />			"small": \{<br />				"w": 383,<br />				"h": 680,<br />				"resize": "fit"<br />			},<br />			"large": \{<br />				"w": 720,<br />				"h": 1280,<br />				"resize": "fit"<br />			},<br />			"medium": \{<br />				"w": 675,<br />				"h": 1200,<br />				"resize": "fit"<br />			}<br />		},<br />		"video\_info": \{<br />			"aspect\_ratio": \[<br />				9,<br />				16<br />			],<br />			"duration\_millis": 5140,<br />			"variants": \[\{<br />					"bitrate": 950000,<br />					"content\_type": "video\\/mp4",<br />					"url": "https:\\/\\/video.twimg.com\\/ext\_tw\_video\\/1370161464028196868\\/pu\\/vid\\/480x852\\/rAuFVMEqs0MeP4P4.mp4?tag=12"<br />				},<br />				\{<br />					"bitrate": 2176000,<br />					"content\_type": "video\\/mp4",<br />					"url": "https:\\/\\/video.twimg.com\\/ext\_tw\_video\\/1370161464028196868\\/pu\\/vid\\/720x1280\\/ZxVL5qYO-DNVuSyq.mp4?tag=12"<br />				},<br />				\{<br />					"content\_type": "application\\/x-mpegURL",<br />					"url": "https:\\/\\/video.twimg.com\\/ext\_tw\_video\\/1370161464028196868\\/pu\\/pl\\/EGVpuZpo-wYxTNCq.m3u8?tag=12"<br />				},<br />				\{<br />					"bitrate": 632000,<br />					"content\_type": "video\\/mp4",<br />					"url": "https:\\/\\/video.twimg.com\\/ext\_tw\_video\\/1370161464028196868\\/pu\\/vid\\/320x568\\/M7VtocAwKPFdkqzF.mp4?tag=12"<br />				}<br />			]<br />		},<br />		"additional\_media\_info": \{<br />			"monetizable": false<br />		}<br />	}]<br />} | \{<br />	"data": \[\{<br />		"entities": \{<br />			"hashtags": \[\{<br />				"start": 8,<br />				"end": 13,<br />				"tag": "test"<br />			}],<br />			"mentions": \[\{<br />				"start": 31,<br />				"end": 42,<br />				"username": "TwitterDev"<br />			}],<br />			"urls": \[\{<br />					"start": 91,<br />					"end": 114,<br />					"url": "https://t.co/XVLZ3uwikc",<br />					"expanded\_url": "https://developer.x.com/en",<br />					"display\_url": "developer.x.com/en",<br />					"status": 200,<br />					"title": "ユースケース、チュートリアル、ドキュメント",<br />					"description": "Twitter API、Twitter Ads API、Twitter for Websites を使用して、ツイートを公開・分析し、広告を最適化し、独自のカスタマー体験を構築しましょう。さあ、開発を始めましょう。",<br />					"unwound\_url": "https://developer.x.com/en"<br />				},<br />				\{<br />					"start": 115,<br />					"end": 138,<br />					"url": "https://t.co/dz4oByygWA",<br />					"expanded\_url": "https://x.com/furiouscamper/status/1370161532013735937/video/1",<br />					"display\_url": "pic.x.com/dz4oByygWA"<br />				}<br />			]<br />		},<br />		"id": "1370161532013735937",<br />		"text": "動画と @TwitterDev へのメンションを含む別の #test。新しいフォーマット移行ドキュメントが楽しみです！ https://t.co/XVLZ3uwikc https://t.co/dz4oByygWA",<br />		"attachments": \{<br />			"media\_keys": \[<br />				"7\_1370161464028196868"<br />			]<br />		}<br />	}],<br />	"includes": \{<br />		"media": \[\{<br />			"type": "video",<br />			"height": 1280,<br />			"public\_metrics": \{<br />				"view\_count": 37<br />			},<br />			"width": 720,<br />			"media\_key": "7\_1370161464028196868",<br />			"duration\_ms": 5140,<br />			"preview\_image\_url": "https://pbs.twimg.com/ext\_tw\_video\_thumb/1370161464028196868/pu/img/cGLCoXBHVktkwlC5.jpg"<br />		}],<br />		"users": \[\{<br />			"public\_metrics": \{<br />				"followers\_count": 517233,<br />				"following\_count": 2034,<br />				"tweet\_count": 3677,<br />				"listed\_count": 1727<br />			},<br />			"created\_at": "2013-12-14T04:35:55.000Z",<br />			"profile\_image\_url": "https://pbs.twimg.com/profile\_images/1354494203451961345/d8HkZl6p\_normal.jpg",<br />			"description": "#TwitterDev チームの声であり、#TwitterAPI に関する最新情報、ニュース、イベントの公式情報源です。",<br />			"verified": true,<br />			"id": "2244994945",<br />			"username": "TwitterDev",<br />			"protected": false,<br />			"entities": \{<br />				"url": \{<br />					"urls": \[\{<br />						"start": 0,<br />						"end": 23,<br />						"url": "https://t.co/3ZX3TNiZCY",<br />						"expanded\_url": "https://developer.x.com/en/community",<br />						"display\_url": "developer.x.com/en/community"<br />					}]<br />				},<br />				"description": \{<br />					"hashtags": \[\{<br />							"start": 17,<br />							"end": 28,<br />							"tag": "TwitterDev"<br />						},<br />						\{<br />							"start": 105,<br />							"end": 116,<br />							"tag": "TwitterAPI"<br />						}<br />					]<br />				}<br />			},<br />			"url": "https://t.co/3ZX3TNiZCY",<br />			"name": "Twitter Dev",<br />			"location": "127.0.0.1"<br />		}]<br />	}<br />} |
+
+---
+
+<div id="place-object">
+  #### Place オブジェクト
+</div>
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Twitter 1.1 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** |
+| place | data.geo.place\_id | tweet.fields=geo |
+| place.id | includes.places.id | expansions=geo.place\_id |
+| place.id.place\_type | includes.places.place\_type | expansions=geo.place\_id\&place.fields=place\_type |
+| place.id.name | includes.places.name | expansions=geo.place\_id\&place.fields=name |
+| place.id.full\_name | includes.places.full\_name | expansions=geo.place\_id |
+| place.id.country\_code | includes.places.country\_code | expansions=geo.place\_id\&place.fields=country\_code |
+| place.id.country | includes.places.country | expansions=geo.place\_id\&place.fields=country |
+| place.id.contained\_within | includes.places.contained\_within | expansions=geo.place\_id\&place.fields=contained\_within |
+| place.id.bounding\_box.type | includes.places.geo.type | expansions=geo.place\_id\&place.fields=place\_type |
+| place.id.bounding\_box.coordinates | includes.places.geo.bbox | expansions=geo.place\_id\&place.fields=geo |
+| place.id.attributes | includes.places.properties | expansions=geo.place\_id\&place.fields=geo |
+
+**例**
+
+|     |     |
+| :--- | :--- |
+| **v1.1 の Place オブジェクト** | **v2 の Place オブジェクト**<br /><br />https://api.x.com/2/tweets?ids=1370161532013735937\&expansions=geo.place\_id\&tweet.fields=geo\&place.fields=contained\_within,country,country\_code,full\_name,geo,id,name,place\_type |
+| "place": \{<br />    "id": "f7eb2fa2fea288b1",<br />    "url": "https:\\/\\/api.x.com\\/1.1\\/geo\\/id\\/f7eb2fa2fea288b1.json",<br />    "place\_type": "city",<br />    "name": "Lakewood",<br />    "full\_name": "Lakewood, CO",<br />    "country\_code": "US",<br />    "country": "United States",<br />    "contained\_within": \[],<br />    "bounding\_box": \{<br />      "type": "Polygon",<br />      "coordinates": \[<br />        \[<br />          \[<br />            -105.193475,<br />            39.60973<br />          ],<br />          \[<br />            -105.053164,<br />            39.60973<br />          ],<br />          \[<br />            -105.053164,<br />            39.761974<br />          ],<br />          \[<br />            -105.193475,<br />            39.761974<br />          ]<br />        ]<br />      ]<br />    },<br />    "attributes": {}<br />  } | \{<br />	"data": \[\{<br />		"id": "1370161532013735937",<br />		"text": "Another #test with a video and @TwitterDev mention. Excited for new format migration docs! https://t.co/XVLZ3uwikc https://t.co/dz4oByygWA",<br />		"geo": \{<br />			"place\_id": "f7eb2fa2fea288b1"<br />		}<br />	}],<br />	"includes": \{<br />		"places": \[\{<br />			"name": "Lakewood",<br />			"place\_type": "city",<br />			"full\_name": "Lakewood, CO",<br />			"id": "f7eb2fa2fea288b1",<br />			"geo": \{<br />				"type": "Feature",<br />				"bbox": \[<br />					-105.193475,<br />					39.60973,<br />					-105.053164,<br />					39.761974<br />				],<br />				"properties": {}<br />			},<br />			"country\_code": "US",<br />			"country": "United States"<br />		}]<br />	} |
+
+**次のステップ**
+
+- [fields](/ja/x-api/fundamentals/fields) の詳細
+- [expansions](/ja/x-api/fundamentals/expansions) の詳細
+- [fields と expansions の使い方](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)
+
+<div id="migrating-from-native-enriched-data-format-to-v2">
+  ### ネイティブ拡張データ形式から v2 への移行
+</div>
+
+ネイティブ拡張データ形式は、当社の[エンタープライズ](/ja/x-api/enterprise-gnip-2.0/enterprise-gnip)製品で使用されています。
+
+ネイティブ拡張データ形式は、編集済みツイートのメタデータを提供できるよう更新されました。編集機能に関するメタデータの詳細は、[Edit Tweets の基礎](/ja/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets)ページをご覧ください。
+
+標準の v1.1 エンドポイントを利用している場合は、[standard v1.1 から v2 へのガイド](/ja/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2)を参照してください。Activity Streams を利用するエンタープライズ製品をご利用の場合は、[Activity Streams から v2](/ja/x-api/migrate/data-format-migration#migrating-from-activity-streams-data-format-to-v2)へのガイドも用意しています。
+
+X API v2 は、[Tweet](/ja/x-api/fundamentals/data-dictionary#tweet)および[ユーザー](/ja/x-api/fundamentals/data-dictionary#user)オブジェクト向けに新しい JSON 設計を導入しています。
+
+- JSON のルートレベルでは、ネイティブ拡張形式は Tweet オブジェクトを results 配列で返しますが、X API v2 は data 配列で返します。
+- Tweet オブジェクト内の favorites と user オブジェクト内の favourites の両方を用いる代わりに、X API v2 では like という用語を使用します。
+- X では、値を持たない JSON 値（例: null）はペイロードに含めないという規約を採用しています。Tweet と user の属性は、非 null の値がある場合にのみ含まれます。
+- v2 のすべての id フィールドは文字列形式になります
+   
+
+新しい JSON 形式への変更に加えて、Tweet オブジェクトに以下の新しいフィールド群を導入しました。
+
+- conversation\_id
+- reply\_settings
+- メディアの alt\_text
+- 2 つの新しい[アノテーション](/ja/x-api/fundamentals/post-annotations)フィールド（context と entities）
+- 複数の新しい[メトリクス](/ja/x-api/fundamentals/metrics)フィールド
+- 複数の新しい[投票](/ja/x-api/fundamentals/data-dictionary#poll)フィールド
+   
+
+多くのレガシーおよび非推奨フィールドは削除されます。
+
+- contributors
+- 一部の entities.media および extended\_entities.media フィールド
+- filter\_level
+- timestamp\_ms
+- truncated
+
+<div id="native-enriched-vs-v2-payload-structure">
+  #### Native Enriched と v2 のペイロード構造の比較
+</div>
+
+以下の表は、Native Enriched 形式と比較して、v2 から受け取れる想定の高レベルなオブジェクトとフォーマットを示します。
+
+|     | **Native Enriched の構造** | **v2 の構造** |
+| :--- | :--- | :--- |
+| **Default** | \{<br />  ~tweet object fields~,<br /><br />  "user": {},<br />  "place": {},<br />  "entities": \{<br />    "hashtags": \[],<br />    "urls": \[],<br />    "user\_mentions": \[],<br />    "symbols": \[],<br />    "annotations": \[],<br />    "media": \[]<br />  },<br />  "extended\_entities": {},<br />  "matching\_rules": \[]<br />} | \{<br />  "data": \[\{<br />    "id",<br />    "text",<br /><br />    "edit\_history\_tweet\_ids" <br />  }]<br />} |
+| **[field と expansion](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) パラメータを指定した場合** |     | \{<br />  "data": \[\{<br />    ~tweet object fields~,<br />    "entities": \{<br />      "hashtags": \[],<br />      "cashtags": \[],<br />      "mentions": \[],<br />      "urls": \[],<br />    },<br />    "attachments": \{<br />      "media\_keys": \[],<br />      "poll\_ids": \[]<br />    }<br />  }],<br />  "includes": \[<br />    "tweets": \[~user objects~],<br />    "users": \[~user objects~],<br />    "media": \[~media objects~],<br />    "places": \[~place object~],<br />    "polls": \[~poll object~]<br />  ],<br />  "matching\_rules": \[]<br />} |
+
+**フィールド対応**
+
+以下では、Native Enriched の各フィールドが v2 のどのフィールドに対応するか、また新しいフィールドを受け取るために必要な v2 パラメータについて説明します。
+ 
+
+<div id="tweet-object">
+  #### 投稿オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **ネイティブ拡張形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| created\_at | data.created\_at | tweet.fields=created\_at | 文字列 |
+| id  |     | 該当なし - id を参照 |     |
+| id\_str | data.id | 既定 | 文字列 |
+| text | data.text | 既定 | 文字列 |
+| edit\_history | data.edit\_history\_tweet\_ids | 既定 | 配列 |
+| edit\_controls | data.edit\_controls | tweet.fields=edit\_controls | オブジェクト |
+| editable | data.edit\_controls.is\_edit\_eligible | tweet.fields=edit\_controls | ブール値 |
+| display\_text\_range |     | 該当なし - text に完全な本文が含まれます |     |
+| source | data.source | tweet.fields=source | 文字列 |
+| truncated |     | 該当なし - text に完全な本文が含まれます |     |
+| Not available | data.conversation\_id | tweet.fields=conversation\_id | 文字列 |
+| Not available | data.reply\_settings | tweet.fields=reply\_settings | 文字列 |
+| in\_reply\_to\_status\_id |     | 該当なし - referenced\_tweets.id を参照 |     |
+| in\_reply\_to\_status\_id\_str | data.referenced\_tweets.id (if type=replied\_to) | expansions=referenced\_tweets.id | 文字列 |
+| in\_reply\_to\_user\_id |     | 該当なし - in\_reply\_to\_user\_id\_str を参照 |     |
+| in\_reply\_to\_user\_id\_str | data.in\_reply\_to\_user\_id | tweet.fields=in\_reply\_to\_user\_id | 文字列 |
+| in\_reply\_to\_screen\_name | includes.users..username | tweet.fields=in\_reply\_to\_user\_id\&expansions=entities.mentions.username | 文字列 |
+| user | includes.users | expansions=author\_id | オブジェクト |
+| user.id\_str | data.author\_id | tweet.fields=author\_id | 文字列 |
+| geo | data.geo.place\_id | tweet.fields=geo |     |
+| coordinates | data.geo.place\_id | tweet.fields=geo |     |
+| place | data.geo.place\_id | tweet.fields=geo |     |
+| is\_quoted\_status | data.referenced\_tweets.id (if type=quoted) | tweet.fields=referenced\_tweets | 文字列 |
+| extended\_tweet.full\_text |     | 該当なし - text は完全な本文です |     |
+| Not available | data.public\_metrics | tweet.fields=public\_metrics | オブジェクト |
+| quote\_count | data.public\_metrics.quote\_count | tweet.fields=public\_metrics | 整数 |
+| reply\_count | data.public\_metrics.reply\_count | tweet.fields=public\_metrics | 整数 |
+| retweet\_count | data.public\_metrics.retweet\_count | tweet.fields=public\_metrics | 整数 |
+| favorite\_count | data.public\_metrics.like\_count | tweet.fields=public\_metrics | 整数 |
+| Not available | data.non\_public\_metrics | tweet.fields=non\_public\_metrics | オブジェクト |
+| Not available | data.non\_public\_metrics.impression\_count | tweet.fields=non\_public\_metrics | 整数 |
+| Not available | data.non\_public\_metrics.url\_link\_count | tweet.fields=non\_public\_metrics | 整数 |
+| Not available | data.non\_public\_metrics.user\_profile\_count | tweet.fields=non\_public\_metrics | 整数 |
+| Not available | data.organic\_metrics | tweet.fields=organic\_metrics | オブジェクト |
+| Not available | data.organic\_metrics.like\_count | tweet.fields=organic\_metrics | 整数 |
+| Not available | data.organic\_metrics.retweet\_count | tweet.fields=organic\_metrics | 整数 |
+| Not available | data.organic\_metrics.reply\_count | tweet.fields=organic\_metrics | 整数 |
+| Not available | data.organic\_metrics.impression\_count | tweet.fields=organic\_metrics | 整数 |
+| 利用不可 | data.organic\_metrics.url\_link\_count | tweet.fields=organic\_metrics | Int |
+| 利用不可 | data.organic\_metrics.user\_profile\_count | tweet.fields=organic\_metrics | Int |
+| 利用不可 | data.promoted\_metrics | tweet.fields=promoted\_metrics | Object |
+| 利用不可 | data.promoted\_metrics.like\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.retweet\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.reply\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.impression\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.url\_link\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.user\_profile\_count | tweet.fields=promoted\_metrics | Int |
+| contributors | 利用不可 | 利用不可 |     |
+| entities | data.entities | tweet.fields=entities | Object |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities | Array of objects |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities | Array of objects |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities | Array of objects |
+| entities.urls | data.entities.urls | tweet.fields=entities | Array of objects |
+| entities.media | includes.media | expansions=attachments.media\_keys | Array of objects |
+| entities.annotations |     | tweet.fields=entities,context\_annotations | Object |
+| entities.annotations.context | data.context\_annotations | tweet.fields=entities,context\_annotations | Array of objects |
+| 対応なし | data.context\_annotations.domain | tweet.fields=context\_annotations | Object |
+| entities.annotations.context.context\_domain\_id\_str | data.context\_annotations.domain.id | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_domain\_id | 利用不可 | 利用不可 - 文字列形式は data.context\_annotations.domain.id を参照 |     |
+| entities.annotations.context.context\_domain\_name | data.context\_annotations.domain.name | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_domain\_description | data.context\_annotations.domain.description | tweet.fields=context\_annotations | String |
+| 対応なし | data.context\_annotations.entity | tweet.fields=context\_annotations | Object |
+| entities.annotations.context.context\_entity\_id\_str | data.context\_annotations.entity.id | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_entity\_id | 利用不可 | 利用不可 - 文字列形式は data.context\_annotations.entity.id を参照 |     |
+| entities.annotations.context.context\_entity\_name | data.context\_annotations.entity.name | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_entity\_description | data.context\_annotations.entity.description | tweet.fields=context\_annotations | String |
+| entities.annotations.entity | data.entities.annotations | tweet.fields=entities,context\_annotations | Array of objects |
+| extended\_entities | data.attachments | tweet\_fields=attachments | Object |
+| favorited | 利用不可 | 利用不可 |     |
+| retweeted | 利用不可 | 利用不可 |     |
+| retweeted\_status |     |     |     |
+| possibly\_sensitive | data.possibly\_sensitive | tweet.fields=possibly\_sensitive | Boolean |
+| lang | data.lang | tweet.fields=lang | String |
+| filter\_level | 利用不可 | 利用不可 |     |
+| scopes | 利用不可 | 利用不可 |     |
+| timestamp\_ms | 利用不可 | 利用不可 |     |
+| withheld | data.withheld | tweet.fields=withheld | Array of objects |
+| matching\_rules | matching\_rules |     | Array of objects |
+| matching\_rules.id | 利用不可 | 利用不可 |     |
+| matching\_rules.id\_str | matching\_rules.id | フィルタードストリームのデフォルト | String |
+| matching\_rules.tag | matching\_rules.tag | フィルタードストリームのデフォルト | String |
+
+<div id="user-object">
+  #### User オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **ネイティブ拡張形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| user | includes.users | expansions=author\_id | オブジェクトの配列 |
+| user.id | 利用不可 | 該当なし - includes.users.id を参照 | 文字列 |
+| user.id\_str | includes.users.id | expansions=author\_id | 文字列 |
+| user.name | includes.users.name | expansions=author\_id | 文字列 |
+| user.screen\_name | includes.user.username | expansions=author\_id | 文字列 |
+| user.location | includes.users.location | expansions=author\_id\&user.fields=location | オブジェクト |
+| user.description | includes.users.description | expansions=author\_id\&user.fields=description | 文字列 |
+| 利用不可 | includes.users.url | expansions=author\_id\&user.fields=url | 文字列 |
+| user.followers\_count | includes.users.public\_metrics.followers\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.friends\_count | includes.users.public\_metrics.following\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.listed\_count | includes.users.public\_metrics.listed\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.created\_at | includes.users.created\_at | expansions=author\_id\&user.fields=created\_at | 文字列 |
+| user.favourites\_count |     | まだ提供されていません |     |
+| user.verified | includes.users.verified | expansions=author\_id\&user.fields=verified | 真偽値 |
+| 利用不可 | includes.users.pinned\_tweet\_id | expansions=author\_id\&user.fields=pinned\_tweet\_id | 文字列 |
+| user.statuses\_count | includes.users.public\_metrics.tweet\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.profile\_image\_url\_https | includes.users.profile\_image\_url | expansions=author\_id\&user.fields=profile\_image\_url | 文字列 |
+| user.translator\_type | 利用不可 | 利用不可 |     |
+| user.utc\_offset | 利用不可 | 利用不可 |     |
+| user.time\_zone | 利用不可 | 利用不可 |     |
+| user.geo\_enabled | 利用不可 | 利用不可 |     |
+| user.lang | 利用不可 | 利用不可 - ツイートの言語から推定 |     |
+| user.contributors\_enabled | 利用不可 | 利用不可 |     |
+| user.is\_translator | 利用不可 | 利用不可 |     |
+| user.profile\_background\_color | 利用不可 | 利用不可 |     |
+| user.profile\_background\_image\_url | 利用不可 | 利用不可 |     |
+| user.profile\_background\_image\_url\_https | 利用不可 | 利用不可 |     |
+| user.profile\_background\_title | 利用不可 | 利用不可 |     |
+| user.profile\_sidebar\_border\_color | 利用不可 | 利用不可 |     |
+| user.profile\_sidebar\_fill\_color | 利用不可 | 利用不可 |     |
+| user.profile\_text\_color | 利用不可 | 利用不可 |     |
+| user.profile\_user\_background\_image | 利用不可 | 利用不可 |     |
+| user.profile\_image\_url |     | includes.user.profile\_image\_url を参照 |     |
+| user.default\_profile | 利用不可 | 利用不可 |     |
+| user.default\_profile\_image | 利用不可 | 利用不可 |     |
+| user.following | 利用不可 | 利用不可 |     |
+| user.follow\_request\_sent | 利用不可 | 利用不可 |     |
+| user.notifications | 利用不可 | 利用不可 |     |
+| user.withheld\_in\_countries | includes.users.withheld | expansions=author\_id\&user.fields=withheld | オブジェクト |
+| user.protected | includes.users.protected | expansions=author\_id\&user.fields=protected | 真偽値 |
+| 利用不可 | includes.users.entities | expansions=author\_id\&user.fields=entities | オブジェクト |
+| 利用不可 | includes.users.entities.url | expansions=author\_id\&user.fields=entities | オブジェクト |
+| 利用不可 | includes.users.entities.url.urls | expansions=author\_id\&user.fields=entities | オブジェクトの配列 |
+| 提供なし | includes.users.entities.url.urls.start | expansions=author\_id\&user.fields=entities | Int |
+| 提供なし | includes.users.entities.url.urls.end | expansions=author\_id\&user.fields=entities | Int |
+| 提供なし | includes.users.entities.url.urls.url | expansions=author\_id\&user.fields=entities | String |
+| user.url | includes.users.entities.url.urls.expanded\_url | expansions=author\_id\&user.fields=entities | String |
+| 提供なし | includes.users.entities.url.urls.display\_url | expansions=author\_id\&user.fields=entities | String |
+| 提供なし | includes.users.entities.descriptions | expansions=author\_id\&user.fields=entities | Object |
+| 提供なし | includes.users.entities.descriptions.hashtags | expansions=author\_id\&user.fields=entities | Array of objects |
+| 提供なし | includes.users.entities.descriptions.hashtags.start | expansions=author\_id\&user.fields=entities | Int |
+| 提供なし | includes.users.entities.descriptions.hashtags.end | expansions=author\_id\&user.fields=entities | Int |
+| user.description に含まれる | includes.users.entities.descriptions.hashtags.tag | expansions=author\_id\&user.fields=entities | String |
+| 提供なし | includes.users.entities.descriptions.mentions | expansions=author\_id\&user.fields=entities | Array of objects |
+| 提供なし | includes.users.entities.descriptions.mentions.start | expansions=author\_id\&user.fields=entities | Int |
+| 提供なし | includes.users.entities.descriptions.mentions.end | expansions=author\_id\&user.fields=entities | Int |
+| user.description に含まれる | includes.users.entities.descriptions.mentions.username | expansions=author\_id\&user.fields=entities | String |
+| 提供なし | includes.users.entities.descriptions.cashtags | expansions=author\_id\&user.fields=entities | Array of objects |
+| 提供なし | includes.users.entities.descriptions.cashtags.start | expansions=author\_id\&user.fields=entities | Int |
+| 提供なし | includes.users.entities.descriptions.cashtags.end | expansions=author\_id\&user.fields=entities | Int |
+| user.description に含まれる | includes.users.entities.descriptions.cashtags.tag | expansions=author\_id\&user.fields=entities | String |
+
+#### entities オブジェクトと expanded\_entities オブジェクト
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **ネイティブ拡張形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| entities | data.entities | tweet.fields=entities | オブジェクト |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities | オブジェクトの配列 |
+| entities.hashtags.indices\[0] | data.entities.hashtags.start | tweet.fields=entities | 整数 |
+| entities.hashtags.indices\[1] | data.entities.hashtags.end | tweet.fields=entities | 整数 |
+| entities.hashtags.text | data.entities.hashtags.tag | tweet.fields=entities | 文字列 |
+| entities.urls | data.entities.urls | tweet.fields=entities | オブジェクトの配列 |
+| entities.urls.indices\[0] | data.entities.urls.start | tweet.fields=entities | 整数 |
+| entities.urls.indices\[1] | data.entities.urls.end | tweet.fields=entities | 整数 |
+| entities.urls.url | data.entities.urls.url | tweet.fields=entities | 文字列 |
+| entities.urls.expanded\_url | data.entities.urls.expanded\_url | tweet.fields=entities | 文字列 |
+| entities.urls.display\_url | data.entities.urls.display\_url | tweet.fields=entities | 文字列 |
+| entities.urls.unwound.url | data.entities.urls.unwound\_url | tweet.fields=entities | 文字列 |
+| entities.urls.unwound.status | data.entities.urls.status | tweet.fields=entities | 文字列 |
+| entities.urls.unwound.title | data.entities.urls.title | tweet.fields=entities | 文字列 |
+| entities.urls.unwound.description | data.entities.urls.description | tweet.fields=entities | 文字列 |
+| なし | data.entities.urls.images | tweet.fields=entities | オブジェクトの配列 |
+| なし | data.entities.urls.images.url | tweet.fields=entities | 文字列 |
+| なし | data.entities.urls.images.width | tweet.fields=entities | 整数 |
+| なし | data.entities.urls.images.height | tweet.fields=entities | 整数 |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities | オブジェクトの配列 |
+| entities.user\_mentions.indicies\[0] | data.entities.mentions.start | tweet.fields=entities | 整数 |
+| entities.user\_mentions.indicies\[1] | data.entities.mentions.end | tweet.fields=entities | 整数 |
+| entities.user\_mentions.screen\_name | data.entities.mentions.username | tweet.fields=entities | 文字列 |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities | オブジェクトの配列 |
+| entities.symbols.indices\[0] | data.entities.cashtags.start | tweet.fields=entities | 整数 |
+| entities.symbols.indices\[1] | data.entities.cashtags.end | tweet.fields=entities | 整数 |
+| entities.symbols.text | data.entities.cashtags.tag | tweet.fields=entities | 文字列 |
+| entities.media または extended\_entities.media | includes.media | expansions=attachments.media\_keys | オブジェクトの配列 |
+| entities.media.id\_str または extended\_entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | 文字列 |
+| entities.media.id または extended\_entities.media.id |     | なし - id は文字列 |     |
+| entities.media.type または extended\_entities.media.type | includes.media.media.type | expansions=attachments.media\_keys | 文字列 |
+| entities.media.indices または extended\_entities.media.indices | なし | なし |     |
+| なし | includes.media.alt\_text | expansions=attachments.media\_keys\&media.fields=alt\_text | 文字列 |
+| entities.media.additional\_media\_info または extended\_entities.media.additional\_media\_info | なし | なし |     |
+| entities.media.additional\_media\_info.monetizable または extended\_entities.media.additional\_media\_info.monetizable | なし | なし |     |
+| entities.media.media\_url または extended\_entities.media.media\_url |     | 該当なし - includes.media.url を参照 | 文字列 |
+| entities.media.media\_url\_https または extended\_entities.media.media\_url\_https | includes.media.url | expansions=attachments.media\_keys\&media.fields=url | 文字列 |
+| entities.media.url OR extended\_entities.media.url |     |     |     |
+| entities.media.display\_url OR extended\_entities.media.expanded\_url |     |     |     |
+| entities.media.expanded\_url |     |     |     |
+| entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | 文字列 |
+| extended\_entities | data.attachments | tweet\_fields=attachments | オブジェクト |
+| extended\_entities | data.attachments.media\_keys | tweet.fields=attachments | オブジェクトの配列 |
+| 利用不可 | data.attachments.poll\_ids | tweet.fields=attachments | オブジェクトの配列 |
+| extended\_entities.media.sizes.thumb.w |     | 利用不可 |     |
+| extended\_entities.media.sizes.thumb.h |     | 利用不可 |     |
+| extended\_entities.media.sizes.thumb.resize |     | 利用不可 |     |
+| extended\_entities.media.sizes.large.w | includes.media.height | expansions=attachments.media\_keys\&media.fields=height |     |
+| extended\_entities.media.sizes.large.h | includes.media.width | expansions=attachments.media\_keys\&media.fields=width |     |
+| extended\_entities.media.sizes.large.resize | 利用不可 | 利用不可 |     |
+| extended\_entities.media.sizes.small.w | 利用不可 | 利用不可 |     |
+| extended\_entities.media.sizes.small.h | 利用不可 | 利用不可 |     |
+| extended\_entities.media.sizes.small.resize | 利用不可 | 利用不可 |     |
+| extended\_entities.media.sizes.medium.w | 利用不可 | 利用不可 |     |
+| extended\_entities.media.sizes.medium.h | 利用不可 | 利用不可 |     |
+| extended\_entities.media.sizes.medium.resize | 利用不可 | 利用不可 |     |
+| extended\_entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | 文字列 |
+| extended\_entities.media.video\_info.aspect\_ratio | 利用不可 | 利用不可 |     |
+| extended\_entities.media.variants | 利用不可 | 利用不可 |     |
+| extended\_entities.media.variants.bitrate | 利用不可 | 利用不可 |     |
+| extended\_entities.media.variants.content\_type | 利用不可 | 利用不可 |     |
+| extended\_entities.media.variants.url | 利用不可 | 利用不可 |     |
+| extended\_entities.media.video\_info.duration\_millis | includes.media.duration\_ms | expansions=attachments.media\_keys\&media.fields=duration\_ms | 整数 |
+| 利用不可 | includes.media.public\_metrics | expansions=attachments.media\_keys\&media.fields=public\_metrics | オブジェクト |
+| 利用不可 | includes.media.public\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | オブジェクト |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics | expansions=attachments.media\_keys\&media.fields=organic\_metrics | オブジェクト |
+| 利用不可 | includes.media.organic\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | Int |
+| 利用不可 | includes.media.organic\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metric | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Object |
+| 利用不可 | includes.media.promoted\_metric.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metric.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metric.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metric.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metric.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+
+<div id="place-object">
+  #### Place オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **ネイティブ Enriched 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| place | includes.places | expansions=geo.place\_id | オブジェクトの配列 |
+| place.id | includes.places.id | expansions=geo.place\_id | 文字列 |
+| place.url | 利用不可 | 利用不可 |     |
+| place.id.place\_type | includes.places.place\_type | expansions=geo.place\_id\&place.fields=place\_type | 文字列 |
+| place.id.name | includes.places.name | expansions=geo.place\_id\&place.fields=name | 文字列 |
+| place.id.full\_name | includes.places.full\_name | expansions=geo.place\_id | 文字列 |
+| place.id.country\_code | includes.places.country\_code | expansions=geo.place\_id\&place.fields=country\_code | 文字列 |
+| place.id.country | includes.places.country | expansions=geo.place\_id\&place.fields=country | 文字列 |
+| place.id.contained\_within | includes.places.contained\_within | expansions=geo.place\_id\&place.fields=contained\_within | 配列 |
+| place.id.bounding\_box.type | includes.places.geo.type | expansions=geo.place\_id\&place.fields=place\_type | 文字列 |
+| place.id.bounding\_box.coordinates | includes.places.geo.bbox | expansions=geo.place\_id\&place.fields=geo | 配列 |
+| place.id.attributes | includes.places.properties | expansions=geo.place\_id\&place.fields=geo | オブジェクト |
+
+<div id="poll-object">
+  #### 投票オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **ネイティブ拡張形式** | **Twitter v2 形式** | **必須 v2 パラメータ** | **v2 の型** |
+| entities.polls | includes.polls | expansions=attachments.poll\_ids | オブジェクト配列 |
+| 利用不可 | includes.polls.id | expansions=attachments.poll\_ids | 文字列 |
+| entities.poll.options | includes.polls.options | expansions=attachments.poll\_ids | オブジェクト配列 |
+| entities.polls.options.position | includes.polls.options.position | expansions=attachments.poll\_ids | 整数 |
+| entities.polls.options.text | includes.polls.options.label | expansions=attachments.poll\_ids | 文字列 |
+| 利用不可 | includes.polls.options.votes | expansions=attachments.poll\_ids | 整数 |
+| 利用不可 | includes.polls.voting\_status | expansions=attachments.poll\_ids\&poll.fields=voting\_status | 文字列 |
+| entities.polls.duration\_minutes | includes.polls.duration\_minutes | expansions=attachments.poll\_ids\&poll.fields=duration\_minutes | 整数 |
+| entities.polls.end\_datetime | includes.polls.end\_datetime | expansions=attachments.poll\_ids\&poll.fields=end\_datetime | 日付（ISO 8601） |
+
+<div id="migrating-from-activity-streams-data-format-to-v2">
+  ### Activity Streams データ形式から v2 への移行
+</div>
+
+Activity Streams データ形式は、当社の[エンタープライズ](/ja/x-api/enterprise-gnip-2.0/enterprise-gnip)製品で利用可能です。
+
+Activity Streams データ形式は、編集済み投稿のメタデータを提供できるよう更新されました。編集投稿のメタデータについては、[Edit Tweets の基礎](/ja/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets)をご覧ください。
+
+標準 v1.1 エンドポイントをご利用の場合は、[標準 v1.1 から v2 へのガイド](/ja/x-api/migrate/overview)を参照してください。プレミアムエンドポイント、またはエンタープライズ向け Native Enriched 形式をご利用の場合は、[Native Enriched から v2 へのガイド](/ja/x-api/migrate/data-format-migration#migrating-from-native-enriched-data-format-to-v2)を参照してください。
+
+X API v2 では、[Post](/ja/x-api/fundamentals/data-dictionary#tweet) および [user](/ja/x-api/fundamentals/data-dictionary#user) オブジェクトの新しい JSON 設計が導入されています。
+
+- JSON のルートレベルでは、Activity Streams 形式は results 配列内に Tweet オブジェクトを返しますが、X API v2 は data 配列を返します。
+- リツイートおよび引用の「アクティビティ」と表現する代わりに、X API v2 の JSON ではリツイートおよび引用投稿として扱います。
+- Tweet オブジェクトの favorites と user オブジェクトの favourites を併用する代わりに、X API v2 では like を用語として使用します。
+- X では、値がない JSON 値（例：null）はペイロードに書き出さないという規約を採用しています。Tweet および user の属性は、非 null の値がある場合にのみ含まれます。
+- v2 のすべての id フィールドは文字列形式になります。
+   
+
+新しい JSON 形式への変更に加えて、Tweet オブジェクトに以下の新しいフィールドを導入しました。
+
+- conversation\_id
+- reply\_settings
+- メディアの alt\_text
+- 2 つの新しい[アノテーション](/ja/x-api/fundamentals/post-annotations)フィールド（context と entities）
+- 複数の新しい[メトリクス](/ja/x-api/fundamentals/metrics)フィールド
+- 複数の新しい[投票](/ja/x-api/fundamentals/data-dictionary#poll)フィールド
+   
+
+多くのレガシーおよび非推奨フィールドは削除または置換されます。
+
+- display\_text\_range
+- generator
+- gnip
+- link
+- objectType
+- provider
+- twitter\_entities.symbols は data.entities.cashtags に置換
+- 一部の twitter\_extended\_entities.media および twitter\_entities.media フィールド
+- twitter\_filter\_level
+- twitterTimeZone
+- verb
+
+<div id="tweet-object">
+  #### ツイートオブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| postedTime | data.created\_at | tweet.fields=created\_at | 日付（ISO 8601） |
+| generator | Not Available | Not Available |     |
+| generator.link | Not Available | Not Available |     |
+| generator.displayName | data.source | tweet.fields=source | 文字列 |
+| twitter\_lang | data.lang | tweet.fields=lang | 文字列 |
+| Not Available | data.conversation\_id | tweet.fields=conversation\_id | 文字列 |
+| Not Available | data.reply\_settings | tweet.fields=reply\_settings | 文字列 |
+| Not Available | data.possibly\_sensitive | tweet.fields=possibly\_sensitive | 真偽値 |
+| Not Available | data.withheld | tweet.fields=withheld | オブジェクト |
+| objectType | Not Available | Not Available |     |
+| verb | Not Available | Not Available |     |
+| provider | Not Available | Not Available |     |
+| provider.objectType | Not Available | Not Available |     |
+| provider.displayName | Not Available | Not Available |     |
+| provider.link | Not Available | Not Available |     |
+| link | Not Available | Not Available |     |
+| display\_text\_range | Not Available | Not Available |     |
+| object | Not Available | Not Available |     |
+| object.objectType | Not Available | Not Available |     |
+| object.id | Not Available | Not Available |     |
+| object.summary | data.text | default | 文字列 |
+| object.edit\_history | data.edit\_history\_tweet\_ids | default | 配列 |
+| object.edit\_controls | data.edit\_controls | tweet.fields=edit\_controls | オブジェクト |
+| object.editable | data.edit\_controls.is\_edit\_eligible | tweet.fields=edit\_controls | 真偽値 |
+| object.link | Not Available | Not Available |     |
+| object.postedTime | data.created\_at | tweet.fields=created\_at | 日付（ISO 8601） |
+| Derived from actor.id | data.author\_id | tweet.fields=created\_at |     |
+| twitter\_filter\_level | Not Available | Not Available |     |
+| Derived from username in inReplyTo.link | data.in\_reply\_to\_user\_id | tweet.fields=in\_reply\_to\_user\_id | 文字列 |
+| Not Available | data.referenced\_tweets | tweet.fields=referenced\_tweets | オブジェクトの配列 |
+| Not Available | data.referenced\_tweets.type | tweet.fields=referenced\_tweets | 文字列 |
+| Derived from inReplyTo.link | data.referenced\_tweets.id | tweet.fields=referenced\_tweets | 文字列 |
+| Not Available | data.attachments | tweet.fields=attachments | オブジェクト |
+| Derived from twitter\_entities.media.id\_str | data.attachments.media\_keys | tweet.fields=attachments | 配列 |
+| Not Available | data.attachments.poll\_ids | tweet.fields=attachments | 配列 |
+| twitter\_entities | data.entities | tweet.fields=entities | オブジェクト |
+| Not Available | data.entities.annotations | tweet.fields=entities | オブジェクトの配列 |
+| Not Available | data.entities.annotations.start | tweet.fields=entities | 整数 |
+| Not Available | data.entities.annotations.end | tweet.fields=entities | 整数 |
+| Not Available | data.entities.annotations.probability | tweet.fields=entities | 浮動小数点数 |
+| Not Available | data.entities.annotations.type | tweet.fields=entities | 文字列 |
+| Not Available | data.entities.annotations.normalized\_text | tweet.fields=entities | 文字列 |
+| twitter\_entities.urls | data.entities.urls | tweet.fields=entities | オブジェクトの配列 |
+| twitter\_entities.urls.indices\[0] | data.entities.urls.start | tweet.fields=entities | 整数 |
+| twitter\_entities.urls.indices\[1] | data.entities.urls.end | tweet.fields=entities | 整数 |
+| twitter\_entities.urls.url | data.entities.urls.url | tweet.fields=entities | 文字列 |
+| twitter\_entities.urls.expanded\_url | data.entities.urls.expanded\_url | tweet.fields=entities | 文字列 |
+| twitter\_entities.urls.display\_url | data.entities.urls.display\_url | tweet.fields=entities | 文字列 |
+| Not Available | data.entities.urls.images | tweet.fields=entities | オブジェクトの配列 |
+| Not Available | data.entities.urls.images.url | tweet.fields=entities | 文字列 |
+| Not Available | data.entities.urls.images.width | tweet.fields=entities | 整数 |
+| Not Available | data.entities.urls.images.height | tweet.fields=entities | 整数 |
+| gnip.urls.expanded\_status | data.entities.urls.status | tweet.fields=entities | Int |
+| gnip.urls.expanded\_url\_title | data.entities.urls.title | tweet.fields=entities | String |
+| gnip.urls.expanded\_url\_description | data.entities.urls.description | tweet.fields=entities | String |
+| gnip.urls.expanded\_url | data.entities.urls.unwound\_url | tweet.fields=entities | String |
+| twitter\_entities.symbols | data.entities.cashtags | tweet.fields=entities | Array of objects |
+| twitter\_entities.symbols.indices\[0] | data.entities.cashtags.start | tweet.fields=entities | Int |
+| twitter\_entities.symbols.indices\[1] | data.entities.cashtags.end | tweet.fields=entities | Int |
+| twitter\_entities.symbols.text | data.entities.cashtags.tag | tweet.fields=entities | String |
+| twitter\_entities.hashtags | data.entities.hashtags | tweet.fields=entities | Array of objects |
+| twitter\_entities.hashtags.indices\[0] | data.entities.hashtags.start | tweet.fields=entities | Int |
+| twitter\_entities.hashtags.indices\[1] | data.entities.hashtags.end | tweet.fields=entities | Int |
+| twitter\_entities.hashtags.text | data.entities.hashtags.tag | tweet.fields=entities | String |
+| twitter\_entities.user\_mentions | data.entities.mentions | tweet.fields=entities | Array of objects |
+| twitter\_entities.user\_mentions.indices\[0] | data.entities.mentions.start | tweet.fields=entities | Int |
+| twitter\_entities.user\_mentions.indices\[1] | data.entities.mentions.end | tweet.fields=entities | Int |
+| twitter\_entities.user\_mentions.screen\_name | data.entities.mentions.tag | tweet.fields=entities | String |
+| twitter\_entities.user\_mentions.id\_str | data.entities.mentions.id | tweet.fields=entities | String |
+| twitter\_entities.user\_mentions.id | 利用不可 | 利用不可 |     |
+| 利用不可 | data.context\_annotations | tweet.fields=context\_annotations | オブジェクトの配列 |
+| 利用不可 | data.context\_annotations.domain | tweet.fields=context\_annotations | オブジェクト |
+| 利用不可 | data.context\_annotations.domain.id | tweet.fields=context\_annotations | 文字列 |
+| 利用不可 | data.context\_annotations.domain.name | tweet.fields=context\_annotations | 文字列 |
+| 利用不可 | data.context\_annotations.domain.description | tweet.fields=context\_annotations | 文字列 |
+| 利用不可 | data.context\_annotations.entity | tweet.fields=context\_annotations | オブジェクト |
+| 利用不可 | data.context\_annotations.entity.id | tweet.fields=context\_annotations | 文字列 |
+| 利用不可 | data.context\_annotations.entity.name | tweet.fields=context\_annotations | 文字列 |
+| 利用不可 | data.context\_annotations.entity.description | tweet.fields=context\_annotations | 文字列 |
+| geo | data.geo | tweet.fields=geo | オブジェクト |
+| location.link に由来 | data.geo.place\_id | tweet.fields=geo | 文字列 |
+| 利用不可 | data.public\_metrics | tweet.fields=public\_metrics | オブジェクト |
+| favoritesCount | data.public\_metrics.like\_count | tweet.fields=public\_metrics | 整数 |
+| retweetCount | data.public\_metrics.retweet\_count | tweet.fields=public\_metrics | 整数 |
+| 利用不可 | data.public\_metrics.quote\_count | tweet.fields=public\_metrics | 整数 |
+| 利用不可 | data.public\_metrics.reply\_count | tweet.fields=public\_metrics | 整数 |
+| 利用不可 | data.non\_public\_metrics | tweet.fields=non\_public\_metrics | オブジェクト |
+| 利用不可 | data.non\_public\_metrics.impression\_count | tweet.fields=non\_public\_metrics | 整数 |
+| 利用不可 | data.non\_public\_metrics.url\_link\_count | tweet.fields=non\_public\_metrics | 整数 |
+| 利用不可 | data.non\_public\_metrics.user\_profile\_count | tweet.fields=non\_public\_metrics | 整数 |
+| 利用不可 | data.organic\_metrics | tweet.fields=organic\_metrics | オブジェクト |
+| 利用不可 | data.organic\_metrics.like\_count | tweet.fields=organic\_metrics | 整数 |
+| 利用不可 | data.organic\_metrics.retweet\_count | tweet.fields=organic\_metrics | 整数 |
+| 利用不可 | data.organic\_metrics.reply\_count | tweet.fields=organic\_metrics | 整数 |
+| 利用不可 | data.organic\_metrics.impression\_count | tweet.fields=organic\_metrics | Int |
+| 利用不可 | data.organic\_metrics.url\_link\_count | tweet.fields=organic\_metrics | Int |
+| 利用不可 | data.organic\_metrics.user\_profile\_count | tweet.fields=organic\_metrics | Int |
+| 利用不可 | data.promoted\_metrics | tweet.fields=promoted\_metrics | Object |
+| 利用不可 | data.promoted\_metrics.like\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.retweet\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.reply\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.impression\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.url\_link\_count | tweet.fields=promoted\_metrics | Int |
+| 利用不可 | data.promoted\_metrics.user\_profile\_count | tweet.fields=promoted\_metrics | Int |
+| gnip.profileLocations | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.address | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.address.country | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.address.countryCode | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.displayName | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.geo | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.geo.coordinates | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.geo.type | 利用不可 | 利用不可 |     |
+| gnip.profileLocations.objectType | 利用不可 | 利用不可 |     |
+
+<div id="user-object">
+  #### ユーザーオブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 における型** |
+| actor | includes.users | expansions=author\_id | オブジェクトの配列 |
+| actor.id から派生 | includes.users.id | expansions=author\_id | 文字列 |
+| actor.displayName | includes.users.name | expansions=author\_id | 文字列 |
+| actor.preferredUsername | includes.users.username | expansions=author\_id | 文字列 |
+| actor.postedTime | includes.users.created\_at | expansions=author\_id\&user.fields=created\_at | 日付（ISO 8601） |
+| actor.summary | includes.users.description | expansions=author\_id\&user.fields=description | 文字列 |
+| なし | includes.users.pinned\_tweet\_id | expansions=author\_id\&user.fields=pinned\_tweet\_id | 文字列 |
+| なし | includes.users.protected | expansions=author\_id\&user.fields=protected | 真偽値 |
+| actor.link | なし | なし - includes.users.username から構築 |     |
+| actor.twitterTimeZone | なし | なし - 投稿（Tweet）の created\_at から推定 |     |
+| actor.utcOffset | なし | なし - 投稿（Tweet）の created\_at から推定 |     |
+| actor.favoritesCount | なし | なし |     |
+| actor.followersCount | includes.users.public\_metrics.followers\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.friendsCount | includes.users.public\_metrics.following\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.listedCount | includes.users.public\_metrics.listed\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.statusesCount | includes.users.public\_metrics.tweet\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.languages\[] | なし | なし - 投稿（Tweet）の言語（lang）から推定 |     |
+| actor.location.displayName | includes.users.location | expansions=author\_id\&user.fields=location | 文字列 |
+| actor.image | includes.users.profile\_image\_url | expansions=author\_id\&user.fields=profile\_image\_url | 文字列 |
+| actor.links | includes.users.url | expansions=author\_id\&user.fields=url | 文字列 |
+| actor.verified | includes.users.verified | expansions=author\_id\&user.fields=verified | 真偽値 |
+| なし | includes.users.withheld | expansions=author\_id\&user.fields=withheld | オブジェクト |
+| なし | includes.users.entities | expansions=author\_id\&user.fields=entities | オブジェクト |
+| なし | includes.users.entities.url | expansions=author\_id\&user.fields=entities | オブジェクト |
+| actor.links | includes.users.entities.url.urls | expansions=author\_id\&user.fields=entities | オブジェクトの配列 |
+| なし | includes.users.entities.url.urls.start | expansions=author\_id\&user.fields=entities | 整数 |
+| なし | includes.users.entities.url.urls.end | expansions=author\_id\&user.fields=entities | 整数 |
+| なし | includes.users.entities.url.urls.url | expansions=author\_id\&user.fields=entities | 文字列 |
+| actor.links.href | includes.users.entities.url.urls.expanded\_url | expansions=author\_id\&user.fields=entities | 文字列 |
+| なし | includes.users.entities.url.urls.display\_url | expansions=author\_id\&user.fields=entities | 文字列 |
+| なし | includes.users.entities.description | expansions=author\_id\&user.fields=entities | オブジェクト |
+| なし | includes.users.entities.description.hashtags | expansions=author\_id\&user.fields=entities | オブジェクトの配列 |
+| なし | includes.users.entities.description.hashtags.start | expansions=author\_id\&user.fields=entities | 整数 |
+| なし | includes.users.entities.description.hashtags.end | expansions=author\_id\&user.fields=entities | 整数 |
+| なし | includes.users.entities.description.hashtags.tag | expansions=author\_id\&user.fields=entities | 文字列 |
+| なし | includes.users.entities.description.mentions | expansions=author\_id\&user.fields=entities | オブジェクトの配列 |
+| なし | includes.users.entities.description.mentions.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 提供なし | includes.users.entities.description.mentions.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 提供なし | includes.users.entities.description.mentions.username | expansions=author\_id\&user.fields=entities | 文字列 |
+| 提供なし | includes.users.entities.description.cashtags | expansions=author\_id\&user.fields=entities | オブジェクト配列 |
+| 提供なし | includes.users.entities.description.cashtags.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 提供なし | includes.users.entities.description.cashtags.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 提供なし | includes.users.entities.description.cashtags.tag | expansions=author\_id\&user.fields=entities | 文字列 |
+
+<div id="poll-object">
+  #### 投票（Poll）オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| なし | includes.polls | expansions=attachments.poll\_ids | オブジェクト配列 |
+| なし | includes.polls.id | expansions=attachments.poll\_ids | 文字列 |
+| なし | includes.polls.options | expansions=attachments.poll\_ids | オブジェクト配列 |
+| なし | includes.polls.options.position | expansions=attachments.poll\_ids | 整数 |
+| なし | includes.polls.options.label | expansions=attachments.poll\_ids | 文字列 |
+| なし | includes.polls.options.votes | expansions=attachments.poll\_ids | 整数 |
+| なし | includes.polls.voting\_status | expansions=attachments.poll\_ids\&poll.fields=voting\_status | 文字列 |
+| なし | includes.polls.duration\_minutes | expansions=attachments.poll\_ids\&poll.fields=duration\_minutes | 整数 |
+| なし | includes.polls.end\_datetime | expansions=attachments.poll\_ids\&poll.fields=end\_datetime | 日付（ISO 8601） |
+
+<div id="place-object">
+  #### Place オブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 の型** |
+| location | includes.places | expansions=geo.place\_id | オブジェクトの配列 |
+| location.displayName | includes.places.full\_name | expansions=geo.place\_id | 文字列 |
+| location.link から解析 | includes.places.id | expansions=geo.place\_id | 文字列 |
+| location.name | includes.places.name | expansions=geo.place\_id\&place.fields=name | 文字列 |
+| location.country\_code | includes.places.country | expansions=geo.place\_id\&place.fields=country | 文字列 |
+| location.twitter\_place\_type | includes.places.place\_type | expansions=geo.place\_id\&place.fields=place\_type | 文字列 |
+| location.twitter\_country\_code | includes.places.country\_code | expansions=geo.place\_id\&place.fields=country\_code | 文字列 |
+| location.geo | includes.places.geo | expansions=geo.place\_id\&place.fields=geo | オブジェクト |
+| location.geo.type | includes.places.geo.type | expansions=geo.place\_id\&place.fields=geo | 文字列 |
+| location.geo.coordinates | includes.places.geo.bbox | expansions=geo.place\_id\&place.fields=geo | 配列 |
+| 利用不可 | includes.places.geo.properties | expansions=geo.place\_id\&place.fields=geo | オブジェクト |
+
+<div id="media-object">
+  #### メディアオブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 形式** | **Twitter v2 形式** | **必須の v2 パラメーター** | **v2 の型** |
+| twitter\_entities.media または twitter\_extended\_entities.media | includes.media | expansions=attachments.media\_keys | オブジェクトの配列 |
+| twitter\_entities.media.id\_str または twitter\_extended\_entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | 文字列 |
+| twitter\_entities.media.id または twitter\_extended\_entities.media.id | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.indices または twitter\_extended\_entities.media.indices | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.additional\_media\_info または twitter\_extended\_entities.media.additional\_media\_info | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.additional\_media\_info.monetizable または twitter\_extended\_entities.media.additional\_media\_info.monetizable | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.media\_url または twitter\_extended\_entities.media.media\_url | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.media\_url\_https または twitter\_extended\_entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | 文字列 |
+| twitter\_entities.media.url または twitter\_extended\_entities.media.url | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.display\_url または twitter\_extended\_entities.media.display\_url | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.expanded\_url または twitter\_extended\_entities.media.expanded\_url | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.type または twitter\_extended\_entities.media.type | includes.media.type | expansions=attachments.media\_keys | 文字列 |
+| twitter\_entities.media.sizes または twitter\_extended\_entities.media.sizes | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.thumb または twitter\_extended\_entities.media.sizes.thumb | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.thumb.h または twitter\_extended\_entities.media.sizes.thumb.h | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.thumb.w または twitter\_extended\_entities.media.sizes.thumb.w | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.thumb.resize または twitter\_extended\_entities.media.sizes.thumb.resize | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.small または twitter\_extended\_entities.media.sizes.small | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.small.h または twitter\_extended\_entities.media.sizes.small.h | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.small.w または twitter\_extended\_entities.media.sizes.small.w | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.small.resize または twitter\_extended\_entities.media.sizes.small.resize | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.medium または twitter\_extended\_entities.media.sizes.medium | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.medium.h または twitter\_extended\_entities.media.sizes.medium.h | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.medium.w または twitter\_extended\_entities.media.sizes.medium.w | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.medium.resize または twitter\_extended\_entities.media.sizes.medium.resize | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.large または twitter\_extended\_entities.media.sizes.large | 利用不可 | 利用不可 |     |
+| twitter\_entities.media.sizes.large.h または twitter\_extended\_entities.media.sizes.large.h | includes.media.height | expansions=attachments.media\_keys\&media.fields=height | 整数 |
+| twitter\_entities.media.sizes.large.w または twitter\_extended\_entities.media.sizes.large.w | includes.media.width | expansions=attachments.media\_keys\&media.fields=width | 整数 |
+| twitter\_entities.media.sizes.large.resize OR twitter\_extended\_entities.media.sizes.large.resize | 利用不可 | 利用不可 |     |
+| twitter\_extended\_entities.media.video\_info | 利用不可 | 利用不可 |     |
+| twitter\_extended\_entities.media.video\_info.aspect\_ratio | 利用不可 | 利用不可 |     |
+| twitter\_extended\_entities.media.video\_info.duration\_millis | includes.media.duration\_ms | expansions=attachments.media\_keys\&media.fields=duration\_ms | 整数 |
+| twitter\_extended\_entities.media.video\_info.variants | 利用不可 | 利用不可 |     |
+| twitter\_extended\_entities.media.video\_info.variants.bitrate | 利用不可 | 利用不可 |     |
+| twitter\_extended\_entities.media.video\_info.variants.content\_type | 利用不可 | 利用不可 |     |
+| twitter\_extended\_entities.media.video\_info.variants.url | 利用不可 | 利用不可 |     |
+| 利用不可 | includes.media.alt\_text | expansions=attachments.media\_keys\&media.fields=alt\_text | 文字列 |
+| 利用不可 | includes.media.public\_metrics | expansions=attachments.media\_keys\&media.fields=public\_metrics | オブジェクト |
+| 利用不可 | includes.media.public\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | オブジェクト |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.non\_public\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics | expansions=attachments.media\_keys\&media.fields=organic\_metrics | オブジェクト |
+| 利用不可 | includes.media.organic\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.organic\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 利用不可 | includes.media.promoted\_metrics | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | オブジェクト |
+| 利用不可 | includes.media.promoted\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 整数 |
+| 利用不可 | includes.media.promoted\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 整数 |
+| 利用不可 | includes.media.promoted\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 整数 |
+| 利用不可 | includes.media.promoted\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 利用不可 | includes.media.promoted\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+
+<div id="matching-rules-object">
+  #### マッチングルールオブジェクト
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 形式** | **Twitter v2 形式** | **必須の v2 パラメータ** | **v2 における型** |
+| gnip.matching\_rules | matching\_rules | フィルタードストリームのデフォルト | オブジェクト配列 |
+| gnip.matching\_rules.tag | matching\_rules.tag | フィルタードストリームのデフォルト | 文字列 |
+| gnip.matching\_rules.tag.id | 利用不可 | 利用不可 |     |
+| gnip.matching\_rules.tag.id\_str | matching\_rules.id | フィルタードストリームのデフォルト | 文字列 |
+
+<div id="visual-data-format-migration-tool">
+  ### ビジュアルデータ形式移行ツール
+</div>
+
+ビジュアルデータ形式移行ツールは、指定したツイートまたはユーザーオブジェクトについて、[X API v1.1 のデータ形式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)から[X API v2 の形式](/ja/x-api/fundamentals/data-dictionary)への対応フィールドを表示するウェブアプリケーションです。ツイート ID またはユーザー ID を指定すると、このマッピングを確認できます。
+
+アプリを使用するには、Twitter アカウントでログインする必要があります。
+
+<br />
+
+<Button href="https://visual-data-format-migration-tool.glitch.me/">
+  ビジュアルデータ形式移行ツールを試す
+</Button>

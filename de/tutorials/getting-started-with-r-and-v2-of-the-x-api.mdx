@@ -1,0 +1,178 @@
+---
+title: Erste Schritte mit R und der X-API v2
+mode: wide
+---
+
+<div id="introduction">
+  ## Einführung
+</div>
+
+Dieses Tutorial führt Sie durch alles, was Sie benötigen, um mit der Programmiersprache R und der X-API v2 zu beginnen. Anhand einer Verbindung von R zum [User-Lookup](/de/x-api/users/lookup/introduction)-Endpoint zeige ich, wie man mit JSON arbeitet, das von der X-API zurückgegeben wird. User Lookup ist eine GET-Methode und liefert Informationen über einen Nutzer oder eine Gruppe von Nutzern, die über eine Nutzer-ID oder einen Nutzernamen angegeben werden.
+
+Falls Sie damit nicht vertraut sind: R ist eine der beliebtesten Sprachen für gängige Data-Science-Aufgaben wie Zeitreihenanalyse, Modellierung, Visualisierung und andere Datenanalysen und wird häufig in Verbindung mit der X-API verwendet. Mit dem User-Lookup-Endpoint können Sie das [User-Objekt](/de/x-api/fundamentals/data-dictionary#user) verwenden, um eine Korrelation zwischen der Anzahl der Follower einer Person und dem Sentiment-Score ihrer Bio zu ermitteln. Das User-Objekt kann auch verwendet werden, um eine Gruppe von Accounts anhand des in ihren Profilen öffentlich angegebenen Standorts zuzuordnen.
+
+<div id="getting-started-with-the-x-api">
+  ### Erste Schritte mit der X-API
+</div>
+
+Bevor Sie die X-API v2 verwenden können, müssen Sie sich für ein Entwicklerkonto
+[registrieren](https://developer.x.com/en/portal/petition/essential/basic-info).
+
+Sobald Ihr Entwicklerkonto genehmigt wurde, erstellen Sie zunächst ein
+[Projekt](/de/resources/fundamentals/projects). Projekte ermöglichen es Ihnen, Ihre Arbeit
+entsprechend Ihrer geplanten Nutzung der X-API zu organisieren, sodass Sie Ihren
+Zugriff auf die API effektiv verwalten und Ihre Nutzung überwachen können.
+
+Jedes Projekt enthält eine [App](/de/resources/fundamentals/developer-apps), mit der Sie die
+Zugangsdaten generieren können, die für die Verwendung der X-API erforderlich sind. Weitere Informationen
+zum Einstieg in die X-API finden Sie im Abschnitt
+[Erste Schritte](/de/x-api/getting-started/about-x-api) unserer
+Dokumentation.
+
+<div id="getting-your-r-environment-set-up">
+  ### Einrichten Ihrer R-Umgebung
+</div>
+
+Zuerst müssen Sie [R herunterladen](https://cloud.r-project.org/). Das können Sie
+auf der [CRAN-Website](https://cran.r-project.org/) tun.
+
+Anschließend können Sie zum Einrichten einer Arbeitsumgebung für R
+[RStudio](https://www.rstudio.com/), das R-Erweiterungspaket für
+[Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Ikuyadeu.r-pack)
+oder ein
+[Jupyter-Notebook](https://docs.anaconda.com/anaconda/navigator/tutorials/r-lang/)
+verwenden, wenn Sie aus der Python-Welt kommen.
+
+<div id="setting-up-your-environment-variable">
+  ### Einrichten der Umgebungsvariablen
+</div>
+
+Für die Codebeispiele, die ich heute zeige, sollten Sie eine
+Umgebungsvariable für Ihr Bearer-Token erstellen. Das Bearer-Token ermöglicht Ihnen,
+sich bei der X-API zu authentifizieren und Anfragen zu senden. Ersetzen Sie zunächst
+„your-bearer-token“ durch Ihr eigenes Bearer-Token, das Sie im Bereich
+Keys and Tokens Ihrer App im Developer-Portal erhalten können. Führen Sie diese
+Codezeile in der Konsole aus, bevor Sie mit dem Schreiben eines Skripts beginnen.
+
+```r
+Sys.setenv(BEARER_TOKEN = "your-bearer-token")
+```
+
+<div id="making-your-request">
+  ### Ihre Anfrage stellen
+</div>
+
+Sie können das Paket
+[httr](https://cran.r-project.org/web/packages/httr/index.html) verwenden, um HTTP-
+Anfragen an die X-API zu stellen. Falls Sie es noch nicht installiert haben,
+installieren Sie das Paket in Ihrer Konsole. Zudem benötigen Sie
+[jsonlite](https://cran.r-project.org/web/packages/jsonlite/index.html) zur Arbeit mit JSON-Objekten und [dplyr](https://dplyr.tidyverse.org/) für die Datenmanipulation.
+
+```r
+install.packages("httr")
+install.packages("jsonlite")
+install.packages("dplyr")
+```
+
+Sie können nun beginnen, Ihr R-Skript zu schreiben, um eine Verbindung zur API herzustellen. Binden Sie am Anfang der
+Datei die Pakete httr, jsonlite und dplyr ein.
+
+```r
+require(httr)
+require(jsonlite)
+require(dplyr)
+```
+
+Der erste Schritt in Ihrem Codebeispiel besteht darin, die Authentifizierung für die
+X-API einzurichten. Nehmen Sie das
+[Bearer-Token](/de/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token), das Sie aus
+Ihrer App bezogen haben, und übergeben Sie es in den Headern zur Authentifizierung. Ersetzen Sie im folgenden
+Beispiel $BEARER\_TOKEN durch Ihr Token.
+
+```r
+bearer_token <- Sys.getenv("$BEARER_TOKEN")
+headers <- c(`Authorization` = sprintf('Bearer %s', bearer_token))
+```
+
+Sobald Sie die Authentifizierung eingerichtet haben, definieren Sie die Parameter Ihrer Anfrage.
+Standardmäßig erhalten Sie die id, den name und den username jeder zurückgegebenen Person.
+Sie können diese Nutzlast anpassen, indem Sie zusätzliche
+[Fields](/de/x-api/fundamentals/fields) und
+[Expansions](/de/x-api/fundamentals/expansions) hinzufügen. Für dieses Beispiel benötigen Sie
+die Profilbio des Nutzers, die mit user.fields=description angefordert wird,
+sowie eine Expansion, die den angehefteten Post des Nutzers enthält.
+
+```r
+params <- list(`user.fields` = 'description', `expansions` = 'pinned_tweet_id')
+```
+
+Jetzt sind Sie bereit, Ihre URL mit dem X-Handle, auch Konto genannt,
+zu formatieren, zu dem Sie weitere Informationen abrufen möchten. Verwenden Sie die Methode readline,
+um dieses Beispiel wiederverwendbar zu machen. Nachdem Sie das Handle eingegeben haben, das Sie sich ansehen möchten,
+formatieren Sie Ihre URL so, dass sie das von Ihnen definierte Handle enthält, indem Sie $USERNAME durch
+das gewünschte X-Handle ersetzen.
+
+```r
+handle <- readline('$USERNAME')
+url_handle <- sprintf('https://api.x.com/2/users/by?usernames=%s', handle)
+```
+
+Verwenden Sie an dieser Stelle das Paket httr, um eine GET-Anfrage an die soeben erstellte
+URL zu senden, übergeben Sie unsere Authentifizierungsdaten über den Header und geben Sie die
+von Ihnen definierten Parameter mit. Sie können die Antwort als Textobjekt in der
+Variablen obj speichern und diese ausgeben, um das Ergebnis Ihrer Anfrage anzuzeigen.
+
+```r
+response <-
+  httr::GET(url = url_handle,
+    httr::add_headers(.headers = headers),
+    query = params)
+obj <- httr::content(response, as = "text")
+print(obj)
+```
+
+<div id="working-with-our-json-payload">
+  ### Arbeiten mit unserer JSON-Payload
+</div>
+
+Eine meiner bevorzugten Methoden, mit JSON zu arbeiten, ist die Verwendung eines Data Frames. Damit kann man bequem auf komplexe, verschachtelte Daten zugreifen. Nutzen Sie dazu die Methode fromJSON aus dem
+jsonlite-Paket, um Ihre Datei zu flatten, sodass die Felder im selben
+Objekt liegen. Übergeben Sie dieses Objekt anschließend an einen Data Frame. Jetzt können Sie diesen
+Data Frame anzeigen.
+
+```
+json_data <- fromJSON(obj, flatten = TRUE) %>% as.data.frame
+View(json_data)
+```
+
+Sie können die Felder aus dem Data Frame auslesen und sie in eine
+Zeichenkette einsetzen, die den Handle, den Benutzernamen und die Bio enthält.
+
+```r
+final <-
+  sprintf(
+    "Handle: %s\nBio: %s\nPinned Post: %s",
+    json_data$data.username,
+    json_data$data.description,
+    json_data$includes.tweets.text
+  )
+```
+
+Verwenden Sie cat statt print, um das Objekt mit Zeilenumbrüchen zwischen den einzelnen Feldern auszugeben,
+die Sie auslesen.
+
+```r
+cat(final)
+```
+
+Wenn Sie Anfragen für mehrere Handles gestellt haben, können Sie einfach eine Schleife verwenden,
+um auf jedes Data-Frame-Element zuzugreifen.
+
+<div id="conclusion">
+  ### Fazit
+</div>
+
+Dieses Tutorial kann hoffentlich als Ausgangspunkt dienen, um mit R und der X‑API zu arbeiten. Als nächsten Schritt möchten Sie sich vielleicht unsere R-Beispiele für die jüngste Suche, Post-Lookup und Nutzer-Lookup in unserem
+[v2-Beispielcode](https://github.com/xdevplatform) ansehen. Teilen Sie uns in den
+[Foren](https://devcommunity.x.com/) mit, wenn Sie unterwegs auf Probleme stoßen, oder posten Sie an [@XDevelopers](https://x.com/XDevelopers), wenn dieses
+Tutorial Sie zu eigenen Projekten inspiriert.

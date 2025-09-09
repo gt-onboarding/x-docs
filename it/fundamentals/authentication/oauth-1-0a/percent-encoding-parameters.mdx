@@ -1,0 +1,55 @@
+---
+title: Parametri di codifica percentuale
+sidebarTitle: Parametri di codifica percentuale
+---
+
+import { Button } from "/snippets/it/button.mdx";
+
+
+<div id="percent-encoding-parameters">
+  ### Parametri di percent-encoding
+</div>
+
+Alcune parti dell’API X, in particolare quelle relative alle firme OAuth, richiedono che le stringhe siano codificate in conformità alla [RFC 3986, Sezione 2.1](http://tools.ietf.org/html/rfc3986#section-2.1). Poiché molte implementazioni degli algoritmi di codifica degli URL non sono pienamente compatibili con la RFC 3986, codifiche non corrette causano numerosi errori nelle firme OAuth. Per questo motivo, l’algoritmo di firma esatto da utilizzare è illustrato in questa pagina.
+
+Questa pagina descrive il processo di codifica degli URL definito nella [RFC 3986, Sezione 2.1](http://tools.ietf.org/html/rfc3986#section-2.1). In caso di ambiguità o conflitto con questo documento, si raccomanda di fare riferimento a tale specifica.
+ 
+
+<div id="encoding-a-string">
+  #### Codifica di una stringa
+</div>
+
+Il seguente algoritmo presuppone che tu stia codificando una stringa SRC copiandone i valori byte per byte in una stringa DST.
+
+**Passo 1: Finché SRC contiene byte non letti, leggi da SRC il byte successivo (8 bit).** In genere questo è considerato un carattere, ma nelle codifiche in cui un carattere può occupare più di un byte (come UTF-8), leggi solo il primo byte.
+
+**Passo 2: Verifica se il byte letto corrisponde a uno dei seguenti equivalenti ASCII.** La tabella seguente è stata suddivisa in righe per leggibilità, ma devi soltanto determinare se il byte letto è presente nella tabella, non in quale riga.
+
+| Nome | Caratteri ASCII | Valori byte equivalenti |
+| :--- | :--- | :--- |
+| Cifre | ‘0’, ‘1’, ‘2’, ‘3’, ‘4’, ‘5’, ‘6’, ‘7’, ‘8’, ‘9’ | 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39 |
+| Lettere maiuscole | ‘A’, ‘B’, ‘C’, ‘D’, ‘E’, ‘F’, ‘G’, ‘H’, ‘I’, ‘J’, ‘K’, ‘L’, ‘M’, ‘N’, ‘O’, ‘P’, ‘Q’, ‘R’, ‘S’, ‘T’, ‘U’, ‘V’, ‘W’, ‘X’, ‘Y’, ‘Z’ | 0x41, 0x42, 0x43, 0x44, 0x45,0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B,0x4C, 0x4D, 0x4E, 0x4F, 0x50, 0x51,0x52, 0x53, 0x54, 0x55, 0x56, 0x57,0x58, 0x59, 0x5A |
+| Lettere minuscole | ‘a’, ‘b’, ‘c’, ‘d’, ‘e’, ‘f’, ‘g’, ‘h’, ‘i’, ‘j’, ‘k’, ‘l’, ‘m’, ‘n’, ‘o’, ‘p’, ‘q’, ‘r’, ‘s’, ‘t’, ‘u’, ‘v’, ‘w’, ‘x’, ‘y’, ‘z’ | 0x61, 0x62, 0x63, 0x64, 0x65,0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B,0x6C, 0x6D, 0x6E, 0x6F, 0x70, 0x71,0x72, 0x73, 0x74, 0x75, 0x76, 0x77,0x78, 0x79, 0x7A |
+| Caratteri riservati | ‘-‘, ‘.’, ‘_’, ‘~’ | 0x2D, 0x2E, 0x5F, 0x7E |
+
+**Passo 2b: Se il byte non è presente nella tabella sopra, prosegui.** Qualsiasi altro valore deve essere codificato. **Passo 2a: Se il byte è presente nella tabella sopra, copialo in DST e torna al Passo 1.** I caratteri elencati nella tabella sopra non devono essere sottoposti a escape, quindi copierai semplicemente il byte.
+
+**Passo 3: Scrivi il carattere ‘%’ in DST.** Il carattere percentuale ‘%’ (0x25 in esadecimale, 00100101 in binario) indica che i due caratteri successivi rappresenteranno un byte codificato.
+
+**Passo 4: Scrivi in DST due caratteri che rappresentino il valore esadecimale, in maiuscolo e codificato ASCII, del byte corrente.** È un po’ complesso, ecco un esempio: supponi che il byte corrente sia 0xE6 (11100110 in binario). Corrisponde al valore UTF-8 del carattere ‘æ’. Per codificarlo, scrivi il carattere ‘E’ (0x45, dalla tabella sopra) e poi il carattere ‘6’ (0x36) in DST. Gli ultimi tre caratteri scritti dovrebbero essere “%E6”. Nota: se scrivi una lettera come A, B, C, D, E o F, devi usare la maiuscola.
+
+**Passo 5: Torna al Passo 1.** Continua finché l’intera SRC non è stata copiata in DST.
+ 
+
+<div id="examples">
+  #### Esempi
+</div>
+
+I seguenti esempi possono essere utili per confrontare l’output del tuo codice. Dovresti considerare qualsiasi differenza un errore. Gli spazi codificati come caratteri “+” sono un esempio di codifica non corretta.
+
+| Stringa originale | Stringa codificata |
+| :--- | :--- |
+| Ladies + Gentlemen | Ladies%20%2B%20Gentlemen |
+| An encoded string! | An%20encoded%20string%21 |
+| Dogs, Cats & Mice | Dogs%2C%20Cats%20%26%20Mice |
+| ☃   | %E2%98%83 |

@@ -1,0 +1,93 @@
+---
+title: Contagem de caracteres ao compor Tweets
+sidebarTitle: Contagem de caracteres
+icon: text-size
+---
+
+Esta página descreve como os caracteres são tratados ao compor Tweets e em toda a API do X. Para mais informações sobre a implementação, o X disponibiliza a biblioteca de código aberto [twitter-text](http://github.com/twitter/twitter-text), que pode ser encontrada no [GitHub](https://github.com/twitter).
+
+<div id="background">
+  ## Contexto
+</div>
+
+O X começou como um serviço de mensagens via SMS. Isso limitou o tamanho original do Tweet a 140 caracteres (em parte por causa do limite de 160 caracteres do SMS, com 20 reservados para comandos e nomes de usuário). Com o tempo, à medida que o X evoluiu, o tamanho máximo do Tweet aumentou para 280 caracteres — ainda curto e objetivo, mas permitindo maior expressão.
+
+<div id="definition-of-a-character">
+  ## Definição de um caractere
+</div>
+
+Na maioria dos casos, o conteúdo de texto de um Tweet pode conter até 280 caracteres ou glifos [Unicode](https://unicode.org/). Alguns glifos contam como mais de um caractere.
+
+Chamamos de peso o fato de um glifo contar como um ou mais caracteres. A definição exata de quais caracteres têm peso maior que um caractere está no [arquivo de configuração](https://github.com/twitter/twitter-text/tree/master/config) da [biblioteca de análise de Tweets twitter-text](https://github.com/twitter/twitter-text).
+
+A versão atual do arquivo de configuração define um peso padrão de dois caracteres e quatro faixas de [pontos de código Unicode](https://unicode.org/charts/About.html) com ponderações diferentes. Atualmente, os pontos de código nessas faixas são todos contados como um único caractere.
+
+- A primeira faixa abrange caracteres nas páginas de código Latin-1 (U+0000 - U+10FF).
+- A segunda faixa é de pontuação geral até, e incluindo, o Zero Width Joiner (usado para combinar emoji e outros glifos) (U+2000-U+200D).
+- A terceira faixa é de pontuação geral, excluindo U+200E e U+200F, que são marcas direcionais do Unicode (U+2010-U+201F).
+- A faixa final abrange aspas (U+2032-U+2037).
+
+Exemplos de textos de Tweet e comprimentos calculados pela biblioteca twitter-text podem ser encontrados no arquivo de configuração de testes [validate.yml](https://github.com/twitter/twitter-text/blob/master/conformance/validate.yml) da biblioteca.
+
+**Exemplos**
+
+| Caractere exibido | Comprimento | Descrição | Sequência Unicode |
+|:---------------------|:--------|:-------------|:------------------|
+| a | 1 | Letra minúscula latina a | U+0061 |
+| á | 1 | Letra minúscula latina a com acento agudo | U+00E1 |
+| ӑ | 1 | Letra minúscula cirílica a com breve | U+04D1 |
+| Ồ | 1 | Letra maiúscula latina o com circunflexo e acento agudo | U+1ED2 |
+
+<div id="emojis">
+  ## Emojis
+</div>
+
+Emojis compatíveis com o [twemoji](https://twemoji.x.com/) sempre contam como dois caracteres, independentemente de modificadores combináveis. Isso inclui emojis modificados por [tons de pele Fitzpatrick](https://emojipedia.org/modifiers/) ou por [modificadores de gênero](https://blog.emojipedia.org/unicode-and-the-emoji-gender-gap/), mesmo que sejam compostos por um número significativamente maior de pontos de código Unicode. O peso do emoji é definido por uma expressão regular no twitter-text que identifica sequências de emojis padrão combinadas com um ou mais Zero Width Joiners Unicode (U+200D).
+
+**Exemplos**
+
+| Emoji exibido | Comprimento | Descrição | Sequência Unicode |
+|:-----------------|:--------|:-------------|:------------------|
+| 👾 | 2 | Comprimento padrão de emoji conhecido | -- |
+| 🙋🏽 | 2 | Emoji com modificador de tom de pele | 🙋 U+1F64B, 🏽 U+1F3FD |
+| 👨‍🎤 | 2 | Sequência de emoji usando glifo de combinação (conector de largura zero) | [👨 U+1F468](https://emojipedia.org/emoji/%F0%9F%91%A8/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [🎤 U+1F3A4](https://emojipedia.org/emoji/%F0%9F%8E%A4/) |
+| 👨‍👩‍👧‍👦 | 2 | Sequência de emoji usando múltiplos glifos de combinação (conectores de largura zero) | [👨 U+1F468](https://emojipedia.org/emoji/%F0%9F%91%A8/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👩 U+1F469](https://emojipedia.org/emoji/%F0%9F%91%A9/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👧 U+1F467](https://emojipedia.org/emoji/%F0%9F%91%A7/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👦 U+1F466](https://emojipedia.org/emoji/%F0%9F%91%A6/) |
+
+<div id="chinese-japanese-korean-glyphs">
+  ## Glifos chineses/japoneses/coreanos
+</div>
+
+Glifos usados em idiomas CJK (chinês/japonês/coreano) também contam como dois caracteres. Portanto, um post composto apenas por texto CJK pode ter, no máximo, 140 desses glifos.
+
+<div id="entity-objects">
+  ## Objetos de entidade
+</div>
+
+Os posts podem conter [objetos de entidade](/pt-BR/x-api/fundamentals/data-dictionary), alguns dos quais impactam o tamanho de um post.
+
+URLs: [Todas as URLs são convertidas em links t.co](https://developer.x.com/content/developer-twitter/en/docs/basics/tco). Isso significa que o tamanho de uma URL é definido pelo parâmetro `transformedURLLength` no [arquivo de configuração do twitter-text](https://github.com/twitter/twitter-text/tree/master/config). O tamanho atual de uma URL em um post é de 23 caracteres, mesmo que a URL normalmente seja mais curta.
+
+Respostas: @nomes que são preenchidos automaticamente no início de uma resposta não contam para o limite de caracteres. Novos posts que não sejam respostas e comecem com uma @menção contam, assim como @menções adicionadas explicitamente pelo usuário no corpo do post.
+
+Mídia: mídia anexada a um post, representada como uma URL pic.x.com, se publicada a partir de um cliente oficial, conta como 0 caracteres.
+
+Para saber mais sobre objetos de entidade, consulte a [documentação para desenvolvedores](/pt-BR/x-api/fundamentals/data-dictionary).
+
+<div id="x-character-encoding">
+  ## Codificação de caracteres do X
+</div>
+
+Os endpoints da API do X aceitam apenas texto codificado em UTF-8. Todas as outras codificações devem ser convertidas para UTF-8 antes de enviar o texto para a API.
+
+O X contabiliza o comprimento de um post usando a versão do texto na Normalization Form C (NFC).
+
+Por exemplo: a palavra "café". Existem duas sequências de bytes que visualmente parecem e soam iguais, mas usam um número diferente de bytes:
+
+|     | | |
+|:-----|:---|:---|
+| café | 0x63 0x61 0x66 0xC3 0xA9 | Usando o caractere "é", o “caractere composto”. |
+| café | 0x63 0x61 0x66 0x65 0xCC 0x81 | Usando o diacrítico combinante, que se sobrepõe ao "e" |
+
+A Normalization Form C favorece o uso de um caractere totalmente combinado (0xC3 0xA9, do exemplo “café”) em vez da versão expandida (0x65 0xCC 0x81).
+
+O X conta o número de pontos de código no texto, em vez dos bytes UTF-8. O 0xC3 0xA9, do exemplo “café”, é um ponto de código (U+00E9) codificado como dois bytes em UTF-8, enquanto 0x65 0xCC 0x81 são dois pontos de código codificados como três bytes.

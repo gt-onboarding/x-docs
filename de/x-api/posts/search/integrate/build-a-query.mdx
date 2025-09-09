@@ -1,0 +1,307 @@
+---
+title: Eine Abfrage erstellen
+sidebarTitle: Eine Abfrage erstellen
+---
+
+<div id="building-queries-for-search-posts">
+  ## Abfragen für die Postsuche erstellen
+</div>
+
+Die Suchendpunkte akzeptieren eine einzelne Abfrage per GET-Anfrage und liefern eine Menge historischer Posts, die mit der Abfrage übereinstimmen. Abfragen bestehen aus Operatoren, mit denen verschiedene Post-Attribute abgeglichen werden. 
+
+<div id="table-of-contents">
+  ### Inhaltsverzeichnis
+</div>
+
+- [Eine Abfrage erstellen](#build)
+- [Einschränkungen von Abfragen](#limits)
+- [Verfügbarkeit von Operatoren](#availability)
+- [Operatortypen: eigenständig und konjunktionspflichtig](#types)
+- [Boolesche Operatoren und Gruppierung](#boolean)
+- [Reihenfolge der Auswertung](#order-of-operations)
+- [Zeichensetzung, Diakritika und Groß-/Kleinschreibung](#punctuation)
+- [Spezifizität und Effizienz](#specificity)
+- [Abgleichsverhalten bei Quote-Tweets](#quote-tweets)
+- [Eine Abfrage iterativ aufbauen](#iterative)
+- [Eine Abfrage zu Ihrer Anfrage hinzufügen](#adding-a-query)
+- [Abfragebeispiele](#examples)
+- [Liste der Operatoren](#list)
+
+<div id="building-a-query">
+  ### Erstellen einer Abfrage
+</div>
+
+<div id="query-limitations">
+  #### Abfragebeschränkungen
+</div>
+
+Ihre Abfragen sind abhängig von der verwendeten [Zugriffsebene](/de/x-api/getting-started/about-x-api) eingeschränkt.
+
+Mit Basic- oder Pro-Zugriff darf Ihre Abfrage für den Recent-Search-Endpunkt bis zu 512 Zeichen lang sein.
+
+Mit Pro-Zugriff darf Ihre Abfrage für den Full-Archive-Search-Endpunkt bis zu 1.024 Zeichen lang sein. 
+
+<div id="operator-availability">
+  #### Verfügbarkeit von Operatoren
+</div>
+
+Während die meisten Operatoren allen Entwicklern zur Verfügung stehen, sind einige bestimmten Zugriffsstufen vorbehalten. In der [Operatorenliste](/de/x-api/posts/search/integrate/build-a-query) geben wir mithilfe der folgenden Bezeichnungen an, für welche Zugriffsstufe jeder Operator verfügbar ist:
+
+- **Kernoperatoren:** Verfügbar bei Verwendung beliebiger [Projekte](/de/resources/fundamentals/projects).
+- **Erweiterte Operatoren:** Verfügbar bei Verwendung eines Projekts mit einer bestimmten Zugriffsstufe
+
+<div id="operator-types-standalone-and-conjunction-required">
+  #### Operator-Typen: eigenständig und konjunktionserforderlich
+</div>
+
+**Eigenständige Operatoren** können allein oder zusammen mit beliebigen anderen Operatoren verwendet werden (einschließlich solcher, die eine Konjunktion erfordern).
+
+Zum Beispiel funktioniert die folgende Abfrage, da sie den Operator `#hashtag` verwendet, der eigenständig ist:
+
+`#xapiv2`
+
+**Konjunktionserforderliche** Operatoren können in einer Abfrage nicht allein verwendet werden; sie können nur verwendet werden, wenn mindestens ein eigenständiger Operator in der Abfrage enthalten ist. Der Grund ist, dass ihre alleinige Verwendung viel zu allgemein wäre und auf ein extrem hohes Volumen an Posts zutreffen würde.
+
+Die folgenden Abfragen werden beispielsweise nicht unterstützt, da sie nur konjunktionserforderliche Operatoren enthalten:
+
+`has:media`
+
+`has:links OR is:retweet`
+
+Wenn wir einen eigenständigen Operator hinzufügen, etwa die Phrase `"X data"`, würde die Abfrage ordnungsgemäß funktionieren.
+
+`"X data" has:mentions (has:media OR has:links)`
+
+<div id="boolean-operators-and-grouping">
+  #### Boolesche Operatoren und Gruppierung
+</div>
+
+Wenn Sie mehrere Operatoren in einer einzigen Abfrage verketten möchten, stehen Ihnen die folgenden Werkzeuge zur Verfügung:
+
+|     |     |
+| :--- | :--- |
+| **UND-Logik** | Aufeinanderfolgende Operatoren mit einem Leerzeichen dazwischen führen zu boolescher UND-Logik. Das bedeutet, dass Posts nur übereinstimmen, wenn beide Bedingungen erfüllt sind. Zum Beispiel matched `snow day #NoSchool` nur Posts, die die Begriffe snow und day sowie den Hashtag #NoSchool enthalten. |
+| **ODER-Logik** | Aufeinanderfolgende Operatoren mit OR dazwischen führen zu ODER-Logik, das heißt, Posts stimmen überein, wenn eine der Bedingungen erfüllt ist. Wenn Sie zum Beispiel `grumpy OR cat OR #meme` angeben, werden alle Posts erfasst, die mindestens die Begriffe grumpy oder cat oder den Hashtag #meme enthalten. |
+| **NICHT-Logik, Negation** | Stellen Sie einem Schlüsselwort (oder einem beliebigen Operator) einen Bindestrich (-) voran, um es zu negieren (NOT). Zum Beispiel matched `cat #meme -grumpy` Posts, die den Hashtag #meme und den Begriff cat enthalten, jedoch nur, wenn sie nicht den Begriff grumpy enthalten. Eine gängige Abfrageklausel ist `-is:retweet`, die nicht auf Retweets matched und somit nur auf originale Posts, Quote Tweets und Antworten. Alle Operatoren können negiert werden, aber negierte Operatoren dürfen nicht allein verwendet werden. |
+| **Gruppierung** | Sie können Klammern verwenden, um Operatoren zu gruppieren. Zum Beispiel liefert `(grumpy cat) OR (#meme has:images)` entweder Posts, die die Begriffe grumpy und cat enthalten, oder Posts mit Bildern, die den Hashtag #meme enthalten. Beachten Sie, dass zuerst UND und anschließend ODER angewendet wird. |
+
+**Hinweis zu Negationen**
+
+Der Operator `is:nullcast` muss immer negiert werden.
+
+Negierte Operatoren dürfen nicht allein verwendet werden.
+
+Negieren Sie nicht eine Menge von Operatoren, die zusammen in Klammern gruppiert sind. Negieren Sie stattdessen jeden einzelnen Operator. Verwenden Sie zum Beispiel anstelle von `skiing -(snow OR day OR noschool)` besser `skiing -snow -day -noschool`. 
+
+<div id="order-of-operations">
+  #### Reihenfolge der Auswertung
+</div>
+
+Beim Kombinieren von AND- und OR-Funktionen bestimmt die folgende Auswertungsreihenfolge, wie Ihre Abfrage interpretiert wird.
+
+1. Zuerst werden Operatoren kombiniert, die durch AND-Logik verbunden sind
+2. Danach werden Operatoren angewendet, die durch OR-Logik verbunden sind
+
+Beispiele:
+
+- `apple OR iphone ipad` wird als `apple OR (iphone ipad)` ausgewertet
+- `ipad iphone OR android` wird als `(iphone ipad) OR android` ausgewertet
+
+Um Unklarheiten zu vermeiden und sicherzustellen, dass Ihre Abfrage wie beabsichtigt ausgewertet wird, gruppieren Sie Begriffe nach Bedarf mit Klammern.
+
+Beispiele:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### Interpunktion, Diakritika und Groß-/Kleinschreibung
+</div>
+
+Wenn Sie eine Keyword- oder Hashtag-Abfrage mit Akzenten oder Diakritika angeben, werden Beiträge gefunden, die sowohl den Begriff mit Akzenten/Diakritika als auch den entsprechenden Begriff mit normalen Zeichen enthalten. Beispielsweise finden Abfragen mit dem Keyword `Diacrítica` oder dem Hashtag `#cumpleaños` sowohl _Diacrítica_ bzw. _#cumpleaños_ als auch _Diacritica_ bzw. _#cumpleanos_ ohne die Tilde über í oder das eñe.
+
+Zeichen mit Akzenten oder Diakritika werden wie normale Zeichen behandelt und nicht als Wortgrenzen. Eine Abfrage mit dem Keyword `cumpleaños` würde beispielsweise nur Aktivitäten finden, die das Wort _cumpleaños_ enthalten, und nicht Aktivitäten, die _cumplea_, _cumplean_ oder _os_ enthalten.
+
+Alle Operatoren werden ohne Berücksichtigung der Groß- und Kleinschreibung ausgewertet. Beispielsweise findet die Abfrage `cat` Beiträge mit allen folgenden Varianten: _cat_, _CAT_, _Cat_.
+
+Das Matching-Verhalten des [Gefilterten Streams](/de/x-api/posts/filtered-stream) unterscheidet sich von dem der Posts-Suche. Beim [Erstellen einer Regel für den Gefilterten Stream](/de/x-api/posts/filtered-stream#building-rules-for-filtered-stream) gilt: Keywords und Hashtags mit Akzenten oder Diakritika stimmen nur mit Begriffen überein, die ebenfalls den Akzent bzw. das Diakritikum enthalten, und nicht mit Begriffen, die stattdessen normale Zeichen verwenden.
+
+Beispielsweise stimmen Regeln für den Gefilterten Stream, die ein Keyword `Diacrítica` oder den Hashtag `#cumpleaños` enthalten, nur mit den Begriffen _Diacrítica_ und _#cumpleaños_ überein und nicht mit _Diacritica_ oder _#cumpleanos_ ohne die Tilde über í oder das eñe.
+
+<div id="specificity-and-efficiency">
+  #### Spezifität und Effizienz
+</div>
+
+Wenn Sie mit dem Erstellen Ihrer Abfrage beginnen, sollten Sie ein paar Dinge beachten.
+
+- Die Verwendung breiter, eigenständiger Operatoren wie eines einzelnen Schlüsselworts oder #Hashtags wird im Allgemeinen nicht empfohlen, da dies wahrscheinlich zu einer enormen Anzahl passender Posts führt. Eine robustere Abfrage liefert ein spezifischeres Set übereinstimmender Posts und reduziert idealerweise das Rauschen in der Nutzlast, durch das Sie sich arbeiten müssen, um wertvolle Erkenntnisse zu gewinnen.
+  - Wenn Ihre Abfrage beispielsweise nur das Schlüsselwort `happy` enthält, erhalten Sie wahrscheinlich zwischen 200.000 und 300.000 Posts pro Tag.
+  - Das Hinzufügen weiterer bedingter Operatoren verengt Ihre Suchergebnisse, zum Beispiel: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+- Effiziente Abfragen helfen auch dabei, die Zeichenlängenbeschränkung für Abfragen einzuhalten. Die Zeichenzählung umfasst die gesamte Abfragezeichenkette, einschließlich Leerzeichen und Operatoren.
+  - Beispielsweise ist die folgende Abfrage 59 Zeichen lang: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+
+<div id="quote-tweet-matching-behavior">
+  #### Übereinstimmungsverhalten bei zitierten Posts (Quote Tweets)
+</div>
+
+Bei der Verwendung der Search-Posts-Endpunkte greifen Operatoren nicht auf den Inhalt des ursprünglich zitierten Posts zu, sondern nur auf den im Quote Tweet enthaltenen Inhalt.
+
+Bitte beachten Sie jedoch, dass der [Gefilterte Stream](/de/x-api/posts/filtered-stream) sowohl den Inhalt des ursprünglich zitierten Posts als auch den Inhalt des Quote Tweets berücksichtigt.
+
+<div id="iteratively-building-a-query">
+  #### Eine Abfrage iterativ aufbauen
+</div>
+
+<div id="test-your-query-early-and-often">
+  ##### Testen Sie Ihre Abfrage frühzeitig und regelmäßig
+</div>
+
+Es ist selten, dass eine Abfrage beim ersten Mal die „richtigen“ Ergebnisse liefert. Auf X gibt es so viel, das anfangs vielleicht nicht offensichtlich ist, und die oben beschriebene Abfragesyntax lässt sich möglicherweise nur schwer mit Ihrer gewünschten Suche in Einklang bringen. Während Sie eine Abfrage erstellen, ist es wichtig, sie regelmäßig zu testen.
+
+Für diesen Abschnitt beginnen wir mit der folgenden Abfrage und passen sie anhand der Ergebnisse an, die wir während unseres Tests erhalten:
+
+`happy OR happiness`
+
+<div id="use-results-to-narrow-the-query">
+  ##### Ergebnisse nutzen, um die Abfrage zu verfeinern
+</div>
+
+Während Sie die Abfrage testen, sollten Sie die zurückgegebenen Posts prüfen, um festzustellen, ob sie die erwarteten Daten enthalten. Wenn Sie mit einer breiten Abfrage und einer Obermenge an Post-Treffern beginnen, können Sie das Ergebnis sichten und die Abfrage verfeinern, um unerwünschte Treffer herauszufiltern.  
+
+Als wir die Beispielabfrage getestet haben, ist uns aufgefallen, dass wir Posts in einer Vielzahl unterschiedlicher Sprachen erhielten. In diesem Fall möchten wir nur Posts auf Englisch erhalten, daher fügen wir den Operator `lang:` hinzu:
+
+`(happy OR happiness) lang:en`
+
+Der Test lieferte eine Reihe von Posts, in denen Leuten ein „happy birthday“ gewünscht wurde, daher fügen wir `-birthday` als negierten Keyword-Operator hinzu. Außerdem möchten wir nur originale Posts erhalten, daher haben wir den negierten Operator `-is:retweet` hinzugefügt:
+
+`(happy OR happiness) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-inclusion-where-needed">
+  ##### Bei Bedarf auf Einschluss anpassen
+</div>
+
+Wenn Sie feststellen, dass Sie nicht die erwarteten Daten erhalten und wissen, dass es vorhandene Posts gibt, die zurückgegeben werden sollten, sollten Sie Ihre Abfrage möglicherweise erweitern, indem Sie Operatoren entfernen, die die gewünschten Daten herausfiltern.
+
+In unserem Beispiel haben wir bemerkt, dass es in unserer persönlichen Timeline weitere Posts gab, die die gesuchte Emotion ausdrückten und nicht in die Testergebnisse aufgenommen wurden. Um eine umfassendere Abdeckung sicherzustellen, fügen wir die Schlüsselwörter `excited` und `elated` hinzu.
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-popular-trendsbursts-over-the-time-period">
+  ##### Berücksichtigen Sie populäre Trends/Spitzen im betrachteten Zeitraum
+</div>
+
+Trends kommen und gehen auf X schnell. Die Pflege Ihrer Abfrage sollte ein aktiver Prozess sein. Wenn Sie eine Abfrage über einen längeren Zeitraum nutzen möchten, empfehlen wir, die eingehenden Daten regelmäßig zu überprüfen, um festzustellen, ob Anpassungen erforderlich sind.
+
+In unserem Beispiel stellen wir fest, dass wir einige Posts erhalten, in denen Menschen „happy holidays“ wünschen. Da wir diese Posts nicht in unseren Ergebnissen haben möchten, fügen wir ein negiertes `-holidays`-Keyword hinzu.
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet -holidays`
+
+<div id="adding-a-query-to-your-request">
+  ### Eine Abfrage zu Ihrer Anfrage hinzufügen
+</div>
+
+Um Ihre Abfrage zu Ihrer Anfrage hinzuzufügen, müssen Sie den Parameter `query` verwenden. Wie bei allen Query-Parametern müssen Sie sicherstellen, dass die von Ihnen erstellte Abfrage HTTP-codiert ist.
+
+Hier sehen Sie ein Beispiel mit einem cURL-Befehl, in dem zusätzlich die Parameter `tweet.fields` und `max_results` enthalten sind. Wenn Sie diesen Befehl verwenden möchten, ersetzen Sie bitte `$BEARER_TOKEN` durch Ihr eigenes [Bearer-Token](/de/resources/fundamentals/authentication#oauth-2-0).
+
+```bash
+curl https://api.x.com/2/tweets/search/recent?query=cat%20has%3Amedia%20-grumpy&tweet.fields=created_at&max_results=100 -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+<div id="query-examples">
+  ### Abfragebeispiele
+</div>
+
+<div id="tracking-a-natural-disaster">
+  #### Nachverfolgung einer Naturkatastrophe
+</div>
+
+Die folgende Abfrage stimmt mit originalen Posts von Wetterbehörden und Pegeln überein, die über Hurrikan Harvey sprechen, der 2017 Houston traf.
+
+So würde die Abfrage ohne HTTP-Codierung aussehen:
+
+`has:geo (from:NWSNHC OR from:NHC\_Atlantic OR from:NWSHouston OR from:NWSSanAntonio OR from:USGS\_TexasRain OR from:USGS_TexasFlood OR from:JeffLindner1) -is:retweet`
+
+Und so würde die Abfrage mit der HTTP-Codierung, dem Query-Parameter und der URI für die jüngste Suche aussehen:
+
+`https://api.x.com/2/tweets/search/recent?query=-is%3Aretweet%20has%3Ageo%20(from%3ANWSNHC%20OR%20from%3ANHC\_Atlantic%20OR%20from%3ANWSHouston%20OR%20from%3ANWSSanAntonio%20OR%20from%3AUSGS\_TexasRain%20OR%20from%3AUSGS_TexasFlood%20OR%20from%3AJeffLindner1)`
+
+<div id="reviewing-the-sentiment-of-a-conversation">
+  #### Überprüfung der Stimmung einer Unterhaltung
+</div>
+
+Die nächste Regel könnte verwendet werden, um die Stimmung der sich um den Hashtag „#nowplaying“ entwickelnden Unterhaltung besser zu verstehen, jedoch beschränkt auf Posts, die in Nordamerika veröffentlicht wurden.
+
+So würden die zwei unterschiedlichen Abfragen, eine für positive und eine für negative Stimmung, ohne HTTP-Encoding aussehen:
+
+`#nowplaying (happy OR exciting OR excited OR favorite OR fav OR amazing OR lovely OR incredible) (place\_country:US OR place\_country:MX OR place_country:CA) -horrible -worst -sucks -bad -disappointing`
+
+`#nowplaying (horrible OR worst OR sucks OR bad OR disappointing) (place\_country:US OR place\_country:MX OR place_country:CA) -happy -exciting -excited -favorite -fav -amazing -lovely -incredible`
+
+Und so würde die Abfrage mit HTTP-Encoding, dem Query-Parameter und der Recent-Search-URI aussehen:
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(happy%20OR%20exciting%20OR%20excited%20OR%20favorite%20OR%20fav%20OR%20amazing%20OR%20lovely%20OR%20incredible)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-horrible%20-worst%20-sucks%20-bad%20-disappointing`
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(horrible%20OR%20worst%20OR%20sucks%20OR%20bad%20OR%20disappointing)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-happy%20-exciting%20-excited%20-favorite%20-fav%20-amazing%20-lovely%20-incredible`
+
+<div id="find-posts-that-relate-to-a-specific-post-annotation">
+  #### Finde Posts, die sich auf eine bestimmte Post-Annotation beziehen
+</div>
+
+Diese Regel wurde erstellt, um nach Original-Posts zu suchen, die ein Bild eines Haustiers enthalten, das keine Katze ist, wobei die im Post identifizierte Sprache Japanisch ist. Dafür haben wir den Operator `context:` verwendet, um die Funktionalität der [Post-Annotation](/de/x-api/fundamentals/post-annotations) zu nutzen. Zunächst haben wir den Endpoint [Post Lookup](/de/x-api/posts/lookup/introduction) und den Feld-Parameter `tweet.fields=context_annotations` verwendet, um zu ermitteln, welche domain.entity-IDs wir in unserer Abfrage verwenden müssen:
+
+- Posts, die sich auf Katzen beziehen, geben `domain` 66 (Kategorie Interessen und Hobbys) mit der Entity 852262932607926273 (Cats) zurück.
+- Posts, die sich auf Haustiere beziehen, geben `domain` 65 (Interessen und Hobbys – Vertical) mit der Entity 852262932607926273 (Pets) zurück.
+
+So würde die Abfrage ohne HTTP-Encoding aussehen:
+
+`context:65.852262932607926273 -context:66.852262932607926273 -is:retweet has:images lang:ja`
+
+Und so würde die Abfrage mit HTTP-Encoding, dem Query-Parameter und der URI für die jüngste Suche aussehen:
+
+`https://api.x.com/2/tweets/search/recent?query=context%3A65.852262932607926273%20-context%3A66.852262932607926273%20-is%3Aretweet%20has%3Aimages%20lang%3Aja`
+
+Probiere das [Query-Builder-Tool](https://developer.x.com/apitools/query?query=) für zusätzliche Unterstützung aus. 
+
+<div id="operators">
+  ### Operatoren
+</div>
+
+<Note>**Hinweis:** Für einige Operatoren ist ein alternativer Name bzw. Alias verfügbar.</Note>
+
+| **Operator** | **Typ** | **Beschreibung** |
+|:-------------|:---------|:-----------------|
+| `keyword` | Eigenständig | Findet ein Schlüsselwort im Text eines Posts. Dies ist ein tokenisierter Abgleich, d. h., Ihre Schlüsselwortzeichenfolge wird mit dem tokenisierten Text des Post-Texts abgeglichen. Bei der Tokenisierung werden Wörter anhand von Satzzeichen, Symbolen und Unicode-Separatorzeichen der Basic Multilingual Plane getrennt.<br /><br />Beispiel: Ein Post mit dem Text „I like coca-cola“ würde in die folgenden Tokens aufgeteilt: I, like, coca, cola. Diese Tokens würden dann mit der in Ihrer Abfrage verwendeten Schlüsselwortzeichenfolge verglichen. Um Zeichenfolgen mit Satzzeichen (z. B. coca-cola), Symbolen oder Trennzeichen abzugleichen, müssen Sie Ihr Schlüsselwort in doppelte Anführungszeichen setzen.<br /><br />Beispiel: `pepsi OR cola OR "coca cola"` |
+| `emoji` | Eigenständig | Findet ein Emoji im Text eines Posts. Ähnlich wie bei einem Schlüsselwort ist auch der Abgleich von Emojis tokenisiert, d. h., Ihr Emoji wird mit dem tokenisierten Text des Post-Texts abgeglichen.<br /><br />Beachten Sie: Wenn ein Emoji eine Variante hat, müssen Sie es in doppelte Anführungszeichen setzen, um es zu einer Abfrage hinzuzufügen.<br /><br />Beispiel: `(😃 OR 😡) 😬` |
+| `"exact phrase match"` | Eigenständig | Findet die exakte Wortgruppe im Text eines Posts.<br /><br />Beispiel: `("X API" OR #v2) -"recent search"` |
+| `#` | Eigenständig | Findet jeden Post mit einem erkannten Hashtag, sofern der Hashtag als Entität im Post erkannt wird.<br /><br />Dieser Operator führt einen exakten Abgleich aus, NICHT einen tokenisierten. Das bedeutet, die Regel `#thanku` trifft auf Posts mit genau dem Hashtag #thanku zu, nicht jedoch auf solche mit dem Hashtag #thankunext.<br /><br />Beispiel: `#thankunext #fanart OR @arianagrande` |
+| `@` | Eigenständig | Findet jeden Post, der den angegebenen Nutzernamen erwähnt, sofern der Nutzername als Entität erkannt wird (einschließlich des @-Zeichens).<br /><br />Beispiel: `(@XDevelopers OR @API) -@X` |
+| `$` | Eigenständig | Findet jeden Post, der das angegebene „Cashtag“ enthält (bei dem das führende Zeichen des Tokens das $-Zeichen ist).<br /><br />Beachten Sie, dass sich der Cashtag-Operator auf die „symbols“-Entitätsextraktion von X stützt, um Cashtags zu erkennen, anstatt zu versuchen, das Cashtag direkt aus dem Text zu extrahieren.<br /><br />Beispiel: `$twtr OR @XDevelopers -$fb` |
+| `from:` | Eigenständig | Findet jeden Post eines bestimmten Nutzers.<br />Der Wert kann entweder der Nutzername (ohne das @-Zeichen) oder die numerische Nutzer-ID sein.<br /><br />Pro `from:`-Operator können Sie nur einen einzelnen Nutzernamen bzw. eine einzelne ID übergeben.<br /><br />Beispiel: `from:XDevelopers OR from:API -from:X` |
+| `to:` | Eigenständig | Findet jeden Post, der als Antwort an einen bestimmten Nutzer gerichtet ist.<br />Der Wert kann entweder der Nutzername (ohne das @-Zeichen) oder die numerische Nutzer-ID sein.<br /><br />Pro `to:`-Operator können Sie nur einen einzelnen Nutzernamen bzw. eine einzelne ID übergeben.<br /><br />Beispiel: `to:XDevelopers OR to:API -to:X` |
+| `url:` | Eigenständig | Führt einen tokenisierten Abgleich für jede gültig formatierte URL eines Posts durch.<br /><br />Dieser Operator gleicht den Inhalt sowohl der Felder `url` als auch `expanded_url` ab. Ein Post mit „You should check out X Developer Labs: https://t.co/c0A36SWil4“ (wobei die Kurz-URL auf https://developer.twitter.com weiterleitet) entspricht beispielsweise beiden folgenden Regeln:<br /><br />`from:XDevelopers url:"https://developer.twitter.com"` (weil der Inhalt von `entities.urls.expanded_url` übereinstimmt)<br /><br />`from:XDevelopers url:"https://t.co"` (weil der Inhalt von `entities.urls.url` übereinstimmt)<br /><br />Tokens und Wortgruppen mit Satzzeichen oder Sonderzeichen sollten in doppelte Anführungszeichen gesetzt werden (z. B. `url:"/developer"`). Um auf ein bestimmtes Protokoll abzugleichen, setzen Sie dieses ebenfalls in doppelte Anführungszeichen (z. B. `url:"https://developer.twitter.com"`). |
+| `retweets_of:` | Eigenständig | Findet Posts, die Retweets des angegebenen Nutzers sind. Der Wert kann entweder der Nutzername (ohne das @-Zeichen) oder die numerische Nutzer-ID sein.<br /><br />Pro `retweets_of:`-Operator können Sie nur einen einzelnen Nutzernamen bzw. eine einzelne ID übergeben.<br /><br />Beispiel: `retweets_of:twitterdev OR retweets_of:twitterapi` |
+| `in_reply_to_tweet_id:` | Eigenständig | _Verfügbares Alias:_ `in_reply_to_status_id:`<br />Erfasst Antworten auf den angegebenen Post.<br /><br />Beispiel: `in_reply_to_tweet_id:1539382664746020864` |
+| `retweets_of_tweet_id:` | Eigenständig | _Verfügbares Alias:_ `retweets_of_status_id:`<br />Erfasst explizite (native) Retweets des angegebenen Posts. Beachten Sie, dass die verwendete Post-ID die ID eines ursprünglichen Posts und nicht eines Retweets sein muss.<br /><br />Beispiel: `retweets_of_tweet_id:1539382664746020864` |
+| `quotes_of_tweet_id:` | Eigenständig | _Verfügbares Alias:_ `quotes_of_status_id:`<br />Erfasst Zitat-Posts des angegebenen Posts. Beachten Sie, dass die verwendete Post-ID die ID eines ursprünglichen Posts und nicht eines Zitat-Posts sein muss.<br /><br />Beispiel: `quotes_of_tweet_id:1539382664746020864` |
+| `context:` | Eigenständig | Erfasst Posts mit einem bestimmten Domain-ID/Entity-ID-Paar. Weitere Informationen zu diesem Operator finden Sie auf unserer Seite zu [Annotationen](/de/x-api/fundamentals/post-annotations).<br /><br />Pro `context:`-Operator kann nur eine einzelne Domain/Entity übergeben werden.<br /><br />`context:domain_id.entity_id`<br /><br />Sie können jedoch mehrere Domains/Entities mit dem OR-Operator kombinieren:<br /><br />`(context:47.1139229372198469633 OR context:11.1088514520308342784)`<br /><br />Beispiele:<br />`context:10.799022225751871488` (`domain_id.entity_id` gibt Posts zurück, die genau mit diesem Domain-Entity-Paar übereinstimmen) |
+| `entity:` | Eigenständig | Erfasst Posts mit einem bestimmten Entity-Zeichenfolgenwert. Weitere Informationen zu diesem Operator finden Sie auf unserer Seite zu [Annotationen](/de/x-api/fundamentals/post-annotations).<br />**Bitte beachten:** Dies ist nur in der jüngsten Suche verfügbar.<br /><br />Sie können nur einen einzelnen `entity:`-Operator verwenden.<br /><br />`entity:"Zeichenfolgendeklaration von Entity/Ort"`<br /><br />Beispiele: `entity:"Michael Jordan" OR entity:"Barcelona"` |
+| `conversation_id:` | Eigenständig | Erfasst Posts, die dieselbe Konversations-ID teilen. Eine Konversations-ID entspricht der Post-ID des Posts, der eine Konversation gestartet hat. Wenn Antworten auf einen Post veröffentlicht werden – auch Antworten auf Antworten – wird die `conversation_id` der JSON-Nutzlast hinzugefügt.<br /><br />Pro `conversation_id:`-Operator kann nur eine einzelne Konversations-ID übergeben werden.<br /><br />Beispiel: `conversation_id:1334987486343299072 (from:XDevelopers OR from:api)` |
+| `list:` | Eigenständig | **NEU** Erfasst Posts, die von Nutzern veröffentlicht wurden, die Mitglieder einer angegebenen Liste sind.<br /><br />Wenn beispielsweise @XDevelopers und @api Mitglieder der Liste 123 wären und Sie `list:123` in Ihre Abfrage aufnehmen, enthält Ihre Antwort nur Posts, die von diesen Accounts veröffentlicht wurden. Listen-IDs finden Sie über den Endpunkt [List lookup](/de/x-api/lists/list-lookup/introduction).<br /><br />**Bitte beachten:** Pro Abfrage kann nur ein einzelner `list:`-Operator verwendet werden, und pro `list:`-Operator kann nur eine einzelne Liste angegeben werden.<br /><br />Beispiel: `list:123` |
+| `place:` | Eigenständig | Erfasst Posts, die mit dem angegebenen Ort oder der X-Place-ID getaggt sind. Mehrwort-Ortsnamen („New York City“, „Palo Alto“) sollten in Anführungszeichen gesetzt werden.<br /><br />Pro `place:`-Operator kann nur ein einzelner Ort übergeben werden.<br /><br />Hinweis: Informationen zum Abrufen von X-Place-IDs finden Sie im Standard-Endpunkt v1.1 [GET geo/search](https://developer.x.com/content/developer-twitter/en/docs/geo/places-near-location/api-reference/get-geo-search).<br /><br />Hinweis: Dieser Operator erfasst keine Retweets, da die Orte von Retweets dem ursprünglichen Post zugeordnet sind. Er erfasst auch keine Orte, die dem ursprünglichen Post eines Zitat-Posts zugeordnet sind.<br /><br />Beispiel: `place:"new york city" OR place:seattle OR place:fd70c22040963ac7` |
+| `place_country:` | Eigenständig | Findet Posts, bei denen der Ländercode des getaggten Orts/Standorts dem angegebenen ISO-Alpha-2-Code entspricht.<br /><br />Eine Liste gültiger ISO-Codes finden Sie auf [Wikipedia](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).<br /><br />Pro Operator `place_country:` kann nur ein einzelner ISO-Code übergeben werden.<br /><br />Hinweis: Dieser Operator erfasst keine Retweets, da deren Orte am ursprünglichen Post hängen. Er erfasst auch keine Orte, die am ursprünglichen Post eines Quote-Tweets hängen.<br /><br />Beispiel: `place_country:US OR place_country:MX OR place_country:CA` |
+| `point_radius:` | Eigenständig | Prüft das Objekt `place.geo.coordinates` des Posts, sofern vorhanden, und in X ein Orts-Geo-Polygon, wobei das Orts‑Polygon vollständig innerhalb der definierten Region liegt.<br /><br />`point_radius:[longitude latitude radius]`<br /><br />- Unterstützte Einheit des Radius: Meilen (mi) und Kilometer (km)<br />- Der Radius muss kleiner als 25 mi sein<br />- Länge liegt im Bereich von ±180<br />- Breite liegt im Bereich von ±90<br />- Alle Koordinaten sind in Dezimalgrad<br />- Regelargumente stehen in eckigen Klammern und sind durch Leerzeichen getrennt<br /><br />Pro Operator `point_radius:` kann nur ein einzelnes Geo‑Polygon übergeben werden.<br /><br />Hinweis: Dieser Operator erfasst keine Retweets, da deren Orte am ursprünglichen Post hängen. Er erfasst auch keine Orte, die am ursprünglichen Post eines Quote-Tweets hängen.<br /><br />Beispiel: `point_radius:[2.355128 48.861118 16km] OR point_radius:[-41.287336 174.761070 20mi]` |
+| `bounding_box:` | Eigenständig | _Verfüglicher Alias:_ `geo_bounding_box:`<br />Prüft das Objekt `place.geo.coordinates` des Posts, sofern vorhanden, und in X ein Orts-Geo-Polygon, wobei das Orts‑Polygon vollständig innerhalb der definierten Region liegt.<br /><br />`bounding_box:[west_long south_lat east_long north_lat]`<br /><br />- `west_long south_lat` bilden die südwestliche Ecke der Bounding Box, wobei `west_long` die Länge dieses Punktes und `south_lat` die Breite ist.<br />- `east_long north_lat` bilden die nordöstliche Ecke der Bounding Box, wobei `east_long` die Länge dieses Punktes und `north_lat` die Breite ist.<br />- Breite und Höhe der Bounding Box müssen kleiner als 25 mi sein<br />- Länge liegt im Bereich von ±180<br />- Breite liegt im Bereich von ±90<br />- Alle Koordinaten sind in Dezimalgrad.<br />- Regelargumente stehen in eckigen Klammern und sind durch Leerzeichen getrennt.<br /><br />Pro Operator `bounding_box:` kann nur ein einzelnes Geo‑Polygon übergeben werden.<br /><br />Hinweis: Dieser Operator erfasst keine Retweets, da deren Orte am ursprünglichen Post hängen. Er erfasst auch keine Orte, die am ursprünglichen Post eines Quote-Tweets hängen.<br /><br />Beispiel: `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]` |
+| `is:retweet` | Konjunktion erforderlich | Findet Retweets, die den übrigen Teil der angegebenen Regel erfüllen. Dieser Operator sucht nur nach echten Retweets (z. B. solchen, die über die Retweet-Schaltfläche erzeugt wurden). Quote-Tweets werden von diesem Operator nicht erfasst.<br /><br />Beispiel: `data @XDevelopers -is:retweet` |
+| `is:reply` | Konjunktion erforderlich | Liefert nur explizite Antworten, die einer Regel entsprechen. Kann auch negiert werden, um Antworten, die einer Abfrage entsprechen, von der Zustellung auszuschließen.<br /><br />Hinweis: Dieser Operator ist auch beim Endpoint für den Gefilterten Stream verfügbar. Mit dem Gefilterten Stream erfasst dieser Operator Antworten auf einen ursprünglichen Post, Antworten in Quote-Tweets sowie Antworten in Retweets.<br /><br />Beispiel: `from:XDevelopers is:reply` |
+| `is:quote` | Konjunktion erforderlich | Gibt alle Quote-Tweets zurück, also Posts mit Kommentar.<br /><br />Beispiel: `"sentiment analysis" is:quote` |
+| `is:verified` | Konjunktion erforderlich | Liefert nur Posts, deren Autorinnen und Autoren von X verifiziert sind.<br /><br />Beispiel: `#nowplaying is:verified` |
+| `-is:nullcast` | Konjunktion erforderlich | Entfernt Posts, die ausschließlich zu Werbezwecken auf ads.twitter.com erstellt wurden und deren `"source":"Twitter for Advertisers (legacy)"` oder `"source":"Twitter for Advertisers"` ist.<br />Dieser Operator muss negiert werden.<br /><br />Weitere Informationen zu nullgecasteten Posts finden Sie auf unserer Seite zur [Verfügbarkeit von Posts](https://developer.x.com/content/developer-twitter/en/docs/twitter-api/v1/tweets/post-and-engage/guides/tweet-availability).<br /><br />Beispiel: `"mobile games" -is:nullcast` |
+| `has:hashtags` | Konjunktion erforderlich | Findet Posts, die mindestens einen Hashtag enthalten.<br /><br />Beispiel: `from:XDevelopers -has:hashtags` |
+| `has:cashtags` | Konjunktion erforderlich | Findet Posts, die ein Cashtag-Symbol enthalten (mit einem führenden „$“-Zeichen, z. B. „$tag“).<br /><br />Beispiel: `#stonks has:cashtags` |
+| `has:links` | Konjunktion erforderlich | Dieser Operator findet Posts, die Links und Medien im Post-Text enthalten.<br /><br />Beispiel: `from:XDevelopers announcement has:links` |
+| `has:mentions` | Konjunktion erforderlich | Findet Posts, die einen anderen X Nutzer erwähnen.<br /><br />Beispiel: `#nowplaying has:mentions` |
+| `has:media` | Konjunktion erforderlich | Verfügbarer Alias: `has:media_link`<br />Findet Posts, die ein Medienobjekt enthalten, z. B. ein Foto, GIF oder Video, wie von X bestimmt. Dies umfasst keine Medien, die mit Periscope erstellt wurden, oder Posts mit Links zu anderen Medienhosting-Seiten.<br /><br />Beispiel: `(kittens OR puppies) has:media` |
+| `has:images` | Konjunktion erforderlich | Findet Posts, die eine erkannte URL zu einem Bild enthalten.<br /><br />Beispiel: `#meme has:images` |
+| `has:video_link` | Konjunktion erforderlich | Verfügbarer Alias: `has:videos`<br />Findet Posts, die native X Videos enthalten, die direkt auf X hochgeladen wurden. Dies umfasst keine Videos, die mit Periscope erstellt wurden, oder Posts mit Links zu anderen Video-Hosting-Seiten.<br /><br />Beispiel: `#icebucketchallenge has:video_link` |
+| `has:geo` | Konjunktion erforderlich | Findet Posts, die postspezifische Geolokalisierungsdaten enthalten, die vom X Nutzer bereitgestellt wurden. Dies kann entweder ein Ort in Form eines X Place mit entsprechendem Anzeigenamen, Geo-Polygon und anderen Feldern sein oder in seltenen Fällen eine Geo-Längen-/Breitenkoordinate.<br /><br />Hinweis: Operatoren, die auf Place (Post-Geodaten) prüfen, beinhalten nur Treffer aus ursprünglichen Posts. Retweets enthalten keine Place-Daten.<br /><br />Beispiel: `recommend #paris has:geo -bakery` || `lang:` | Verknüpfung erforderlich | Findet Posts, die von X als in einer bestimmten Sprache verfasst klassifiziert wurden (nur, wenn der Post klassifiziert wurde). Wichtig: Jeder Post ist derzeit genau einer Sprache zugeordnet; das Verknüpfen mehrerer Sprachen mit AND liefert daher keine Ergebnisse.<br /><br />Pro `lang:`-Operator kann nur ein einzelner BCP‑47-Sprachkennzeichner übergeben werden.<br /><br />Hinweis: Wenn keine Sprachklassifizierung möglich ist, lautet das Ergebnis „und“ (für undefined/undefiniert).<br /><br />Beispiel: `recommend #paris lang:en`<br /><br />Die folgende Liste enthält die derzeit unterstützten Sprachen und ihre jeweiligen BCP‑47‑Sprachkennzeichner:<br /><br />Amharisch: `am` | Deutsch: `de` | Malayalam: `ml` | Slowakisch: `sk`<br />Arabisch: `ar` | Griechisch: `el` | Maledivisch: `dv` | Slowenisch: `sl`<br />Armenisch: `hy` | Gujarati: `gu` | Marathi: `mr` | Sorani-Kurdisch: `ckb`<br />Baskisch: `eu` | Haitianisch-Kreolisch: `ht` | Nepali: `ne` | Spanisch: `es`<br />Bengalisch: `bn` | Hebräisch: `iw` | Norwegisch: `no` | Schwedisch: `sv`<br />Bosnisch: `bs` | Hindi: `hi` | Oriya: `or` | Tagalog: `tl`<br />Bulgarisch: `bg` | latinisiertes Hindi: `hi-Latn` | Panjabi: `pa` | Tamil: `ta`<br />Birmanisch: `my` | Ungarisch: `hu` | Paschtu: `ps` | Telugu: `te`<br />Kroatisch: `hr` | Isländisch: `is` | Persisch: `fa` | Thailändisch: `th`<br />Katalanisch: `ca` | Indonesisch: `in` | Polnisch: `pl` | Tibetisch: `bo`<br />Tschechisch: `cs` | Italienisch: `it` | Portugiesisch: `pt` | Traditionelles Chinesisch: `zh-TW`<br />Dänisch: `da` | Japanisch: `ja` | Rumänisch: `ro` | Türkisch: `tr`<br />Niederländisch: `nl` | Kannada: `kn` | Russisch: `ru` | Ukrainisch: `uk`<br />Englisch: `en` | Khmer: `km` | Serbisch: `sr` | Urdu: `ur`<br />Estnisch: `et` | Koreanisch: `ko` | Vereinfachtes Chinesisch: `zh-CN` | Uigurisch: `ug`<br />Finnisch: `fi` | Lao: `lo` | Sindhi: `sd` | Vietnamesisch: `vi`<br />Französisch: `fr` | Lettisch: `lv` | Singhalesisch: `si` | Walisisch: `cy`<br />Georgisch: `ka` | Litauisch: `lt` |

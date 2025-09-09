@@ -1,0 +1,47 @@
+---
+title: OAuth Echo
+sidebarTitle: OAuth Echo
+---
+
+import { Button } from "/snippets/pt-BR/button.mdx";
+
+
+<div id="oauth-echo">
+  ### OAuth Echo
+</div>
+
+OAuth Echo é um meio de delegar com segurança a autorização OAuth a um terceiro enquanto se interage com uma API.
+
+Há quatro partes envolvidas nessa interação:
+
+* **o Usuário**, que está usando o X por meio de um aplicativo do X específico e autorizado
+* **o Consumidor**, ou o aplicativo do X que está tentando interagir com o provedor de mídia de terceiros (por exemplo, um site de compartilhamento de fotos)
+* **o Delegador**, ou o provedor de mídia de terceiros
+* **o Provedor de Serviço**, também conhecido como o próprio X
+     
+
+Em essência, prepara-se uma solicitação para o delegador enviar à API do X em nome de um aplicativo e de um usuário. Inclua o que, de outra forma, seria uma solicitação OAuth assinada em um cabeçalho HTTP e peça ao delegador que envie essa solicitação ao X após concluir a operação intermediária.
+
+Aqui está um exemplo: o Usuário quer enviar uma foto. O Consumidor fará uma chamada de upload ao Delegador com um POST. O POST deve conter a imagem, mas também dois itens adicionais como cabeçalhos HTTP:
+
+* `x-auth-service-provider` — essencialmente, este é o realm para o qual a delegação de identidade deve ser enviada — no caso do X, defina-o como https://api.x.com/1.1/account/verify_credentials.json. Integrações do X baseadas no iOS5 adicionarão um parâmetro adicional application_id a essa URL, que também será usado para calcular a oauth_signature usada em x-verify-credentials-authorization.
+* `x-verify-credentials-authorization` — o Consumidor deve criar todos os parâmetros OAuth necessários para que possa chamar https://api.x.com/1.1/account/verify_credentials.json usando OAuth no cabeçalho HTTP (por exemplo, deve ficar como OAuth oauth_consumer_key=”...”, oauth_token=”...”, oauth_signature_method=”...”, oauth_signature=”...”, oauth_timestamp=”...”, oauth_nonce=”...”, oauth_version=”...” ).
+     
+
+Tenha em mente que todo o período da transação precisa ocorrer dentro de um intervalo de tempo em que o `oauth_timestamp` ainda seja válido.
+
+Como alternativa, em vez de enviar esses dois parâmetros no cabeçalho, eles podem ser enviados no POST como x_auth_service_provider e x_verify_credentials_authorization — nesse caso, lembre-se de escapar e incluir os parâmetros na string base da assinatura OAuth — semelhante à codificação de parâmetros em qualquer solicitação. É preferível usar cabeçalhos HTTP para manter as operações o mais separadas possível.
+
+O objetivo do Delegador, neste ponto, é verificar se o Usuário é quem diz ser antes de salvar a mídia. Quando o Delegador receber todos os dados acima por meio de seu método de upload, ele deve armazenar temporariamente a imagem e, em seguida, construir uma chamada para o endpoint especificado no cabeçalho x-auth-service-provider — neste caso, https://api.x.com/1.1/account/verify_credentials.json — usando o mesmo cabeçalho de autenticação OAuth fornecido pelo Consumidor no cabeçalho x-verify-credentials-authorization.
+ 
+
+<div id="oauth-echo-best-practices">
+  #### Melhores práticas do OAuth Echo
+</div>
+
+Use a URL fornecida por `x-auth-service-provider` para realizar a consulta, não um valor fixo. O iOS da Apple, por exemplo, adiciona um parâmetro adicional application_id a todas as solicitações OAuth, e sua presença deve ser preservada em cada etapa do OAuth Echo.
+
+Na parte de autorização do OAuth, pegue o valor do cabeçalho em x-verify-credentials-authorization e coloque-o em seu próprio cabeçalho Authorization para a chamada ao provedor de serviços. Por precaução, confirme que o valor em `x-auth-service-provider` é o esperado.
+
+* Se o Provedor de Serviços retornar um HTTP 200, tudo certo. O Delegador deve armazenar a imagem permanentemente, gerar uma URL e retorná-la.
+* Se o Provedor de Serviços não retornar um HTTP 200, descarte a imagem e retorne um erro ao Consumidor.

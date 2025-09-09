@@ -1,0 +1,208 @@
+---
+title: Antwortcodes und Fehler
+sidebarTitle: Antwortcodes
+---
+
+import { Button } from '/snippets/de/button.mdx';
+
+Die X-API stellt die folgenden Antwort- und Fehlercodes bereit, um das Verständnis und die unmittelbare Fehlersuche zu unterstützen. Verwenden Sie den Debugging-Leitfaden und den untenstehenden Fehlerindex für zusätzlichen Kontext.
+
+Erfolgreiche Antworten werden durch einen HTTP-Statuscode aus der 200er-Reihe und eine JSON-basierte Nutzlast gekennzeichnet, die die angeforderten, erstellten, geänderten oder gelöschten Objekte enthält, zusammen mit einer Darstellung der Interpretation Ihrer Anfrage durch den Server.
+
+Fehlerantworten werden mit einem HTTP-Statuscode außerhalb der 200er-Reihe zurückgegeben. Unterschiedliche Fehlercodes weisen auf verschiedene Ursachen hin. Die X-API versucht, für jede Anfrage geeignete [HTTP-Statuscodes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes) zurückzugeben.
+
+<div id="x-api-v2-http-status-codes">
+  ## X-API v2 HTTP-Statuscodes
+</div>
+
+| Code | Text | Beschreibung | Tipps zur Fehlerbehebung |
+| :--- | :--- | :---------- | :------------------- |
+| 200 | OK | Die Anfrage war erfolgreich! | |
+| 400 | Ungültige Anfrage | Die Anfrage war ungültig oder kann nicht bedient werden. Eine begleitende Fehlermeldung liefert weitere Details. Anfragen ohne Authentifizierung oder mit ungültigen Abfrageparametern gelten als ungültig und führen zu dieser Antwort. | Überprüfen Sie das Format Ihrer JSON-Abfrage. Wenn Ihre Regel beispielsweise doppelte Anführungszeichen enthält, die mit einem Exact-Match oder einem anderen Operator verbunden sind, müssen Sie diese ggf. mit einem Backslash maskieren, um sie von der Struktur des JSON-Formats zu unterscheiden. |
+| 401 | Nicht autorisiert | Es gab ein Problem bei der Authentifizierung Ihrer Anfrage. Dies kann auf fehlende oder falsche Anmeldedaten zurückzuführen sein. Dieser Status kann auch in anderen, nicht näher definierten Fällen zurückgegeben werden. | Prüfen Sie, ob Sie die richtige [Authentifizierungsmethode](https://docs.x.com/resources/fundamentals/authentication/overview) verwenden und ob Ihre Zugangsdaten korrekt sind. |
+| 403 | Verboten | Die Anfrage wurde verstanden, aber abgelehnt, oder der Zugriff ist nicht erlaubt. Eine begleitende Fehlermeldung erklärt den Grund. | Prüfen Sie, ob Ihr Entwicklerkonto Zugriff auf den Endpunkt hat, den Sie verwenden möchten. Möglicherweise muss Ihre App auf die Allowlist gesetzt werden (z. B. Engagement API oder Ads API), oder Sie müssen den Zugang beantragen. |
+| 404 | Nicht gefunden | Die angeforderte URI ist ungültig oder die angeforderte Ressource, z. B. ein Benutzer, existiert nicht. | Prüfen Sie, ob Sie gültige Parameter und die korrekte URI für den verwendeten Endpunkt nutzen. |
+| 409 | Verbindungsfehler | Wird zurückgegeben, wenn versucht wird, eine Verbindung zu einem Gefilterten Stream ohne Regeln herzustellen. | Prüfen Sie, ob Sie mindestens eine Regel für den Stream erstellt haben, zu dem Sie eine Verbindung herstellen. Der Gefilterte Stream liefert nur Posts, die einer aktiven Regel entsprechen. Ohne Regeln gibt der Stream keine Posts zurück. |
+| 429 | Zu viele Anfragen | Wird zurückgegeben, wenn eine Anfrage aufgrund des [Rate Limits](/de/resources/fundamentals/rate-limits) der App oder eines ausgeschöpften [Post-Limits](/de/x-api/fundamentals/post-cap) nicht bedient werden kann. Siehe [Rate Limiting](/de/resources/fundamentals/rate-limits). | Prüfen Sie die zulässige Anzahl an Anfragen pro Zeitfenster für den verwendeten Endpunkt. Warten Sie, bis das Zeitfenster zurückgesetzt wird. Verteilen Sie Ihre Anfragen, um Rate Limits zu vermeiden, oder wechseln Sie in den nächsthöheren Datentarif. |
+| 500 | Interner Serverfehler | Etwas ist defekt. Dies ist normalerweise ein vorübergehender Fehler, z. B. bei hoher Auslastung oder wenn ein Endpunkt vorübergehend Probleme hat. | Prüfen Sie die X-API-[Statusseite](/de/status) oder das [Entwickler-Community-Forum](https://devcommunity.x.com/), ob andere ähnliche Probleme haben, oder warten Sie und versuchen Sie es später erneut. |
+| 501 | Nicht implementiert | Die X-API unterstützt diesen Endpunkt nicht und kann die Anfrage nicht erfüllen. |  |
+| 503 | Dienst nicht verfügbar | Die X-Server sind erreichbar, aber mit Anfragen überlastet. Versuchen Sie es später erneut. | Prüfen Sie die X-API-[Statusseite](/de/status) oder das [Entwickler-Community-Forum](https://devcommunity.x.com/), ob andere ähnliche Probleme haben, oder warten Sie und versuchen Sie es später erneut. |
+
+Wenn bei einer Anfrage ein Fehler auftritt, werden zur Unterstützung der Problemdiagnose ausführliche Informationen zum Fehler im Antworttext zurückgegeben. Ein Feld type, das eine URI ist, gibt die Art des Problems an, während zusätzliche Felder Details zum Problem liefern. Die Felder type, title und detail werden in diesen Antwortkörpern immer zurückgegeben (siehe Tabelle unten). Alle zusätzlichen Felder, wie im Beispiel unten, variieren je nach Art des Fehlers.
+
+```json
+{
+  "client_id": "101010101",
+  "required_enrollment": "Standard Basic",
+  "registration_url": "https://developer.twitter.com/en/account",
+  "title": "Client Forbidden",
+  "detail": "Diese Anfrage muss mit einem genehmigten Entwicklerkonto gestellt werden, das für den angeforderten Endpunkt registriert ist. Weitere Informationen finden Sie in unserer Dokumentation.",
+  "reason": "client-not-enrolled",
+  "type": "https://api.x.com/2/problems/client-forbidden"
+}
+```
+
+<div id="partial-errors">
+  ## Partielle Fehler
+</div>
+
+In einigen Fällen können die oben beschriebenen Fehler in einer Antwort auftreten, die den Statuscode 200 zurückgegeben hat. In solchen Fällen ist der Endpoint so ausgelegt, dass er die Daten zurückgibt, die er liefern kann, und gleichzeitig detaillierte Fehler zu dem bereitstellt, was er nicht zurückgeben konnte.
+
+Beispielsweise ermöglicht der [Posts-Lookup-Endpoint](/de/x-api/posts/lookup/introduction) einer X-[Developer-App](/de/resources/fundamentals/developer-apps#overview), mehr als eine ID anzufordern. Wenn einige dieser Posts verfügbar sind, einer jedoch gelöscht wurde, werden die verfügbaren Posts im data-Feld der Antwort zurückgegeben. Zusätzlich wird im Payload ein errors-Feld zurückgegeben, das angibt, welche angeforderten Posts nicht zurückgegeben werden konnten. Es wird dasselbe Format wie bei vollständigen Anforderungsfehlern verwendet, um die Diagnose von Problemen zu erleichtern.
+
+<div id="error-information">
+  ### Fehlerinformationen
+</div>
+
+Jeder Problemtyp gibt die Art des aufgetretenen Problems an. Eine vollständige Liste möglicher Probleme finden Sie auch in unserer [API-Spezifikation](https://api.x.com/2/openapi.json).
+
+Die X-API versucht, für jede Anfrage passende [HTTP-Statuscodes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes) zurückzugeben.
+
+| Titel | Typ | Beschreibung |
+| :--- | :--- | :--- |
+| Allgemeines Problem | `about:blank` | Ein allgemeines Problem ohne zusätzliche Informationen über die durch den HTTP-Statuscode bereitgestellten hinaus. |
+| Problem: Ungültige Anfrage | `https://api.X.com/2/problems/invalid-request` | Ein Problem, das darauf hinweist, dass diese Anfrage ungültig ist. Wenn Ihre Anfrage einen POST-Body enthält, stellen Sie sicher, dass der Inhalt gültiges JSON ist und der [OpenAPI-Spezifikation](https://api.x.com/2/openapi.json) entspricht. |
+| Problem: Ressource nicht gefunden | `https://api.X.com/2/problems/resource-not-found` | Ein Problem, das darauf hinweist, dass ein bestimmter Post, Benutzer usw. nicht existiert. |
+| Problem: Keine Berechtigung für Ressource | `https://api.X.com/2/problems/not-authorized-for-resource` | Ein Problem, das darauf hinweist, dass Sie einen bestimmten Post, Benutzer usw. nicht sehen dürfen. |
+| Problem: Client untersagt | `https://api.X.com/2/problems/client-forbidden` | Ein Problem, das darauf hinweist, dass Ihr Client nicht berechtigt ist, diese Anfrage zu stellen. |
+| Problem: Unzulässige Ressource | `https://api.X.com/2/problems/disallowed-resource` | Ein Problem, das darauf hinweist, dass die angeforderte Ressource den Grundsätzen dieser API widerspricht. |
+| Problem: Nicht unterstützte Authentifizierung | `https://api.X.com/2/problems/unsupported-authentication` | Ein Problem, das darauf hinweist, dass die verwendete Authentifizierung nicht unterstützt wird. |
+| Problem: Nutzungslimit überschritten | `https://api.X.com/2/problems/usage-capped` | Ein Problem, das darauf hinweist, dass ein Nutzungslimit überschritten wurde. |
+| Problem: Verbindungsfehler | `https://api.X.com/2/problems/streaming-connection` | Ein Problem, das darauf hinweist, dass etwas mit der Verbindung nicht stimmt. |
+| Problem: Client getrennt | `https://api.X.com/2/problems/client-disconnected` | Ihr Client hat die Verbindung getrennt. |
+| Problem: Trennung aus betrieblichen Gründen | `https://api.X.com/2/problems/operational-disconnect` | Sie wurden aus betrieblichen Gründen getrennt. |
+| Problem: Regel-Limit | `https://api.X.com/2/problems/rule-cap` | Sie haben die maximale Anzahl von Regeln überschritten. |
+| Problem: Regellänge | `https://api.X.com/2/problems/rule-length` | Sie haben die maximal zulässige Zeichenanzahl für Ihre Abfrage oder Regel basierend auf Ihrer Zugriffsstufe überschritten. Siehe [Zugriffsstufen](/de/x-api/getting-started/about-x-api#x-api-access-levels-and-versions). |
+| Problem: Ungültige Regeln | `https://api.X.com/2/problems/invalid-rules` | Die von Ihnen übermittelte Regel ist ungültig. |
+| Problem: Doppelte Regeln | `https://api.X.com/2/problems/duplicate-rules` | Die von Ihnen übermittelte Regel ist ein Duplikat. |
+
+<div id="troubleshooting-tips">
+  ## Tipps zur Fehlerbehebung
+</div>
+
+<Accordion title="Debugging Ihres Codes">
+  Beim Erstellen einer Anwendung ist es normal, gelegentlich auf Fehler oder unerwartete Probleme zu stoßen. Nachfolgend finden Sie einige Tipps, wie Sie Ihren Code debuggen können:
+
+  Beginnen Sie damit, das Problem in kleinere Teile zu zerlegen, um die Ursache einzugrenzen. Wenn Sie beispielsweise einen REST- oder Streaming-Endpunkt integrieren, könnte das Problem an einem der folgenden Punkte liegen:
+
+  - Der Endpunkt erfordert eine korrekte [Authentifizierung](/de/resources/fundamentals/authentication/overview).
+  - Der Endpunkt erfordert gültige Parameter und Header. Alle Filterregeln werden mit den richtigen Operatoren und der korrekten [Syntax](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries) erstellt.
+  - Die URI des Endpunkts muss korrekt sein und, im Fall von REST-Endpunkten, die passende HTTP-Methode verwendet werden.
+  - Die Daten oder Ressourcen, auf die Sie zugreifen möchten, sind für Sie nicht zugänglich (zum Beispiel sind private Daten nur für authentifizierte Nutzer verfügbar).
+  - Ihr aktuelles Datenpaket gewährt Ihnen nur Zugriff auf bestimmte Endpunkte und unterliegt spezifischen Rate Limits. Weitere Details finden Sie im [Developer-Portal](https://developer.x.com/en/portal/products).
+  - Ihr Code verwendet eine Drittanbieter-Bibliothek zur Integration des Endpunkts.
+  - Ihr Code muss die Antwort des Endpunkts erfolgreich parsen.
+
+  Lesen Sie die zugehörige Fehlermeldung. Diese sollte Ihnen einen guten Hinweis auf die Ursache geben. Nutzen Sie die Tabellen im Abschnitt [Fehler- und Antwortcodes](#x-api-http-status-codes) für fehlercodespezifische Tipps zur Fehlerbehebung.
+
+  Für REST-Endpunkte können Sie einen REST-Client wie [Postman](https://www.postman.com/) oder [Insomnia](https://insomnia.rest/) verwenden, um die Schritte (1) bis (5) oben zu validieren (siehe unseren Leitfaden ["Erste Schritte mit Postman"](/de/tutorials/postman-getting-started)). Wenn die Anfrage mit dem REST-Client einen erfolgreichen 200-Statuscode zurückgibt, können Sie davon ausgehen, dass das Problem in Ihrem Code oder der verwendeten Bibliothek liegt, nicht in der Anfrage an den Endpunkt selbst.
+
+  Für Streaming-Endpunkte können Sie cURL (ein Kommandozeilen-Tool zum Senden oder Empfangen von Anfragen mithilfe der URL-Syntax) verwenden, um zu prüfen, ob das Problem an der Anfrage an den Endpunkt liegt (Schritte (1) bis (5) oben) oder an Ihrem Code selbst (Schritte (6) bis (7) oben).
+</Accordion>
+
+<Accordion title="Authentifizierungsprobleme">
+  - Prüfen Sie, ob Sie die korrekte [Authentifizierungsmethode](/de/resources/fundamentals/authentication/overview) verwenden, die für den Endpunkt erforderlich ist. Dies kann über die API-Referenzseite des Endpunkts ermittelt werden.
+  - Prüfen Sie, ob Ihre Authentifizierungsdaten korrekt sind. Sie können Ihre App-Schlüssel und -Tokens im [Apps-Bereich](https://developer.x.com/en/portal/projects-and-apps) Ihres Developer-Dashboards (unter „Details“) prüfen oder neu generieren.
+  - Prüfen Sie, ob Sie Ihre [OAuth-1.0a-Anfrage ordnungsgemäß autorisiert](/de/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request) haben, mit `oauth_nonce`, `oauth_signature` und `oauth_timestamp` für Ihre Anfrage.
+  - Wenn das Problem weiterhin besteht, ziehen Sie die Verwendung einer OAuth-Bibliothek, eines REST-Clients wie [Postman](https://www.postman.com/) oder [Insomnia](https://insomnia.rest/) oder von [xurl](https://github.com/xdevplatform/xurl) in Betracht.
+
+  Weitere Informationen zu all dem finden Sie in unserem [Leitfaden zur Authentifizierung](/de/resources/fundamentals/authentication/overview).
+</Accordion>
+
+<Accordion title="Probleme mit Ratenbegrenzung und Post-Limits">
+  Ein 429-Fehler kann auftreten, wenn Sie eine Ratenbegrenzung für einen bestimmten Endpoint erreichen oder wenn Sie ein Post-Limit erreichen.
+
+  Wenn der spezifische Fehler „Too many requests“ zurückgegeben wird, haben Sie die Ratenbegrenzung des Endpoints erreicht. Mit anderen Worten: Sie haben die maximale Anzahl von Anfragen überschritten, die für einen Endpoint pro festgelegtem Zeitraum zulässig ist.
+
+  Beachten Sie, dass Ratenbegrenzungen auf App- und Benutzer-Ebene festgelegt sind.
+
+  - **X-App-Ebene** gibt die Anzahl der Anfragen an, die bei Verwendung von OAuth 2.0 App-Only zulässig sind, wobei Ratenbegrenzungen global für die gesamte App festgelegt werden. Wenn beispielsweise eine Methode 15 Anfragen pro Ratenbegrenzungsfenster erlaubt, können Sie 15 Anfragen pro Fenster im Namen Ihrer X-App stellen. Dieses Limit ist vollständig getrennt vom Limit auf Benutzer-Ebene zu betrachten. Weitere Informationen finden Sie in unserem Leitfaden zu [OAuth 2.0 App-Only](/de/resources/fundamentals/authentication/oauth-2-0/application-only).
+  - **Benutzerkontext-Ebene** gibt die Anzahl der Anfragen an, die pro Benutzer-Access-Token bei Verwendung von OAuth 1.0a User Context oder OAuth 2.0 Authorization Code mit PKCE gestellt werden können. Wenn beispielsweise eine Methode 15 Anfragen pro Ratenbegrenzungsfenster erlaubt, sind 15 Anfragen pro Fenster und pro Benutzer-Access-Token zulässig. Lesen Sie mehr in unserem Leitfaden dazu, wie Sie die Access Tokens eines Nutzers mit [OAuth 1.0a](/de/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) und [OAuth 2.0](/de/resources/fundamentals/authentication/oauth-2-0/user-access-token) erhalten.
+
+  Beginnen Sie damit, die Ratenbegrenzungen für den von Ihnen verwendeten Endpoint zu prüfen. Diese Informationen finden Sie auf der API-Referenzseite des Endpoints und im neuen Dashboard des Entwicklerportals.
+
+  Lesen Sie unsere Dokumentation für weitere Informationen zu Ratenbegrenzungen, einschließlich der Verwendung von HTTP-Headern, um nachzuverfolgen, wo sich Ihre App innerhalb einer gegebenen Ratenbegrenzung befindet, wie Sie sich von einem 429-Fehler aufgrund einer Ratenbegrenzung erholen, und Tipps, um eine Ratenbegrenzung von vornherein zu vermeiden:
+
+  - [Ratenbegrenzungen für v2-Endpoints](/de/x-api/fundamentals/rate-limits)
+
+  Wenn Sie den spezifischen Fehler „Usage cap exceeded: Monthly product cap“ erhalten haben, bedeutet das, dass Sie das Post-Limit für Ihre Zugriffsstufe erreicht haben. Auf unserer Dokumentationsseite finden Sie ausführliche Details dazu, was diese [Post-Limits](/de/x-api/fundamentals/post-cap) sind.
+</Accordion>
+
+<Accordion title="Probleme mit fehlenden Posts">
+  Befolgen Sie die folgenden Schritte, wenn Sie erwartet haben, dass ein Post zurückgegeben wird, er jedoch nicht vom Endpoint geliefert wurde.
+
+  - Überprüfen Sie Ihre Regel, um sicherzustellen, dass Sie die richtigen [Operatoren](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators) und die richtige [Syntax](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries) verwenden. Zerlegen Sie die Regel in kleinere Teilausdrücke, um sicherzustellen, dass die Syntax korrekt ist.
+  - Wenn das Konto, von dem der Post gesendet wurde, zum Zeitpunkt der Erstellung des Posts [geschützt](https://help.twitter.com/en/safety-and-security/public-and-protected-tweets) war, wird der Post nicht zurückgegeben – selbst wenn das Konto zum Zeitpunkt der Anfrage an den Endpoint öffentlich ist. Sie können dies in der Regel mit der [X Advanced Search](https://x.com/search-advanced) überprüfen: Wenn ein Post über die Funktion „X Advanced Search“ nicht gefunden wird, sollten Sie davon ausgehen, dass er vom Endpoint nicht zurückgegeben wird.
+
+  Die folgenden Schritte gelten nur für Streaming-Endpoints:
+
+  - Waren Sie mit dem Stream verbunden, als der Post gesendet wurde? Denken Sie daran, dass der im Post-Objekt angegebene Zeitstempel die Zeit in UTC ausweist. Wenn Sie zum Zeitpunkt des Sendens des Posts eine Trennung hatten, prüfen Sie die verfügbaren [Wiederherstellungs- und Redundanzfunktionen](/de/x-api/posts/filtered-stream/integrate/recovery-and-redundancy-features#recovery-and-redundancy), um fehlende Daten nachzuholen.
+  - War Ihre Regel aktiv, als der Post gesendet wurde? Denken Sie daran, dass der im Post-Objekt angegebene Zeitstempel die Zeit in UTC ausweist.
+</Accordion>
+
+<Accordion title="Probleme bei Trennungen durch vollen Puffer">
+  Sie erhalten möglicherweise eine der folgenden Fehlermeldungen, wenn Ihr Stream nicht mit der Geschwindigkeit mithält, mit der wir Daten liefern, und Ihre App die Daten nicht schnell genug aus dem Stream verarbeitet:
+
+  ```
+  This stream has been disconnected because your client was unable to keep up with us.
+  ```
+
+  ```
+  This stream has been disconnected for operational reasons.
+  ```
+
+  Wir erlauben es für einen gewissen Zeitraum, dass die Zustellung ins Hintertreffen gerät, und halten auf unserer Seite für jeden Stream einen temporären Staging-Puffer vor. Wenn Sie jedoch nicht aufholen, trennen wir die Verbindung, damit Sie sich am aktuellen Zeitpunkt erneut verbinden können. Bitte beachten Sie, dass dies zu Datenverlust führen kann (für Daten, die sich zum Zeitpunkt der Trennung aufgrund eines vollen Puffers im Puffer befinden).
+
+  Solche Fälle können bei starken Datenspitzen auftreten. Generell empfehlen wir, einen Puffermechanismus zum schnellen Konsumieren der Daten zu verwenden, der vom eigentlichen Verarbeitungsprozess getrennt ist.
+
+  Wenn Sie Enterprise-Kunde sind und v1.1-Endpunkte verwenden, finden Sie in unseren Artikeln zu [Verbindungen](/de/x-api/enterprise-gnip-2.0/powertrack-api#disconnections-explained) sowie zum Konsumieren von Streaming-Daten [hier](https://developer.x.com/en/docs/tutorials/consuming-streaming-data) und [hier](/de/x-api/enterprise-gnip-2.0/powertrack-api#planning-for-high-volume-social-data-events) weitere Informationen zur Optimierung Ihrer App, um solche Trennungen zu vermeiden.
+
+  Es steht eine Reihe von Tools zur Verfügung, um aufgrund einer Trennung verpasste Posts abzurufen, darunter die unten aufgeführten. Beachten Sie, dass die folgenden Tools nur mit v1.1-Endpunkten auf Enterprise-Zugriffsebene verfügbar sind.
+
+  - [**Redundante Verbindungen**](/de/x-api/enterprise-gnip-2.0/powertrack-api#recovery-and-redundancy-features) – Mit mehreren Verbindungen den Stream von mehreren Servern beziehen, um Datenverluste zu vermeiden, wenn eine Verbindung getrennt wird.
+  - [**Replay**](/de/x-api/enterprise-gnip-2.0/powertrack-api#recovery-and-redundancy-features) – Daten der letzten 5 Tage über einen separaten Stream wiederherstellen.
+  - [**Backfill**](/de/x-api/enterprise-gnip-2.0/powertrack-api#recovery-and-redundancy-features) – Innerhalb von 5 Minuten erneut verbinden und ab dem letzten Stand fortsetzen.
+  - **Historical PowerTrack** – Daten aus dem gesamten X-Archiv wiederherstellen.
+</Accordion>
+
+<div id="get-help">
+  ## Hilfe erhalten
+</div>
+
+Das X Community-Forum steht Ihnen zur Verfügung, um technische Fragen zur X Developer Platform zu stellen. Es handelt sich um ein Diskussionsforum, in dem Sie Fragen anderer Entwicklerinnen und Entwickler sowie technische Informationen zu verschiedenen Themen rund um die Nutzung der X-API finden.
+
+Wir laden Sie ein, sich an den Gesprächen zu beteiligen, auf Fragen zu antworten und sich in unserem Forum einzubringen. Mitarbeitende von X sind ebenfalls vor Ort, um Unterstützung zu leisten.
+
+<Button href="https://devcommunity.x.com/">
+  X Community-Forum
+</Button>
+
+<div id="before-you-post-a-question">
+  ### Bevor Sie eine Frage posten
+</div>
+
+- Durchsuchen Sie die X-Entwicklerdokumentation nach Informationen zu Ihrem Anliegen
+- Suchen Sie im Community-Forum nach ähnlichen Fragen anderer Entwickler
+- Lesen Sie die Richtlinien des Community-Forums
+
+<div id="when-you-post-a-question-make-sure-to-include-the-following-information">
+  ### Wenn Sie eine Frage posten, geben Sie bitte die folgenden Informationen an
+</div>
+
+- Eine Beschreibung des Problems
+- Den ausgeführten API-Aufruf (nach Möglichkeit mit Headern)
+- Die zurückgegebene X-Antwort (einschließlich Fehlermeldungen)
+- Was Sie stattdessen erwartet haben
+- Liste der durchgeführten Schritte zur Fehlerbehebung
+- Liste der Schritte zur Reproduktion des Problems
+- Falls relevant, der Zeitraum, in dem das Problem auftrat
+- Falls relevant, die App-ID, Post-ID usw.
+- Relevante Codebeispiele oder Screenshots
+
+Bitte behandeln Sie in jedem Beitrag nur ein Thema bzw. eine Frage.
+
+Wenn Sie Funktionswünsche oder Feedback haben, übermitteln Sie diese bitte über das [X Developer Platform Feedback Form](https://t.co/devfeedback).
+
+Bei richtlinienbezogenen Problemen, z. B. einer App-Sperrung, wenden Sie sich bitte an den [Policy-Support](https://help.twitter.com/forms/platform).
+
+Bei X-bezogenen Problemen, z. B. Login- oder Kontosupport, verwenden Sie bitte den [X Help Desk](https://help.twitter.com/en/contact-us).

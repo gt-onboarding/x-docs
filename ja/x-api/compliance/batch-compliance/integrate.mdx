@@ -1,0 +1,228 @@
+---
+title: 連携ガイド
+sidebarTitle: 連携ガイド
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+<div id="working-with-resumable-uploads">
+  ## 再開可能アップロードの活用
+</div>
+
+バッチ コンプライアンスエンドポイントを使用すると、開発者は大量の X データを一括アップロードし、データセットがユーザーの意図と X 上のコンテンツの最新状態を反映するために必要な対応を把握できます。システムや接続が安定して信頼できる場合、リモートサーバーへの大量データのアップロードは比較的単純です。しかし、常にそうとは限りません。環境によっては接続タイムアウトが発生し、一定時間後にアプリとアップロードサーバー間の接続が実質的に切断されることがあります。たとえば、ノートパソコンから大きなファイルを Wi‑Fi 経由でアップロードしようとすると、接続の問題に遭遇することもあります。このような状況では、単一の連続した接続でアップロードするのではなく、ファイルを小さな単位に分割して順次アップロードできることが望まれます。
+
+X のバッチ コンプライアンスエンドポイントは、大容量ファイルの処理に Google Cloud Storage を利用しています。この種のストレージはさまざまな用途向けに最適化されており、Cloud Storage は大容量ファイルを扱うための手法である再開可能アップロードをサポートしています。
+
+アップロードが途中で問題を起こした場合でも、Google Cloud Storage は中断した地点から処理を再開できます。
+
+<div id="creating-a-resumable-job">
+  ### 再開可能ジョブの作成
+</div>
+
+<div id="step-one">
+  #### ステップ1：
+</div>
+
+まず、コンプライアンスジョブを作成し、`type` パラメータで投稿 ID かユーザー ID をアップロードするかを指定します。あわせて、リクエストボディに `resumable` を追加し、`true` に設定します。以下の $APP\_ACCESS\_TOKEN を、App-only Access Token に置き換えてください。
+
+```
+curl --request POST \
+ 'https://api.x.com/2/compliance/jobs' --header 'Authorization: Bearer $APP_ACCESS_TOKEN --header 'Content-Type: application/json' --data-raw '{
+   "type": "tweets",
+   "resumable": true
+}'
+```
+
+API 呼び出しが成功すると、次のようなレスポンスが返されます。
+
+```
+{
+   "data": {
+       "download_expires_at": "2021-08-18T19:42:55.000Z",
+       "status": "created",
+       "upload_url": "https://storage.googleapis.com/twttr-tweet-compliance/1425543269983784962/submission/1202726487847104512_1425543269983784962?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=complianceapi-public-svc-acct%40twttr-compliance-public-prod.iam.gserviceaccount.com%2F20210811%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20210811T194255Z&X-Goog-Expires=900&X-Goog-SignedHeaders=content-type%3Bhost&X-Goog-Signature=355e4c4739ae508304d3df15b4e13e64b6c7752d8d79d73676a4d8e60dc5241f83924ad2a1f8b7bddcc768062bb9c64d39b8e8f7cce7f66ffbea9f9ed33a4da975b3a2c127fb738c1c1ff3c3964bd4d9dc0706e6c8a70e67522160ea774e090d2793e06f890d1158ce86be3031c1c471b74f961b6f18743a28730611000336286ad0111b41fb5d14aa813ff00cf06b3572dc68d0b3c6fdc07f25c1b1196c1af4325a9ead68994944bbef0d2123585ea051deb9765aa7f5832446440bc9ba76af327b69df1fd7b1a99bd4419c128f1f697dbbacbc62bbc7c2c9aebc82a2128be0ed05d48a54d814162daad1232a0d13081e9543ab8557f567149af82281193f37",
+       "created_at": "2021-08-11T19:42:55.000Z",
+       "resumable": false,
+       "id": "1425543269983784962",
+       "type": "tweets",
+       "download_url": "https://storage.googleapis.com/twttr-tweet-compliance/1425543269983784962/delivery/1202726487847104512_1425543269983784962?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=complianceapi-public-svc-acct%40twttr-compliance-public-prod.iam.gserviceaccount.com%2F20210811%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20210811T194255Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=0a11dd5a3c5adb508f32ce904568abada863dc9499ba2adeafb3452ccee0dcb3dade17910dbc502dcbe54c130ac4d8638eb176c8b7344de068139b06c970794efa6312f0a5149f40da441eafcaf475f670c93ca73951999902a531d34dfab1e5490918929e5b06ae803b5604e0c0c26852255ccdbc79a2c1e2eefe924e5e6bf5b6603a7f287d1621333b9548ec6cc203716070528bebc2e67c12e92b1f4e54471db92c15a54799f2b855ae224250ca44c47993fd7d79a4940a0f68fe09f73fc8b291e88cfd10ade860b4b35c2b964d1777c1d93cd300c313138d9ca90aa8b3ecd3bf9dc73d3ebe32ba7634228fe07e1e4ecdda57cd94c802afc520162735d5a3",
+       "upload_expires_at": "2021-08-11T19:57:55.000Z"
+   }
+}
+```
+
+次の手順で使用するため、upload\_url の値を控えておいてください。
+
+#### ステップ2: 
+
+次に、再開可能アップロードを開始します。そのためには、前のステップで取得した upload\_url に対して **POST** リクエストを送り、以下のヘッダーを必ず含めてください:
+
+Content-Type: text/plain
+
+Content-Length: 0
+
+x-goog-resumable: start
+
+```
+curl --request POST \
+'https://storage.googleapis.com/twttr-tweet-compliance/1430227686685757442/submission/1202726487847104512_1430227686685757442?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=complianceapi-public-svc-acct%40twttr-compliance-public-prod.iam.gserviceaccount.com%2F20210824%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20210824T175707Z&X-Goog-Expires=900&X-Goog-SignedHeaders=content-length%3Bcontent-type%3Bhost%3Bx-goog-resumable&X-Goog-Signature=890d958f9c7dcb7f238e4971b59da5afc5b8329fb197c67b5930fe0f9dfe180afe2d4bec341111809b88ccfab46ab1f81f4242abc1af7b67c6e8977c52e6d486f5f43ce6a37a7a6530d25f15e2bcd9bb54655fe4ee22b26f8886ba71b67b7b11afd1198d658d1b6f0c41260f55260a260e1be0239977feba43dce40bc0e8e6293a4a3a3f7ee0afc74d3d2f7f2d3d514f108d5887a52ac85760385e5b9bb67cd26bfcf6b1c19151ea8111e217a29407722dc0dc9ab373334e88c18159546237ec9334f9a1e33717dc82800c6a45bba82706d5aece84ecdf3fcac52b21c8a3085a639047cf2707a8b9e4c296fc7cf05edbb110f07b89e38f0f5ea77e8b313cade7' \
+--header 'Content-Type: text/plain' --header \
+ 'Content-Length: 0' --header \
+ 'x-goog-resumable: start
+```
+
+このリクエストが成功すると、201 のレスポンスコードが返されます。続いて、レスポンスヘッダー内の location ヘッダーの値をコピーします。次のような形式になります:
+
+```
+https://storage.googleapis.com/twttr-tweet-compliance/1430227686685757442/submission/1202726487847104512_1430227686685757442?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=complianceapi-public-svc-acct%40twttr-compliance-public-prod.iam.gserviceaccount.com%2F20210824%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20210824T175707Z&X-Goog-Expires=900&X-Goog-SignedHeaders=content-length%3Bcontent-type%3Bhost%3Bx-goog-resumable&X-Goog-Signature=890d958f9c7dcb7f238e4971b59da5afc5b8329fb197c67b5930fe0f9dfe180afe2d4bec341111809b88ccfab46ab1f81f4242abc1af7b67c6e8977c52e6d486f5f43ce6a37a7a6530d25f15e2bcd9bb54655fe4ee22b26f8886ba71b67b7b11afd1198d658d1b6f0c41260f55260a260e1be0239977feba43dce40bc0e8e6293a4a3a3f7ee0afc74d3d2f7f2d3d514f108d5887a52ac85760385e5b9bb67cd26bfcf6b1c19151ea8111e217a29407722dc0dc9ab373334e88c18159546237ec9334f9a1e33717dc82800c6a45bba82706d5aece84ecdf3fcac52b21c8a3085a639047cf2707a8b9e4c296fc7cf05edbb110f07b89e38f0f5ea77e8b313cade7&upload_id=ADPycds-_Ow7aqcpbG4XguXSVAgd_2fy-XiDA2qm-It9PCwBlZhF4e2bfOAQzEmRJ4T_l6jU6LfYdfrKa_KlFFBOyx3PjYzrxQ
+```
+
+その後は、[クイックスタートガイド](/ja/x-api/compliance/batch-compliance#getting-started-with-the-batch-compliance-endpoints)のステップ2以降に従って、この場所にPost IDまたはUser IDをアップロードできます。
+
+再開可能アップロードは技術的に複雑なため、コードと併用するのが最適です。本ガイドでは、Node.jsと[needle request library](https://www.npmjs.com/package/needle)を使用します。
+
+<div id="install-the-dependencies">
+  ### 依存関係をインストールする
+</div>
+
+先に進む前に、Node.js 環境をインストールしておいてください。Node.js は公式サイトから入手できます。インストール後、Node.js には npm というユーティリティが含まれます。以下のコマンドを実行し、Node と npm の両方がインストールされていてエラーにならないことを確認してください。
+
+`$ npm -v
+6.4.1`
+
+このようなバージョン番号が表示されれば、環境の準備は整っています（バージョン番号は異なる場合があります）。npm を使ってアップロード用ライブラリをインストールします。次のコマンドを実行してください。
+
+`$ npm install -g needle`
+
+これで準備完了です。追加の設定は不要です。
+
+<div id="request-a-resumable-destination">
+  #### 途中再開可能なアップロード先をリクエストする
+</div>
+
+新規ジョブを作成する際は、`resumable` パラメータを true に設定して、途中再開に対応したアップロード先を取得します。レスポンスのペイロードには `upload_url` の値が含まれます。
+
+```
+"upload_url":\
+"https://storage.googleapis.com/compliance_tweet_ids/customer_test_object_12950882_GlYjiE?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=193969463581-compute%40developer.gserviceaccount.com%2F20200618%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20200618T184154Z&X-Goog-Expires=900&X-Goog-SignedHeaders=content-type%3Bhost&X-Goog-Signature=b7bdcf32479b08715be91ed47b06471b8acdcdb319f8e4f423bf3a3056dfa03ed83e47446f33338e292967a15c08fa5ba34395edaf057a2ac975b88e710ca994adb023a9e1673a7c58ce2fa0d73537f72812af78e92b708dfe6b907a7d75bd0f6cfa61fec867e80ac83ced0725d1ee59787c9dbca50d41f7b0f513dad63a7564136b1a70042a2ec6ba6b697cbe480a4405362f7a08255a5e8205aa7baa562f99e6a092f0420f33d67ffaeb132f877fbaf16c969630b5f173e8a3f31c473707241fa4e28f4bed13fb2ea01d3af1c449321a2e6ee9ec1e331b447cabcfc6f9d1f99f564d180f0cc1d28ea54972c996102c67c6501c6c16a00c13d17756f960e0e1"
+```
+
+<div id="prepare-the-code-to-upload-a-file">
+  #### ファイルをアップロードするコードを準備する
+</div>
+
+既定では、このライブラリはアップロード先（bucket と呼ばれる）とアップロードしたいファイル名を受け取り、新しいアップロード先を作成します。バッチ用コンプライアンスエンドポイントは独自にアップロード先を作成するため、既にアップロードを受け付ける場所があることをライブラリに伝える必要があります。
+
+この値を、アップロードするデータを含むファイル名と併せてアップロード用ライブラリに渡します。_**twitter-upload.js**_ という名前のファイルを作成し、次のコードを追加してください:
+
+```
+const needle = require('needle');
+const fs = require('fs');
+const path = require('path');
+
+const [, scriptName, filename, uploadURL] = process.argv;
+if (!filename || !uploadURL) {
+  console.error(`Usage: node ${path.basename(scriptName)} filename upload_url`);
+  process.exit(-1);
+}
+
+async function uploadFile(file, url) {
+  // rangeEnd is the index of the last byte in the file, i.e. number of bytes in file
+  const rangeEnd = (await fs.promises.stat(file)).size;
+
+  let options = {
+    headers: {
+      'Content-Range': `bytes */${rangeEnd}`,
+    },
+  };
+
+  const response = await needle('put', url, null, options);
+
+  switch (response.statusCode) {
+    case 200:
+    case 201:
+      console.log('Upload complete');
+      return;
+    case 308:
+      return resumeUpload(response, file, url);
+    default:
+      console.log('Got unexpected response code: ', response.statusCode);
+      return;
+  }
+}
+
+async function resumeUpload(response, file, url) {
+  console.log('Upload not completed, resuming');
+  if (response.headers.range) {
+    let resumeOffset = Number(response.headers.range.split('-')[1]) + 1;
+
+    let options = {
+      headers: {
+        'Content-Range': `bytes ${resumeOffset}-${rangeEnd-1}/${rangeEnd}`,
+        'Content-Length': `${rangeEnd-resumeOffset}`,
+      },
+    };
+
+    let readStream = fs.createReadStream(file, {start: resumeOffset});
+    return needle('put', url, readStream, options);
+  } else {
+    console.log('Initiating upload');
+    let options = {
+      headers: {
+        'Content-Type': 'text/plain'
+      }
+    };
+
+    let readStream = fs.createReadStream(file);
+    return needle('put', url, readStream, options);
+  }
+}
+
+// Request resumable session URL
+async function requestResumableSession(url) {
+  const options = {
+    headers: {
+      'Content-Type': 'text/plain',
+      'Content-Length': '0',
+      'x-goog-resumable': 'start',
+    },
+  };
+
+  const res = await needle('post', url, null, options);
+  if (res.statusCode === 201) {
+    const resumableSessionURL = res.headers['location'];
+    console.log('Starting upload to: ', resumableSessionURL);
+
+    await uploadFile(filename, resumableSessionURL);
+  } else {
+    console.log('Failed to create resumable session URI');
+  }
+
+}
+
+requestResumableSession(uploadURL).then(result => console.log('Upload complete'));
+```
+
+ファイルは適切な場所に保存してください。次に、コマンドラインでスクリプトを実行し、2 つのパラメータを渡します:
+
+1. 1 つ目は、アップロードしたいファイル（Post または User ID を含む）のパス。
+2. 2 つ目は、コンプライアンスエンドポイントのレスポンスで受け取ったアップロード URL。
+
+URL は必ずダブルクォーテーションで囲み、ファイル名にスペースなどの文字が含まれる場合も同様にしてください:
+
+```
+node twitter-upload.js compliance_upload.txt\
+"https://storage.googleapis.com/compliance_tweet_ids/customer_test_object_12950882_GlYjiE?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=193969463581-compute%40developer.gserviceaccount.com%2F20200618%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20200618T184154Z&X-Goog-Expires=900&X-Goog-SignedHeaders=content-type%3Bhost&X-Goog-Signature=b7bdcf32479b08715be91ed47b06471b8acdcdb319f8e4f423bf3a3056dfa03ed83e47446f33338e292967a15c08fa5ba34395edaf057a2ac975b88e710ca994adb023a9e1673a7c58ce2fa0d73537f72812af78e92b708dfe6b907a7d75bd0f6cfa61fec867e80ac83ced0725d1ee59787c9dbca50d41f7b0f513dad63a7564136b1a70042a2ec6ba6b697cbe480a4405362f7a08255a5e8205aa7baa562f99e6a092f0420f33d67ffaeb132f877fbaf16c969630b5f173e8a3f31c473707241fa4e28f4bed13fb2ea01d3af1c449321a2e6ee9ec1e331b447cabcfc6f9d1f99f564d180f0cc1d28ea54972c996102c67c6501c6c16a00c13d17756f960e0e1"
+```
+
+次のような出力が表示されます:
+
+`Starting upload to:  https://storage.googleapis.com/twttr-tweet-compliance/<redacted>
+Upload not completed, resuming
+Initiating upload`
+
+Ctrl + C を押すかコマンドラインを閉じることで、いつでもアップロードを一時停止できます。後で同じコマンドを実行すれば、中断地点からアップロードを再開できます。ファイルのアップロードが完了すると、次のメッセージが表示されます:
+
+`Upload complete`
+
+この時点で、[compliance status endpoint](/ja/x-api/compliance/get-compliance-job) を使用してコンプライアンスジョブのステータスを確認でき、完了後にコンプライアンス結果をダウンロードできます。

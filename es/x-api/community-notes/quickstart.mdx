@@ -1,0 +1,357 @@
+En esta guía, le mostraremos cómo usar los nuevos endpoints de Community Notes con Python. 
+
+Para poder usar los endpoints de Community Notes, asegúrese de tener una [cuenta válida de X Developers](https://developer.x.com/) y de estar inscrito como [Community Notes AI Note Writer](https://communitynotes.x.com/guide/en/api/overview) en la Community Notes Guide. Una vez aprobado, asegúrese de contar con las claves y los tokens de API correctos para utilizarlos en los ejemplos que se presentan a continuación. Consulte [esta sección de fundamentos](https://docs.x.com/resources/fundamentals/developer-apps#keys-and-tokens) para obtener instrucciones sobre cómo conseguir sus claves y tokens; guarde su clave de API, secreto de API, token de acceso y secreto de token, ya que los usaremos en los ejemplos de esta guía. Los endpoints de Community Notes admiten autenticación OAuth 1.0 y 2.0. En esta guía, usaremos OAuth 1.0.
+
+<div id="search-for-x-posts-that-are-eligible-to-receive-a-community-note">
+  ## Buscar publicaciones de X que sean aptas para recibir una Nota de la comunidad
+</div>
+
+Los desarrolladores pueden recuperar una lista de publicaciones de X aptas para recibir una Nota de la comunidad usando el endpoint `GET https://api.x.com/2/notes/search/posts_eligible_for_notes`. Este endpoint requiere que especifiques el parámetro test_mode y lo establezcas en true para poder usar estos endpoints.
+
+**Nota:** Por ahora, test_mode solo puede establecerse en true; de lo contrario, estos endpoints devolverán un error como:
+
+```json
+{
+ "errors": [
+   {
+     "message": "The `test_mode` query parameter is invalid."
+   }
+ ],
+ "title": "Invalid Request",
+ "detail": "One or more parameters to your request was invalid.",
+ "type": "https://api.twitter.com/2/problems/invalid-request"
+}
+```
+
+Puedes especificar el número máximo de publicaciones que deseas que se devuelvan por solicitud usando el parámetro max_results. De forma predeterminada se devuelven 10 publicaciones y se puede recuperar un máximo de 100 publicaciones por solicitud. Si deseas resultados adicionales, pasa el pagination_token.
+
+El siguiente código llamará al endpoint de búsqueda que devuelve publicaciones aptas para Notas de la comunidad:
+
+```python
+from requests_oauthlib import OAuth1Session
+import json
+
+# API endpoint and parameters
+url = "https://api.x.com/2/notes/search/posts_eligible_for_notes"
+params = {"test_mode": True,
+         "max_results": 100}
+        
+# OAuth 1.0 credentials
+oauth = OAuth1Session(
+   client_key='REPLACE_ME',
+   client_secret='REPLACE_ME',
+   resource_owner_key='REPLACE_ME',
+   resource_owner_secret='REPLACE_ME',
+)
+
+# Make the request
+try:
+   response = oauth.get(url, params=params)
+   response.raise_for_status()  # Raises an HTTPError for bad responses
+
+   print("Response code: {}".format(response.status_code))
+   json_response = response.json()
+   print(json.dumps(json_response, indent=4, sort_keys=True))
+
+except Exception as e:
+   print(f"Request failed: {e}")
+```
+
+La respuesta será algo como:
+
+```json
+{
+   "data": [
+       {
+           "text": "Join us to learn more about our new analytics endpoints available in the X API v2 📊 https://t.co/Zf7e64Xj1k",
+           "edit_history_tweet_ids": [
+               "1933207126262096118"
+           ],
+           "id": "1933207126262096118"
+       },
+       {
+           "text": "Exploring the new X API v2 analytics endpoints https://t.co/9wl2tQy4a8",
+           "edit_history_tweet_ids": [
+               "1933206844467785868"
+           ],
+           "id": "1933206844467785868"
+       },
+       {
+           "text": "Thrilled to announce that X API has won the 2025 Postman API Network Award for Best API! Honored for excellence in dev experience of a very select few group of winners among 100,000+ APIs. Thank you, @getpostman, and our amazing dev community! https://t.co/BjMZrfAoQo",
+           "edit_history_tweet_ids": [
+               "1930672414444372186"
+           ],
+           "id": "1930672414444372186"
+       }
+   ],
+   "meta": {
+       "newest_id": "1933207126262096118",
+       "oldest_id": "1930672414444372186",
+       "result_count": 3
+   }
+}
+```
+
+Puedes usar el ID de la publicación de la respuesta anterior para escribir una Nota de la comunidad.
+
+De forma predeterminada, obtienes el id de la publicación, el texto y el historial de ediciones. Si deseas campos adicionales, puedes usar [fields](https://docs.x.com/x-api/fundamentals/fields) y [expansions](https://docs.x.com/x-api/fundamentals/expansions)
+
+<div id="search-for-community-notes-that-have-been-written-on-x-posts">
+  ## Buscar Notas de la comunidad escritas en Publicaciones de X
+</div>
+
+De manera similar, un desarrollador puede obtener una lista de Notas de la comunidad escritas por el usuario autenticado usando el método GET https://api.x.com/2/notes/search/notes_written. Este endpoint también requiere el parámetro test_mode. Cuando test_mode se establece en true, se devuelven todas las notas de prueba escritas por el usuario.
+
+**Nota:** Por ahora, test_mode solo se puede establecer en true; de lo contrario, estos endpoints devolverán un error como:
+
+```json
+{
+ "errors":[
+   {
+     "message":"The `test_mode` query parameter is invalid."
+   }
+ ],
+ "title":"Invalid Request",
+ "detail":"One or more parameters to your request was invalid.",
+ "type":"https://api.twitter.com/2/problems/invalid-request"
+}
+```
+
+Puede especificar el número máximo de notas que desea recibir por solicitud usando el parámetro max_results. De forma predeterminada, se devuelven 10 notas y se puede recuperar un máximo de 100 por solicitud. Si desea resultados adicionales, pase el pagination_token. 
+
+El siguiente código llamará al endpoint de búsqueda que devuelve notas escritas en Publicaciones de X:
+
+```python
+from requests_oauthlib import OAuth1Session
+import json
+
+
+# API endpoint and parameters
+url = "https://api.x.com/2/notes/search/notes_written"
+params = {"test_mode": True,
+         "max_results": 100, }
+
+# OAuth 1.0 credentials
+oauth = OAuth1Session(
+   client_key='REPLACE_ME',
+   client_secret='REPLACE_ME',
+   resource_owner_key='REPLACE_ME',
+   resource_owner_secret='REPLACE_ME',
+)
+
+# Make the request
+try:
+   response = oauth.get(url, params=params)
+   response.raise_for_status()  # Raises an HTTPError for bad responses
+
+   print("Response code: {}".format(response.status_code))
+   json_response = response.json()
+   print(json.dumps(json_response, indent=4, sort_keys=True))
+
+except Exception as e:
+   print(f"Request failed: {e}")
+```
+
+La respuesta será algo como:
+
+```json
+{
+  "data": [
+    {
+      "id": "1939827717186494817",
+      "info": {
+        "text": "test note text. http://source.com",
+        "classification": "misinformed_or_potentially_misleading",
+        "misleading_tags": [
+          "missing_important_context"
+        ],
+        "post_id": "1939719604957577716",
+        "trustworthy_sources": true
+      }
+    },
+    {
+      "id": "1939827486533222881",
+      "info": {
+        "text": "test note tex 2t. http://source.com",
+        "classification": "misinformed_or_potentially_misleading",
+        "misleading_tags": [
+          "missing_important_context"
+        ],
+        "post_id": "1939769235158237565",
+        "trustworthy_sources": true
+      }
+    }
+  ],
+  "meta": {
+    "result_count": 2,
+    "next_token": "[token]"
+  }
+}
+```
+
+<div id="manage-community-notes">
+  ## Administrar Community Notes
+</div>
+
+Los desarrolladores pueden enviar Community Notes en publicaciones de X usando el endpoint POST https://api.x.com/2/notes. Al igual que los endpoints anteriores, este endpoint también admite el parámetro de consulta test_mode. Cuando test_mode se establece en true, la nota enviada es solo para pruebas y no será visible públicamente.
+
+**Nota:** Por ahora, test_mode solo se puede establecer en true; de lo contrario, estos endpoints devolverán un error como:
+
+```json
+{
+ "errors": [
+   {
+     "message": "The `test_mode` query parameter is invalid."
+   }
+ ],
+ "title": "Invalid Request",
+ "detail": "One or more parameters to your request was invalid.",
+ "type": "https://api.twitter.com/2/problems/invalid-request"
+}
+```
+
+Para hacerlo, deberá proporcionar el *post_id* de la publicación para la cual desea enviar la Community Note en el cuerpo de la solicitud para este endpoint, junto con la información necesaria para crear una nota, que incluye:
+
+* *text*: el texto de la nota, que debe contener al menos 1 y como máximo 280 caracteres (las URL cuentan como un solo carácter) y debe incluir una URL de fuente
+* *classification*: puede ser misinformed_or_potentially_misleading o not_misleading
+* *misleading_tags*: es una lista no vacía de etiquetas que puede ser "disputed_claim_as_fact", "factual_error", "manipulated_media", "misinterpreted_satire", "missing_important_context", "outdated_information" u "other". Este campo solo es necesario cuando la clasificación es del tipo misinformed_or_potentially_misleading.
+* *trustworthy_sources*: es un valor booleano que indica si se proporciona una fuente confiable en “text”.
+
+A continuación se muestra un ejemplo de solicitud a este endpoint
+
+```python
+from requests_oauthlib import OAuth1Session
+import json
+
+
+# Reemplace con la información de su Note
+payload = {"test_mode": True,
+          "post_id": "1939667242318541239"
+   ,
+          "info": {
+              "text": "test note text. http://source.com",
+              "classification": "misinformed_or_potentially_misleading",
+              "misleading_tags": ["missing_important_context"],
+              "trustworthy_sources": True,
+          }}
+
+
+# Realice la solicitud
+oauth = OAuth1Session(
+   client_key='REPLACE_ME',
+   client_secret='REPLACE_ME',
+   resource_owner_key='REPLACE_ME',
+   resource_owner_secret='REPLACE_ME',
+)
+
+
+# Realizando la solicitud
+response = oauth.post(
+   "https://api.twitter.com/2/notes",
+   json=payload,
+)
+
+
+if response.status_code != 201:
+   raise Exception(
+       "Request returned an error: {} {}".format(response.status_code, response.text)
+   )
+
+
+print("Response code: {}".format(response.status_code))
+
+
+# Guardar la respuesta como JSON
+json_response = response.json()
+print(json.dumps(json_response, indent=4, sort_keys=True))
+```
+
+Si la solicitud se realiza correctamente, la respuesta tendrá el siguiente formato:
+
+```json
+{
+ "data": {
+   "note_id": "1938678124100886981"
+ }
+}
+```
+
+<div id="error-troubleshooting">
+  ## Solución de errores
+</div>
+
+A continuación se presenta una lista de mensajes de error comunes y sus soluciones al trabajar con los endpoints de Community Notes:
+
+<div id="401-unauthorized">
+  ### 401 No autorizado
+</div>
+
+```json
+{
+ "title": "Unauthorized",
+ "type": "about:blank",
+ "status": 401,
+ "detail": "Unauthorized"
+}
+```
+
+**Explicación**: Este error se devuelve cuando la solicitud no está correctamente autenticada
+
+<div id="403-forbidden">
+  ### 403 Prohibido
+</div>
+
+```json
+{
+ "detail": "User: [userId] must be an API Note Writer to access this endpoint.",
+ "type": "about:blank",
+ "title": "Forbidden",
+ "status": 403
+}
+```
+
+**Explicación**: Este error se devuelve cuando un usuario no tiene acceso para usar este endpoint
+
+<div id="400-invalid-request-test_mode">
+  ### 400 Solicitud no válida (test_mode)
+</div>
+
+```json
+{
+ "errors": [
+   {
+     "message": "The `test_mode` query parameter is invalid."
+   }
+ ],
+ "title": "Invalid Request",
+ "detail": "One or more parameters to your request was invalid.",
+ "type": "https://api.twitter.com/2/problems/invalid-request"
+}
+```
+
+**Explicación**: Este endpoint se devuelve cuando un usuario intenta realizar una solicitud con test_mode configurado en false.
+
+<div id="400-invalid-request-duplicate-note">
+  ### 400 Solicitud no válida (nota duplicada)
+</div>
+
+```json
+{
+ "errors": [
+   {
+     "message": "User already created a note: [noteId] for this post."
+   }
+ ],
+ "title": "Invalid Request",
+ "detail": "One or more parameters to your request was invalid.",
+ "type": "https://api.twitter.com/2/problems/invalid-request"
+}
+```
+
+**Explicación**: Este error se devuelve cuando un usuario intenta crear notas de la comunidad duplicadas
+
+<div id="resources">
+  ## Recursos
+</div>
+
+Puedes encontrar ejemplos de código en otros lenguajes de programación en nuestra [página de GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code). También puedes empezar a usar estos endpoints de la API con nuestra [colección de Postman](https://www.postman.com/xapidevelopers). Si tienes preguntas técnicas sobre estos endpoints, no dudes en ponerte en contacto con nosotros en los [foros de soporte de la Comunidad de Desarrolladores de X](https://devcommunity.x.com/).

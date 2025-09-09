@@ -1,0 +1,238 @@
+---
+title: 앱 전용 인증 및 OAuth 2.0 베어러 토큰
+sidebarTitle: OAuth 2.0 앱 전용(베어러 토큰)
+---
+
+<div id="app-only-authentication-and-oauth-20-bearer-token">
+  ### 앱 전용 인증 및 OAuth 2.0 베어러 토큰
+</div>
+
+X는 특정 사용자가 아니라 애플리케이션 자체를 대신해 인증된 요청을 보낼 수 있는 기능을 제공합니다. X의 구현은 [OAuth 2 사양](http://tools.ietf.org/html/rfc6749)의 [Client Credentials Grant](http://tools.ietf.org/html/rfc6749#section-4.4) 플로우를 기반으로 합니다.
+
+애플리케이션 전용 인증은 사용자 컨텍스트를 포함하지 않으며, 애플리케이션이 자체적으로 API 요청을 수행하는 형태의 인증입니다. 이 방법은 공개 정보에 대한 읽기 전용 액세스만 필요한 개발자를 위한 것입니다.
+
+앱의 소비자 API 키를 사용하거나 앱 전용 액세스 토큰(베어러 토큰)을 사용하여 애플리케이션 전용 인증을 수행할 수 있습니다. 이는 X API에 대해 수행할 수 있는 요청이 인증된 사용자를 필요로 하지 않는 요청에 한정됨을 의미합니다.
+
+애플리케이션 전용 인증으로 다음과 같은 작업을 수행할 수 있습니다:
+
+- 사용자 타임라인 가져오기
+- 모든 계정의 친구 및 팔로워에 액세스
+- 리스트 리소스에 액세스
+- 트윗 검색
+
+[OAuth 1.0a](/ko/resources/fundamentals/authentication/oauth-1-0a/api-key-and-secret) 또는 PKCE가 포함된 [OAuth 2.0 Authorization Code Flow](/ko/resources/fundamentals/authentication/oauth-2-0/authorization-code)만이 사용자를 대신하여 요청을 수행하는 데 필요하다는 점에 유의하세요. [API reference](/ko/resources/fundamentals/authentication/api-reference) 페이지에는 각 API에 필요한 인증 방식이 설명되어 있습니다. 다음 작업을 수행하려면 [access token](/ko/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)이 포함된 사용자 인증, 즉 사용자 컨텍스트가 필요합니다:
+
+- 트윗 또는 기타 리소스 게시
+- 사용자 검색
+- 모든 지오 엔드포인트 사용
+- 다이렉트 메시지 또는 계정 자격 증명에 액세스
+- 사용자의 이메일 주소 조회
+
+<div id="auth-flow">
+  #### 인증 플로우
+</div>
+
+이 방법을 사용하려면 [App only Access Token](/ko/resources/fundamentals/authentication/oauth-2-0/application-only)([Bearer Token](/ko/resources/fundamentals/authentication/oauth-2-0/bearer-tokens)이라고도 함)이 필요합니다. [POST oauth2/token](/ko/resources/fundamentals/authentication/api-reference#post-oauth2-token) 엔드포인트에 consumer key와 secret을 전달하여 App only Access Token(Bearer Token)을 발급받을 수 있습니다. 
+
+애플리케이션 전용 인증 플로우는 다음과 같이 진행됩니다:
+
+- 애플리케이션은 consumer key와 secret을 특수 방식으로 인코딩해 자격 증명 세트를 생성합니다.
+- 애플리케이션은 [POST oauth2/token](/ko/resources/fundamentals/authentication/api-reference#post-oauth2-token) 엔드포인트에 요청을 보내 해당 자격 증명을 [App only Access Token](/ko/resources/fundamentals/authentication/oauth-2-0/application-only)으로 교환합니다.
+- REST API에 접근할 때 애플리케이션은 App only Access Token으로 인증합니다.
+
+요청에 서명할 필요가 없으므로 이 방식은 표준 OAuth 1.0a 모델보다 훨씬 단순합니다.
+
+<Frame>
+  <img src="/images/auth-5.png.twimg.1920.png" alt="" />
+</Frame>
+
+<div id="about-application-only-auth">
+  #### 애플리케이션 전용 인증 관련 사항
+</div>
+
+**토큰은 비밀번호입니다**
+
+consumer key와 secret, 그리고 앱 전용 액세스 토큰(Bearer Token)은 애플리케이션을 대신해 요청을 보낼 수 있는 권한을 부여합니다. 이 값들은 비밀번호만큼 민감한 정보로 취급되어야 하며, 신뢰할 수 없는 대상에게 공유하거나 배포해서는 안 됩니다.
+
+**SSL 필수**
+
+모든 요청(토큰 획득과 사용 모두)은 반드시 HTTPS 엔드포인트를 사용해야 합니다. [TLS를 사용하여 X API에 연결](/ko/resources/fundamentals/authentication/guides/tls)에 설명된 모범 사례를 따르십시오 — 피어는 항상 검증되어야 합니다.
+
+**사용자 컨텍스트 없음**
+
+애플리케이션 전용 인증으로 요청을 보낼 때는 “현재 사용자”라는 개념이 없습니다. 따라서 [POST statuses/update](/ko/x-api/posts/creation-of-a-post) 같은 엔드포인트는 애플리케이션 전용 인증으로는 동작하지 않습니다. 사용자를 대신하여 요청을 보내는 방법에 대한 자세한 내용은 [OAuth 사용](/ko/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)을 참조하세요.
+
+**요청 속도 제한**
+
+애플리케이션에는 두 가지 유형의 요청 속도 제한 풀(rate limiting pool)이 있습니다.
+
+액세스 토큰을 보유한 사용자를 대신해 이루어지는 요청(즉, 사용자 컨텍스트)은 애플리케이션 전용 인증과는 다른 요청 속도 제한 컨텍스트에서 소진됩니다. 즉, 사용자를 대신한 요청은 앱 전용 인증에서 제공되는 요청 속도 제한을 소진하지 않으며, 앱 전용 인증으로 이루어진 요청도 사용자 기반 인증의 요청 속도 제한을 소진하지 않습니다.
+
+[API 요청 속도 제한](/ko/x-api/fundamentals/rate-limits)과 [제한 사항 검토](https://developer.x.com/en/portal/products)를 참고하세요.
+
+<div id="issuing-application-only-requests">
+  #### 애플리케이션 전용 요청 발행
+</div>
+
+**1단계: consumer key와 secret 인코딩**
+
+애플리케이션의 consumer key와 secret을 Bearer Token을 얻기 위한 자격 증명으로 인코딩하는 단계는 다음과 같습니다:
+
+1. [RFC 1738](http://www.ietf.org/rfc/rfc1738.txt)에 따라 consumer key와 consumer secret을 URL 인코딩합니다. 작성 시점 기준으로 이 작업이 실제로 consumer key와 secret을 변경하지는 않지만, 향후 해당 값들의 형식이 변경될 수 있으므로 이 단계는 여전히 수행해야 합니다.
+2. 인코딩된 consumer key, 콜론 문자 ":", 그리고 인코딩된 consumer secret을 하나의 문자열로 연결합니다.
+3. 이전 단계에서 만든 문자열을 [Base64 인코딩](http://en.wikipedia.org/wiki/Base64)합니다.
+
+아래는 이 알고리즘의 결과를 보여주는 예시 값입니다. 이 페이지에서 사용된 consumer secret은 테스트 용도이며 실제 요청에서는 작동하지 않습니다.
+
+|     |     |
+| :--- | :--- |
+| Consumer key | xvz1evFS4wEEPTGEFPHBog |
+| Consumer secret | L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| RFC 1738 인코딩된 consumer<br /><br />key (변경 없음) | xvz1evFS4wEEPTGEFPHBog |
+| RFC 1738 인코딩된 consumer<br /><br />secret (변경 없음) | L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Bearer Token 자격 증명 | xvz1evFS4wEEPTGEFPHBog:L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Base64 인코딩된 Bearer Token 자격 증명 | :: eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJnNmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw== |
+
+**2단계: 앱 전용 액세스 토큰(Bearer Token) 획득**
+
+1단계에서 계산한 값은 [POST oauth2/token](/ko/resources/fundamentals/authentication/api-reference#post-oauth2-token)에 요청을 보내 앱 전용 액세스 토큰으로 교환해야 합니다:
+
+- 요청은 HTTP POST여야 합니다.
+- 요청에는 `Authorization` 헤더가 포함되어야 하며, 값은 `Basic <1단계의 base64 인코딩 값>.`이어야 합니다.
+- 요청에는 `Content-Type` 헤더가 포함되어야 하며, 값은 `application/x-www-form-urlencoded;charset=UTF-8.`이어야 합니다.
+- 요청 본문은 `grant_type=client_credentials`여야 합니다.
+
+**예시 요청(Authorization 헤더는 줄바꿈으로 표시됨):**
+
+```json
+POST /oauth2/token HTTP/1.1
+Host: api.x.com
+User-Agent: My X App v1.0.23
+Authorization: Basic eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJn
+                     NmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw==
+Content-Type: application/x-www-form-urlencoded;charset=UTF-8
+Content-Length: 29
+Accept-Encoding: gzip
+
+grant\_type=client\_credentials
+```
+
+요청이 올바르게 구성되었다면, 서버는 JSON으로 인코딩된 페이로드로 응답합니다:
+
+**예시 응답:**
+
+```json
+HTTP/1.1 200 OK
+Status: 200 OK
+Content-Type: application/json; charset=utf-8
+...
+Content-Encoding: gzip
+Content-Length: 140
+
+{"token\_type":"bearer","access\_token":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+```
+
+애플리케이션은 반환된 객체의 `token_type` 키 값이 `bearer`인지 확인해야 합니다. `access_token` 키의 값이 앱 전용 액세스 토큰(Bearer Token)입니다.
+
+앱 전용 액세스 토큰은 애플리케이션당 한 번에 하나만 유효합니다. 동일한 자격 증명으로 `/oauth2/token`에 다시 요청하면 토큰이 무효화될 때까지 동일한 토큰이 반환됩니다.
+
+**3단계: 앱 전용 액세스 토큰(Bearer Token)으로 API 요청 인증**
+
+앱 전용 액세스 토큰(Bearer Token)은 애플리케이션 전용 인증을 지원하는 API 엔드포인트에 요청을 보내는 데 사용할 수 있습니다. 앱 액세스 토큰을 사용하려면 일반적인 HTTPS 요청을 구성하고 `Authorization` 헤더에 `Bearer <2단계에서 받은 base64 bearer 토큰 값>. Signing is not required.` 값을 포함하십시오.
+
+**예시 요청(Authorization 헤더는 줄바꿈으로 표시됨):**
+
+```
+GET /1.1/statuses/user\_timeline.json?count=100&screen\_name=twitterapi HTTP/1.1
+Host: api.x.com
+User-Agent: My X App v1.0.23
+Authorization: Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAA
+                      AAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Accept-Encoding: gzip
+```
+
+**앱 전용 액세스 토큰(Bearer 토큰) 무효화**
+
+앱 전용 액세스 토큰이 유출되었거나 어떤 이유로든 무효화해야 하는 경우, [POST oauth2/invalidate\_token](/ko/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token)을 호출하세요.
+
+**예시 요청(Authorization 헤더는 줄바꿈으로 개행 표시됨):**
+
+```bash
+POST /oauth2/invalidate_token HTTP/1.1
+Authorization: Basic eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJn
+                     NmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw==
+User-Agent: My X App v1.0.23
+Host: api.x.com
+Accept: */*
+Content-Length: 119
+Content-Type: application/x-www-form-urlencoded
+
+access_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+**예시 응답:**
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 127
+...
+
+{"access_token":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+```
+
+<div id="common-error-cases">
+  #### 일반적인 오류 사례
+</div>
+
+이 섹션에서는 Bearer Token의 발급 협상 및 사용과 관련된 일반적인 실수를 설명합니다. 모든 가능한 오류 응답이 포함된 것은 아니므로, 처리되지 않은 오류 코드와 응답에 유의하세요.
+
+**App only Access Token(베어러 토큰)을 발급 또는 취소하려는 잘못된 요청**
+
+다음과 같은 시도는:
+
+- 잘못된 요청으로 App only Access Token(베어러 토큰)을 발급받으려는 경우(예: `grant_type=client_credentials` 누락).
+- 잘못되었거나 만료된 앱 자격 증명으로 App only Access Token(베어러 토큰)을 발급받거나 취소하려는 경우.
+- 잘못되었거나 이미 취소된 App only Access Token(베어러 토큰)을 무효화하려는 경우.
+- 짧은 시간 내에 App only Access Token(베어러 토큰)을 지나치게 자주 발급받으려는 경우.
+
+다음 결과를 초래합니다:
+
+```json
+HTTP/1.1 403 Forbidden
+Content-Length: 105
+Content-Type: application/json; charset=utf-8
+...
+
+{"errors":\[{"code":99,"label":"authenticity\_token\_error","message":"Unable to verify your credentials"}\]}
+```
+
+<div id="api-request-contains-invalid-app-only-access-token-bearer-token">
+  #### API 요청에 유효하지 않은 앱 전용 액세스 토큰(Bearer Token)이 포함됨
+</div>
+
+잘못되었거나 취소된 액세스 토큰으로 API 요청을 보내면 다음이 반환됩니다:
+
+```json
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+Content-Length: 61
+...
+
+{"errors":\[{"message":"Invalid or expired token","code":89}\]}
+```
+
+<div id="app-only-access-token-bearer-token-used-on-endpoint-which-doesnt-support-application-only-auth">
+  #### 애플리케이션 전용 인증을 지원하지 않는 엔드포인트에서 사용된 App-only Access Token(Bearer Token)
+</div>
+
+사용자 컨텍스트가 필요한 엔드포인트(예: `statuses/home_timeline`)에 App-only Access Token(Bearer Token)으로 요청하면 다음이 반환됩니다:
+
+```json
+HTTP/1.1 403 Forbidden
+Content-Type: application/json; charset=utf-8
+Content-Length: 91
+...
+
+{"errors":[{"message":"Your credentials do not allow access to this resource","code":220}]}
+```

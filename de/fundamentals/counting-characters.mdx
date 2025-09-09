@@ -1,0 +1,93 @@
+---
+title: Zeichen zählen beim Verfassen von Tweets
+sidebarTitle: Zeichen zählen
+icon: text-size
+---
+
+Diese Seite beschreibt, wie Zeichen beim Verfassen von Tweets und in der gesamten X-API behandelt werden. Weitere Informationen zur Implementierung stellt X mit der Open-Source-Bibliothek [twitter-text](http://github.com/twitter/twitter-text) bereit, die auf [GitHub](https://github.com/twitter) verfügbar ist.
+
+<div id="background">
+  ## Hintergrund
+</div>
+
+X begann als SMS-basierter Dienst. Dadurch war die ursprüngliche Tweet-Länge auf 140 Zeichen begrenzt (teils bedingt durch das 160-Zeichen-Limit von SMS, wobei 20 Zeichen für Befehle und Benutzernamen reserviert waren). Mit der Weiterentwicklung von X stieg die maximale Tweet-Länge auf 280 Zeichen – weiterhin kurz und prägnant, aber mit mehr Ausdrucksmöglichkeiten.
+
+<div id="definition-of-a-character">
+  ## Definition eines Zeichens
+</div>
+
+In den meisten Fällen kann der Textinhalt eines Tweets bis zu 280 Zeichen oder [Unicode](https://unicode.org/)-Glyphen enthalten. Einige Glyphen zählen als mehr als ein Zeichen.
+
+Ob ein Glyphe als ein oder mehrere Zeichen zählt, bezeichnen wir als sein Gewicht. Die genaue Definition, welche Zeichen ein Gewicht von mehr als einem Zeichen haben, findet sich in der [Konfigurationsdatei](https://github.com/twitter/twitter-text/tree/master/config) der [twitter-text-Tweet-Parsing-Bibliothek](https://github.com/twitter/twitter-text).
+
+Die aktuelle Version der Konfigurationsdatei definiert ein Standardgewicht von zwei Zeichen sowie vier Bereiche von [Unicode-Codepoints](https://unicode.org/charts/About.html), die unterschiedlich gewichtet werden. Derzeit werden Codepoints in diesen Bereichen jeweils als ein einzelnes Zeichen gezählt.
+
+- Der erste Bereich umfasst Zeichen aus den Latin-1-Codepages (U+0000–U+10FF).
+- Der zweite Bereich ist allgemeine Interpunktion bis einschließlich Zero Width Joiner (wird verwendet, um Emojis und andere Glyphen zu kombinieren) (U+2000–U+200D).
+- Der dritte Bereich ist allgemeine Interpunktion mit Ausnahme von U+200E und U+200F, bei denen es sich um Unicode-Richtungszeichen handelt (U+2010–U+201F).
+- Der letzte Bereich umfasst Anführungszeichen (U+2032–U+2037).
+
+Beispiele für Tweet-Text und Längen, die von der twitter-text-Bibliothek berechnet werden, finden sich in der Testkonfigurationsdatei [validate.yml](https://github.com/twitter/twitter-text/blob/master/conformance/validate.yml) der Bibliothek.
+
+**Beispiele**
+
+| Angezeigtes Zeichen | Länge | Beschreibung | Unicode-Sequenz |
+|:---------------------|:--------|:-------------|:------------------|
+| a | 1 | Lateinischer Kleinbuchstabe a | U+0061 |
+| á | 1 | Lateinischer Kleinbuchstabe a mit Akut | U+00E1 |
+| ӑ | 1 | Kyrillischer Kleinbuchstabe a mit Breve | U+04D1 |
+| Ồ | 1 | Lateinischer Großbuchstabe O mit Zirkumflex und Akut | U+1ED2 |
+
+<div id="emojis">
+  ## Emojis
+</div>
+
+Emojis, die von [twemoji](https://twemoji.x.com/) unterstützt werden, zählen stets als zwei Zeichen, unabhängig von kombinierenden Modifikatoren. Dazu zählen Emojis, die durch [Fitzpatrick-Hauttöne](https://emojipedia.org/modifiers/) oder [Gender-Modifikatoren](https://blog.emojipedia.org/unicode-and-the-emoji-gender-gap/) verändert wurden, selbst wenn sie aus deutlich mehr Unicode-Codepoints bestehen. Das Gewicht von Emojis wird in twitter-text durch einen regulären Ausdruck definiert, der nach Sequenzen standardisierter Emojis sucht, die mit einem oder mehreren Unicode-Zero-Width-Joinern (U+200D) kombiniert sind.
+
+**Beispiele**
+
+| Angezeigtes Emoji | Länge | Beschreibung | Unicode-Sequenz |
+|:-----------------|:--------|:-------------|:------------------|
+| 👾 | 2 | Standardlänge bekannter Emojis | -- |
+| 🙋🏽 | 2 | Emoji mit Hauttönungsmodifikator | 🙋 U+1F64B, 🏽 U+1F3FD |
+| 👨‍🎤 | 2 | Emoji-Sequenz mit kombinierendem Glyph (Zero-Width Joiner) | [👨 U+1F468](https://emojipedia.org/emoji/%F0%9F%91%A8/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [🎤 U+1F3A4](https://emojipedia.org/emoji/%F0%9F%8E%A4/) |
+| 👨‍👩‍👧‍👦 | 2 | Emoji-Sequenz mit mehreren kombinierenden Glyphs (Zero-Width Joiners) | [👨 U+1F468](https://emojipedia.org/emoji/%F0%9F%91%A8/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👩 U+1F469](https://emojipedia.org/emoji/%F0%9F%91%A9/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👧 U+1F467](https://emojipedia.org/emoji/%F0%9F%91%A7/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👦 U+1F466](https://emojipedia.org/emoji/%F0%9F%91%A6/) |
+
+<div id="chinese-japanese-korean-glyphs">
+  ## Chinesische/Japanische/Koreanische Glyphen
+</div>
+
+Glyphen, die in CJK-Sprachen (Chinesisch/Japanisch/Koreanisch) verwendet werden, zählen ebenfalls als zwei Zeichen. Daher kann ein Tweet, der ausschließlich aus CJK-Text besteht, höchstens 140 solcher Glyphen enthalten.
+
+<div id="entity-objects">
+  ## Entity-Objekte
+</div>
+
+Tweets können [Entity-Objekte](/de/x-api/fundamentals/data-dictionary) enthalten, von denen einige die Länge eines Tweets beeinflussen.
+
+URLs: [Alle URLs werden in t.co-Links umgewandelt](https://developer.x.com/content/developer-twitter/en/docs/basics/tco). Das bedeutet, dass die Länge einer URL durch den Parameter `transformedURLLength` in der [twitter-text-Konfigurationsdatei](https://github.com/twitter/twitter-text/tree/master/config) bestimmt ist. Die aktuelle Länge einer URL in einem Tweet beträgt 23 Zeichen, selbst wenn die URL normalerweise kürzer wäre.
+
+Antworten: @Handles, die am Anfang eines Antwort-Tweets automatisch ergänzt werden, zählen nicht zum Zeichenlimit. Neue, nicht als Antwort verfasste Tweets, die mit einer @Mention beginnen, zählen hingegen – ebenso wie @Mentions, die vom Nutzer ausdrücklich im Text des Tweets hinzugefügt werden.
+
+Medien: Medien, die an einen Tweet angehängt sind und bei Veröffentlichung über einen offiziellen Client als pic.x.com-URL dargestellt werden, zählen mit 0 Zeichen.
+
+Weitere Informationen zu Entity-Objekten finden Sie in der [Entwicklerdokumentation](/de/x-api/fundamentals/data-dictionary).
+
+<div id="x-character-encoding">
+  ## X-Zeichenkodierung
+</div>
+
+X-API-Endpunkte akzeptieren nur UTF-8-codierten Text. Alle anderen Zeichencodierungen müssen vor dem Senden des Textes an die API in UTF-8 konvertiert werden.
+
+X ermittelt die Länge eines Tweets anhand der Normalisierungsform C (NFC) des Textes.
+
+Als Beispiel: das Wort „café“. Es gibt zwei Bytefolgen, die optisch gleich erscheinen und gleich gelesen werden, aber eine unterschiedliche Anzahl an Bytes verwenden:
+
+|     | | |
+|:-----|:---|:---|
+| café | 0x63 0x61 0x66 0xC3 0xA9 | Verwendung des Zeichens „é“, des „komponierten Zeichens“. |
+| café | 0x63 0x61 0x66 0x65 0xCC 0x81 | Verwendung eines kombinierenden diakritischen Zeichens, das das „e“ überlagert |
+
+Die Normalisierungsform C bevorzugt die Verwendung eines vollständig kombinierten Zeichens (0xC3 0xA9 aus dem „café“-Beispiel) gegenüber der Langform (0x65 0xCC 0x81).
+
+X zählt die Anzahl der Codepoints im Text, nicht die UTF-8-Bytes. Das 0xC3 0xA9 aus dem „café“-Beispiel ist ein Codepoint (U+00E9), der in UTF-8 als zwei Bytes codiert ist, wohingegen 0x65 0xCC 0x81 zwei Codepoints sind, die als drei Bytes codiert sind.

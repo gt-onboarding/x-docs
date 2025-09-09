@@ -1,0 +1,86 @@
+---
+title: 移行ガイド
+sidebarTitle: 移行ガイド
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+<div id="blocks-lookup-standard-v11-compared-to-x-api-v2">
+  ### ブロックのルックアップ：Standard v1.1 と X API v2 の比較
+</div>
+
+標準 v1.1 の [GET blocks/ids](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/mute-block-report-users/api-reference/get-blocks-ids) と [GET blocks/list](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/mute-block-report-users/api-reference/get-blocks-list) エンドポイントを使用している場合、このガイドは、標準 v1.1 と X API v2 のブロックルックアップ用エンドポイントの共通点と相違点を理解するうえで役立ちます。
+
+- **共通点**
+  - 認証
+- **相違点**
+  - エンドポイント URL
+  - リクエストあたりのユーザー数上限
+  - アプリおよびプロジェクトの要件
+  - レスポンスデータ形式
+  - リクエストパラメータ
+
+<div id="similarities">
+  #### 類似点
+</div>
+
+**認証**
+
+標準 v1.1 と X API v2 のブロック参照エンドポイントはいずれも [OAuth 1.0a ユーザーコンテキスト](/ja/resources/fundamentals/authentication#oauth-1-0a-2) を使用します。したがって、以前に標準 v1.1 のブロック参照エンドポイントを利用していた場合は、X API v2 版へ移行しても同じ認証方式をそのまま使用できます。 
+
+<div id="differences">
+  #### 相違点
+</div>
+
+**エンドポイント URL**
+
+- 標準 v1.1 エンドポイント:
+  - GET https://api.x.com/1.1/blocks/ids.json
+    （指定ユーザーがブロックしているユーザー ID の一覧）
+  - GET https://api.x.com/1.1/blocks/lists.json
+    （指定ユーザーがブロックしているユーザーの一覧）
+- X API v2 エンドポイント:
+  - GET https://api.x.com/2/users/:id/blocking
+    （指定したユーザー ID がブロックしているユーザーの一覧）
+     
+
+**1 リクエストあたりのユーザー数の制限**
+
+標準 v1.1 エンドポイントでは、1 リクエストにつき最大 5,000 ユーザーを返せます。新しい v2 エンドポイントでは、1 リクエストにつき最大 1,000 ユーザーを返せます。1,000 ユーザーを完全に取得するには、クエリパラメータに max\_results=1000 を指定してください。次のリクエストでは、レスポンスのペイロードで返される next\_token を pagination\_token クエリパラメータに指定します。
+ 
+
+**App と Project の要件**
+
+X API v2 エンドポイントでは、リクエスト認証時に [developer App](/ja/resources/fundamentals/developer-apps) が [Project](/ja/resources/fundamentals/developer-apps) に関連付けられている資格情報を使用する必要があります。X API v1.1 のすべてのエンドポイントでは、スタンドアロンの App または Project に関連付けられた App の資格情報を使用できます。
+
+**レスポンスデータ形式**
+
+標準 v1.1 と X API v2 のエンドポイントの大きな違いのひとつは、ペイロードで返すフィールドの選び方です。
+
+標準エンドポイントでは、多くのレスポンスフィールドがデフォルトで返され、さらにパラメータで、ペイロードに含めるフィールドやフィールドセットを指定できます。
+
+X API v2 では、デフォルトで返されるのは user id、name、username フィールドのみです。追加のフィールドやオブジェクトを取得するには、[fields](/ja/x-api/fundamentals/fields) と [expansions](/ja/x-api/fundamentals/expansions) パラメータを使用します。このエンドポイントでリクエストしたユーザーフィールドはプライマリの user オブジェクトに返されます。展開された Post オブジェクトとそのフィールドは、レスポンス内の includes オブジェクトに返されます。その後、user と展開された Post オブジェクトの両方にある ID を突き合わせることで、展開オブジェクトを user オブジェクトに対応付けられます。 
+
+これらの新しいパラメータの詳細は、それぞれのガイド、または [fields と expansions の使い方](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) をご参照ください。 
+
+また、標準 v1.1 のフィールドを新しい v2 のフィールドにマッピングするのに役立つ [データ形式移行ガイド](/ja/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2) も用意しています。このガイドでは、特定のフィールドを返すために v2 リクエストで指定すべき具体的な expansion と field パラメータも案内しています。 
+ 
+
+特定フィールドのリクエスト方法の変更に加え、X API v2 では API が返すオブジェクト（[P](/ja/x-api/fundamentals/data-dictionary#tweet)ost および [user](/ja/x-api/fundamentals/data-dictionary#user) オブジェクト）に新しい JSON 設計を導入しています。
+
+- JSON のルートレベルでは、標準エンドポイントは Post オブジェクトを statuses 配列で返し、X API v2 は data 配列で返します。 
+- Retweeted および Quoted の「statuses」と呼ぶ代わりに、X API v2 の JSON では Retweeted と Quoted Tweets と表記します。contributors や user.translator\_type などのレガシー／非推奨フィールドは削除されます。 
+- （Post オブジェクトの）favorites と（user オブジェクトの）favourites の両方ではなく、X API v2 では like という用語を使用します。 
+- X では、値がない JSON 値（例: null）はペイロードに含めないという規約を採用しています。Post および user の属性は、非 null の値がある場合にのみ含まれます。 
+   
+
+また、[Post オブジェクト](/ja/x-api/fundamentals/data-dictionary#tweet) に以下の新しいフィールドセットを導入しました。
+
+- [conversation\_id](/ja/x-api/fundamentals/conversation-id) フィールド
+- context と entities を含む 2 つの新しい [annotations](/ja/x-api/fundamentals/post-annotations) フィールド
+- 複数の新しい [metrics](/ja/x-api/fundamentals/metrics) フィールド 
+- 新しい reply\_setting フィールド（特定の Post に誰が返信できるかを示します）
+
+**リクエストパラメータ**
+
+以下の標準 v1.1 リクエストでは、クエリパラメータとして user\_id または screen\_name のいずれかを指定できました。X API v2 では数値のユーザー ID のみを受け付け、エンドポイントパスの一部として指定する必要があります。

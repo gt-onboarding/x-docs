@@ -1,0 +1,208 @@
+---
+title: レスポンスコードとエラー
+sidebarTitle: レスポンスコード
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+X API は、その場での理解とデバッグに役立つ以下のレスポンスコードおよびエラーコードを提供します。詳細は、以下のデバッグガイドとエラー索引を参照してください。
+
+成功レスポンスは、200 番台の HTTP コードと、要求されたオブジェクトの取得・作成・変更・削除に関する情報を含む JSON ベースのペイロード、ならびにサーバーによるリクエスト解釈の表明によって示されます。
+
+エラーレスポンスは、200 番台以外の HTTP コードで返されます。エラーコードによって原因は異なります。X API は、すべてのリクエストに対して適切な [HTTP ステータスコード](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes) を返すよう努めています。
+
+<div id="x-api-v2-http-status-codes">
+  ## X API v2 の HTTP ステータスコード
+</div>
+
+| Code | Text | Description | Troubleshooting tips |
+| :--- | :--- | :---------- | :------------------- |
+| 200 | OK | リクエストは成功しました。 | |
+| 400 | Bad Request	| リクエストが無効であるか、その他の理由で処理できません。付随するエラーメッセージで詳細が説明されます。認証がない、または無効なクエリパラメータを含むリクエストは無効と見なされ、この応答が返されます。 | JSON クエリの形式を再確認してください。たとえば、ルールに完全一致やその他の演算子に関連する二重引用符が含まれる場合、JSON 構造と区別するためにバックスラッシュでエスケープする必要があることがあります。 |
+| 401 | Unauthorized | リクエストの認証に問題がありました。認証情報の欠如や誤りが原因の可能性があります。その他の未定義の状況でも返される場合があります。 | 正しい[認証方法](https://docs.x.com/resources/fundamentals/authentication/overview)を使用し、認証情報が正しいことを確認してください。 |
+| 403 | Forbidden | リクエストは解釈されましたが、拒否されたか、アクセスが許可されていません。付随するエラーメッセージで理由が説明されます。 | 使用しようとしているエンドポイントへのアクセス権が開発者アカウントに付与されているか確認してください。アプリの許可リスト登録（例: Engagement API や X 広告 API）が必要な場合や、アクセス申請が必要な場合があります。 |
+| 404 | Not Found | 要求された URI が無効であるか、ユーザーなど要求されたリソースが存在しません。 | 使用しているエンドポイントに対して有効なパラメータと正しい URI を使用しているか確認してください。 |
+| 409 | Connection Exception | ルールのないフィルタードストリームへの接続を試みた際に返されます。 | 接続するストリームに少なくとも 1 つのルールを作成していることを確認してください。フィルタードストリームは、有効なルールに一致する投稿のみを返します。ルールがない場合、ストリームは投稿を返しません。 |
+| 429 | Too Many Requests | アプリの[レート制限](/ja/resources/fundamentals/rate-limits)または[投稿上限](/ja/x-api/fundamentals/post-cap)を使い切ったため、リクエストを処理できない場合に返されます。詳細は[レート制限](/ja/resources/fundamentals/rate-limits)を参照してください。 | 使用しているエンドポイントで許可されている時間枠あたりのリクエスト数を確認してください。時間枠のリセットを待ってください。リクエスト間隔を空けてレート制限に達しないようにするか、次の利用可能なデータプランにアップグレードしてください。 |
+| 500 | Internal Server Error | 何らかの不具合が発生しています。これは通常一時的なエラーで、高負荷の状況やエンドポイントに一時的な問題がある場合に発生します。 | 他の人も同様の問題に直面していないか、X API の[ステータスページ](/ja/status)または[開発者コミュニティフォーラム](https://devcommunity.x.com/)を確認するか、しばらく待ってから再試行してください。 |
+| 501 | Unimplemented | X API はこのエンドポイントをサポートしておらず、リクエストを完了できません。 |  |
+| 503 | Service Unavailable | X のサーバーは稼働していますが、リクエスト過多により過負荷です。後でもう一度お試しください。 | 他の人も同様の問題に直面していないか、X API の[ステータスページ](/ja/status)または[開発者コミュニティフォーラム](https://devcommunity.x.com/)を確認するか、しばらく待ってから再試行してください。 |
+
+リクエスト中にエラーが発生した場合、問題の診断に役立つ詳細情報がレスポンスボディで返されます。type フィールド（URI）が問題の性質を示し、追加のフィールドが問題の詳細を提供します。これらのボディでは、type、title、detail フィールドが常に返されます（以下の表を参照）。以下の例のようなその他のフィールドは、エラーの種類に応じて異なります。
+
+```json
+{
+  "client_id": "101010101",
+  "required_enrollment": "Standard Basic",
+  "registration_url": "https://developer.twitter.com/en/account",
+  "title": "Client Forbidden",
+  "detail": "このリクエストは、要求されたエンドポイントに登録済みの承認された開発者アカウントで行う必要があります。詳しくはドキュメントをご覧ください。",
+  "reason": "client-not-enrolled",
+  "type": "https://api.x.com/2/problems/client-forbidden"
+}
+```
+
+<div id="partial-errors">
+  ## 部分的なエラー
+</div>
+
+場合によっては、200 ステータスコードを返したレスポンス内に、上記のエラーが含まれることがあります。その場合、エンドポイントは返せるデータを返す一方で、返せなかった内容についての詳細なエラーも提供するように設計されています。
+
+たとえば、[Posts lookup endpoint](/ja/x-api/posts/lookup/introduction) では、X の[Developer App](/ja/resources/fundamentals/developer-apps#overview) から複数の ID をリクエストできます。これらの投稿の一部が取得可能で、うち 1 件が削除されている場合、取得可能な投稿はレスポンスの data フィールドに返されます。さらに、返せなかったリクエスト対象の投稿がどれかを示す errors フィールドがペイロードに含まれます。問題の診断を容易にするため、リクエスト全体が失敗した場合のエラーと同じ形式が使用されます。
+
+<div id="error-information">
+  ### エラー情報
+</div>
+
+各問題タイプは、発生した不具合の種類を示します。起こり得る問題の全リストは、[API 仕様](https://api.x.com/2/openapi.json)にも掲載しています。
+
+X API は、すべてのリクエストに対して適切な[HTTP ステータスコード](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes)を返すよう努めます。
+
+| タイトル | タイプ | 説明 |
+| :--- | :--- | :--- |
+| 一般的な問題 | `about:blank` | HTTP ステータスコードで提供される情報以外に追加情報のない一般的な問題。 |
+| 無効なリクエストの問題 | `https://api.X.com/2/problems/invalid-request` | このリクエストが無効であることを示す問題。リクエストに POST のボディがある場合、内容が有効な JSON であり、[OpenAPI 仕様](https://api.x.com/2/openapi.json)に準拠していることを確認してください。 |
+| リソース未検出の問題 | `https://api.X.com/2/problems/resource-not-found` | 指定された投稿、ユーザーなどが存在しないことを示す問題。 |
+| リソース認可エラーの問題 | `https://api.X.com/2/problems/not-authorized-for-resource` | 特定の投稿、ユーザーなどを閲覧する権限がないことを示す問題。 |
+| クライアント禁止の問題 | `https://api.X.com/2/problems/client-forbidden` | クライアントがこのリクエストの実行を禁止されていることを示す問題。 |
+| 不許可リソースの問題 | `https://api.X.com/2/problems/disallowed-resource` | 要求されたリソースがこの API の規範に違反していることを示す問題。 |
+| 非対応認証の問題 | `https://api.X.com/2/problems/unsupported-authentication` | 使用された認証方式がサポートされていないことを示す問題。 |
+| 使用量上限超過の問題 | `https://api.X.com/2/problems/usage-capped` | 使用量の上限を超えたことを示す問題。 |
+| 接続例外の問題 | `https://api.X.com/2/problems/streaming-connection` | 接続に不具合があることを示す問題。 |
+| クライアント切断の問題 | `https://api.X.com/2/problems/client-disconnected` | クライアントが切断されました。 |
+| 運用上の切断の問題 | `https://api.X.com/2/problems/operational-disconnect` | 運用上の理由により切断されました。 |
+| ルール上限の問題 | `https://api.X.com/2/problems/rule-cap` | ルールの最大数を超えました。 |
+| ルール長の問題 | `https://api.X.com/2/problems/rule-length` | アクセスレベルに基づき、クエリまたはルールで許可される最大文字数を超えました。[アクセスレベル](/ja/x-api/getting-started/about-x-api#x-api-access-levels-and-versions)を参照してください。 |
+| 無効なルールの問題 | `https://api.X.com/2/problems/invalid-rules` | 提出したルールが無効です。 |
+| 重複ルールの問題 | `https://api.X.com/2/problems/duplicate-rules` | 提出したルールが重複しています。 |
+
+<div id="troubleshooting-tips">
+  ## トラブルシューティングのヒント
+</div>
+
+<Accordion title="コードのデバッグ">
+  アプリケーションを構築する際、時折エラーや予期せぬ問題に遭遇するのは珍しくありません。以下はコードをデバッグする際のヒントです。
+
+  まず、問題を小さな要素に分解し、原因箇所を特定しましょう。たとえば、REST またはストリーミングのエンドポイントを統合している場合、次の点に問題がある可能性があります。
+
+  - エンドポイントには適切な[認証](/ja/resources/fundamentals/authentication/overview)が必要です。
+  - エンドポイントには有効なパラメータとヘッダーが必要です。フィルタリングルールは、正しいオペレーターと適切な[構文](/ja/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries)で構築されている必要があります。
+  - エンドポイントの URI が正しく、REST エンドポイントの場合は適切な HTTP メソッドを使用している必要があります。
+  - 取得しようとしているデータ／リソースにアクセスできない（例：非公開データは認証済みユーザーのみが利用可能）。
+  - 現在のデータパッケージでは、特定のエンドポイントおよびレート制限のみにアクセス可能です。詳細は[デベロッパーポータル](https://developer.x.com/en/portal/products)をご確認ください。
+  - コードでエンドポイント統合のためにサードパーティ製ライブラリを使用している。
+  - コードでエンドポイントのレスポンスを正しくパースする必要がある。
+
+  併せて返されるエラーメッセージを読みましょう。問題の特定に有用な手掛かりが得られます。[エラーとレスポンスコードのセクション](#x-api-http-status-codes)にある表を参照して、各エラーコードに特化したトラブルシューティングのヒントを確認してください。
+
+  REST エンドポイントの場合、[Postman](https://www.postman.com/) や [Insomnia](https://insomnia.rest/) などの REST クライアントを使って、上記のステップ (1)〜(5) を検証できます（["Getting started with Postman"](/ja/tutorials/postman-getting-started) も参照）。REST クライアントでのリクエストが 200（成功）ステータスコードを返す場合、問題はエンドポイントのリクエスト自体ではなく、コードまたは使用中のライブラリ側にあると考えられます。
+
+  ストリーミングエンドポイントの場合、cURL（URL 構文でリクエストの送受信を行うコマンドラインツール）を使用して、問題がエンドポイントへのリクエスト（上記ステップ (1)〜(5)）にあるのか、コード側（上記ステップ (6)〜(7)）にあるのかを切り分けられます。
+</Accordion>
+
+<Accordion title="認証に関する問題">
+  - エンドポイントに必要な適切な[認証方法](/ja/resources/fundamentals/authentication/overview)を使用しているか確認してください。エンドポイントの API リファレンスページで確認できます。
+  - 認証情報が正しいか確認してください。開発者ダッシュボードの [Apps セクション](https://developer.x.com/en/portal/projects-and-apps)（「Details」内）で、App のキーとトークンを確認または再生成できます。
+  - `oauth_nonce`、`oauth_signature`、`oauth_timestamp` を用いて[OAuth 1.0a リクエストを正しく認可](/ja/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request)しているか確認してください。
+  - 問題が解決しない場合は、OAuth ライブラリ、[Postman](https://www.postman.com/) や [Insomnia](https://insomnia.rest/) といった REST クライアント、または [xurl](https://github.com/xdevplatform/xurl) の利用を検討してください。
+
+  上記の詳細については、[認証に関するガイド](/ja/resources/fundamentals/authentication/overview)をご覧ください。
+</Accordion>
+
+<Accordion title="レート制限と投稿上限の問題">
+  429 エラーは、特定のエンドポイントのレート制限に達した場合、または投稿上限に達した場合に返されることがあります。
+
+  「Too many requests」という特定のエラーが返された場合は、そのエンドポイントのレート制限に達しています。つまり、指定された時間内に当該エンドポイントで許可されている最大リクエスト数を超過しています。
+
+  レート制限はアプリ単位およびユーザー単位で設定されている点に注意してください。
+
+  - **X アプリレベル**は、OAuth 2.0 App-Only を使用する際に許可されるリクエスト数を示し、レート制限はアプリ全体に対してグローバルに適用されます。たとえば、あるメソッドがレート制限ウィンドウあたり 15 件のリクエストを許可する場合、あなたの X アプリとしてウィンドウごとに 15 件のリクエストを実行できます。この制限はユーザーレベルの制限とは完全に独立しています。詳細は [OAuth 2.0 App-Only](/ja/resources/fundamentals/authentication/oauth-2-0/application-only) のガイドを参照してください。
+  - **ユーザーコンテキストレベル**は、OAuth 1.0a User Context または OAuth 2.0 Authorization Code with PKCE を使用する際に、ユーザーの Access Token ごとに行えるリクエスト数を示します。たとえば、あるメソッドがレート制限ウィンドウあたり 15 件のリクエストを許可する場合、ウィンドウごと・ユーザーの Access Token ごとに 15 件のリクエストが可能です。ユーザーの Access Token を取得する方法は [OAuth 1.0a](/ja/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) および [OAuth 2.0](/ja/resources/fundamentals/authentication/oauth-2-0/user-access-token) のガイドを参照してください。
+
+  まず、使用しているエンドポイントのレート制限を確認してください。この情報は、当該エンドポイントの API リファレンスページおよび新しいデベロッパーポータルのダッシュボードで確認できます。
+
+  レート制限に関する追加情報（特定のレート制限に対するアプリの現在の使用状況を追跡するための HTTP ヘッダーの使い方、429 レート制限エラーからの復旧方法、レート制限を回避するためのヒントなど）については、ドキュメントを参照してください。
+
+  - [v2 エンドポイントのレート制限](/ja/x-api/fundamentals/rate-limits)
+
+  「Usage cap exceeded: Monthly product cap」という特定のエラーを受け取った場合は、あなたのアクセスレベルにおける投稿上限に達したことを意味します。これらの[投稿上限](/ja/x-api/fundamentals/post-cap)の詳細は、ドキュメントページでご確認ください。
+</Accordion>
+
+<Accordion title="投稿欠落の問題">
+  Post が返されるはずなのにエンドポイントから配信されなかった場合は、以下の手順に従ってください。
+
+  - 正しい[オペレーター](/ja/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators)と[構文](/ja/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries)を使用しているかルールを確認してください。正しい構文を確認するため、ルールを小さな節に分割して検証してください。
+  - Post を送信したアカウントが Post 作成時に[保護された](https://help.twitter.com/en/safety-and-security/public-and-protected-tweets)状態だった場合、エンドポイントへのリクエスト時点でアカウントが公開であっても、その Post は返されません。通常、これは [X Advanced Search](https://x.com/search-advanced) で確認できます。X Advanced Search で当該 Post が表示されない場合は、エンドポイントからも返されないと考えてください。
+
+  以下の手順はストリーミングエンドポイントにのみ適用されます。
+
+  - Post が送信されたとき、ストリームに接続していましたか？Post オブジェクトで配信されるタイムスタンプは UTC を示す点に注意してください。Post が送信された際に切断が発生していた場合は、取りこぼしたデータを補完するために利用可能な[復旧と冗長化の機能](/ja/x-api/posts/filtered-stream/integrate/recovery-and-redundancy-features#recovery-and-redundancy)を確認してください。
+  - Post が送信されたとき、ルールは有効でしたか？Post オブジェクトで配信されるタイムスタンプは UTC を示す点に注意してください。
+</Accordion>
+
+<Accordion title="バッファフルによる切断の問題">
+  ストリームが当社のデータ配信速度に追従できず、アプリがストリームから十分な速度でデータを取り込めていない場合、次のいずれかのエラーが発生することがあります:
+
+  ```
+  This stream has been disconnected because your client was unable to keep up with us.
+  ```
+
+  ```
+  This stream has been disconnected for operational reasons.
+  ```
+
+  当社側では、一定期間の遅延を許容し、各ストリームに一時的なステージングバッファを設けています。しかし、追いつけない場合は、現時点から再接続できるよう切断を行います。なお、バッファフルによる切断時点でバッファ内にあるデータについては、損失が発生する可能性があります。
+
+  これらはデータの急増時に発生することがあります。一般的には、処理プロセスとは分離した、迅速な取り込みのためのバッファリングプロセスを用いることを推奨します。
+
+  エンタープライズのお客様で v1.1 エンドポイントをご利用の場合、アプリを最適化してこのような切断を防ぐ方法については、[接続](/ja/x-api/enterprise-gnip-2.0/powertrack-api#disconnections-explained)に関する記事、ならびにストリーミングデータの取り込みに関する[こちら](https://developer.x.com/en/docs/tutorials/consuming-streaming-data)および[こちら](/ja/x-api/enterprise-gnip-2.0/powertrack-api#planning-for-high-volume-social-data-events)をご覧ください。
+
+  切断により取り逃した投稿を取得するためのツールが複数あり、以下に挙げます。なお、これらのツールはエンタープライズレベルのアクセスにおける v1.1 エンドポイントでのみ提供されています。
+
+  - [**冗長接続**](/ja/x-api/enterprise-gnip-2.0/powertrack-api#recovery-and-redundancy-features) - 複数の接続で複数サーバーからストリームを取り込み、いずれかが切断されてもデータの取り逃しを防ぎます。
+  - [**リプレイ**](/ja/x-api/enterprise-gnip-2.0/powertrack-api#recovery-and-redundancy-features) - 別のストリームを使用して直近5日分のデータを回復します。
+  - [**バックフィル**](/ja/x-api/enterprise-gnip-2.0/powertrack-api#recovery-and-redundancy-features) - 5分以内に再接続し、中断した地点から再開します。
+  - **Historical PowerTrack** - X の全アーカイブからデータを回復します。
+</Accordion>
+
+<div id="get-help">
+  ## サポートを受ける
+</div>
+
+X コミュニティフォーラムでは、X 開発者プラットフォームに関する技術的な質問を投稿できます。ここはディスカッションフォーラムで、他の開発者の質問や、X API の利用に関連する幅広いトピックの技術情報を見つけられます。
+
+質問への回答やディスカッションへの参加を通じて、ぜひフォーラムで交流してください。X の従業員もサポートのために参加しています。
+
+<Button href="https://devcommunity.x.com/">
+  X コミュニティフォーラム
+</Button>
+
+<div id="before-you-post-a-question">
+  ### 質問を投稿する前に
+</div>
+
+- 該当する情報がないか、X 開発者向けドキュメントで検索する
+- 他の開発者の類似質問をコミュニティフォーラムで検索する
+- コミュニティフォーラムのガイドラインを確認する
+
+<div id="when-you-post-a-question-make-sure-to-include-the-following-information">
+  ### 質問を投稿する際は、以下の情報を必ず含めてください
+</div>
+
+- 問題の説明
+- 実行した API コール（可能であればヘッダーも含めてください）
+- 返された X のレスポンス（エラーメッセージがあれば含めてください）
+- 想定していた結果
+- 実施したトラブルシューティング手順の一覧
+- 再現手順の一覧
+- 該当する場合、問題が発生した期間
+- 該当する場合、App ID、Post ID など
+- 関連するコードサンプルやスクリーンショット
+
+1 件の投稿につき、取り上げるトピック／質問は 1 つに限定してください。
+
+機能リクエストやフィードバックは、[X Developer Platform Feedback Form](https://t.co/devfeedback) からお送りください。
+
+アプリの停止などポリシー関連の問題については、[Policy support](https://help.twitter.com/forms/platform) にお問い合わせください。
+
+ログインやアカウントサポートなど X に関する問題については、[X Help Desk](https://help.twitter.com/en/contact-us) をご利用ください。

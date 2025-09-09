@@ -1,0 +1,165 @@
+---
+title: Comment se connecter aux points de terminaison avec le flux de code d’autorisation OAuth 2.0 avec PKCE
+sidebarTitle: OAuth 2.0 Effectuer des requêtes au nom des utilisateurs
+---
+
+<div id="how-to-connect-to-endpoints-using-oauth-20-authorization-code-flow-with-pkce">
+  ### Comment se connecter aux endpoints à l’aide du flux de code d’autorisation OAuth 2.0 avec PKCE
+</div>
+
+<div id="how-to-connect-to-the-endpoints">
+  #### Comment se connecter aux endpoints
+</div>
+
+Pour authentifier vos utilisateurs, votre application doit implémenter un flux d’autorisation. Ce flux vous permet de rediriger vos utilisateurs vers une fenêtre d’autorisation sur X. Ensuite, l’expérience principale de X affichera la fenêtre d’autorisation et gérera l’autorisation pour le compte de votre application. Vos utilisateurs pourront autoriser votre application ou refuser l’autorisation. Une fois leur choix effectué, X redirigera l’utilisateur vers votre application, où vous pourrez échanger le code d’autorisation contre un jeton d’accès (si l’utilisateur a autorisé votre application) ou gérer un refus (si l’utilisateur ne l’a pas autorisée).
+
+<div id="working-with-confidential-clients">
+  #### Travailler avec des clients confidentiels
+</div>
+
+Si vous travaillez avec des clients confidentiels, vous devrez utiliser le schéma d’[authentification Basic](https://datatracker.ietf.org/doc/html/rfc2617#section-2) pour générer un en-tête Authorization avec un encodage Base64 lors des requêtes vers les endpoints de jeton.
+
+Les `userid` et `password` sont séparés par un seul caractère deux-points (":") dans une chaîne encodée en Base64 au sein des informations d’identification.
+
+Un exemple ressemble à ceci :
+
+`-header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='`
+
+Si l’agent utilisateur souhaite envoyer l’ID client « Aladdin » et le mot de passe « open sesame », il utiliserait le champ d’en-tête suivant :
+
+`Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==`
+
+Pour créer l’en-tête d’autorisation Basic, vous devrez appliquer un encodage Base64 à votre Client ID et à votre Client Secret, qui peuvent être obtenus depuis la page « Keys and Tokens » de votre application dans le [developer portal.](https://developer.x.com/en/portal/dashboard)
+
+<div id="steps-to-connect-using-oauth-20">
+  #### Étapes pour se connecter avec OAuth 2.0
+</div>
+
+**Étape 1 : Construire une URL d’autorisation**
+
+Votre application doit construire une URL d’autorisation vers X, indiquant les scopes dont elle a besoin. Par exemple, si votre application doit consulter des Tweets, des utilisateurs et gérer les abonnements, elle doit demander les scopes suivants :
+
+`tweet.read%20users.read%20follows.read%20follows.write`
+
+L’URL contiendra également les paramètres `code_challenge` et `state`, en plus des autres paramètres requis. En production, utilisez une chaîne aléatoire pour le `code_challenge`.
+
+**Étape 2 : GET oauth2/authorize**
+
+Faites authentifier l’utilisateur et envoyez à l’application un code d’autorisation. Si vous avez activé OAuth 2.0 pour votre application, vous trouverez votre Client ID dans la page « Keys and Tokens » de votre application.
+
+Un exemple d’URL vers laquelle rediriger l’utilisateur :
+
+```
+https://x.com/i/oauth2/authorize?response_type=code&client_id=M1M5R3BMVy13QmpScXkzTUt5OE46MTpjaQ&redirect_uri=https://www.example.com&scope=tweet.read%20users.read%20follows.read%20follows.write&state=state&code_challenge=challenge&code_challenge_method=plain
+```
+
+Un exemple d’URL avec offline\_access :
+
+```
+https://x.com/i/oauth2/authorize?response_type=code&client_id=M1M5R3BMVy13QmpScXkzTUt5OE46MTpjaQ&redirect_uri=https://www.example.com&scope=tweet.read%20users.read%20follows.read%20offline.access&state=state&code_challenge=challenge&code_challenge_method=plain
+```
+
+Après une authentification réussie, le redirect\_uri recevra une requête contenant le paramètre auth\_code. Votre application doit vérifier le paramètre state.
+
+Exemple de requête issue de la redirection du client :
+
+```
+https://www.example.com/?state=state&code=VGNibzFWSWREZm01bjN1N3dicWlNUG1oa2xRRVNNdmVHelJGY2hPWGxNd2dxOjE2MjIxNjA4MjU4MjU6MToxOmFjOjE
+```
+
+**Étape 3 : POST oauth2/token - Jeton d’accès**
+
+À ce stade, vous pouvez utiliser le code d’autorisation pour créer un jeton d’accès et un jeton d’actualisation (uniquement si le scope `offline.access` est demandé). Vous pouvez effectuer une requête POST vers l’endpoint suivant :
+
+```
+https://api.x.com/2/oauth2/token
+```
+
+Vous devrez transmettre le `Content-Type` `application/x-www-form-urlencoded` via un en-tête. De plus, votre requête doit inclure : `code`, `grant_type`, `client_id`, `redirect_uri` et `code_verifier`.
+
+Voici un exemple de requête de jeton pour un client public :
+
+```json
+curl --location --request POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'code=VGNibzFWSWREZm01bjN1N3dicWlNUG1oa2xRRVNNdmVHelJGY2hPWGxNd2dxOjE2MjIxNjA4MjU4MjU6MToxOmFjOjE' \
+--data-urlencode 'grant_type=authorization_code' \
+--data-urlencode 'client_id=rG9n6402A3dbUJKzXTNX4oWHJ' \
+--data-urlencode 'redirect_uri=https://www.example.com' \
+--data-urlencode 'code_verifier=challenge'
+```
+
+Voici un exemple utilisant un client confidentiel : 
+
+```json
+curl --location --request POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='\
+--data-urlencode 'code=VGNibzFWSWREZm01bjN1N3dicWlNUG1oa2xRRVNNdmVHelJGY2hPWGxNd2dxOjE2MjIxNjA4MjU4MjU6MToxOmFjOjE' \
+--data-urlencode 'grant_type=authorization_code' \
+--data-urlencode 'redirect_uri=https://www.example.com' \
+--data-urlencode 'code_verifier=challenge'
+```
+
+**Étape 4 : Se connecter aux API**
+
+Vous êtes maintenant prêt à vous connecter aux points de terminaison avec OAuth 2.0. Pour ce faire, effectuez les requêtes à l’API comme avec l’[authentification par jeton Bearer](/fr/resources/fundamentals/authentication/oauth-2-0/application-only). Au lieu d’envoyer votre jeton Bearer, utilisez le jeton d’accès généré à l’étape précédente. En réponse, vous devriez recevoir la charge utile appropriée correspondant au point de terminaison demandé. Cette requête est identique pour les clients publics et confidentiels.
+
+Voici un exemple de requête :
+
+```json
+curl --location --request GET 'https://api.x.com/2/tweets?ids=1261326399320715264,1278347468690915330' \
+--header 'Authorization: Bearer Q0Mzb0VhZ0V5dmNXSTEyNER2MFNfVW50RzdXdTN6STFxQlVkTGhTc1lCdlBiOjE2MjIxNDc3NDM5MTQ6MToxOmF0OjE'
+```
+
+**Étape 5 : POST oauth2/token - jeton d’actualisation**
+
+Un jeton d’actualisation permet à une application d’obtenir un nouveau jeton d’accès sans solliciter l’utilisateur. Vous pouvez créer un jeton d’actualisation en effectuant une requête POST vers le point de terminaison suivant : https://api.x.com/2/oauth2/token. Vous devez ajouter l’en-tête `Content-Type` avec la valeur `application/x-www-form-urlencoded`. En outre, vous devez transmettre votre `refresh_token`, définir `grant_type` sur `refresh_token` et indiquer votre `client_id`.
+
+Cette requête fonctionne pour les clients publics :
+
+```json
+POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'refresh_token=bWRWa3gzdnk3WHRGU1o0bmRRcTJ5VUxWX1lZTDdJSUtmaWcxbTVxdEFXcW5tOjE2MjIxNDc3NDM5MTQ6MToxOnJ0OjE' \
+--data-urlencode 'grant_type=refresh_token' \
+--data-urlencode 'client_id=rG9n6402A3dbUJKzXTNX4oWHJ'
+```
+
+Voici un exemple pour les clients confidentiels :
+
+```json
+POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='\
+--data-urlencode 'refresh_token=bWRWa3gzdnk3WHRGU1o0bmRRcTJ5VUxWX1lZTDdJSUtmaWcxbTVxdEFXcW5tOjE2MjIxNDc3NDM5MTQ6MToxOnJ0OjE'\
+--data-urlencode 'grant_type=refresh_token'
+```
+
+**Étape 6 : POST oauth2/revoke - Révoquer un jeton**
+
+Un jeton de révocation invalide un jeton d’accès ou un jeton d’actualisation. Il permet d’activer une fonctionnalité de déconnexion côté client, afin d’effacer les informations d’identification de sécurité associées au flux d’autorisation qui ne sont plus nécessaires. Le jeton de révocation est destiné à une application pour révoquer un jeton, et non à un utilisateur. Vous pouvez créer une requête de révocation en envoyant une requête POST à l’URL suivante si l’application souhaite révoquer de manière programmatique l’accès qui lui a été accordé :
+
+```
+https://api.x.com/2/oauth2/revoke
+```
+
+Vous devrez transmettre, via un en-tête, le `Content-Type` égal à `application/x-www-form-urlencoded`, votre jeton et votre client\_id.
+
+Dans certains cas, un utilisateur peut souhaiter révoquer l’accès accordé à une application ; il peut le faire en visitant la [page des applications connectées](https://x.com/settings/connected_apps).
+
+```bash
+curl --location --request POST 'https://api.x.com/2/oauth2/revoke' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'token=Q0Mzb0VhZ0V5dmNXSTEyNER2MFNfVW50RzdXdTN6STFxQlVkTGhTc1lCdlBiOjE2MjIxNDc3NDM5MTQ6MToxOmF0OjE' \
+--data-urlencode 'client_id=rG9n6402A3dbUJKzXTNX4oWHJ'
+```
+
+Cette requête fonctionne pour les clients confidentiels :
+
+```bash
+curl --location --request POST 'https://api.x.com/2/oauth2/revoke' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='\
+--data-urlencode 'token=Q0Mzb0VhZ0V5dmNXSTEyNER2MFNfVW50RzdXdTN6STFxQlVkTGhTc1lCdlBiOjE2MjIxNDc3NDM5MTQ6MToxOmF0OjE'
+```

@@ -1,0 +1,879 @@
+---
+title: 互动 API
+---
+
+<div id="overview">
+  ## 概述
+</div>
+
+[`Enterprise`](https://developer.x.com/en/products/x-api/enterprise)
+
+_这是仅在我们受管访问级别内提供的企业级 API。要使用此 API，您必须先与我们的企业销售团队开通账户。 [了解更多](/zh/x-api/enterprise-gnip-2.0/enterprise-gnip)_
+
+Engagement API 提供帖子曝光与互动指标的访问。尽管大多数指标和端点要求您使用 [OAuth 1.0a 用户上下文](/zh/resources/fundamentals/authentication) 进行认证，但您可以使用 [OAuth 2.0 持有者令牌](/zh/resources/fundamentals/authentication#oauth-2-0) 和 /totals 端点访问公开的“收藏”“转发”“回复”以及“视频观看次数”指标。
+
+**注意：** 您可能会发现部分 X 网页仪表板上报告的数据与 Engagement API 报告的数据存在差异。出现这些差异的原因是，网页仪表板通常只显示在所选时间范围内发生的互动和/或曝光。例如，网页仪表板可能显示某个日历月内帖子产生的互动，而 Engagement API 可能会显示超出该月范围但仍在所请求时间范围内的互动。在这些情况下，应以 Engagement API 为准。
+ 
+
+<div id="request-endpoints">
+  ### 请求端点
+</div>
+
+Engagement API 提供三个请求端点：
+
+#### 当前总计：\[/totals]
+
+- 请求会返回所需帖子（Posts）的展示量总计指标和互动量总计指标
+- 仅限以下指标：Impressions、Engagements、Favorites、Replies、Retweets、Quote Tweets 和 Video Views
+- 支持使用 OAuth 1.0a 用户上下文，检索在**过去 90 天内**创建的帖子（Posts）的 **Impressions** 和 **Engagements** 指标
+- 支持使用 OAuth 2.0 Bearer 令牌，检索\*\*任何帖子（Post）\*\*的 **Favorites、Retweets、Quote Tweets、Replies** 和 **Video Views** 指标
+- 结果基于发起请求时的当前展示量与互动量的实时总计
+- 适用于为仪表板报告提供数据，以及跨多个 @handle 计算互动率
+- 支持每次请求最多为 250 条帖子（Posts）请求指标
+   
+
+#### 过去 28 小时：\[/28hr]
+
+- 请求可返回展示次数总指标、互动总指标，以及过去 28 小时内各项互动子指标的明细
+- 数据可按 Post ID 分组，并可在时间序列中按汇总、按天或按小时展示
+- 适用于跟踪新近创建内容的表现
+- 支持所有可用指标
+- 每次请求最多可为 25 条 Post 请求指标
+   
+
+#### 历史：\[/historical]
+
+- 请求可返回展示次数、互动量，以及最近一年内各项单独互动指标的细分，基于互动发生时间（而非帖子创建时间）。
+- 请求支持开始日期与结束日期参数，可灵活限定最长 4 周的时间范围。
+- 帖子互动数据仅可追溯至过去 365 天。
+- 数据可按帖子 ID 分组，或按时间序列聚合为按天或按小时。
+- 适用于将近期表现与历史基准对比评估，或构建某个 @handle 的历史表现画像。
+- 支持所有可用指标。
+- 每次请求最多可为 25 篇帖子请求指标。
+
+<div id="available-metrics">
+  ### 可用指标
+</div>
+
+下表介绍可通过 Engagement API 获取的指标类型。
+
+请参阅我们的[指标解读页面](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#interpreting-the-metrics)，了解上述指标的更多信息。
+
+| 指标 | 端点可用性 | 是否需要用户上下文 | 说明 |
+| :--- | :--- | :--- | :--- |
+| 展现次数 | 全部 | 是 | 统计该帖子被查看的次数。此指标仅适用于过去 90 天内发布的帖子。 |
+| 互动次数 | 全部 | 是 | 统计用户与该帖子互动的次数。此指标仅适用于过去 90 天内发布的帖子。 |
+| 收藏次数 | 全部 | 是 - /28hrs 与 /Historical<br /><br />否 - /totals | 统计该帖子被收藏的次数。 |
+| 转推次数 | 全部 | 是 - /28hrs 与 /Historical<br /><br />否 - /totals | 统计该帖子被转推的次数。 |
+| 引用推文 | /totals | 否 - /totals | 统计帖子被带评论转推（亦称 Quote）的次数。 |
+| 回复次数 | 全部 | 是 - /28hrs 与 /Historical<br /><br />否 - /totals | 统计该帖子被回复的次数。 |
+| 视频观看次数 | 全部 | 是 - /28hrs 与 /Historical<br /><br />否 - /totals | 统计给定帖子中的视频至少有两秒时间 50% 可见的次数。<br /><br />视频观看次数仅适用于不超过 1800 天的帖子。若你尝试请求超过 1800 天的帖子的视频观看次数，响应中会包含以下对象，另有一个单独对象包含你请求的其他指标：<br /><br />"unsupported\_for\_video\_views\_tweet\_ids": \["TWEET\_ID"]<br /><br />请注意：你在 X 自有产品（移动应用与网站）中看到的视频观看次数，可能与通过 /28hr 与 /historical 端点获得的数值存在差异。<br /><br />\* X 的用户界面以及 /totals 端点显示的视频观看次数，会将同一视频在所有帖子中的观看次数进行汇总。也就是说，界面中的该指标包含该视频在被转推或在其他帖子中重新发布的所有观看次数总和。此指标不包括动图（gif）的观看次数。<br />\* /28hr 与 /historical 端点提供的视频观看次数，仅包含你为其拉取指标的该特定帖子所产生的观看次数。此指标不包括动图（gif）的观看次数。 |
+| 媒体观看次数 | /28hr /historical | 是 | 统计你的媒体（自动播放与点击播放）的总观看次数，涵盖视频、动图和图片。 |
+| 媒体互动次数<br /><br />([原名 Media Clicks](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#recent-changes-to-the-engagement-api)) | /28hr /historical | 是 | 统计帖子中的媒体（如图片或视频）被点击的次数。 |
+| URL 点击次数 | /28hr /historical | 是 | 统计帖子中的 URL 被点击的次数。 |
+| 话题标签点击次数 | /28hr /historical | 是 | 统计帖子中的话题标签被点击的次数。 |
+| 详情展开次数 | /28hr /historical | 是 | 统计为查看更多详情而点击帖子的次数。 |
+| 永久链接点击次数 | /28hr /historical | 是 | 统计指向该帖子的永久链接（该帖子的独立网页）被点击的次数。 |
+| 应用安装尝试 | /28hr /historical | 是 | 统计从该帖子触发的应用安装事件的发生次数。 |
+| 应用打开次数 | /28hr /historical | 是 | 统计从该帖子触发的应用打开事件的发生次数。 |
+| 通过邮件分享 | /28hr /historical | 是 | 统计该帖子通过电子邮件被分享的次数。 |
+| 关注用户次数 | /28hr /historical | 是 | 统计通过该帖子对该用户（帖子作者）发起关注的次数。 || user\_profile\_clicks | /28hr /historical | 是 | 统计从此帖子点击该用户（帖子作者）个人资料的次数。 |
+
+<div id="engagement-groupings">
+  ### 互动分组
+</div>
+
+分组可对返回的互动指标进行自定义组织。每个请求最多可包含 3 个分组。你可以选择按以下一个或多个值对指标进行分组：
+
+_三个端点均支持：_
+
+- tweet.id
+- engagement.type
+   
+
+_`/28hr` 和 `/historical` 可提供时间序列指标，因此支持：_
+
+- engagement.day
+- engagement.hour
+
+如需了解有关分组的更多信息，请参阅指南部分中的 [Engagement API Grouping](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings) 页面。
+
+<div id="guides">
+  ## 指南
+</div>
+
+<div id="developer-getting-started-guide">
+  ### 开发者入门指南
+</div>
+
+<div id="introduction">
+  #### 简介
+</div>
+
+本文档旨在为开发者介绍如何集成 Engagement API。我们将先阐述集成的动机与价值，随后再深入讲解具体的技术实现方式。
+
+<div id="what-does-the-engagement-api-provide">
+  ##### **Engagement API 提供了什么？**
+</div>
+
+- Engagement API 可为任意 X 账号在过去 90 天内发布的自有帖子提供曝光与互动数据，前提是该账号已授权你的应用使用[三方 OAuth](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)代表其请求指标。这个功能强大且易于集成的方案可即时获取曝光以及更深层的互动数据，例如 URL 点击、#话题标签 点击等。
+- Engagement API 为任意帖子提供点赞、转发（Retweets）、引用转发（Quote Tweets）、回复以及视频观看次数的总计汇总指标。可用于便捷获取任意单条或一组帖子的基础互动数据。
+- Engagement API 通过让客户使用 15+ 项性能指标有效衡量内容表现，为社会化聆听、营销与发布平台创造新价值，从而衡量在 X 上的投资回报（ROI）。
+- Engagement API 是请求/响应式 API，允许应用开发者发送包含帖子 ID、所需指标和时间范围的请求，API 将即时返回数据。
+   
+
+<div id="why-integrate-example-use-cases">
+  ##### **为何要集成？示例用例**
+</div>
+
+- 了解内容的总体触达，看看有多少人查看。了解有多少人观看视频、点击链接、点击话题标签，或安装我的应用。
+- 生成总量与时间序列的互动指标。
+- 获取关于任何公开帖子（Post）的基础互动指标（点赞、转发、引用推文、回复）。
+- 利用这些指标判断哪些类型的帖子有效，从而更高频地发布此类内容，获得更多曝光与互动。
+- 当某条帖子达到 100 个点赞或其他阈值时，自动化执行营销动作（例如转发来自另一个自有账号的内容）。
+- 将各个活动相互对比并进行基准评估，作为 A/B 测试的工具。
+- 分析哪些内容类型更适合客服部门，以确定响应方式与时机。
+- 展示由我的平台发布内容的分析数据。
+   
+
+[Engagement API 于 2016 年推出](https://blog.x.com/official/en_us/a/2016/gnip-s-engagement-api-is-now-generally-available.html)，是首个可在大规模提供此类深入互动指标的 X API。Engagement API 易于使用，并可帮助客户实现流程自动化。以下是一个示例集成的案例研究：
+
+- [与红十字会衡量活动成效](https://blog.x.com/developer/en_us/topics/spotlight/2016/measuring-campaign-success-with-the-red-cross.html)[](https://simplymeasured.com/blog/true-twitter-impressions-and-url-clicks-new-from-simply-measured/#sm.0007werel134td8zqf02m2mduumr6)
+
+既然我们已经探讨了 Engagement API 的“为何”，接下来开始深入技术细节。
+
+<div id="integrating-the-engagement-api">
+  #### 集成 Engagement API
+</div>
+
+<div id="introduction-to-api">
+  ##### **API 简介**
+</div>
+
+Engagement API 是一个简单的 RESTful API，它接收以 JSON 编码的请求，并以 JSON 编码的互动指标作为响应。请求由三个主要部分组成（可通过以下链接查看详细文档）：
+
+- **_Post IDs_** 的数组。
+- 指定感兴趣[指标类型](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes)的数组。类型包括 “impressions”、“retweets”、“hashtag\_clicks” 和 “user\_follows” 等。
+- [Engagement 分组](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)，这是一个 JSON 结构，用于指示你希望在 API 响应中如何组织互动数据。
+
+在许多情况下，Engagement 类型和分组在不同请求之间会相对保持不变，通常只会更新 Post IDs。
+
+Engagement API 提供了[三个端点](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#RequestEndpoints)：
+
+- **Totals** - 提供帖子的互动总计。一些指标对所有帖子可用，而另一些仅限过去 90 天。
+- **28 hour** - 提供过去 28 小时的时间序列互动指标。
+- **Historical** - 为 2014 年 9 月 1 日以来发布的帖子提供最长连续四周的时间序列互动指标。
+
+**/totals** 端点支持每次请求最多为 **250 个帖子** 获取指标。**/28hour** 和 **/historical** 端点支持 **每次请求 25 个**。
+
+在介绍如何获取 Engagement API 访问权限之后，我们将演示如何发起 API 请求，概述 OAuth，并提供其他技术资源链接。
+
+<div id="getting-api-access">
+  ##### **获取 API 访问权限**
+</div>
+
+如果你正在阅读本文档，你很可能已经拥有 Engagement API 的访问权限。若尚未获得，请联系你的企业级客户经理，或在[此处](/zh/x-api/enterprise-gnip-2.0/enterprise-gnip)申请企业级访问。
+
+第一步是通过[开发者门户](/zh/resources/fundamentals/developer-portal)使用经批准的开发者账户创建一个[X 应用](/zh/resources/fundamentals/developer-apps)。你的客户经理需要此应用关联的数字型 App ID 以便为你开通访问。如果你需要申请开发者账户，可以在[此处](/zh/resources/fundamentals/developer-apps)申请。
+
+<div id="making-a-request">
+  ##### **发起请求**
+</div>
+
+好消息是向 Engagement API 发起请求非常简单。在我们的请求中，我们将获取以下两个 [@XDevelopers](https://x.com/XDevelopers) 帖子的总转推数、引用推文数、收藏数和回复数：
+
+> 1/ Today we're sharing our vision for the future of the X API platform![https://t.co/XweGngmxlP](https://t.co/XweGngmxlP)
+>
+> — Twitter Dev (@TwitterDev) [April 6, 2017](https://x.com/TwitterDev/status/850006245121695744)
+
+> Don't miss the Posts about your Post.
+>
+> Now on iOS, you can see Retweets with comments all in one place. [pic.x.com/oanjZfzC6y](https://t.co/oanjZfzC6y)
+>
+> — X (@X) [May 12, 2020](https://x.com/status/1260294888811347969?ref_src=twsrc%5Etfw)
+
+第一步是构建 JSON 格式的 API 请求，包含放在数组中的这两个帖子 ID、感兴趣的互动类型数组，以及一个自定义命名的"groupings" JSON 对象，用于指示我们希望在响应中如何组织指标。我们的请求如下所示：
+
+```json
+{
+  "tweet_ids": [
+    1260294888811347969, 850006245121695744
+  ],
+  "engagement_types": [
+    "retweets", "quote_tweets", "favorites", "replies"
+  ],
+  "groupings": {
+    "engagement-types-by-id": {
+      "group_by": [
+        "Tweet.id", "engagement.type"
+      ]
+    }
+  }
+}
+```
+
+要获取这些总指标，我们将此 JSON 请求 POST 到 https://data-api.x.com/insights/engagement/totals 端点。
+
+我们将包含以下请求头来指示我们的请求采用 JSON 编码，并且已进行 Gzip 压缩（请求体可能会很大）：
+
+- Content-Type: application/json
+- Accept-Encoding: gzip
+
+发起请求时，我们使用 OAuth 进行身份验证，我们将在下一节中详细讨论。
+
+API 返回以下响应：
+
+```json
+{
+  "grouping name": {
+    "1260294888811347969": {
+      "favorites": "17111",
+      "quote_tweets": "3254",
+      "replies": "1828",
+      "retweets": "5218"
+    },
+    "850006245121695744": {
+      "favorites": "492",
+      "quote_tweets": "66",
+      "replies": "42",
+      "retweets": "324"
+    }
+  }
+}
+```
+
+请注意，响应中包含我们请求的指标，结构按照"groupings"定义组织，指标首先按帖子 ID 列出，然后在下一级按互动类型列出。
+
+这非常简单。如果您是 OAuth 身份验证的新手，请查看下一节。
+
+<div id="authenticating-with-oauth">
+  #### 使用 OAuth 进行认证
+</div>
+
+OAuth 是技术行业中非常常见的认证标准。如果你已经在使用 OAuth（可能用于其他 X API），很可能在使用某种特定语言的 OAuth 库来屏蔽复杂细节。若你是 OAuth 新手，请访问我们的[结合 X API 使用 OAuth](/zh/resources/fundamentals/authentication)页面，或直接前往 [https://oauth.net](https://oauth.net/) 了解更多。随后，我们建议你为所用集成语言选择合适的 OAuth 库并从那里入手。使用这些库，通常的认证流程包括：配置密钥与令牌、创建某种 HTTP 对象，然后用该对象发起请求。
+
+例如，在 Ruby 生态中，以下伪代码展示了使用 Ruby gem ‘oauth’ 构建支持 OAuth 的应用并发起 POST 请求的示例：
+
+```js
+require 'oauth'
+
+# 组装 JSON 请求（如上）。
+request = make_json_request()
+
+# 使用我的应用 consumer key 和 secret 构建应用 consumer 对象。
+consumer = OAuth::Consumer.new(keys['consumer_key'], keys['consumer_secret'], {:site => ‘https://data-api.x.com’})
+# 使用授予权限的账号提供的令牌构建用户令牌。若进行仅应用请求（使用 /totals 端点获取无需权限的帖子汇总），可跳过此步骤。
+token = {:oauth_token => keys['access_token'], :oauth_token_secret => keys['access_token_secret']}
+
+# 创建启用 OAuth 的应用访问对象。
+app = OAuth::AccessToken.from_hash(consumer, token)
+# 发起 POST 请求。
+result = app.post(“/insights/engagement/totals", request, {"content-type" => "application/json", "Accept-Encoding" => "gzip"})
+```
+
+Engagement API 同时支持仅应用与用户上下文两种认证方式。如果你使用 /totals 端点收集未拥有的公开帖子 engagement 指标，则无需用户授权，可使用仅应用认证。在这种情况下，你只需使用应用的 key 和 secret 进行认证。
+
+OAuth 也允许应用使用与用户关联的令牌“代表该用户”发起 API 请求。如果你要为已拥有的帖子生成 Engagement 指标（即由你持有其用户令牌的用户发布的帖子），则需要以用户上下文发起请求，这意味着需同时使用应用的密钥以及用户特定的访问令牌。这些用户访问令牌通常通过“[使用 X 登录](/zh/resources/fundamentals/authentication#log-in-with-x)”流程提供，或直接由用户提供（请注意，如果你直接从用户处获取令牌，必须使用 [xurl](https://github.com/xdevplatform/xurl)）。一旦用户提供了令牌，这些令牌不会过期，可用于在 Engagement API 中代表他们发起请求；只要用户未重置令牌或更改密码。若发生上述情况，他们需要向你提供新的令牌。
+
+你可以通过[此表](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)查看各指标所需的认证方式。
+ 
+
+<div id="selecting-an-engagement-api-endpoint">
+  ### 选择 Engagement API 端点
+</div>
+
+Engagement API 提供三个不同的端点：
+
+- **[Totals](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)** - 提供“owned”和“unowned”帖子部分指标的总量汇总。部分指标适用于所有帖子，另一些仅适用于过去 90 天内发布的帖子。每次请求最多支持 250 篇帖子。
+- **[28 hour](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)** - 为过去 28 小时内的“owned”帖子提供时间序列的参与度指标。每次请求最多支持 25 篇帖子。
+- **[Historical](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-historical)** - 为自 2014 年 9 月 1 日以来发布的“owned”帖子提供最长连续四周的时间序列参与度指标。每次请求最多支持 25 篇帖子。
+   
+
+每个端点都有其独特特性。无论您计划同时使用这三个端点，还是在决定哪个最符合您的用例，理解它们之间的差异都很重要。
+
+下面我们将介绍一些关键概念，进一步探讨这三个端点，并给出与特定端点大致对应的示例用例。我们希望这些信息能帮助您更高效地集成这三个端点，或帮助您决定哪个单一端点最符合您的目标。
+ 
+
+<div id="key-concepts">
+  #### 关键概念
+</div>
+
+以下几个关键概念有助于阐明三个 Engagement API 端点各自的功能以及它们提供的数据。
+ 
+
+<div id="impressions-and-engagement-metrics">
+  ##### 展示次数与互动指标
+</div>
+
+展示次数表示某条帖子在 X 平台上以自然情境被查看的次数。在推广或付费情境中产生的展示次数不计入其中。在 Engagement API 之前，帖子的展示次数仅反映潜在曝光量，基于作者账号及任何转发该内容的账号的关注者数量进行估算，未考虑到用户实际上未看到该帖子的常见情况。
+
+Engagement API 生成的展示次数指标真实反映帖子被渲染并显示的次数。如果你的某位关注者未看到你的帖子，则不计为一次展示。
+
+Engagement API 提供 14 种独立的互动[指标类型](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#available-metrics)，每一种都对应用户在看到帖子时可以采取的一种具体操作，包括转发、点赞、回复、点击 #hashtags、链接和媒体等实体、关注作者，以及查看作者的个人资料。所有这些单独的操作都会汇总为一个 Engagements 指标。
+
+<div id="owned-and-unowned-x-content">
+  ##### 自有与非自有的 X 内容
+</div>
+
+Engagement 明确区分自有帖子和非自有帖子。自有帖子指由你的账户发布的帖子，或你已获得许可可请求其 Engagement 数据的帖子。与其他 X API 一样，你通过让其他 X 用户/账户共享访问令牌来获取许可，从而代表他们发起 API 请求。获取这些令牌的常见方式是使用[“使用 X 登录”流程](/zh/resources/fundamentals/authentication#log-in-with-x)。
+
+/totals 端点同时提供自有与非自有帖子的互动数据。对于非自有帖子，你可以请求帖子展示中公开可见的互动指标：Favorite、Retweet 和 Reply。对于这些指标，Engagement API 的价值在于能以自动化方式批量获取。对于自有帖子，/totals 端点还提供 Impression 和（总计）Engagement 指标。
+
+/28hr 和 /historical 端点仅提供自有帖子的指标，这意味着在请求这些端点时必须传递用户上下文。
+
+<div id="total-and-time-series-engagement-data">
+  ##### 总计与时间序列互动数据
+</div>
+
+顾名思义，/totals 端点仅返回各互动类型的总体总计。这些数值表示自帖子发布以来的最新累计总数。如果某个帖子刚发布且你多次请求其指标，这些总计通常会在每次请求时发生变化。
+
+/28hr 和 /historical 端点既可提供总体总计，也可提供时间序列数据。请求时间序列数据时，互动指标可汇总为按天或按小时的数据。  
+
+有关如何使用 /28hr 和 /historical 端点请求时间序列数据，请参阅我们关于[互动分组](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)的文档。
+
+<div id="endpoints-and-example-use-cases">
+  #### 端点与示例用例
+</div>
+
+鉴于前文所述的特性与差异，各个端点通常对应不同类型的用例。为便于您判断哪个端点最契合您的具体场景，以下给出了一些示例用户表述及相应的最佳端点。
+
+<div id="totals">
+  ##### **/totals**
+</div>
+
+- 我只需要访问部分指标类型（展示次数、互动、收藏、转发、引用、回复和视频观看量）。
+- 我需要获取任意帖子的基础互动数据，而不仅限于我拥有的帖子。
+- 我想将表现与竞争对手进行对比。
+- 我想跟踪某个话题标签或活动的基础互动统计，其中包含我不拥有的帖子。
+- 我不需要按天或按小时拆分的数据，只需要在发起请求时的当前总量。
+- 我需要一个可在报告或仪表板中展示的单一指标，并且不想存储任何数据。
+- 我想在页面加载时展示数据，只需发起请求并获取响应。
+- 我需要每天获取数十万甚至数百万帖子的数据访问能力。
+   
+
+<div id="28hr">
+  ##### **/28hr**
+</div>
+
+- 我需要访问全部 17 种指标类型。
+- 我想展示最近 28 小时内发布的帖子数据。
+- 我有一个每天运行一次的作业来获取所需数据，只需获取过去一天的数据。
+- 我需要按天或按小时拆分的指标。
+- 我想在仪表板中按小时展示活动的时间序列拆分。
+- 我需要对每天数十万条帖子具备高访问配额。
+- 我具备存储能力，可以每天刷新数据并保留累计统计。
+   
+
+<div id="historical">
+  ##### **/historical**
+</div>
+
+- 我需要访问全部 17 种指标类型。
+- 我需要获取可追溯至 2014 年 9 月发布的帖子历史数据。
+- 我想展示用于比较各广告系列的详细历史分析。
+- 我需要按日或按小时细分的指标。
+- 我不需要对 Engagement API 的高权限访问，每天只需获取几百到几千条帖子的数据显示即可。
+
+<div id="engagement-api-key-characteristics">
+  ### Engagement API 关键特性
+</div>
+
+- **RESTful API** 提供 JSON 数据，支持带 JSON 正文的 POST 请求。
+- **请求类型：** 客户端应用可以发起以下类型的请求：
+  - **累计互动量（Total engagements）** -- 向 /totals 端点发起 HTTP POST 请求
+  - **过去 28 小时互动量（Last 28-hour engagements）** -- 向 /28hr 端点发起 HTTP POST 请求
+  - **历史互动量（Historical engagements）** -- 向 /historical 端点发起 HTTP POST 请求
+- **OAuth 身份验证：**
+  - [OAuth 1.0 用户上下文](/zh/resources/fundamentals/authentication)：对于使用 [3-legged OAuth](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens) 授权你的应用的用户所拥有的帖子，所有可用指标均可用。发起请求时必须使用该用户的访问令牌。[](/zh/resources/fundamentals/authentication)
+  - [OAuth 2.0 Bearer Token](/zh/resources/fundamentals/authentication#oauth-2-0)：部分指标（转发、引用帖子、回复、点赞和视频观看次数）适用于任何公开帖子。
+- **请求元数据与结构**：请求数据为一个 JSON 对象，由帖子 ID 数组、互动类型数组以及互动分组结构组成。
+- **每次请求的帖子数量：**
+  - /totals 端点：250 个帖子 ID
+  - /28hr 端点：25 个帖子 ID
+  - /historical 端点：25 个帖子 ID
+- **互动指标可用性：**
+  - **/totals** -- 自帖子发布以来的累计指标。展示次数和互动次数适用于过去 90 天内发布的帖子；而转发、引用帖子、回复、点赞和视频观看次数适用于所有帖子。
+  - **/28hr** -- 自请求时间起的最近 28 小时。
+  - **/historical** -- 自 2014 年 9 月 1 日起的任意 28 天区间。
+- **指标类型：** 每个请求包含一个 [Metric Types](http://support.gnip.com/apis/engagement_api/overview.html#EngagementTypes) 数组。其可用性取决于端点；若从 /totals 端点请求，还取决于帖子是否获得用户授权。
+  - /totals 端点：
+    - 所有帖子：点赞、转发、引用帖子、回复、视频观看次数
+    - 需要 OAuth 1.0a 用户上下文：展示次数、互动次数、点赞、回复、转发
+  - /28hr 和 /historical 端点（需要使用帖子所有者访问令牌的 OAuth 1.0a 用户上下文）：展示次数、互动次数、点赞、回复、转发、URL 点击、话题标签点击、详情点击、永久链接点击、媒体点击、应用安装尝试、应用打开、帖子邮件、视频观看次数、媒体观看次数
+- **互动分组：** 每个请求包含一个 [Engagement Groupings](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings) 数组。通过这些分组，你可以自定义返回指标的组织方式。每个请求最多可包含三个分组。指标可按以下维度组织：
+  - 所有端点：帖子 ID、互动类型
+  - /28hr 和 /historical 端点：若指定以下附加分组，这些端点将提供时间序列：互动日期、互动小时
+- **集成预期：** 你的团队将负责以下事项：
+  - 创建并维护一个客户端应用，能够向 Engagement API 发送 HTTP 请求，并返回请求中包含的帖子 ID 的互动指标。
+- **限制**
+- 视频观看次数仅适用于发布不超过 1800 天的帖子。
+
+<div id="authenticating-with-the-engagement-api">
+  ### 使用 Engagement API 进行认证
+</div>
+
+> **请注意**： 
+>
+> 在开始使用该 API 之前，X 需要为你的开发者应用启用对 Engagement API 的访问。因此，请将你计划用于认证的应用 ID 提供给你的客户经理或技术支持团队。
+
+Engagement API 提供两种认证方式：[OAuth 1.0a](/zh/resources/fundamentals/authentication#oauth-1-0a-2) 和 [OAuth 2.0 Bearer Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。 
+
+**OAuth 2.0 Bearer Token**（也称“仅应用”）允许你访问公开的互动指标。在向 [/totals 端点](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-totals) 发起请求时，此方式可用于获取任何公开可见帖子（Posts）的收藏（即点赞）、转发、引用推文、回复和视频观看的总数。 
+
+**OAuth 1.0a**（也称“用户上下文”）允许你代表某个用户发起请求，并访问该用户的私有互动指标。 
+
+此认证方式在以下情况下是必需的：
+
+- 发送至 [/28hr 端点](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-28hr) 和 [/historical 端点](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-historical) 的所有请求
+- 访问以下任一私有指标：展示次数、互动次数、媒体观看、媒体互动、URL 点击、话题标签点击、详情展开、固定链接点击、应用安装尝试、应用打开、通过邮件分享帖子、用户关注，以及用户个人资料点击
+
+使用 OAuth 1.0a 发送请求时，你需要包含拥有该帖子或受保护资源的用户的访问令牌（Access Token 和 Secret）。如果在请求受保护的用户数据时未提供正确的用户访问令牌，Engagement API 将返回 `403 Forbidden` 错误。
+
+即使你代表拥有这些帖子（Posts）的用户进行认证，Engagement API 也不允许你获取[受保护帖子](https://help.x.com/en/safety-and-security/public-and-protected-tweets)的互动数据。尝试这样做将返回 `400 Bad Request` 错误，并带有消息 `"Tweet ID(s) are unavailable"`。
+
+如果你是代表自己的 X 账号（换言之，拥有该开发者应用的账号）发送请求，你可以直接在[开发者门户](https://developer.x.com/en/portal/projects-and-apps)的该开发者应用 “Keys and tokens” 选项卡下生成所需的访问令牌。
+
+如果你是代表其他用户发起请求，则需要使用三方（3-legged）OAuth 流程来获取所需的访问令牌。以下文档包含更多说明：[OAuth 1.0a: how to obtain a user’s access tokens](/zh/resources/fundamentals/authentication#oauth-1-0a-2)。
+
+有关更多示例（包括如何使用 OAuth 1.0a 进行认证），请参阅 [X Developers 提供的 Engagement API Python 示例代码](https://github.com/xdevplatform/enterprise-scripts-python/tree/master/Engagement-API)。
+
+<div id="recent-changes-to-the-engagement-api">
+  ### Engagement API 的最新变更
+</div>
+
+Engagement API 提供了极具价值的展示与互动指标，帮助您监控在 X 上活动的表现。为持续支持基于我们数据的营销决策，我们很高兴分享 Engagement API 的近期变更，这些改动使整个 X 的各项指标更加一致。
+
+我们近期对 Engagement API 进行了现代化更新，使其采用与 X 分析仪表板（analytics.x.com）相同的指标聚合方法。在推出这些新指标时，我们尽量谨慎以减少对 API 的破坏性更改，并于 2017 年 10 月 9 日部署了第一批变更。这些变更提升了您或您的客户在 X 上各类监测渠道之间的一致性。请参阅下方变更的详细说明：
+
+|     |     |
+| :--- | :--- |
+| **指标** | **变更** |
+| engagements | 我们已更新计入整体 engagements 的指标，使其与帖子分析仪表板保持一致。Engagements 衡量“人们与此帖子互动的次数”。<br /><br />对于包含视频或 GIF 等媒体的帖子，engagements 指标将不再包含媒体观看。媒体观看现可通过新的指标 _media\_views_ 获取。 |
+| media\_clicks\* | 此指标已被名为“_media\_engagements_”的新指标取代。 |
+| video\_views | 自 2018 年 7 月 6 日起，此指标可通过 [/totals](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement) 端点用于“非自有”帖子。这意味着您可以通过仅应用认证访问**所有**帖子的 视频观看 次数。<br /><br />您只能请求距离当前时间不超过 1800 天的 视频观看 数据。若尝试请求超过 1800 天的帖子的视频观看数据，您将收到以下返回：<br /><br />"unsupported\_for\_video\_views\_tweet\_ids": \["TWEET\_ID"]<br /><br />**请注意**，它与 media\_views 的不同在于，video\_views 遵循 MRC 标准：至少有 50% 的视频画面在视窗内且持续至少两秒。<br /><br />\*_另外，__您可能会看到 X 自有平台（移动应用与网站）中显示的视频观看指标，与您通过 /28hr 与 /historical 端点获得的数值之间存在差异。<br /><br />_ X 用户界面中显示并通过 /totals 端点提供的视频观看数，会将某个视频在所有帖子中的观看量聚合后展示。也就是说，UI 中的指标包含该视频在被转推或在不同帖子中再次发布所产生的合并观看次数。<br />_ /28hr 与 /historical 端点提供的视频观看数，仅包含您拉取指标的特定帖子所产生的观看。 |
+| media\_views | 包含跨视频、Vine、GIF 与图片的所有媒体观看（自动播放与点击播放）。<br /><br />**请注意**，带图片的帖子在分析仪表板中不显示 media\_views 指标，但 Engagement API 会返回该指标。 |
+| media\_engagements_ | 包含跨视频、Vine、GIF 与图片的媒体点击次数。此指标取代 _media\_clicks_。 |
+| quote\_tweets | 自 2020 年 7 月 7 日起，此指标可通过 /totals 端点用于“非自有”帖子。这意味着您可以通过仅应用认证访问所有帖子的引用帖数量。 |
+
+<div id="interpreting-the-metrics">
+  ### 解读指标
+</div>
+
+**注意：** 你可能会发现部分 X Web 仪表板上展示的数据与 Engagement API 报告的数据不一致。造成差异的原因是，Web 仪表板通常只显示所选时间范围内发生的互动和/或曝光。例如，Web 仪表板可能显示某个日历月内帖子产生的互动，而 Engagement API 可能会显示超出该月范围但仍在所请求时间范围内的互动。在这些情况下，应以 Engagement API 为准。
+ 
+
+<div id="impressions-and-engagement-data">
+  #### 展示量与互动数据
+</div>
+
+Engagement API 提供有机展示量与互动数据。
+
+展示量表示某条帖子在 X 平台上以有机情境被查看的次数。在推广或付费情境下被看到的帖子所产生的展示量不计入其中。
+
+互动表示某条帖子在有机和推广两种情境下被观众与之互动的次数。互动包括但不限于转帖、点赞、回复、URL 点击、话题标签点击、提及点击以及媒体观看。完整的互动动作列表请参阅 Engagement Data 部分。
+
+要计算基线互动率，请使用在所分析时间范围内该帖子的互动总数除以展示量总数。
+
+展示量与互动数据仅可从自有的 @handle，或已授权你的应用查看其帖子详情的 @handle 获取。Engagement API 会在内部跟踪相对于合同约定的 @handle 配额所请求的唯一 @handle 数量。建议在整个月内也在客户端跟踪 @handle 请求使用情况。  
+
+<div id="video-metrics">
+  #### 视频指标
+</div>
+
+在 X 中，有几种不同的指标用于表示媒体的曝光。首先是我们的视频观看量（Video Views）指标，遵循 MRC 标准：至少有两秒钟内视频画面有 50% 处于可视范围内。其次是媒体观看量（Media Views），它包含你的媒体在视频、Vine、GIF 和图片中的所有观看（自动播放和点击）。
+
+视频观看量指标适用于自有帖子，可通过 /28hour 和 /historical 端点获取；对于所有非自有帖子，可通过 /totals 端点获取。
+
+尽管 X 用户界面中的视频观看量指标使用相同的 MRC 标准，但请注意，X 自有平台（移动应用与网站）上显示的视频观看量，可能与通过不同 Engagement API 端点获得的数值存在差异。
+
+- /totals 端点和 X 用户界面提供的视频观看量，会显示给定视频在所有发布该视频的帖子中的聚合观看量。这意味着，通过 /totals 提供并在 X UI 中显示的指标，包含该视频在被转推或在不同帖子中转发/再发布时产生的合并观看量。
+- /28hour 和 /historical Engagement API 端点提供的视频观看量，仅包含你拉取指标的那个特定帖子所产生的观看量。
+
+请注意，我们不提供发布超过 1800 天的帖子的 视频观看量。相反，我们会返回一个对象，列出超过 1800 天的帖子。对于你请求的帖子，你仍会在单独的对象中收到所有其他指标。以下是一个响应示例：
+
+```json
+{
+  "unsupported_for_video_views_tweet_ids": [
+    "479311209565413376",
+    "477139122520219648"
+  ],
+  "grouping name": {
+    "479311209565413376": {
+      "favorites": "69",
+      "impressions": "1692",
+      "retweets": "142",
+      "video_views": "0"
+    },
+    "477139122520219648": {
+      "favorites": "10",
+      "impressions": "1023",
+      "retweets": "6",
+      "video_views": "0"
+    },
+    "1397568983931392004": {
+      "favorites": "268",
+      "impressions": "26803",
+      "retweets": "56",
+      "video_views": "17902"
+    }
+  }
+}
+```
+
+媒体观看量（Media Views）指标仅适用于自有帖子，可通过 /28hour 和 /historical 端点获取。
+
+<div id="engagement-api-groupings">
+  ### Engagement API 分组
+</div>
+
+分组用于自定义组织返回的互动指标。每个请求最多可包含 3 个分组。你可以按以下一个或多个值对指标进行分组：
+
+_三个端点均支持：_
+
+- tweet.id
+- engagement.type
+   
+
+_`/28hr` 和 `/historical` 可提供时间序列指标，因此支持：_
+
+- engagement.day
+- engagement.hour
+
+分组按顺序依次生效，因此你可以通过调整 `group_by` 值的顺序来改变期望的结果格式。包含四个 `group_by` 值的分组仅支持以下两种排列之一：
+ 
+
+```bash
+"group_by": [
+    "tweet.id",
+    "engagement.type",
+    "engagement.day",
+    "engagement.hour"
+  ]
+```
+
+或
+
+```bash
+"group_by": [
+    "engagement.type",
+    "tweet.id",
+    "engagement.day",
+    "engagement.hour"
+]
+```
+
+例如，如果你想生成按指标类型汇总的总计，请在请求中包含以下“分组”规范（有关组装请求的更多信息，请参阅 [API Reference](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement) 页面）：
+ 
+
+```json
+{
+  "engagement_types": [
+    "favorites",
+    "replies",
+    "retweets"
+  ],
+  "groupings": {
+    "Grand Totals": {
+      "group_by": [
+        "engagement.type"
+      ]
+    }
+  }
+}
+```
+
+使用此分组，Engagement API 的 JSON 响应将在根级包含一个 "Grand Totals" 属性，其中包含按指标类型汇总的总计：
+
+```json
+{
+  "Grand Totals": {
+    "favorites": "12",
+    "replies": "2",
+    "retweets": "2"
+  }
+}
+```
+
+要为按帖子 ID 分组的单条帖子生成覆盖 4 小时的时间序列指标，以下分组规范将作为请求的一部分：
+
+```json
+{
+  "start": "2016-02-10T17:00:00Z",
+  "end": "2016-02-10T21:00:00Z",
+  "tweet_ids": [
+    "697506383516729344"
+  ],
+  "engagement_types": [
+    "impressions",
+    "engagements"
+  ],
+  "groupings": {
+    "Tweets_MetricType_TimeSeries": {
+      "group_by": [
+        "tweet.id",
+        "engagement.type",
+        "engagement.hour"
+      ]
+    }
+  }
+}
+```
+
+使用此分组，Engagement API 的 JSON 响应将在根级包含一个 "Tweets\_MetricType\_TimeSeries" 属性，其中包含按帖子 ID、再按指标类型细分，并按小时划分的时间序列指标：
+
+```json
+{
+  "Tweets_MetricType_TimeSeries": {
+    "697506383516729344": {
+      "impressions": {
+        "2016-02-10": {
+          "17": "551",
+          "18": "412",
+          "19": "371",
+          "20": "280"
+        }
+      },
+      "engagements": {
+        "2016-02-10": {
+          "17": "8",
+          "18": "6",
+          "19": "3",
+          "20": "0"
+        }
+      }
+    }
+  }
+}
+```
+
+<div id="frequently-asked-questions">
+  ## 常见问题解答
+</div>
+
+`Enterprise`
+
+<div id="engagement-api">
+  ### 互动 API
+</div>
+
+<AccordionGroup>
+  <Accordion title="如何获取互动 API 的访问权限？">
+    互动 API 的访问通过企业订阅开通。请填写[此表单](/zh/x-api/enterprise-gnip-2.0/enterprise-gnip)与我们的销售团队联系。
+  </Accordion>
+
+  <Accordion title="系统如何按“@handle”跟踪我的使用量？">
+    如果你的合同对可与互动 API 一起使用的唯一 handle 数量设有限制，X 的内部系统会跟踪使用互动 API 查询到的帖子所对应的已认证用户的拥有者数量。客户也应在客户端记录这一唯一数量。目前没有用于检查互动 API 的 @handle 使用情况的使用量 API 或 UI。如果请求的 @handle 数量超过合同约定，系统不会阻止超量使用。在计费月末，将把查询到的唯一 @handle 数量与合同约定值进行对比，并按合同条款对超额部分收费。
+  </Accordion>
+
+  <Accordion title="我可以查看互动 API 的 @handle 使用情况吗？">
+    目前没有用于检查互动 API 的 @handle 使用情况的使用量 API 或 UI。如果请求的 @handle 数量超过合同约定，系统不会阻止超量使用。在计费月末，将把查询到的唯一 @handle 数量与合同约定值进行对比，并按合同条款对超额部分收费。
+
+    **返回负载中的 `engagements` 元数据字段不等于各类互动指标总和。为何如此？**
+
+    这是预期行为。`engagements` 元数据字段不一定与 API 返回的各单项互动指标之和一致，因为它可能包含在负载中未被单独拆分为具体指标的其他互动。换言之，把各类互动指标相加，可能不会等于负载中 `engagements` 字段的数值。
+
+    你可以将 `engagements` 元数据字段理解为对该帖子的任意点击或交互。
+     
+
+    **当帖子实际上没有 URL 时，负载响应中的 `url_clicks` 字段却返回了一个数字。这如何解释？**
+
+    这可能是因为帖子包含类似话题标签之类会生成链接的内容；如果用户点击，该点击会被计为一次 URL 点击。
+     
+  </Accordion>
+
+  <Accordion title="为什么我无法获取某个特定帖子的互动数据？">
+    你可能无法检索某个特定帖子的互动数据，原因包括：
+
+    - 你请求的帖子 ID 不在你用于代表第三方检索数据的认证令牌所允许的范围内，因此不可用。
+    - 你在 /totals 端点请求的帖子 ID 距今超过 90 天，因此无法返回曝光或互动指标。
+    - 你请求的帖子 ID 已不可用，通常表示该帖子已被删除或因其他原因不再公开可见。
+
+    请查看在上述任一情况下你可能会收到的[错误消息](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#error-messages)。
+  </Accordion>
+
+  <Accordion title="如何在互动 API 中处理速率限制？">
+    当你向互动 API 发起请求时，可使用响应头中的 `x-per-minute-limit` 和 `x-per-minute-remaining` 信息来监控你的用量。
+
+    `x-per-minute-limit` 表示你的配额上限，`x-per-minute-remaining` 表示你剩余的调用次数。
+  </Accordion>
+</AccordionGroup>
+
+<div id="error-troubleshooting-guide">
+  ### 错误排查指南
+</div>
+
+<AccordionGroup>
+  <Accordion title="我在进行身份验证时遇到问题">
+    请务必查阅我们关于使用 Engagement API 进行[身份验证的指南](/zh/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#authentication)。
+  </Accordion>
+
+  <Accordion title="我已提供正确的 consumer key 和 secret，以及 access token 和 access token secret，但返回了以下错误。我该怎么办？">
+    ```bash
+    [
+        Your account could not be authenticated. Reason: Unknown Authorization Type;
+    ]
+    ```
+
+    在尝试对 /totals 端点进行身份验证时，请不要使用任何 access token 或 secret。因为如果包含了这些 token，并尝试拉取与这些 token 不关联的帖子的内容，很可能会收到如下错误：
+
+    ```bash
+    [
+        Forbidden to access tweets: 1054424731825229824;
+    ]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<div id="still-cant-find-what-youre-looking-for">
+  ### 仍然没有找到所需内容？
+</div>
+
+<AccordionGroup>
+  <Accordion title="我有一个尚未得到解答的问题">
+    请联系技术支持，我们会尽快答复您。
+  </Accordion>
+</AccordionGroup>
+
+<div id="api-reference">
+  ## API 参考
+</div>
+
+<div id="post-insightsengagement">
+  ### **POST insights/engagement**
+</div>
+
+<div id="methods">
+  #### **方法**
+</div>
+
+| 方法 | 说明 |
+| :--- | :--- |
+| [POST /insights/engagement/totals](#Totals) | 获取一组推文的总曝光量和互动量。 |
+| [POST /insights/engagement/historical](#Historical) | 获取一组推文在最长 4 周时间范围内（可回溯至 2014 年 9 月 1 日）的曝光量和互动量。 |
+| [POST /insights/engagement/28hr](#api-28hr) | 获取过去 28 小时内一组推文的曝光量和互动量。 |
+
+<div id="authentication">
+  #### **身份验证**
+</div>
+
+Engagement API 要求使用 HTTPS，并同时支持 User Context 和 Application-Only OAuth。对 Engagement API 的大多数请求需要使用 3-Legged OAuth（User Context 的一种形式），这意味着你需要使用已由你的 Twitter 客户经理为 Engagement API 访问注册并批准的应用的 consumer key 和 secret，以及推文所有者的 access token 和 access token secret 来调用该端点。以下请求需要此类型的 OAuth：
+
+- 任何对 /totals 的请求，用于获取 Impressions 和 Engagements 指标类型（仅限自有推文）
+- 任何对 /28hr 的请求
+- 任何对 /historical 的请求
+
+对 Engagement API 的某些请求可以使用 Application-Only OAuth，这意味着你只需提供你的 consumer key 和 secret，或一个 bearer token。以下请求可以使用此类型的 OAuth 执行：
+
+- 任何对 /totals 的请求，用于获取 Favorites、Replies、Retweets 或 Video Views 指标类型（可针对任何推文检索）
+
+对于任何请求，你都需要在 [developer.x.com](https://developer.x.com/en/portal/dashboard) 提供的应用管理控制台中设置一个 Twitter 应用及相应的 API key。
+
+请注意：如果你已在 developer.x.com 上登录了你的 Twitter 账户，你可以通过 [Twitter 应用仪表板](https://developer.x.com/en/apps) 查看和编辑你现有的 [Twitter 应用](/zh/resources/fundamentals/developer-apps)。
+
+设置好应用后，你的应用 ID 需要得到你的客户代表批准，应用才能向 Engagement API 发出请求。访问令牌必须用于表示“当前用户”，代表其他用户发起的请求必须使用有效令牌进行签名。请确保在准备 OAuth 签名基字符串之前，在 URL 和 POST 正文中适当[对保留字符进行编码](https://tools.ietf.org/html/rfc3986)。
+
+有关如何开始使用 OAuth 的更多信息，请访问以下链接：
+
+- [OAuth 概览](/zh/resources/fundamentals/authentication)
+- [使用 3-Legged OAuth（也称为 User Context）](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)
+- [使用 Application-Only OAuth](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)
+
+<div id="post-insightsengagementtotals">
+  #### **POST /insights/engagement/totals**
+</div>
+
+该 totals 端点可一次性为多达 250 条推文检索当前的总曝光量和互动量。
+
+|     |     |
+| :--- | :--- |
+| **请求方法** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/totals` |
+| **内容类型** | `application/json` |
+| **压缩** | Gzip。要使用 Gzip 压缩发起请求，请在连接请求中添加 Accept-Encoding 头。  <br />该请求头应如下所示：  <br />  <br />`Accept-Encoding: gzip` |
+| **POST 格式** | 可通过 POST 方式发送请求，正文为一个 JSON 对象，包含一组推文 ID 及所需的分组方式。POST 正文的结构为一个包含 `tweets`、`engagements` 和 `groupings` 对象的数组。每个请求最多包含 250 个推文 ID。  <br />  <br />示例 POST 正文如下：  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />        "Tweet ID 1",<br />        "Tweet ID 2",<br />        "Tweet ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "favorites",<br />        "quote\_tweets"<br />    ],<br />    "groupings": \{<br />      "grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    }<br />  } |
+| **推文 ID** | 一个数组，包含要查询互动数据的推文的推文 ID。请注意，您只能请求由进行身份验证的 @handle 创建的推文的数据。每个请求最多可包含 250 条推文，且推文 ID 必须以字符串表示。 |
+| **互动类型** | 一个数组，包含要查询的互动指标类型。Totals 端点仅支持以下互动类型：`impressions`、`engagements`、`favorites`、`retweets`、`quote_tweets`、`replies`、`video_views`。  <br />`/totals` 端点支持检索过去 90 天内创建的推文的 `impressions` 和 `engagements`，以及任何推文的 `favorites`、`retweets`、`quote_tweets`、`replies` 和 `video_views`。 |
+| **分组** | Engagement API 的结果可按不同方式分组返回，以更好满足您的需求。每个请求最多可包含 3 个分组。  <br />  <br />对于每个分组，您可以定义自定义分组名称，便于在应用中引用该分组类型。  <br />  <br />定义分组名称后，您可以选择按 `tweet.id` 和/或 `engagement.type` 分组。  <br />  <br />分组按顺序依次生效，因此您可以通过调整 group\_by 值的顺序来改变结果格式。下面的示例将按推文 ID 和指标类型分别显示指标：  <br />  <br /><br />  "groupings": \{<br />      "my grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    } |
+| **POST 大小限制** | 每次请求最多可查询 250 个推文 ID。 |
+| **响应格式** | JSON。请在请求头中指定响应为 JSON 格式。 |
+| **速率限制** | 速率限制按分钟计算，具体取决于您的访问级别，并以合同为准。 |
+| **示例请求（公共指标）** | curl --request POST <br />  --url https://data-api.x.com/insights/engagement/totals <br />  --header 'accept-encoding: gzip' <br />  --header 'authorization: Bearer ' <br />  --header 'content-type: application/json' <br />  --data '\{<br />                "tweet\_ids": \[<br />                    "1070059276213702656","1021817816134156288","1067094924124872705"<br />                ],<br />                "engagement\_types": \[<br />                    "favorites","retweets","replies","quote\_tweets","video\_views"<br />                ],<br />                "groupings": \{<br />                    "perTweetMetricsUnowned": \{<br />                        "group\_by": \[<br />                            "tweet.id",<br />                            "engagement.type"<br />                        ]<br />                    }<br />                }<br />            } <br />  --verbose <br />  --compressed |
+| **示例请求** | curl --request POST <br />  --url https://data-api.x.com/insights/engagement/totals <br />  --header 'accept-encoding: gzip' <br />  --header 'authorization: OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  --header 'content-type: application/json' <br />  --data '\{<br />                "tweet\_ids": \[<br />                    "1060976163948904448","1045709644067471360"<br />                ],<br />                "engagement\_types": \[<br />                    "favorites","replies","retweets","video\_views","impressions","engagements"<br />                ],<br />                "groupings": \{<br />                    "perTweetMetricsOwned": \{<br />                        "group\_by": \[<br />                            "tweet.id",<br />                            "engagement.type"<br />                        ]<br />                    }<br />                }<br />            }' <br />  --verbose <br />  --compressed |
+| **示例响应（公共指标）** | \{<br />  "perTweetMetricsUnowned": \{<br />    "1021817816134156288": \{<br />      "favorites": "530",<br />      "quote\_tweets": "79",<br />      "replies": "147",<br />      "retweets": "323",<br />      "video\_views": "0"<br />    },<br />    "1067094924124872705": \{<br />      "favorites": "1360",<br />      "quote\_tweets": "29",<br />      "replies": "56",<br />      "retweets": "178",<br />      "video\_views": "5754512"<br />    },<br />    "1070059276213702656": \{<br />      "favorites": "69",<br />      "quote\_tweets": "5",<br />      "replies": "7",<br />      "retweets": "26",<br />      "video\_views": "0"<br />    }<br />  }<br />} |
+| **示例响应** | \{<br />  "perTweetMetricsOwned": \{<br />    "1045709644067471360": \{<br />      "engagements": "2",<br />      "favorites": "0",<br />      "impressions": "47",<br />      "replies": "0",<br />      "retweets": "8",<br />      "quote\_tweets": "5",<br />      "video\_views": "0"<br />    },<br />    "1060976163948904448": \{<br />      "engagements": "4",<br />      "favorites": "0",<br />      "impressions": "148",<br />      "replies": "1",<br />      "retweets": "9",<br />      "quote\_tweets": "2",<br />      "video\_views": "0"<br />    }<br />  }<br />} |
+| **不可用的推文 ID** | 对于包含已不可用推文 ID（例如已删除）的查询，系统会为所有可用的推文 ID 返回相应数据，而不可用的推文 ID 将在名为 `unavailable_tweet_ids` 的数组中列出。例如：  <br /><br />  \{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:00:00Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": "26",<br />      "quote\_tweets": "2"<br />     }<br />    }<br />  } |
+
+<div id="post-insightsengagement28hr">
+  #### **POST /insights/engagement/28hr**
+</div>
+
+“28 小时”端点可在过去 28 小时内，检索最多 25 条推文的曝光量和互动量。“28 小时”端点还支持请求所有受支持的单项指标。有关受支持指标的完整列表，请参见[指标可用性](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes)。
+
+|     |     |
+| :--- | :--- |
+| **请求方法** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/28hr` |
+| **内容类型** | `application/json` |
+| **压缩** | Gzip。要使用 Gzip 压缩发起请求，请在连接请求中加入 Accept-Encoding 头。  <br />该请求头应如下所示：  <br />  <br />`Accept-Encoding: gzip` |
+| **POST 格式** | 可作为 POST 请求发送，请求体为一个 JSON 对象，包含一组推文 ID 和所需的分组。POST 的结构为一个包含 `tweets`、`engagements` 和 `groupings` 对象的数组。每个请求最多可包含 25 个推文 ID。  <br />  <br />示例 POST 请求体如下：  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />       "推文 ID 1",<br />       "推文 ID 2",<br />       "推文 ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  } |
+| **推文 ID** | 一个数组，包含要查询互动数据的推文 ID。请注意，您只能请求由当前认证的 @handle 创建的推文的数据。28 小时端点每个请求最多支持 25 条推文，且推文 ID 必须以字符串表示。 |
+| **互动类型** | 一个数组，指定要查询的互动指标类型。  <br />  <br />对于 28 小时端点，支持的指标包括 `impressions`、`engagements`，以及所有单项互动类型。有关支持的互动指标的完整列表，请参阅 [Engagement Data](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#AvailableData)。 |
+| **分组** | Engagement API 的结果可按不同方式分组以满足您的需求。每个请求最多可包含 3 个分组。  <br />  <br />对于每个分组，您可以定义自定义分组名称，便于在应用中引用该分组类型。定义名称后，您可以选择按以下一个或多个值进行分组：  <br />`tweet.id`  <br />`engagement.type`  <br />`engagement.day`  <br />`engagement.hour`  <br />分组按顺序生效，您可以通过调整 group\_by 值的顺序来改变结果格式。以下示例显示按推文 ID、指标类型和日期分隔的分组：<br /><br />  "groupings": \{<br />    "my grouping name": \{<br />      "group\_by": \[<br />        "tweet.id",<br />        "engagement.type",<br />        "engagement.day"<br />      ]<br />    }<br />  }<br /><br />  <br />当 `group_by` 项为 4 个时，仅在使用以下两种顺序之一时有效。若单个分组中包含 4 个 `group_by` 项但不符合以下顺序之一，将返回错误。此外，每个请求仅允许有一个包含 4 个 `group_by` 项的分组。  <br /><br />"group\_by": \[<br />    "tweet.id",<br />    "engagement.type",<br />    "engagement.day",<br />    "engagement.hour"<br />  ]<br /><br />"group\_by": \[<br />    "engagement.type",<br />    "tweet.id",<br />    "engagement.day",<br />    "engagement.hour"<br />  ] |
+| **POST 大小限制** | 每次请求最多可查询 25 个推文 ID。 |
+| **响应格式** | JSON。请在请求头中将响应格式指定为 JSON。 |
+| **速率限制** | 按分钟限速；具体取决于您的访问级别，并以合同约定为准。 |
+| **示例请求** | curl -X POST "https://data-api.x.com/insights/engagement/28hr" <br />  -H 'Accept-Encoding: gzip' <br />  -H 'Authorization OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  -d '\{<br />    "tweet\_ids": \[<br />       "123456789"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements"<br />    ],<br />    "groupings": \{<br />      "hourly-time-series": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.day",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  }' |
+| **示例响应** | \{<br />    "start": "2015-09-14T17:00:00Z",<br />    "end": "2015-09-15T22:00:00Z",<br />    "hourly-time-series": \{<br />      "123456789": \{<br />        "impressions": \{<br />          "2015-09-14": \{<br />            "17": "551",<br />            "18": "412",<br />            "19": "371",<br />            "20": "280",<br />            "21": "100",<br />            "22": "19",<br />            "23": "6"<br />          },<br />          "2015-09-15": \{<br />            "00": "5",<br />            "01": "2",<br />            "02": "7",<br />            "03": "3",<br />            "04": "1",<br />            "05": "0",<br />            "06": "0",<br />            "07": "0",<br />            "08": "0",<br />            "09": "0",<br />            "10": "0",<br />            "11": "0",<br />            "12": "0",<br />            "13": "0",<br />            "14": "0",<br />            "15": "0",<br />            "16": "0",<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0"<br />          }<br />        },<br />        "engagements": \{<br />          "2015-09-14": \{<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0",<br />            "22": "0",<br />            "23": "0"<br />          },<br />          "2015-09-15": \{<br />            "00": "0",<br />            "01": "0",<br />            "02": "0",<br />            "03": "0",<br />            "04": "0",<br />            "05": "0",<br />            "06": "0",<br />            "07": "0",<br />            "08": "0",<br />            "09": "0",<br />            "10": "0",<br />            "11": "0",<br />            "12": "0",<br />            "13": "0",<br />            "14": "0",<br />            "15": "0",<br />            "16": "0",<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0"<br />          }<br />        }<br />      }<br />    }<br />  } |
+| **不可用的推文 ID** | 对于包含已不可用的推文 ID（例如已删除）的查询，将为所有可用的推文 ID 返回相应数据，而不可用的推文 ID 将在名为 `unavailable_tweet_ids` 的数组中列出。例如：  <br /><br />  \{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:00:00Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": 26<br />     }<br />    }<br />  } |
+
+<div id="post-insightsengagementhistorical">
+  #### **POST /insights/engagement/historical**
+</div>
+
+此历史端点可在任意最长 4 周的时间范围内，检索至多 25 条推文的展示量和互动数据。目前，无法通过 API 请求早于 2014 年 9 月 1 日的数据。该历史端点还支持对所有受支持的单项指标请求度量。有关受支持指标的完整列表，请参见[指标可用性](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes)。
+
+|     |     |
+| :--- | :--- |
+| **请求方法** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/historical` |
+| **内容类型** | `application/json` |
+| **压缩** | Gzip。要使用 Gzip 压缩发起请求，请在连接请求中发送 Accept-Encoding 头。  <br />该请求头应如下所示：  <br />  <br />`Accept-Encoding: gzip` |
+| **POST 格式** | 请求可作为 POST 发送，请求体为一个 JSON 对象，包含一组推文 ID 和所需分组。POST 的格式为一个包含 `tweets`、`engagements` 和 `groupings` 对象的数组。每个请求最多可包含 25 个推文 ID。每个请求可指定最长为四周的自定义开始和结束日期。  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />       "Tweet ID 1",<br />       "Tweet ID 2",<br />       "Tweet ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  } |
+| **开始和结束日期** | 可在请求中通过 `start` 和 `end` 指定自定义的开始和结束日期。你必须指定时长不超过 4 周的开始与结束日期。目前可用的最早开始日期是 2014 年 9 月 1 日。不支持将结束日期设定为未来时间。若未提供开始和结束日期，API 将默认使用紧邻当前之前的 4 周。  <br />  <br />参与度 API 返回数据的最低粒度为小时。对于开始或结束时间未落在整点边界的请求，将默认对其取就近的包含性整点。例如，请求 "start":"2015-07-01T12:24:00Z" 和 "end":"2015-07-10T08:37:00Z" 将默认为 "start":"2015-07-01T12:00:00Z","end":"2015-07-10T09:00:00Z"。 |
+| **推文 ID** | 一个数组，其中包含要查询参与度数据的推文的推文 ID。请注意，你只能请求由进行身份验证的 @handle 创建的推文的数据。4 周历史端点每次请求最多支持 25 条推文，且推文 ID 必须以字符串形式表示。 |
+| **参与度类型** | 一个数组，其中包含要查询的参与度指标类型。  <br />  <br />对于 4 周历史端点，支持的指标包括 `impressions`、`engagements` 以及所有单独的参与度类型。完整的支持指标列表请参见 [Engagement Data](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#AvailableData)。  <br />  <br />\*\*注意：\*\*目前，对于 2015 年 9 月 15 日之前的查询，有三项指标将显示为零：`favorites`、`replies` 和 `retweets`。 |
+| **分组** | Engagement API 的结果可以按不同方式分组返回，以更好地满足您的需求。每个请求最多可包含 3 个分组。  <br />  <br />对于每个分组，您可以定义一个自定义分组名称，便于在应用中引用此分组类型。定义分组名称后，您可以选择按以下一个或多个值进行分组：  <br />`tweet.id`  <br />`engagement.type`  <br />`engagement.day`  <br />`engagement.hour`  <br />分组按顺序依次生效，因此您可以通过调整 group\_by 值的顺序来改变期望的结果格式。以下示例分组将按 Tweet ID、指标类型和日期区分指标，格式如下：<br /><br />  "groupings": \{<br />    "my grouping name": \{<br />      "group\_by": \[<br />        "tweet.id",<br />        "engagement.type",<br />        "engagement.day"<br />      ]<br />    }<br />  }<br /><br />  <br />包含 4 个 `group_by` 项的分组仅在使用以下两种顺序之一时有效。在单个分组中包含 4 个 `group_by` 项但不符合以下顺序之一的请求将返回错误。此外，每个请求仅允许一个包含 4 个 `group_by` 项的分组。  <br /><br />"group\_by": \[<br />    "tweet.id",<br />    "engagement.type",<br />    "engagement.day",<br />    "engagement.hour"<br />  ]<br /><br />"group\_by": \[<br />    "engagement.type",<br />    "tweet.id",<br />    "engagement.day",<br />    "engagement.hour"<br />  ] |
+| **POST 大小限制** | 每次请求最多可提交 25 个 Tweet ID。 |
+| **响应格式** | JSON。请求头应指定响应采用 JSON 格式。 |
+| **速率限制** | 将按分钟进行速率限制，具体以您的访问级别和合同约定为准。 |
+| **示例请求** | curl -XPOST "https://data-api.x.com/insights/engagement/historical" <br />  -H 'Accept-Encoding: gzip' <br />  -H 'Authorization OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  -d '\{<br />    "start": "2015-08-01",<br />    "end": "2015-08-15",<br />    "tweet\_ids": \[<br />       "123456789",<br />       "223456789",<br />       "323456789"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "types-by-tweet-id": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    }<br />  }' |
+| **示例响应** | \{<br />    "start": "2015-08-01T00:00:00Z",<br />    "end": "2015-08-15T00:00:00Z",<br />    "types-by-tweet-id": \{<br />      "123456789": \{<br />        "impressions": "0",<br />        "engagements": "0",<br />        "url\_clicks": "0",<br />        "detail\_expands": "0"<br />      },<br />      "223456789": \{<br />        "impressions": "788",<br />        "engagements": "134",<br />        "url\_clicks": "30",<br />        "detail\_expands": "1323"<br />      },<br />      "323456789": \{<br />        "impressions": "4",<br />        "engagements": "0",<br />        "url\_clicks": "2",<br />        "detail\_expands": "0"<br />      }<br />    }<br />  } |
+| **不可用的推文 ID** | 对于包含已不可用推文 ID（例如已删除）的查询，将为所有可用的推文 ID 返回相应数据；不可用的推文 ID 将在名为 `unavailable_tweet_ids` 的数组中列出。例如：<br /><br />\{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:27:50Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": 26<br />     }<br />    }<br />  } |
+
+<div id="response-codes">
+  #### **响应代码**
+</div>
+
+| 状态 | 文本 | 描述 |
+| :--- | :--- | :--- |
+| 200 | OK  | 请求成功。 |
+| 400 | Bad Request | 通常是由于请求中包含无效的 JSON，或请求未发送任何 JSON 载荷而返回此响应。 |
+| 401 | Unauthorized | 由于凭据无效导致 HTTP 身份验证失败。请检查你的 OAuth 密钥和令牌。 |
+| 404 | Not Found | 在请求的 URL 未找到资源，通常是因为使用了不正确的 URL。 |
+| 429 | Too Many Requests | 你的应用已超出 API 请求配额。 |
+| 500 | Internal Server Error | Gnip 端发生错误。请使用指数退避策略重试你的请求。 |
+| 502 | Proxy Error | Gnip 端发生错误。请使用指数退避策略重试你的请求。 |
+| 503 | Service Unavailable | Gnip 端发生错误。请使用指数退避策略重试你的请求。 |
+
+<div id="error-messages">
+  #### **错误消息**
+</div>
+
+在不同场景下，Engagement API 会返回情境化的错误消息，您的应用应能妥善处理。下表列出了这些错误消息的常见示例及其解释。请注意，在许多情况下，Engagement API 会在 200 OK 响应中返回可用数据的部分结果，并附带特定错误消息以提供更多信息。
+
+| 错误消息 | 说明 |
+| :--- | :--- |
+| `"errors":["Your account could not be authenticated. Reason: Access token not found"]` | 请求中的身份验证出现错误。“Reason”部分会提供有助于排查的问题线索。若无法自行解决，请将包含“Reason”的完整错误发送给我们的支持团队。 |
+| `"errors":["1 Tweet ID(s) are unavailable"],"unavailable_tweet_ids": ["TWEET_IDS"]` | 您请求的 Tweet ID（或多个 ID）已不可用，通常表示其已被删除或因其他原因不再公开可见。 |
+| `"errors":["Impressions & engagements for tweets older than 90 days (*TIME_PERIOD*) are not supported"],"unsupported_for_impressions_engagements_tweet_ids":[*TWEET_IDS*]` | 您在 /totals 端点请求的 Tweet ID（或多个 ID）早于 90 天，因此无法返回展示或互动指标。 |
+| `"errors":["Forbidden to access tweets: *TWEET_IDS*"]` | 使用您当前用于代表第三方检索数据的身份验证令牌，所请求的 Tweet ID（或多个 ID）无权访问。 |

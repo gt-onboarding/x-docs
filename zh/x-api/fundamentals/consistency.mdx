@@ -1,0 +1,115 @@
+---
+title: 一致性
+---
+
+<div id="consistency-across-the-x-api-v2-endpoints">
+  ## X API v2 端点间的一致性
+</div>
+
+X API 的 v2 版本一个重要特性是各端点之间的一致性。这意味着在相似端点上，返回对象、功能以及 API 行为保持统一。
+
+你可以预期以下元素在所有端点上都是一致的：
+
+<div id="path-naming">
+  ### 路径命名
+</div>
+
+路径命名始终包含端点的[版本](/zh/x-api/fundamentals/versioning)，后接**资源**。此外，路径还可以包含与前述资源关联的**ID**、用于确定返回哪些数据的**选择动词**（例如 `search` 或 `sample`）、用于确定数据交付方式的**传输动词**（例如 `stream`），或与主资源存在**关联**的其他资源（例如 `/user/12/tweets`）。最后，如果该端点支持查询参数，你可以在末尾附加**查询参数**。
+
+以下是这些路径与查询项可能的组织方式示例：
+
+`/version/resource/id?param1=value&param2=value /version/resource/delivery/selection?param1=value&param2=value`
+
+实际请求示例：
+
+`/2/tweets/1067094924124872705?expansions=attachments.media_keys&tweet.fields=author_id /2/users/2244994945?user.fields=created_at,description /2/tweets/search/stream /2/tweets/search/recent?query=snow`
+
+<div id="json-schema">
+  ### JSON Schema
+</div>
+
+对请求的响应使用 [JSON Schema](http://json-schema.org/) 定义。这意味着，请求将始终以数组形式返回一组对象，且每个元素都有一个 ID。请求不会返回以 ID 作为键的映射（map）。
+
+<div id="response-object-and-parameters">
+  ### 响应对象与参数
+</div>
+
+默认返回的对象在该对象类型的每个端点上保持一致：
+
+- `id` 始终为字符串。
+- 参数和响应字段统一使用美式英语拼写。
+- 若无值，字段将为空或不返回。
+- `entities` 对象仅包含源自帖子文本的实体：包括 `urls`、`hashtags`、`mentions` 和 `cashtags`。
+- 所有与卡片相关的信息（包括 `media_keys` 和 `poll_ids` 字段）均在 `attachments` 对象中返回。
+
+以下是来自[单条帖子查询](/zh/x-api/posts/post-lookup-by-post-id)端点的响应对象示例（[tweet.fields](/zh/x-api/fundamentals/data-dictionary#tweet) 参数设置为 `author_id`、`entities`）：
+
+```json
+{
+   "data": {
+       "id": "1278747501642657792",
+       "text": "It's been a year since Twitter's Developer Labs launched.\n\nAs we build towards the next generation of the #TwitterAPI (coming VERY soon), see what we've learned and changed along the way. https://t.co/WvjuEWCa6G",
+       "author_id": "2244994945",
+       "entities": {
+           "urls": [
+               {
+                   "start": 188,
+                   "end": 211,
+                   "url": "https://t.co/WvjuEWCa6G",
+                   "expanded_url": "https://blog.x.com/developer/en_us/topics/tools/2020/a-year-with-twitter-developer-labs.html",
+                   "display_url": "blog.x.com/developer/en_u…",
+                   "images": [
+                       {
+                           "url": "https://pbs.twimg.com/news_img/1278747527043362816/7HQRkQeV?format=jpg&name=orig",
+                           "width": 1600,
+                           "height": 600
+                       },
+                       {
+                           "url": "https://pbs.twimg.com/news_img/1278747527043362816/7HQRkQeV?format=jpg&name=150x150",
+                           "width": 150,
+                           "height": 150
+                       }
+                   ],
+                   "status": 200,
+                   "title": "A year with Twitter Developer Labs: What we've learned and changed",
+                   "description": "Labs has been invaluable in helping us understand what works well and what doesn’t, what you liked and what you didn’t.",
+                   "unwound_url": "https://blog.x.com/developer/en_us/topics/tools/2020/a-year-with-twitter-developer-labs.html"
+               }
+           ],
+           "hashtags": [
+               {
+                   "start": 106,
+                   "end": 117,
+                   "tag": "TwitterAPI"
+               }
+           ]
+       }
+   }
+}
+```
+
+<div id="authentication">
+  ### 认证
+</div>
+
+所有 X API v2 端点都需要进行认证。其中许多端点接受 [OAuth 2.0 Bearer Token](/zh/resources/fundamentals/authentication#oauth-2-0) 方式，你需要在请求中附带 Bearer Token 才能成功调用该端点。
+
+对于需要代表其他用户创建、操作或检索数据的端点，请使用 [OAuth 1.0a 用户上下文（User Context）](/zh/resources/fundamentals/authentication)。这意味着需要提供你的[开发者应用](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)[API 密钥和令牌](/zh/resources/fundamentals/authentication#api-key-and-secret)，以及为所代表用户生成的一组[访问令牌（Access Tokens）](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)。你可以通过[三方（3-legged）OAuth 流程](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)获取访问令牌。建议使用可自动构建此授权头的[工具或库](/zh/x-api/tools-and-libraries/overview)。
+
+关于认证的更多信息，请参阅我们的[认证](/zh/resources/fundamentals/authentication)文档。
+
+<div id="fields">
+  ### 字段
+</div>
+
+各端点返回的对象是精简的。为让开发者更灵活地定制 API 响应，可使用 [`fields`](/zh/x-api/fundamentals/fields) 参数请求所需字段。字段在各端点间保持一致。凡是返回 Post 对象的端点，都会返回相同的 Post 字段。同一组字段也可在相近的端点间查询。
+
+例如，在 [Posts lookup](/zh/x-api/posts/lookup/introduction) 中以及在 [Users lookup](/zh/x-api/users/lookup/introduction) 的展开置顶 Post 中，都可以查询相同的 Post 字段。
+
+<div id="expansions">
+  ### 扩展
+</div>
+
+在适当情况下，[扩展](/zh/x-api/fundamentals/expansions) 可用于所有嵌套的 id 字段（例如所有名为 `*_id` 的字段，如 `author_id`）。对所有包含 id 但该 id 不是当前对象顶层标识符的字段，同样提供扩展。举例来说，在 [Posts lookup](/zh/x-api/posts/lookup/introduction) 中，Post 是当前对象，其 `id` 字段是顶层标识符。通过将下列以逗号分隔的值添加到 `expansions` 参数中，可将 `author_id` 或 `referenced_tweets.id` 字段扩展为完整的用户或 Post 对象。
+
+如果你发现与这些字段相关的任何不一致，请[提交反馈](https://twitterdevfeedback.uservoice.com/)。

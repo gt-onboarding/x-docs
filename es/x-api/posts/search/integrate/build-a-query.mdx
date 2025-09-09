@@ -1,0 +1,307 @@
+---
+title: Crear una consulta
+sidebarTitle: Crear una consulta
+---
+
+<div id="building-queries-for-search-posts">
+  ## Creación de consultas para Buscar publicaciones
+</div>
+
+Los endpoints de búsqueda aceptan una única consulta mediante una solicitud GET y devuelven un conjunto de publicaciones históricas que coinciden con la consulta. Las consultas están compuestas por operadores que se utilizan para hacer coincidir una variedad de atributos de la publicación. 
+
+<div id="table-of-contents">
+  ### Tabla de contenido
+</div>
+
+- [Cómo crear una consulta](#build)
+- [Limitaciones de las consultas](#limits)
+- [Disponibilidad de operadores](#availability)
+- [Tipos de operadores: independientes y que requieren conjunción](#types)
+- [Operadores booleanos y agrupación](#boolean)
+- [Orden de operaciones](#order-of-operations)
+- [Puntuación, diacríticos y distinción entre mayúsculas y minúsculas](#punctuation)
+- [Especificidad y eficiencia](#specificity)
+- [Comportamiento de coincidencia en las citas de publicaciones](#quote-tweets)
+- [Creación iterativa de una consulta](#iterative)
+- [Agregar una consulta a tu solicitud](#adding-a-query)
+- [Ejemplos de consultas](#examples)
+- [Lista de operadores](#list)
+
+<div id="building-a-query">
+  ### Crear una consulta
+</div>
+
+<div id="query-limitations">
+  #### Limitaciones de las consultas
+</div>
+
+Tus consultas estarán limitadas según el [nivel de acceso](/es/x-api/getting-started/about-x-api) que utilices.
+
+Si tienes acceso Básico o Pro, tu consulta puede tener hasta 512 caracteres para el endpoint de búsqueda reciente.
+
+Si tienes acceso Pro, tu consulta puede tener hasta 1.024 caracteres para el endpoint de búsqueda de archivo completo. 
+
+<div id="operator-availability">
+  #### Disponibilidad de operadores
+</div>
+
+Si bien la mayoría de los operadores están disponibles para cualquier desarrollador, algunos están reservados para determinados niveles de acceso. Indicamos el nivel de acceso en el que está disponible cada operador en la tabla de la [lista de operadores](/es/x-api/posts/search/integrate/build-a-query) utilizando las siguientes etiquetas:
+
+- **Operadores básicos:** Disponibles al usar cualquier [Proyecto](/es/resources/fundamentals/projects).
+- **Operadores avanzados:** Disponibles al usar un Proyecto con cierto nivel de acceso
+
+<div id="operator-types-standalone-and-conjunction-required">
+  #### Tipos de operadores: independientes y que requieren conjunción
+</div>
+
+Los **operadores independientes** se pueden usar solos o junto con cualquier otro operador (incluidos los que requieren conjunción).
+
+Por ejemplo, la siguiente consulta funcionará porque usa el operador `#hashtag`, que es independiente:
+
+`#xapiv2`
+
+Los operadores **que requieren conjunción** no se pueden usar por sí solos en una consulta; solo se pueden usar cuando la consulta incluye al menos un operador independiente. Esto se debe a que usarlos por sí solos sería demasiado general y haría coincidir un volumen extremadamente alto de publicaciones.
+
+Por ejemplo, las siguientes consultas no son compatibles, ya que contienen únicamente operadores que requieren conjunción:
+
+`has:media`
+
+`has:links OR is:retweet`
+
+Si añadimos un operador independiente, como la frase `"X data"`, la consulta funcionará correctamente.
+
+`"X data" has:mentions (has:media OR has:links)`
+
+<div id="boolean-operators-and-grouping">
+  #### Operadores booleanos y agrupación
+</div>
+
+Si desea encadenar varios operadores en una sola consulta, cuenta con las siguientes herramientas:
+
+|     |     |
+| :--- | :--- |
+| **Lógica AND** | Operadores sucesivos separados por un espacio darán como resultado lógica booleana AND, lo que significa que las publicaciones coincidirán solo si se cumplen ambas condiciones. Por ejemplo, `snow day #NoSchool` coincidirá con publicaciones que contengan los términos snow y day y el hashtag #NoSchool. |
+| **Lógica OR** | Operadores sucesivos con OR entre ellos darán como resultado lógica OR, lo que significa que las publicaciones coincidirán si se cumple cualquiera de las condiciones. Por ejemplo, especificar `grumpy OR cat OR #meme` coincidirá con cualquier publicación que contenga al menos los términos grumpy o cat, o el hashtag #meme. |
+| **Lógica NOT, negación** | Anteponiendo un guion (-) a una palabra clave (o a cualquier operador) la niega (NOT). Por ejemplo, `cat #meme -grumpy` coincidirá con publicaciones que contengan el hashtag #meme y el término cat, pero solo si no contienen el término grumpy. Una cláusula de consulta común es `-is:retweet`, que no coincidirá con Retweets; por lo tanto, coincidirá solo con publicaciones originales, Tweets con cita y respuestas. Todos los operadores se pueden negar, pero los operadores negados no pueden usarse solos. |
+| **Agrupación** | Puede usar paréntesis para agrupar operadores. Por ejemplo, `(grumpy cat) OR (#meme has:images)` devolverá publicaciones que contengan los términos grumpy y cat, o publicaciones con imágenes que contengan el hashtag #meme. Tenga en cuenta que primero se aplican los AND y luego los OR. |
+
+**Una nota sobre las negaciones**
+
+El operador `-is:nullcast` siempre debe estar negado.
+
+Los operadores negados no pueden usarse solos.
+
+No niegue un conjunto de operadores agrupados entre paréntesis. En su lugar, niegue cada operador individual. Por ejemplo, en lugar de usar `skiing -(snow OR day OR noschool)`, le sugerimos usar `skiing -snow -day -noschool`. 
+
+<div id="order-of-operations">
+  #### Orden de operaciones
+</div>
+
+Al combinar la funcionalidad AND y OR, el siguiente orden de operaciones determinará cómo se evalúa su consulta.
+
+1. Primero se combinan los operadores conectados por lógica AND
+2. Luego se aplican los operadores conectados por lógica OR
+
+Por ejemplo:
+
+- `apple OR iphone ipad` se evaluará como `apple OR (iphone ipad)`
+- `ipad iphone OR android` se evaluará como `(iphone ipad) OR android`
+
+Para eliminar la incertidumbre y asegurarse de que su consulta se evalúe como se pretende, agrupe los términos con paréntesis cuando corresponda.
+
+Por ejemplo:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### Puntuación, diacríticos y distinción entre mayúsculas y minúsculas
+</div>
+
+Si especifica una consulta de palabra clave o de hashtag con acentos o diacríticos, coincidirá con texto de Publicaciones que contenga tanto el término con acentos y diacríticos como esos mismos términos con caracteres sin acentos. Por ejemplo, consultas con la palabra clave `Diacrítica` o el hashtag `#cumpleaños` coincidirán con _Diacrítica_ o _#cumpleaños_, así como con _Diacritica_ o _#cumpleanos_, sin la tilde en í ni la eñe.
+
+Los caracteres con acentos o diacríticos se tratan igual que los caracteres sin acentos y no se consideran límites de palabra. Por ejemplo, una consulta con la palabra clave `cumpleaños` solo coincidiría con actividades que contengan la palabra _cumpleaños_ y no coincidiría con actividades que contengan _cumplea_, _cumplean_ u _os_.
+
+Todos los operadores se evalúan sin distinción de mayúsculas y minúsculas. Por ejemplo, la consulta `cat` coincidirá con Publicaciones que contengan cualquiera de lo siguiente: _cat_, _CAT_, _Cat_.
+
+El comportamiento de coincidencia del [flujo filtrado](/es/x-api/posts/filtered-stream) difiere del de Search Posts. Al [crear una regla de flujo filtrado](/es/x-api/posts/filtered-stream#building-rules-for-filtered-stream), tenga en cuenta que las palabras clave y los hashtags que incluyan acentos y diacríticos solo coincidirán con términos que también los incluyan y no coincidirán con términos que usen caracteres sin acentos.
+
+Por ejemplo, las reglas de flujo filtrado que incluyan la palabra clave `Diacrítica` o el hashtag `#cumpleaños` solo coincidirán con los términos _Diacrítica_ y _#cumpleaños_, y no coincidirán con _Diacritica_ o _#cumpleanos_, sin la tilde en í ni la eñe.
+
+<div id="specificity-and-efficiency">
+  #### Especificidad y eficiencia
+</div>
+
+Cuando empieces a crear tu consulta, es importante tener en cuenta algunas cosas.
+
+- Usar operadores amplios y aislados en la consulta, como una sola palabra clave o un #hashtag, generalmente no es recomendable, ya que probablemente coincidirá con un volumen masivo de publicaciones. Crear una consulta más sólida dará como resultado un conjunto más específico de publicaciones coincidentes y, idealmente, reducirá la cantidad de ruido en la carga útil que tendrás que filtrar para encontrar información valiosa.
+  - Por ejemplo, si tu consulta fuera solo la palabra clave `happy`, probablemente obtendrías entre 200.000 y 300.000 publicaciones por día.
+  - Agregar más operadores condicionales acota los resultados de búsqueda; por ejemplo, `(happy OR happiness) place_country:GB -birthday -is:retweet`
+- Escribir consultas eficientes también ayuda a mantenerse dentro de la restricción de longitud en caracteres de la consulta. El recuento de caracteres incluye toda la cadena de consulta, incluidos espacios y operadores.
+  - Por ejemplo, la siguiente consulta tiene 59 caracteres: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+
+<div id="quote-tweet-matching-behavior">
+  #### Comportamiento de coincidencia de los Quote Tweet
+</div>
+
+Al usar los endpoints de Search Posts, los operadores no harán coincidencia con el contenido de la Publicación original que fue citada, pero sí harán coincidencia con el contenido incluido en el Quote Tweet.
+
+Sin embargo, tenga en cuenta que el [flujo filtrado](/es/x-api/posts/filtered-stream) hará coincidencia tanto con el contenido de la Publicación original que fue citada como con el contenido del Quote Tweet.
+
+<div id="iteratively-building-a-query">
+  #### Creación iterativa de una consulta
+</div>
+
+<div id="test-your-query-early-and-often">
+  ##### Pruebe su consulta temprano y con frecuencia
+</div>
+
+Conseguir que una consulta devuelva los resultados “correctos” a la primera es poco común. Hay tanto contenido en X que puede no ser evidente al principio, y la sintaxis de consulta descrita arriba puede resultar difícil de ajustar a la búsqueda deseada. A medida que desarrolla una consulta, es importante probarla periódicamente.
+
+Para esta sección, comenzaremos con la siguiente consulta y la ajustaremos según los resultados que obtengamos durante la prueba:
+
+`happy OR happiness`
+
+<div id="use-results-to-narrow-the-query">
+  ##### Usa los resultados para acotar la consulta
+</div>
+
+Mientras pruebas la consulta, debes revisar las publicaciones devueltas para confirmar que incluyen los datos que esperas recibir. Comenzar con una consulta amplia y un superconjunto de coincidencias de publicaciones te permite evaluar el resultado y acotar la consulta para filtrar los resultados no deseados.  
+
+Cuando probamos la consulta de ejemplo, notamos que estábamos recibiendo publicaciones en varios idiomas. En esta situación, queremos recibir únicamente publicaciones en inglés, así que vamos a agregar el operador `lang:`:
+
+`(happy OR happiness) lang:en`
+
+La prueba devolvió varias publicaciones deseando feliz cumpleaños, así que vamos a agregar `-birthday` como operador de palabra clave negado. También queremos recibir únicamente publicaciones originales, por lo que añadimos el operador negado `-is:retweet`:
+
+`(happy OR happiness) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-inclusion-where-needed">
+  ##### Ajustar para inclusión cuando sea necesario
+</div>
+
+Si nota que no está recibiendo los datos que espera y sabe que existen publicaciones que deberían aparecer, quizá deba ampliar su consulta eliminando operadores que estén filtrando los datos deseados.
+
+En nuestro ejemplo, observamos que había otras publicaciones en nuestra cronología personal que expresaban la emoción que buscamos y no se incluyeron en los resultados de la prueba. Para asegurar una mayor cobertura, vamos a agregar las palabras clave `excited` y `elated`.
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-popular-trendsbursts-over-the-time-period">
+  ##### Ajuste por tendencias/repuntes populares durante el período
+</div>
+
+Las tendencias en X cambian rápidamente. Mantener su consulta debe ser un proceso activo. Si planea usar una consulta por un tiempo, le sugerimos revisar periódicamente los datos que está recibiendo para determinar si necesita realizar ajustes.
+
+En nuestro ejemplo, observamos que comenzamos a recibir algunas publicaciones que desean a la gente “felices fiestas”. Como no queremos que estas publicaciones se incluyan en nuestros resultados, vamos a agregar la palabra clave negada `-holidays`.
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet -holidays`
+
+<div id="adding-a-query-to-your-request">
+  ### Agregar una consulta a tu solicitud
+</div>
+
+Para agregar una consulta a tu solicitud, debes usar el parámetro `query`. Como con cualquier parámetro de consulta, asegúrate de codificar en HTTP la consulta que hayas desarrollado.
+
+Aquí tienes un ejemplo de cómo se vería usando un comando cURL, con los parámetros adicionales `tweet.fields` y `max_results`. Si deseas usar este comando, asegúrate de reemplazar `$BEARER_TOKEN` por tu propio [token Bearer](/es/resources/fundamentals/authentication#oauth-2-0):
+
+```bash
+curl https://api.x.com/2/tweets/search/recent?query=cat%20has%3Amedia%20-grumpy&tweet.fields=created_at&max_results=100 -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+<div id="query-examples">
+  ### Ejemplos de consultas
+</div>
+
+<div id="tracking-a-natural-disaster">
+  #### Seguimiento de un desastre natural
+</div>
+
+La siguiente consulta coincide con publicaciones originales de agencias meteorológicas y estaciones que hablan sobre el huracán Harvey, que azotó Houston en 2017.
+
+Así se vería la consulta sin la codificación HTTP:
+
+`has:geo (from:NWSNHC OR from:NHC\_Atlantic OR from:NWSHouston OR from:NWSSanAntonio OR from:USGS\_TexasRain OR from:USGS_TexasFlood OR from:JeffLindner1) -is:retweet`
+
+Y así se vería la consulta con la codificación HTTP, el parámetro de la consulta y el URI de búsqueda reciente:
+
+`https://api.x.com/2/tweets/search/recent?query=-is%3Aretweet%20has%3Ageo%20(from%3ANWSNHC%20OR%20from%3ANHC\_Atlantic%20OR%20from%3ANWSHouston%20OR%20from%3ANWSSanAntonio%20OR%20from%3AUSGS\_TexasRain%20OR%20from%3AUSGS_TexasFlood%20OR%20from%3AJeffLindner1)`
+
+<div id="reviewing-the-sentiment-of-a-conversation">
+  #### Revisar el sentimiento de una conversación
+</div>
+
+La siguiente regla podría utilizarse para comprender mejor el sentimiento de la conversación que se desarrolla en torno al hashtag, _#nowplaying_, pero limitada únicamente a publicaciones publicadas dentro de Norteamérica.
+
+Así se verían las dos consultas diferentes, una para positivo y otra para negativo, sin la codificación HTTP:
+
+`#nowplaying (happy OR exciting OR excited OR favorite OR fav OR amazing OR lovely OR incredible) (place\_country:US OR place\_country:MX OR place_country:CA) -horrible -worst -sucks -bad -disappointing`
+
+`#nowplaying (horrible OR worst OR sucks OR bad OR disappointing) (place\_country:US OR place\_country:MX OR place_country:CA) -happy -exciting -excited -favorite -fav -amazing -lovely -incredible`
+
+Y así se vería la consulta con la codificación HTTP, el parámetro de consulta y el URI de búsqueda reciente:
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(happy%20OR%20exciting%20OR%20excited%20OR%20favorite%20OR%20fav%20OR%20amazing%20OR%20lovely%20OR%20incredible)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-horrible%20-worst%20-sucks%20-bad%20-disappointing`
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(horrible%20OR%20worst%20OR%20sucks%20OR%20bad%20OR%20disappointing)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-happy%20-exciting%20-excited%20-favorite%20-fav%20-amazing%20-lovely%20-incredible`
+
+<div id="find-posts-that-relate-to-a-specific-post-annotation">
+  #### Encontrar publicaciones relacionadas con una anotación de una publicación específica
+</div>
+
+Esta regla se creó para buscar publicaciones originales que incluyan una imagen de una mascota que no sea un gato y cuyo idioma identificado sea japonés. Para ello, utilizamos el operador `context:` para aprovechar la funcionalidad de las [anotaciones de publicaciones](/es/x-api/fundamentals/post-annotations). Primero usamos el endpoint de [consulta de publicaciones](/es/x-api/posts/lookup/introduction) y el parámetro de campos `tweet.fields=context_annotations` para identificar qué IDs de domain.entity necesitamos usar en nuestra consulta:
+
+- Las publicaciones relacionadas con gatos devuelven el `domain` 66 (categoría Intereses y Pasatiempos) con la `entity` 852262932607926273 (Gatos).
+- Las publicaciones relacionadas con mascotas devuelven el `domain` 65 (vertical Intereses y Pasatiempos) con la `entity` 852262932607926273 (Mascotas).
+
+Así es como se vería la consulta sin codificación HTTP:
+
+`context:65.852262932607926273 -context:66.852262932607926273 -is:retweet has:images lang:ja`
+
+Y así es como se vería la consulta con la codificación HTTP, el parámetro query y el URI de búsqueda reciente:
+
+`https://api.x.com/2/tweets/search/recent?query=context%3A65.852262932607926273%20-context%3A66.852262932607926273%20-is%3Aretweet%20has%3Aimages%20lang%3Aja`
+
+Prueba la [herramienta de creación de consultas](https://developer.x.com/apitools/query?query=) para obtener ayuda adicional. 
+
+<div id="operators">
+  ### Operadores
+</div>
+
+<Note>**Nota:** Para algunos operadores, hay disponible un nombre alternativo o alias.</Note>
+
+| **Operador** | **Tipo** | **Descripción** |
+|:-------------|:---------|:-----------------|
+| `keyword` | Independiente | Coincide con una palabra clave en el cuerpo de una Publicación. Es una coincidencia tokenizada, lo que significa que tu cadena de palabra clave se comparará con el texto tokenizado del cuerpo de la Publicación. La tokenización divide las palabras según la puntuación, los símbolos y los caracteres separadores del plano básico de Unicode.<br /><br />Por ejemplo, una Publicación con el texto “I like coca-cola” se dividiría en los siguientes tokens: I, like, coca, cola. Estos tokens se compararían con la cadena de palabra clave usada en tu consulta. Para hacer coincidir cadenas que contengan puntuación (por ejemplo, coca-cola), símbolos o caracteres separadores, debes encerrar tu palabra clave entre comillas dobles.<br /><br />Ejemplo: `pepsi OR cola OR "coca cola"` |
+| `emoji` | Independiente | Coincide con un emoji en el cuerpo de una Publicación. Al igual que una palabra clave, los emojis se comparan de forma tokenizada, lo que significa que tu emoji se cotejará con el texto tokenizado del cuerpo de la Publicación.<br /><br />Ten en cuenta que si un emoji tiene una variante, debes encerrarlo entre comillas dobles para añadirlo a una consulta.<br /><br />Ejemplo: `(😃 OR 😡) 😬` |
+| `"exact phrase match"` | Independiente | Coincide con la frase exacta en el cuerpo de una Publicación.<br /><br />Ejemplo: `("X API" OR #v2) -"recent search"` |
+| `#` | Independiente | Coincide con cualquier Publicación que contenga un hashtag reconocido, si el hashtag es una entidad reconocida en una Publicación.<br /><br />Este operador realiza una coincidencia exacta, NO una coincidencia tokenizada, lo que significa que la regla `#thanku` hará coincidir publicaciones con el hashtag exacto #thanku, pero no aquellas con el hashtag #thankunext.<br /><br />Ejemplo: `#thankunext #fanart OR @arianagrande` |
+| `@` | Independiente | Coincide con cualquier Publicación que mencione el nombre de usuario dado, si el nombre de usuario es una entidad reconocida (incluido el carácter @).<br /><br />Ejemplo: `(@XDevelopers OR @API) -@X` |
+| `$` | Independiente | Coincide con cualquier Publicación que contenga el “cashtag” especificado (donde el primer carácter del token es el carácter $).<br /><br />Ten en cuenta que el operador de cashtag se basa en la extracción de la entidad “symbols” de X para hacer coincidir cashtags, en lugar de intentar extraer el cashtag del cuerpo del texto.<br /><br />Ejemplo: `$twtr OR @XDevelopers -$fb` |
+| `from:` | Independiente | Coincide con cualquier Publicación de un usuario específico.<br />El valor puede ser el nombre de usuario (sin el carácter @) o el ID numérico del usuario.<br /><br />Solo puedes pasar un único nombre de usuario/ID por operador `from:`.<br /><br />Ejemplo: `from:XDevelopers OR from:API -from:X` |
+| `to:` | Independiente | Coincide con cualquier Publicación que sea una respuesta a un usuario en particular.<br />El valor puede ser el nombre de usuario (sin el carácter @) o el ID numérico del usuario.<br /><br />Solo puedes pasar un único nombre de usuario/ID por operador `to:`.<br /><br />Ejemplo: `to:XDevelopers OR to:API -to:X` |
+| `url:` | Independiente | Realiza una coincidencia tokenizada en cualquier URL con formato válido de una Publicación.<br /><br />Este operador compara el contenido de los campos `url` o `expanded_url`. Por ejemplo, una Publicación que contiene "You should check out X Developer Labs: https://t.co/c0A36SWil4" (con la URL corta redirigiendo a https://developer.twitter.com) coincidirá con ambas reglas siguientes:<br /><br />`from:XDevelopers url:"https://developer.twitter.com"` (porque coincidirá con el contenido de `entities.urls.expanded_url`)<br /><br />`from:XDevelopers url:"https://t.co"` (porque coincidirá con el contenido de `entities.urls.url`)<br /><br />Los tokens y frases que contengan puntuación o caracteres especiales deben ir entre comillas dobles (por ejemplo, `url:"/developer"`). Del mismo modo, para hacer coincidir un protocolo específico, enciérralo entre comillas dobles (por ejemplo, `url:"https://developer.twitter.com"`). |
+| `retweets_of:` | Independiente | Coincide con Publicaciones que sean retuits del usuario especificado. El valor puede ser el nombre de usuario (sin el carácter @) o el ID numérico del usuario.<br /><br />Solo puedes pasar un único nombre de usuario/ID por operador `retweets_of:`.<br /><br />Ejemplo: `retweets_of:twitterdev OR retweets_of:twitterapi` |
+| `in_reply_to_tweet_id:` | Independiente | _Alias disponible:_ `in_reply_to_status_id:`<br />Coincide con las respuestas a la Publicación especificada.<br /><br />Ejemplo: `in_reply_to_tweet_id:1539382664746020864` |
+| `retweets_of_tweet_id:` | Independiente | _Alias disponible:_ `retweets_of_status_id:`<br />Coincide con los Retuits explícitos (o nativos) de la Publicación especificada. Tenga en cuenta que el ID de la Publicación debe ser el de una Publicación original y no el de un Retuit.<br /><br />Ejemplo: `retweets_of_tweet_id:1539382664746020864` |
+| `quotes_of_tweet_id:` | Independiente | _Alias disponible:_ `quotes_of_status_id:`<br />Coincide con las Citas de la Publicación especificada. Tenga en cuenta que el ID de la Publicación debe ser el de una Publicación original y no el de una Publicación citada.<br /><br />Ejemplo: `quotes_of_tweet_id:1539382664746020864` |
+| `context:` | Independiente | Coincide con Publicaciones que tienen un par específico de id de dominio/id de entidad. Para obtener más información sobre este operador, visite nuestra página sobre [anotaciones](/es/x-api/fundamentals/post-annotations).<br /><br />Solo puede pasar un único dominio/entidad por operador `context:`.<br /><br />`context:domain_id.entity_id`<br /><br />Sin embargo, puede combinar varios dominios/entidades usando el operador OR:<br /><br />`(context:47.1139229372198469633 OR context:11.1088514520308342784)`<br /><br />Ejemplos:<br />`context:10.799022225751871488` (`domain_id.entity_id` devuelve Publicaciones que coinciden con ese par dominio-entidad específico) |
+| `entity:` | Independiente | Coincide con Publicaciones que tienen un valor de cadena de entidad específico. Para obtener más información sobre este operador, visite nuestra página sobre [anotaciones](/es/x-api/fundamentals/post-annotations).<br />**Tenga en cuenta** que esto solo está disponible con la búsqueda reciente.<br /><br />Solo puede usar un único operador `entity:`.<br /><br />`entity:"declaración en cadena de la entidad/lugar"`<br /><br />Ejemplos: `entity:"Michael Jordan" OR entity:"Barcelona"` |
+| `conversation_id:` | Independiente | Coincide con Publicaciones que comparten un mismo ID de conversación. El ID de conversación se establece como el ID de la Publicación que inició la conversación. A medida que se publican respuestas a una Publicación (incluidas respuestas a respuestas), el `conversation_id` se agrega a su carga útil JSON.<br /><br />Solo puede pasar un único ID de conversación por operador `conversation_id:`.<br /><br />Ejemplo: `conversation_id:1334987486343299072 (from:XDevelopers OR from:api)` |
+| `list:` | Independiente | **NUEVO** Coincide con Publicaciones de usuarios que son miembros de una lista específica.<br /><br />Por ejemplo, si @XDevelopers y @api fueran miembros de la Lista 123, y usted incluyera `list:123` en su consulta, su respuesta solo contendrá Publicaciones publicadas por esas cuentas. Puede encontrar IDs de Lista usando el endpoint de [búsqueda de Listas](/es/x-api/lists/list-lookup/introduction).<br /><br />**Tenga en cuenta** que solo puede usar un único operador `list:` por consulta y solo puede especificar una Lista por operador `list:`.<br /><br />Ejemplo: `list:123` |
+| `place:` | Independiente | Coincide con Publicaciones etiquetadas con la ubicación especificada o el ID de lugar de X. Los nombres de lugares con varias palabras (“New York City”, “Palo Alto”) deben ir entre comillas.<br /><br />Solo puede pasar un único lugar por operador `place:`.<br /><br />Nota: Consulte el endpoint estándar v1.1 [GET geo/search](https://developer.x.com/content/developer-twitter/en/docs/geo/places-near-location/api-reference/get-geo-search) para saber cómo obtener IDs de lugar de X.<br /><br />Nota: Este operador no coincidirá con Retuits, ya que los lugares de los Retuits están asociados a la Publicación original. Tampoco coincidirá con lugares asociados a la Publicación original de una Publicación citada.<br /><br />Ejemplo: `place:"new york city" OR place:seattle OR place:fd70c22040963ac7` |
+| `place_country:` | Independiente | Coincide con Publicaciones cuyo código de país asociado a un lugar/ubicación etiquetado coincide con el código ISO alfa-2 proporcionado.<br /><br />Puede encontrar una lista de códigos ISO válidos en [Wikipedia](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).<br /><br />Solo puede pasar un único código ISO por operador `place_country:`.<br /><br />Nota: Este operador no coincidirá con Retuits, ya que los lugares de los Retuits están asociados a la Publicación original. Tampoco coincidirá con lugares asociados a la Publicación original de un Tuit con cita.<br /><br />Ejemplo: `place_country:US OR place_country:MX OR place_country:CA` |
+| `point_radius:` | Independiente | Coincide con el objeto `place.geo.coordinates` de la Publicación cuando esté presente y, en X, con un polígono geográfico de lugar, donde el polígono del lugar esté completamente contenido dentro de la región definida.<br /><br />`point_radius:[longitude latitude radius]`<br /><br />- Las unidades de radio admitidas son millas (mi) y kilómetros (km)<br />- El radio debe ser menor que 25 mi<br />- La longitud está en el rango de ±180<br />- La latitud está en el rango de ±90<br />- Todas las coordenadas están en grados decimales<br />- Los argumentos de la regla deben ir entre corchetes, separados por espacios<br /><br />Solo puede pasar un único polígono geográfico por operador `point_radius:`.<br /><br />Nota: Este operador no coincidirá con Retuits, ya que los lugares de los Retuits están asociados a la Publicación original. Tampoco coincidirá con lugares asociados a la Publicación original de un Tuit con cita.<br /><br />Ejemplo: `point_radius:[2.355128 48.861118 16km] OR point_radius:[-41.287336 174.761070 20mi]` |
+| `bounding_box:` | Independiente | _Alias disponible:_ `geo_bounding_box:`<br />Coincide con el objeto `place.geo.coordinates` de la Publicación cuando esté presente y, en X, con un polígono geográfico de lugar, donde el polígono del lugar esté completamente contenido dentro de la región definida.<br /><br />`bounding_box:[west_long south_lat east_long north_lat]`<br /><br />- `west_long south_lat` representan la esquina suroeste del cuadro delimitador, donde `west_long` es la longitud de ese punto y `south_lat` es la latitud.<br />- `east_long north_lat` representan la esquina noreste del cuadro delimitador, donde `east_long` es la longitud de ese punto y `north_lat` es la latitud.<br />- El ancho y la altura del cuadro delimitador deben ser menores que 25 mi<br />- La longitud está en el rango de ±180<br />- La latitud está en el rango de ±90<br />- Todas las coordenadas están en grados decimales.<br />- Los argumentos de la regla deben ir entre corchetes, separados por espacios.<br /><br />Solo puede pasar un único polígono geográfico por operador `bounding_box:`.<br /><br />Nota: Este operador no coincidirá con Retuits, ya que los lugares de los Retuits están asociados a la Publicación original. Tampoco coincidirá con lugares asociados a la Publicación original de un Tuit con cita.<br /><br />Ejemplo: `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]` |
+| `is:retweet` | Se requiere conjunción | Coincide con Retuits que cumplen el resto de la regla especificada. Este operador solo busca Retuits verdaderos (por ejemplo, los generados con el botón Retuit). Los Tuits con cita no coincidirán con este operador.<br /><br />Ejemplo: `data @XDevelopers -is:retweet` |
+| `is:reply` | Se requiere conjunción | Entrega solo respuestas explícitas que coinciden con una regla. También puede negarse para excluir de la entrega las respuestas que coincidan con una consulta.<br /><br />Nota: Este operador también está disponible con el endpoint de flujo filtrado. Cuando se utiliza con flujo filtrado, este operador coincide con respuestas a una Publicación original, respuestas en Tuits con cita y respuestas en Retuits.<br /><br />Ejemplo: `from:XDevelopers is:reply` |
+| `is:quote` | Se requiere conjunción | Devuelve todos los Tuits con cita, también conocidos como Publicaciones con comentarios.<br /><br />Ejemplo: `"sentiment analysis" is:quote` |
+| `is:verified` | Se requiere conjunción | Entrega solo Publicaciones cuyos autores están verificados por X.<br /><br />Ejemplo: `#nowplaying is:verified` |
+| `-is:nullcast` | Conjunction required | Excluye las Publicaciones creadas únicamente para promoción en ads.twitter.com que tienen `"source":"Twitter for Advertisers (legacy)"` o `"source":"Twitter for Advertisers"`.<br />Este operador debe usarse en forma negada.<br /><br />Para obtener más información sobre Publicaciones nullcast, consulte nuestra página sobre [disponibilidad de publicaciones](https://developer.x.com/content/developer-twitter/en/docs/twitter-api/v1/tweets/post-and-engage/guides/tweet-availability).<br /><br />Ejemplo: `"mobile games" -is:nullcast` |
+| `has:hashtags` | Conjunction required | Coincide con Publicaciones que contienen al menos un hashtag.<br /><br />Ejemplo: `from:XDevelopers -has:hashtags` |
+| `has:cashtags` | Conjunction required | Coincide con Publicaciones que contienen un cashtag (con un carácter “$” inicial; por ejemplo, `$tag`).<br /><br />Ejemplo: `#stonks has:cashtags` |
+| `has:links` | Conjunction required | Este operador coincide con Publicaciones que contienen enlaces y contenido multimedia en el cuerpo de la Publicación.<br /><br />Ejemplo: `from:XDevelopers announcement has:links` |
+| `has:mentions` | Conjunction required | Coincide con Publicaciones que mencionan a otro usuario de X.<br /><br />Ejemplo: `#nowplaying has:mentions` |
+| `has:media` | Conjunction required | _Alias disponible:_ `has:media_link`<br />Coincide con Publicaciones que contienen un objeto multimedia, como una foto, un GIF o un video, según lo determinado por X. No coincidirá con contenido creado con Periscope ni con Publicaciones con enlaces a otros sitios de alojamiento de contenido multimedia.<br /><br />Ejemplo: `(kittens OR puppies) has:media` |
+| `has:images` | Conjunction required | Coincide con Publicaciones que contienen una URL reconocida a una imagen.<br /><br />Ejemplo: `#meme has:images` |
+| `has:video_link` | Conjunction required | _Alias disponible:_ `has:videos`<br />Coincide con Publicaciones que contienen videos nativos de X, subidos directamente a X. No coincidirá con videos creados con Periscope ni con Publicaciones con enlaces a otros sitios de alojamiento de video.<br /><br />Ejemplo: `#icebucketchallenge has:video_link` |
+| `has:geo` | Conjunction required | Coincide con Publicaciones que tienen datos de geolocalización específicos de la Publicación proporcionados por el usuario de X. Puede tratarse de una ubicación en forma de un lugar de X, con el nombre para mostrar correspondiente, polígono geográfico y otros campos, o, en casos poco frecuentes, de una coordenada geográfica de latitud y longitud.<br /><br />Nota: Los operadores que coinciden por lugar (geo de la Publicación) solo incluirán coincidencias de Publicaciones originales. Los retuits no contienen datos de lugar.<br /><br />Ejemplo: `recommend #paris has:geo -bakery` || `lang:` | Conjunción requerida | Coincide con publicaciones que X ha clasificado como de un idioma en particular (si, y solo si, la publicación ha sido clasificada). Es importante señalar que actualmente cada publicación solo se clasifica como de un idioma, por lo que combinar varios idiomas con AND no arrojará resultados.<br /><br />Solo puede pasar un único identificador de idioma BCP 47 por operador `lang:`.<br /><br />Nota: si no se puede realizar una clasificación de idioma, el resultado proporcionado es ‘und’ (indefinido).<br /><br />Ejemplo: `recommend #paris lang:en`<br /><br />La lista a continuación representa los idiomas actualmente admitidos y su identificador de idioma BCP 47 correspondiente:<br /><br />Amhárico: `am` | Alemán: `de` | Malabar: `ml` | Eslovaco: `sk`<br />Árabe: `ar` | Griego: `el` | Maldivo: `dv` | Esloveno: `sl`<br />Armenio: `hy` | Guyaratí: `gu` | Maratí: `mr` | Kurdo soraní: `ckb`<br />Vasco: `eu` | Criollo haitiano: `ht` | Nepalí: `ne` | Español: `es`<br />Bengalí: `bn` | Hebreo: `iw` | Noruego: `no` | Sueco: `sv`<br />Bosnio: `bs` | Hindi: `hi` | Oriya: `or` | Tagalo: `tl`<br />Búlgaro: `bg` | Hindi latinizado: `hi-Latn` | Panyabí: `pa` | Tamil: `ta`<br />Birmano: `my` | Húngaro: `hu` | Pastún: `ps` | Telugu: `te`<br />Croata: `hr` | Islandés: `is` | Persa: `fa` | Tailandés: `th`<br />Catalán: `ca` | Indonesio: `in` | Polaco: `pl` | Tibetano: `bo`<br />Checo: `cs` | Italiano: `it` | Portugués: `pt` | Chino tradicional: `zh-TW`<br />Danés: `da` | Japonés: `ja` | Rumano: `ro` | Turco: `tr`<br />Neerlandés: `nl` | Canarés: `kn` | Ruso: `ru` | Ucraniano: `uk`<br />Inglés: `en` | Jemer: `km` | Serbio: `sr` | Urdu: `ur`<br />Estonio: `et` | Coreano: `ko` | Chino simplificado: `zh-CN` | Uigur: `ug`<br />Finés: `fi` | Lao: `lo` | Sindhi: `sd` | Vietnamita: `vi`<br />Francés: `fr` | Letón: `lv` | Cingalés: `si` | Galés: `cy`<br />Georgiano: `ka` | Lituano: `lt` |

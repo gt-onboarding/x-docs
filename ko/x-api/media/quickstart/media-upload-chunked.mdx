@@ -1,0 +1,231 @@
+---
+title: Quickstart
+sidebarTitle: Quickstart
+---
+
+이 가이드는 X API v2 미디어 업로드 엔드포인트를 사용해 미디어를 처음으로 업로드하는 요청을 만드는 방법을 안내합니다.
+
+이 가이드에서는 청크 방식의 `POST /2/media/upload` 엔드포인트를 사용해 동영상을 업로드합니다. 동영상 업로드는 단일 이미지 업로드와는 다른 워크플로가 필요합니다.
+
+동영상 또는 청크 업로드의 경우 다음 단계를 수행해야 합니다:
+
+1. `INIT` 명령으로 업로드를 초기화합니다
+2. `APPEND` 명령으로 각 바이트 청크를 업로드합니다
+3. `FINALIZE` 명령으로 업로드를 완료합니다
+
+<Note>
+  **참고:** Python 예시는 [이 샘플 코드](https://github.com/xdevplatform/large-video-upload-python)를 참조하세요.
+</Note>
+
+<div id="authentication">
+  ## 인증
+</div>
+
+이 가이드의 예제를 실행하려면 [OAuth 2](/ko/resources/fundamentals/authentication/oauth-2-0/overview) 인증을 사용해야 합니다.
+
+`CONSUMER_KEY`, `CONSUMER_SECRET`, `ACCESS_KEY`, `ACCESS_TOKEN`은 [Developer Portal 대시보드](https://developer.x.com/en/portal/projects-and-apps)의 프로젝트 내 앱에서 확인할 수 있습니다.
+
+<div id="step-1-post-mediaupload-init">
+  ## 1단계: POST media/upload (INIT)
+</div>
+
+`INIT` 명령 요청은 파일 업로드 세션을 시작할 때 사용합니다. 이 요청은 이후 모든 요청에서 사용해야 하는 `media_id`를 반환합니다. `INIT` 명령이 성공적으로 완료되면 다음 단계는 `APPEND` 명령입니다.
+
+미디어 파일의 제약 사항 및 요구 사항은 [모범 사례](/ko/x-api/media/quickstart/best-practices)를 참조하세요.
+
+**요청 예시**
+
+```bash
+curl --location 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=INIT' \
+    --form 'media_type=video/mp4' \
+    --form 'total_bytes=1024' \
+    --form 'media_category=amplify_video'
+```
+
+<Note>
+  **참고:** 원시 HTTP 요청을 보낼 때는 요청 본문 형식이 `multipart/form-data` 또는 `application/x-www-form-urlencoded`인 POST여야 합니다.
+</Note>
+
+**응답 예시**
+
+```json
+{
+    "data":
+    {
+        "id":"1880028106020515840",
+        "media_key":"13_1880028106020515840",
+        "expires_after_secs":1295999
+    }
+}
+```
+
+응답에는 미디어 식별자 `id`(문자열)와 `media_key`(문자열)가 포함됩니다. 전체 파일은 `expires_after_secs` 초 내에 업로드되어야 합니다.
+
+<div id="step-2-post-mediaupload-append">
+  ## 단계 2 : POST media/upload (APPEND)
+</div>
+
+`APPEND` 명령은 미디어 파일의 청크(연속 바이트 범위)를 업로드하는 데 사용됩니다. 예를 들어 3MB 파일을 1MB 크기의 3개 청크로 나눠, 3번의 `APPEND` 명령 요청으로 업로드할 수 있습니다. 전체 파일 업로드가 완료되면 다음 단계로 `FINALIZE` 명령을 호출합니다.
+
+<Info>
+  미디어 파일을 작은 청크로 업로드하면 다음과 같은 이점이 있습니다:
+
+  - 낮은 대역폭 네트워크 환경에서도 안정성과 성공률 향상
+  - 업로드 일시 중지 및 재개 가능
+  - 파일 청크를 개별적으로 재시도 가능
+  - 셀룰러 클라이언트 등 변화하는 네트워크 조건에 맞춰 청크 크기 조정 가능
+</Info>
+
+**요청 예시**
+
+```bash
+curl --location 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=APPEND' \
+    --form 'media_id=1880028106020515840' \
+    --form 'segment_index=0' \
+    --form 'media=@/path/to/your/media/file.mp4'
+```
+
+`segment_index`는 파일 청크의 순차 인덱스이며, 0부터 999까지(포함)여야 합니다. 첫 번째 세그먼트의 인덱스는 0, 두 번째는 1이며, 이후도 동일합니다. 모든 청크가 업로드될 때까지 계속 업로드하세요.
+
+<Note>
+  **참고:** 원시 HTTP 요청의 경우, 요청은 `multipart/form-data` POST 형식이어야 합니다.
+</Note>
+
+<Note>
+  **참고:** 업로드가 성공하면 빈 응답 본문과 함께 HTTP 2XX가 반환됩니다.
+</Note>
+
+<div id="step-3-post-mediaupload-finalize">
+  ## 3단계: POST media/upload (FINALIZE)
+</div>
+
+`FINALIZE` 명령은 `APPEND` 명령으로 전체 미디어 파일 업로드를 완료한 뒤 호출해야 합니다. 또한 `FINALIZE` 응답에 `processing_info` 필드가 포함된 경우에만 `STATUS` 명령을 사용해 성공이 반환될 때까지 대기한 후 게시물 생성으로 진행해야 할 수 있습니다.
+
+**요청 예시**
+
+```bash
+curl --location --request POST 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=FINALIZE' \
+    --form 'media_id=1880028106020515840'
+```
+
+<Note>
+  **참고:** 원시 HTTP 요청을 보낼 때는 요청 본문이 `multipart/form-data` 또는 `application/x-www-form-urlencoded` 형식의 POST여야 합니다.
+</Note>
+
+**응답 예시**
+
+```json
+{
+    "data": {
+        "id": "1880028106020515840",
+        "media_key": "13_1880028106020515840",
+        "size": 1024,
+        "expires_after_secs": 86400,
+        "processing_info": {
+            "state": "pending",
+            "check_after_secs": 1
+        }
+    }
+}
+```
+
+응답에는 `media_id`(64비트 정수) 및 `media_id_string`(문자열) 필드로 미디어 식별자가 제공됩니다. 긴 정수를 정확히 표현할 수 없는 JavaScript 등 언어에서는 API 응답의 `media_id_string`을 사용하십시오.
+
+반환된 `media_id`는 `expires_after_secs`초 동안만 유효합니다. 이 기간이 지난 후 다른 API 호출에서 mediaId를 사용하려고 하면 잘못된 요청(HTTP 4xx) 응답이 반환됩니다.
+
+응답에 `processing_info` 필드가 포함되어 있으면 `STATUS` 명령으로 `FINALIZE` 작업 상태를 폴링하십시오. 비동기 최종화는 미디어 처리에 더 많은 시간이 필요한 경우에 사용됩니다. 향후 모든 동영상 및 애니메이티드 GIF 처리는 비동기 최종화만 지원됩니다. 이 동작은 업로드 세션을 `media_category` 매개변수로 [초기화](###INIT)했고, 미디어 유형이 동영상 또는 애니메이티드 GIF인 경우에 활성화됩니다.
+
+<Note>
+  **참고:**
+  응답에 `processing_info` 필드가 반환되지 않으면 `media_id`는 다른 API 엔드포인트에서 바로 사용할 수 있습니다.
+</Note>
+
+<div id="step-4-get-mediaupload-status">
+  ## **4단계: GET media/upload (STATUS)**
+</div>
+
+`STATUS` 명령은 미디어 처리 작업의 진행 상태를 주기적으로 조회(polling)하는 데 사용됩니다. `STATUS` 명령의 응답이 `succeeded`로 반환되면, 다음 단계로 진행할 수 있으며 일반적으로 `media_id`를 사용해 게시물을 생성합니다.
+
+<Note>
+  **참고:**
+  `FINALIZE` 명령 또는 이전 `STATUS` 명령의 응답에 `processing_info` 필드가 포함된 경우에만 `STATUS` 명령을 사용해야 합니다.
+</Note>
+
+<div id="example-request">
+  ## **요청 예시**
+</div>
+
+```bash
+curl --location --request GET 'https://api.x.com/2/media/upload?command=STATUS&media_id=1880028106020515840' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+```
+
+<div id="example-response">
+  ## **예시 응답**
+</div>
+
+```json
+{
+    "data":{
+        "id":"1880028106020515840",
+        "media_key":"13_1880028106020515840",
+        "processing_info":{
+            "state":"uploading" // 상태 전이는 pending -> in_progress -> [failed | succeeded] 순서로 진행됩니다.
+        }
+    }
+}
+```
+
+응답 본문에는 미디어 처리 작업의 현재 상태를 제공하는 `processing_info` 필드가 포함됩니다. 여기에는 `state` 필드가 있으며, 전이 흐름은 `pending` -> `in_progress` -> \[`failed` | `succeeded`] 입니다. `state`가 `succeeded`로 설정되기 전에는 `media_id`를 사용해 Post 또는 다른 엔터티를 생성할 수 없습니다.
+
+<div id="step-5-post-tweet-with-media">
+  ## 5단계: 미디어가 포함된 포스트 게시
+</div>
+
+인증된 사용자를 대신해 `media_id`를 포함하여 `POST /2/tweets` 엔드포인트로 포스트를 생성합니다.
+
+**요청 예시**
+
+```bash
+curl --location 'https://api.x.com/2/tweets' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--data '{
+    "text": "I made a post with media!",
+     "media": {
+       "media_ids": [
+            "1880028106020515840"
+        ]
+    }
+}'
+
+```
+
+**응답 예시**
+
+```bash
+{
+    "data": {
+        "edit_history_tweet_ids": [
+            "1880028106020515840"
+        ],
+        "id": "1880028106020515840",
+        "text": "I made a post with media! https://t.co/DqNyXX"
+    }
+}
+```
+
+<div id="troubleshooting">
+  ## 문제 해결
+</div>
+
+Media API 관련 문제가 발생한 경우, 개발자 포럼의 [Media API 카테고리](https://devcommunity.x.com/c/x-api/media-apis)에서 답변을 찾아보세요.

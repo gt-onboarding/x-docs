@@ -1,0 +1,144 @@
+---
+title: 投稿の編集
+---
+
+<div id="introduction">
+  # はじめに
+</div>
+
+X API v2 のエンドポイントは、編集済みポストのメタデータを提供します。Edit Posts 機能は 2022 年 9 月 1 日に X 従業員向けのテストとして初めて導入されました。この日以降、対象となるポストは 30 分間で最大 5 回まで編集できます。2022 年 9 月 29 日以降に作成されたポストのすべてのオブジェクトには、ポストが一度も編集されていない場合でも、編集メタデータが含まれます。ポストが編集されるたびに、新しいポスト ID が発行されます。ポストの編集履歴は、元の ID から始めてこれらの ID を連結することで表現できます。さらに、編集チェーン内のいずれかのポストが削除されると、そのチェーン内のすべてのポストも削除されます。
+
+X API v2 を使用すると、開発者は次のことが把握できます。
+
+- 作成時点でそのポストが編集対象だったかどうか。一部のポスト（投票付きや予約投稿など）は編集できません。
+- ポストは 30 分間編集可能で、最大 5 回まで編集できます。編集可能なポストについては、編集可能時間が残っているか、残りの編集回数がいくつかを確認できます。
+- 編集済みバージョンのポストを表示しているかどうか（多くの場合、API はポストの最新バージョンを返しますが、ポスト ID で特定の過去バージョンを要求した場合はその限りではありません）。
+- ポストの完全な編集履歴。
+- ポストの各バージョンに帰属するエンゲージメント。
+
+ポストの編集履歴には 3 つの構成要素があります。
+
+1. 既定では、ポストのペイロードには、そのポストの編集履歴に含まれるポスト ID の配列が含まれます。この情報は、ポストのペイロードにおける既定フィールドである `edit_history_tweet_ids` により提供されます。この配列には少なくとも 1 つ、すなわち元の未編集ポストの ID が含まれます。ID が 1 つしかない場合、そのポストには編集履歴がないことを意味します。 
+2. [tweet.fields](/ja/x-api/fundamentals/fields) パラメータで `edit_controls` を指定すると、作成時点でポストが編集可能だったか、編集可能時間がどれだけ残っているか、残りの編集回数がいくつかといった情報を取得できます。
+3. 最後に、[expansion](/ja/x-api/fundamentals/expansions) パラメータで `edit_history_tweet_ids` を指定することで、編集履歴内の各ポストのポストオブジェクトを取得できます。
+
+ほとんどのポストは編集可能ですが、次のタイプのポストは対象外です。 
+
+- プロモーション中のポスト
+- 投票付きポスト
+- 自分自身のスレッド以外への返信ポスト
+- リツイート（引用ツイートは編集対象である点に注意）
+- nullcast のポスト
+- コミュニティポスト
+- Superfollow ポスト
+- 共同ポスト
+
+例
+
+---
+
+以下の例は、X API v2 を使用して編集済みポストのメタデータを開発者がリクエストする方法を示します。 
+
+**注:** 以下の例では User Post Timeline エンドポイントを使用していますが、ポストを返すすべてのエンドポイント（例：ポストのルックアップ、検索、フィルタードストリーム など）で同じパラメータ（fields と expansions）を使ってこのメタデータをリクエストできます。
+
+<div id="default-behavior">
+  ### 既定の動作
+</div>
+
+既定では、X API v2 の任意のエンドポイントに対して Post オブジェクトを返す API リクエストを行うと、以下が返されます:
+
+- Post ID
+- Post Text
+- Post の編集履歴に含まれる Post ID の配列。ID が 1 つのみの場合は、その Post が編集されていないことを示します。
+
+**リクエスト:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**サンプルレスポンス:**
+
+```{
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"]
+    }
+  ]
+}
+```
+
+### edit\_controls を使用して追加データを取得する
+
+投稿が作成時に編集対象だったか、編集可能な残り時間はどれくらいかといった、編集に関する追加の投稿メタデータが必要な場合は、tweet.fields パラメータに edit\_control を指定してリクエストできます。
+
+**リクエスト:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**サンプルレスポンス:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ]
+}
+```
+
+<div id="getting-post-objects-for-all-posts-in-a-posts-edit-history">
+  ### 投稿の編集履歴に含まれるすべての投稿の Post オブジェクトを取得する
+</div>
+
+上記の例では、ある投稿の編集履歴に含まれる投稿 ID の配列が示されています。これらの投稿 ID ごとに実際の Post オブジェクトを取得したい場合は、expansions パラメータで `edit_history_tweet_ids` を指定します。編集履歴を構成する Post オブジェクトは "includes" オブジェクト内に返されます。
+
+**リクエスト:**
+
+```bash
+      curl --location --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control&expansions=edit_history_tweet_ids' --header 'Authorization: Bearer $BEARER_TOKEN'`
+```
+
+**サンプルレスポンス:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "id": "1514991667853602822",
+        "text": "we need an eidt button",
+        "edit_history_tweet_ids": [
+          "1514991667853602822",
+          "1514991667853602823"
+        ],
+        "edit_controls": {
+          "is_edit_eligible": true,
+          "editable_until": "2022-04-21 09:35:20.311",
+          "edits_remaining": 4
+        }
+      }
+    ]
+  }
+}
+```

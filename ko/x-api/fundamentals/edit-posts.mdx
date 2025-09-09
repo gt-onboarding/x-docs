@@ -1,0 +1,144 @@
+---
+title: 게시물 수정
+---
+
+<div id="introduction">
+  # 소개
+</div>
+
+X API v2 엔드포인트는 편집된 게시물 메타데이터를 제공합니다. _게시물 편집_ 기능은 2022년 9월 1일 X 직원 대상 테스트로 처음 도입되었습니다. 해당 날짜부터 자격을 갖춘 게시물은 30분 동안 최대 5회까지 편집할 수 있습니다. _2022년 9월 29일 이후에 생성된 게시물의 모든 오브젝트_ 는 게시물이 한 번도 편집되지 않았더라도 게시물 편집 메타데이터를 포함합니다. 게시물이 편집될 때마다 새로운 게시물 ID가 생성됩니다. 게시물의 편집 기록은 원본 ID부터 시작해 이러한 ID를 연쇄적으로 연결하여 설명할 수 있습니다. 또한 편집 체인에 속한 게시물 중 하나라도 삭제되면 해당 체인에 있는 모든 게시물이 함께 삭제됩니다.
+
+X API v2를 사용하면 개발자는 다음을 확인할 수 있습니다:
+
+- 게시물이 생성 당시 편집 가능했는지 여부. 설문조사가 포함된 게시물이나 예약된 게시물 등 일부 게시물은 편집할 수 없습니다.
+- 게시물은 30분 동안 편집 가능하며, 최대 5회까지 편집할 수 있습니다. 편집 가능한 게시물의 경우 남은 편집 시간과 남은 편집 가능 횟수를 확인할 수 있습니다.
+- 현재 보고 있는 게시물이 편집된 버전인지 여부(대부분의 경우 API는 특정 과거 버전을 게시물 ID로 요청하지 않는 한 게시물의 최신 버전을 반환합니다).
+- 게시물의 전체 편집 기록.
+- 게시물 각 버전에 귀속되는 참여도.
+
+게시물의 편집 기록은 다음 세 가지 구성 요소로 이루어집니다:
+
+1. 기본적으로 게시물 페이로드에는 해당 게시물의 편집 기록에 속한 게시물 ID 배열이 포함됩니다. 이 정보는 게시물 페이로드의 기본 필드인 `edit_history_tweet_ids` 로 지정됩니다. 이 배열에는 최소 하나의 ID, 즉 원본(편집되지 않은) 게시물의 ID가 포함됩니다. ID가 하나뿐이라면 해당 게시물에는 편집 기록이 없음을 의미합니다. 
+2. [tweet.fields](/ko/x-api/fundamentals/fields) 파라미터에서 `edit_controls` 를 지정하면, 게시물이 생성 당시 편집 가능했는지, 게시물을 편집할 수 있는 남은 시간이 있는지와 그 시간, 그리고 남은 편집 횟수 등을 확인할 수 있습니다.
+3. 마지막으로 [expansion](/ko/x-api/fundamentals/expansions) 파라미터로 `edit_history_tweet_ids` 를 지정하면, 편집 기록에 포함된 각 게시물의 게시물 오브젝트를 가져올 수 있습니다.
+
+대부분의 게시물은 편집할 수 있습니다. 그러나 다음 유형의 게시물은 편집할 수 없습니다: 
+
+- 프로모션된 게시물
+- 설문조사가 있는 게시물
+- 자기 스레드가 아닌 답글
+- 리트윗(인용 트윗은 편집 가능함에 유의)
+- 널캐스트 게시물
+- 커뮤니티 게시물
+- 슈퍼팔로우 게시물
+- 공동 게시물
+
+예시
+
+---
+
+아래 예시는 X API v2를 사용하여 개발자가 편집된 게시물 메타데이터를 요청하는 방법을 보여줍니다. 
+
+주의: 아래 예시는 User Post Timeline 엔드포인트를 사용하지만, 게시물을 반환하는 모든 엔드포인트(예: 게시물 조회, 검색, 필터드 스트림 등)에서 동일한 파라미터(필드와 확장)를 사용해 이 메타데이터를 요청할 수 있습니다.
+
+<div id="default-behavior">
+  ### 기본 동작
+</div>
+
+기본적으로 X API v2에서 Post 객체를 반환하는 모든 엔드포인트에 API 요청을 보내면 다음이 제공됩니다:
+
+- Post ID
+- Post 텍스트
+- 해당 Post의 편집 기록에 포함된 Post ID 배열. ID가 하나만 제공되면 해당 Post는 편집되지 않았음을 의미합니다.
+
+**요청:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**샘플 응답:**
+
+```{
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"]
+    }
+  ]
+}
+```
+
+### edit\_controls로 추가 데이터 가져오기
+
+게시물이 생성될 때 편집 가능 대상이었는지, 그리고 해당 게시물을 편집할 수 있는 남은 시간이 얼마나 되는지와 같은 추가 편집 메타데이터가 필요하다면, `tweet.fields` 매개변수에 `edit_control`을 설정하여 요청할 수 있습니다.
+
+**요청:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**샘플 응답:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ]
+}
+```
+
+<div id="getting-post-objects-for-all-posts-in-a-posts-edit-history">
+  ### 게시물의 편집 기록에 포함된 모든 게시물의 Post 객체 가져오기
+</div>
+
+위 예시는 게시물의 편집 기록에 있는 Post ID 배열을 제공합니다. 각 Post ID에 해당하는 실제 Post 객체가 필요하다면 확장 매개변수(expansions)를 `edit_history_tweet_ids`로 설정하세요. 편집 기록을 구성하는 Post 객체는 "includes" 객체로 반환됩니다.
+
+**요청:**
+
+```bash
+      curl --location --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control&expansions=edit_history_tweet_ids' --header 'Authorization: Bearer $BEARER_TOKEN'`
+```
+
+**샘플 응답:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "id": "1514991667853602822",
+        "text": "we need an eidt button",
+        "edit_history_tweet_ids": [
+          "1514991667853602822",
+          "1514991667853602823"
+        ],
+        "edit_controls": {
+          "is_edit_eligible": true,
+          "editable_until": "2022-04-21 09:35:20.311",
+          "edits_remaining": 4
+        }
+      }
+    ]
+  }
+}
+```

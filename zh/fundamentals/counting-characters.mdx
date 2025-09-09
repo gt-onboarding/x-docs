@@ -1,0 +1,93 @@
+---
+title: 撰写帖子时的字符计数
+sidebarTitle: 字符计数
+icon: text-size
+---
+
+本页说明在撰写帖子以及整个 X API 中如何计算字符。有关实现的更多信息，X 提供了开源的 [twitter-text](http://github.com/twitter/twitter-text) 库，可在 [GitHub](https://github.com/twitter) 获取。
+
+<div id="background">
+  ## 背景
+</div>
+
+X 最初是基于短信的服务。这使得早期推文长度被限制为 140 个字符（部分源于短信 160 字符的限制，其中 20 个字符预留给命令和用户名）。随着 X 的演进，推文最大长度提升至 280 个字符——依然简短精炼，但能表达更多内容。
+
+<div id="definition-of-a-character">
+  ## 字符的定义
+</div>
+
+在大多数情况下，推文的文本内容最多可包含 280 个字符或 [Unicode](https://unicode.org/) 字形。某些字形会计为多个字符。
+
+我们将某个字形按一个还是多个字符计数称为其“权重”。关于哪些字符的权重大于 1 的精确定义，请参见 [twitter-text 推文解析库](https://github.com/twitter/twitter-text)的[配置文件](https://github.com/twitter/twitter-text/tree/master/config)。
+
+当前版本的配置文件定义了默认的双字符权重，以及四个具有不同权重的 [Unicode 码点](https://unicode.org/charts/About.html)区间。目前，这些区间内的码点均按单个字符计数。
+
+- 第一个区间涵盖 Latin-1 代码页中的字符（U+0000 - U+10FF）。
+- 第二个区间为通用标点，直到并包含零宽连字（用于组合表情符号和其他字形）（U+2000-U+200D）。
+- 第三个区间为通用标点，但不包括 U+200E 和 U+200F（它们是 Unicode 方向性标记）（U+2010-U+201F）。
+- 最后一个区间涵盖引号（U+2032-U+2037）。
+
+由 twitter-text 库计算的推文文本及其长度示例，可在该库的 [validate.yml](https://github.com/twitter/twitter-text/blob/master/conformance/validate.yml) 测试配置文件中找到。
+
+**示例**
+
+| 显示的字符 | 长度 | 描述 | Unicode 序列 |
+|:---------------------|:--------|:-------------|:------------------|
+| a | 1 | 拉丁小写字母 a | U+0061 |
+| á | 1 | 带尖音符的拉丁小写字母 a | U+00E1 |
+| ӑ | 1 | 带短音符的西里尔小写字母 a | U+04D1 |
+| Ồ | 1 | 带长音符和尖音符的拉丁大写字母 O | U+1ED2 |
+
+<div id="emojis">
+  ## 表情符号
+</div>
+
+由 [twemoji](https://twemoji.x.com/) 支持的表情符号，无论是否包含组合修饰符，均按两个字符计数。这包括带有 [Fitzpatrick 肤色](https://emojipedia.org/modifiers/) 或 [性别修饰符](https://blog.emojipedia.org/unicode-and-the-emoji-gender-gap/) 的表情符号，即使它们由更多的 Unicode 码点组成。表情符号的权重由 twitter-text 中的正则表达式定义，该表达式会匹配由标准表情符号与一个或多个 Unicode 零宽连字器（U+200D）组合而成的序列。
+
+**示例**
+
+| 显示的表情符号 | 长度 | 说明 | Unicode 序列 |
+|:-----------------|:--------|:-------------|:------------------|
+| 👾 | 2 | 已知表情符号的默认长度 | -- |
+| 🙋🏽 | 2 | 带肤色修饰符的表情符号 | 🙋 U+1F64B, 🏽 U+1F3FD |
+| 👨‍🎤 | 2 | 使用组合字形（零宽连字器）的表情符号序列 | [👨 U+1F468](https://emojipedia.org/emoji/%F0%9F%91%A8/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [🎤 U+1F3A4](https://emojipedia.org/emoji/%F0%9F%8E%A4/) |
+| 👨‍👩‍👧‍👦 | 2 | 使用多个组合字形（零宽连字器）的表情符号序列 | [👨 U+1F468](https://emojipedia.org/emoji/%F0%9F%91%A8/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👩 U+1F469](https://emojipedia.org/emoji/%F0%9F%91%A9/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👧 U+1F467](https://emojipedia.org/emoji/%F0%9F%91%A7/), [U+200D](https://emojipedia.org/emoji/%E2%80%8D/), [👦 U+1F466](https://emojipedia.org/emoji/%F0%9F%91%A6/) |
+
+<div id="chinese-japanese-korean-glyphs">
+  ## 中日韩字符
+</div>
+
+用于 CJK（中文/日文/韩文）语言的字符也按两个字符计数。因此，仅由 CJK 文本组成的推文最多只能包含 140 个此类字符。
+
+<div id="entity-objects">
+  ## 实体对象
+</div>
+
+推文可以包含[实体对象](/zh/x-api/fundamentals/data-dictionary)，其中一些会影响推文长度。
+
+URL： [所有 URL 都会通过 t.co 进行包裹](https://developer.x.com/content/developer-twitter/en/docs/basics/tco)。这意味着 URL 的长度由 [twitter-text 配置文件](https://github.com/twitter/twitter-text/tree/master/config)中的 `transformedURLLength` 参数定义。当前推文中的 URL 统一按 23 个字符计数，即使该 URL 实际更短。
+
+回复：在回复推文开头自动填充的 @名称 不计入字符上限。以 @提及 开头的新（非回复）推文会计入，用户在推文正文中显式添加的 @提及 也会计入。
+
+媒体：如果从官方客户端发布，附加到推文的媒体会以 pic.x.com URL 的形式表示，计为 0 个字符。
+
+有关实体对象的更多信息，请参阅[开发者文档](/zh/x-api/fundamentals/data-dictionary)。
+
+<div id="x-character-encoding">
+  ## X 字符编码
+</div>
+
+X API 端点仅接受 UTF-8 编码的文本。将文本发送至 API 之前，其他任何编码都必须先转换为 UTF-8。
+
+X 按文本的规范化形式 C（NFC）来计算推文长度。
+
+例如：“café”一词。存在两种在视觉上相同、读起来也一致，但所占字节数不同的字节序列：
+
+|     | | |
+|:-----|:---|:---|
+| café | 0x63 0x61 0x66 0xC3 0xA9 | 使用“é”字符，即“预组字符”。 |
+| café | 0x63 0x61 0x66 0x65 0xCC 0x81 | 使用组合重音符，与“e”叠加。 |
+
+规范化形式 C 倾向于使用完全组合的字符（如上例 café 中的 0xC3 0xA9），而非长形式（0x65 0xCC 0x81）。
+
+X 统计的是文本中的码点数量，而不是 UTF-8 字节数。上述 café 示例中的 0xC3 0xA9 是一个码点（U+00E9），在 UTF-8 中编码为两个字节；而 0x65 0xCC 0x81 是两个码点，编码为三个字节。

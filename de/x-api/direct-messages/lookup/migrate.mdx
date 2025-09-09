@@ -1,0 +1,83 @@
+---
+title: Migrationsanleitung
+sidebarTitle: Migrationsanleitung
+---
+
+import { Button } from '/snippets/de/button.mdx';
+
+<div id="comparing-v11-and-v2-direct-message-event-lookup-endpoints">
+  ## Vergleich der Endpunkte zum Nachschlagen von Direct-Message-Ereignissen in v1.1 und v2
+</div>
+
+Sowohl die v1.1- als auch die v2-Versionen der Direct-Messages-Endpunkte bieten Methoden zum Nachschlagen von Direct-Message-Ereignissen. Dieser Leitfaden soll helfen, die Unterschiede zu verstehen und Informationen für die Migration auf v2 bereitzustellen. 
+
+Ein wesentlicher Unterschied zwischen den beiden Versionen besteht darin, dass v1.1 nur Eins-zu-eins-Unterhaltungen unterstützt, während v2 die Unterstützung für Gruppenunterhaltungen einführt. Eine Folge davon ist, dass v1.1 nur „message created“-Ereignisse unterstützt, während v2 auch Ereignisse im Zusammenhang mit dem Beitritt zu und dem Verlassen von Unterhaltungen unterstützt. Tatsächlich ist eine grundlegende v2-Änderung die Etablierung von dm\_conversations als zentrales API-Objekt.   
+
+Mit v1.1 gibt es zwei Endpunkte zum Abrufen von Direct Messages (erneut: neue Nachrichten sind der einzige in v1.1 unterstützte Ereignistyp):
+
+- GET direct\_messages/events/show - Ruft ein einzelnes Ereignis anhand der ID ab. 
+
+- GET direct\_messages/events/list - Ruft bis zu 30 Tage Eins-zu-eins-Direct Messages ab, die vom authentifizierten Nutzer gesendet und empfangen wurden. Beachten Sie, dass diese Methode keine Nachrichten aus Gruppenunterhaltungen abrufen kann. 
+
+Mit dieser v2-Version gibt es drei GET-Methoden zum Abrufen von Ereignissen aus Direct-Message-Unterhaltungen: 
+
+- **GET /2/dm\_conversations/with/:participant\_id/dm\_events** - Ruft Direct-Message-Ereignisse ab, die mit einer Eins-zu-eins-Unterhaltung verknüpft sind. Der Pfadparameter :participant\_id ist die User-ID des Accounts, der die Unterhaltung mit dem authentifizierten Nutzer führt, der diese Anfrage stellt. 
+
+- **GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events** - Ruft Direct-Message-Ereignisse ab, die mit einer bestimmten Unterhaltungs-ID verknüpft sind, wie durch den Pfadparameter :dm\_conversation\_id angegeben. Diese Methode unterstützt sowohl Eins-zu-eins- als auch Gruppenunterhaltungen. 
+
+- **GET /2/dm\_events** - Ruft Direct-Message-Ereignisse ab, die einem Nutzer zugeordnet sind, einschließlich sowohl Eins-zu-eins- als auch Gruppenunterhaltungen. Ereignisse bis zu 30 Tage in der Vergangenheit sind verfügbar.  
+
+Ein wichtiges Detail ist, dass Unterhaltungs- und Ereignis-IDs in den v1.1- und v2-Versionen der X-Plattform gemeinsam verwendet werden. Das bedeutet, dass beide Versionen zusammen genutzt werden können. Beispielsweise bieten die v1.1-Endpunkte für Direct Messages Methoden zum Zurückgeben eines einzelnen Ereignisses und zum Löschen von Ereignissen – Methoden, die in v2 noch nicht verfügbar sind. Da IDs in v1.1 und v2 identisch sind, können Sie v1.1-Anfragen auf Basis von IDs stellen, die von v2 bereitgestellt werden, oder indem Sie auf Unterhaltungs-IDs verweisen, die in Unterhaltungs-URLs in der X-Anwendung angezeigt werden.
+
+Die folgende Tabelle vergleicht grundlegende Aspekte der v1.1- und v2-Endpunkte zum Nachschlagen von Direct-Message-Ereignissen. Die hier genannten Eigenschaften der X-API v2 sind allen Endpunkten zum Nachschlagen von Direct Messages gemeinsam.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Host-Domain | https://api.x.com | https://api.x.com |
+| Stamm-Pfad des Endpunkts | [/1.1/direct\_messages](https://api.x.com/1.1/direct_messages) | [/2/dm\_conversations](https://api.x.com/2/users/:id/dm_conversations)<br /><br />Direct-Message-Unterhaltungen werden als grundlegendes API-Objekt eingeführt.   <br /><br />Diese Endpunkte rufen die Ereignisse MessageCreate, ParticipantsJoin und ParticipantsLeave ab. |
+| Unterstützte HTTP-Methoden | GET | GET |
+| Unterstützt Gruppen-Direct Messages |     | ✔   |
+| Unterstützte Ereignistypen | message\_create | MessageCreate, ParticipantsJoin, ParticipantsLeave |
+| [Authentifizierung](/de/resources/fundamentals/authentication) | OAuth 1.0a User Context | OAuth 1.0a User Context<br /><br />OAuth 2 User Context (Scopes: dm.read, tweet.read, user.read) |
+| Erfordert die Verwendung von Anmeldedaten aus einer [developer App](/de/resources/fundamentals/authentication), die einem X-API v2-[Project](/de/resources/fundamentals/projects) zugeordnet ist |     | ✔   |
+| Standardmäßige [Rate Limits](/de/x-api/fundamentals/rate-limits) für Anfragen\*  <br />\*Alle Anfragen erfordern User-Tokens |     | GET-Anfragen: 300 Anfragen pro 15 Minuten<br /><br />Das Rate Limit wird über alle drei Endpunkte hinweg angewendet |
+
+Die folgenden Tabellen vergleichen die v2-GET-Methoden mit Version v1.1. Beachten Sie, dass diese v2-Angebote die verfügbaren Funktionen durch die Unterstützung von Gruppenunterhaltungen erweitern. 
+
+\*\*Alle Nachrichten in einer bestimmten Eins-zu-eins-Unterhaltung abrufen \*\*
+
+---
+
+Path: GET /2/dm\_conversations/with/:participant\_id/dm\_events
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Endpoint-Pfad | GET <br /><br />/1.1/direct\_messages/events/list | GET /2/dm\_conversations/with/:participant\_id/dm\_events |
+| Umfang des verfügbaren Ereignisverlaufs | 30 Tage | Keine Begrenzung |
+| Standard-[Ratenlimits](/de/x-api/fundamentals/rate-limits) für Anfragen | 15 Anfragen pro 15 Minuten | 300 Anfragen pro 15 Minuten  <br />Das Ratenlimit gilt für alle drei GET-Endpunkte |
+
+**Alle Nachrichten nach Konversations-ID abrufen**
+
+Pfad: GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Endpoint-Pfad | Nicht unterstützt. V1.1 kann nur Nachrichten aus Eins-zu-eins-Konversationen zurückgeben; das Abrufen von Ereignissen anhand von Konversations-IDs wird nicht unterstützt. | GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events |
+| Umfang des verfügbaren Ereignisverlaufs | 30 Tage | Keine Begrenzung |
+| Unterstützt Gruppenkonversationen |     | ✔   |
+| Standard-[Ratenlimits](/de/x-api/fundamentals/rate-limits) für Anfragen | 15 Anfragen pro 15 Minuten | 300 Anfragen pro 15 Minuten  <br />Das Ratenlimit gilt für alle drei GET-Endpunkte |
+
+**Alle Ereignisse in den Konversationen eines authentifizierten Nutzers abrufen, sowohl Eins-zu-eins- als auch Gruppenkonversationen**
+
+Pfad: GET /2/dm\_events
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Endpoint-Pfad | GET /1.1/direct\_messages/events/list  <br />  <br />V1.1 kann nur Nachrichten aus Eins-zu-eins-Konversationen zurückgeben. | GET /2/dm\_events |
+| Umfang des verfügbaren Ereignisverlaufs | 30 Tage | 30 Tage |
+| Unterstützt Gruppenkonversationen |     | ✔   |
+| Standard-[Ratenlimits](/de/x-api/fundamentals/rate-limits) für Anfragen | 15 Anfragen pro 15 Minuten | 300 Anfragen pro 15 Minuten  <br />Das Ratenlimit gilt für alle drei GET-Endpunkte |

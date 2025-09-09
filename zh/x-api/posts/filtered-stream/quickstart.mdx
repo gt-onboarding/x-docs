@@ -1,0 +1,204 @@
+---
+title: 快速开始
+sidebarTitle: 快速开始
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="getting-started-with-the-filtered-stream-endpoints">
+  ## 过滤流端点入门
+</div>
+
+本快速入门指南将帮助你使用 cURL 向过滤流端点组发出首个请求。cURL 是一款命令行工具，能够以最少配置发起请求。
+
+如果你想查看不同语言的示例代码，请访问我们的 [X API v2 示例代码](https://github.com/xdevplatform/Twitter-API-v2-sample-code) GitHub 仓库。
+
+<Note>
+  **先决条件**
+
+  完成本指南，你需要一组用于对请求进行身份验证的 [keys and tokens](/zh/resources/fundamentals/authentication)。你可以按照以下步骤生成这些 keys 和 tokens：
+
+  - [注册开发者账号](https://developer.x.com/en/apply-for-access)并通过审核。
+  - 在开发者门户创建一个 [Project](/zh/resources/fundamentals/projects) 以及关联的 [developer App](/zh/resources/fundamentals/developer-apps)。
+  - 前往你的 App 的 “Keys and tokens” 页面生成所需凭据。请务必将所有凭据妥善保管在安全位置。
+</Note>
+
+<div id="steps-to-build-a-filtered-stream-request-using-curl">
+  ### 使用 cURL 构建过滤流请求的步骤
+</div>
+
+**步骤一：创建规则**
+
+规则由一个或多个不同的[运算符](/zh/x-api/posts/filtered-stream#building-rules-for-filtered-stream)组成，这些运算符通过布尔逻辑和括号组合，用于定义哪些帖子会传送到你的流。在本指南中，我们将过滤出同时包含关键词“cat”和图片的帖子。规则如下：
+
+```cat has:images
+```
+
+**步骤二：为规则添加标签**
+
+你可以向同一条流添加多条并发规则。建立流式连接后，匹配任一规则的帖子都会通过该连接传输。为便于区分每条帖子匹配的是哪条规则，你可以在创建规则的请求中附带一个标签。每条匹配该规则的帖子随后都会在其负载中包含一个 tag 字段，标注匹配的规则。对于这条规则，我们将指定以下标签：
+
+```cats with images
+```
+
+**步骤三：将规则添加到流中**
+
+此端点要求在请求中携带一个 Content-Type 为 application/json 的请求体，其中包含你的规则及其标签。你还会注意到，我们把规则的 value 和 tag 放在一个 add 对象中，因为我们要将该规则添加到流中。JSON 请求体如下：
+
+```json
+{
+  "add": [
+    {
+      "value": "cat has:images",
+      "tag": "cats with images"
+    }
+  ]
+}
+```
+
+现在你已完整设置好该 JSON 请求体，可以将其加入到 cURL 请求中，如下所示。该请求尚未准备好，请在后续步骤前先不要提交。
+
+```json
+curl -X POST 'https://api.x.com/2/tweets/search/stream/rules' \
+-H "Content-type: application/json" \
+-H "Authorization: Bearer $APP_ACCESS_TOKEN" -d \
+'{
+  "add": [
+    {"value": "cat has:images", "tag": "cats with images"}
+  ]
+}'`
+```
+
+**步骤四：为请求进行身份验证**
+
+由于过滤流规则端点需要[OAuth 2.0 App-Only 身份验证](/zh/resources/fundamentals/authentication#app-only-authentication-and-oauth-2-0-bearer-token)，你需要将步骤三中 cURL 命令里的 $APP\_ACCESS\_TOKEN 替换为在前置步骤中生成的[应用访问令牌](/zh/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)。
+
+**步骤五：将规则添加到流中**
+
+接下来执行你的 cURL 请求，以把规则添加到你的流。将该 cURL 命令复制到命令行界面并按下“回车”。
+
+如果 cURL 请求成功，你将收到一个响应，其中包含关于 value、tag 和 id（该规则的唯一标识符）的数据。响应类似如下：
+
+```json
+{
+  "data": [
+    {
+      "value": "cat has:images",
+      "tag": "cats with images",
+      "id": "1273026480692322304"
+    }
+  ],
+  "meta": {
+    "sent": "2020-06-16T22:55:39.356Z",
+    "summary": {
+      "created": 1,
+      "not_created": 0,
+      "valid": 1,
+      "invalid": 0
+    }
+  }
+}
+```
+
+你可以通过向规则端点发送以下 GET 请求来验证规则是否已成功添加，同样请将 $APP\_ACCESS\_TOKEN 替换为你的令牌。该请求将返回已添加到你的流中的全部规则列表。
+
+```bash
+curl -X GET 'https://api.x.com/2/tweets/search/stream/rules' \
+-H "Authorization: Bearer $APP_ACCESS_TOKEN"
+```
+
+如果 cURL 请求成功，你应当收到如下响应：
+ 
+
+```json
+{
+	"data": [{
+		"id": "1273028376882589696",
+		"value": "cat has:images",
+		"tag": "cats with images"
+	}],
+	"meta": {
+		"sent": "2020-06-16T23:14:06.498Z"
+	}
+}
+```
+
+**步骤六：确定并指定你希望检索的字段**
+
+如果你在第五步之后连接到流，你的响应中将包含默认的[Post 对象](/zh/x-api/fundamentals/data-dictionary#tweet)字段：id、text 和 edit\_history\_tweet\_ids。若想获取更多字段，需要在请求中通过 [field](/zh/x-api/fundamentals/fields) 和/或 [expansion](/zh/x-api/fundamentals/expansions) 参数显式指定。
+
+在本练习中，我们将从不同对象请求三组字段：
+
+1. 主 Post 对象中的附加字段 tweet.created\_at。
+2. 返回的 Posts 所关联作者的[user 对象](/zh/x-api/fundamentals/data-dictionary#user)默认字段：id、name 和 username。
+3. 关联 user 对象中的附加字段 user.created\_at。
+    
+
+要请求这些字段，你需要在请求中传递以下内容：
+
+|     |     |     |
+| :--- | :--- | :--- |
+| Key | Value | Returned fields |
+| tweet.fields | created\_at | tweets.created\_at |
+| expansions | author\_id | includes.users.id, includes.users.name, includes.users.username |
+| user.fields | created\_at | includes.users.created\_at |
+
+了解上述内容后，你可以拼接用于连接到流的请求 URL，形如下：
+
+```bash
+https://api.x.com/2/tweets/search/stream?tweet.fields=created_at&expansions=author_id&user.fields=created_at
+```
+
+**第七步：连接到流并查看响应**
+
+现在你的规则已设置完毕，且已指定所需返回的字段，可以连接到流了。该流将传递与你提交的规则匹配的 Post 对象。以下是在请求中加入第六步中的 URL 后的 cURL 命令示例：
+ 
+
+```bash
+curl -X GET -H "Authorization: Bearer $APP_ACCESS_TOKEN" "https://api.x.com/2/tweets/search/stream?tweet.fields=created_at&expansions=author_id&user.fields=created_at"
+```
+
+同样，此请求必须使用 OAuth 2.0 应用仅模式（App-Only）进行认证，因此在将其复制到命令行工具前，请确保将 $APP\_ACCESS\_TOKEN 替换为你的凭据。
+
+连接到过滤流后，你将开始以以下 JSON 格式接收符合规则的 Posts：
+ 
+
+```json
+{
+  "data": [
+    {
+      "author_id": "2244994945",
+      "created_at": "2022-09-14T19:00:55.000Z",
+      "id": "1228393702244134912",
+      "edit_history_tweet_ids": ["1228393702244134912"],
+      "text": "What did the developer write in their Valentine’s card?\n  \nwhile(true) {\n    I = Love(You);  \n}"
+    },
+    {
+      "author_id": "2244994945",
+      "created_at": "2022-09-12T17:09:56.000Z",
+      "id": "1227640996038684673",
+       "edit_history_tweet_ids": ["1227640996038684673"],
+      "text": "Doctors: Googling stuff online does not make you a doctor\n\nDevelopers: https://t.co/mrju5ypPkb"
+    },
+    {
+      "author_id": "2244994945",
+      "created_at": "2022-09-27T20:26:41.000Z",
+      "id": "1199786642791452673",
+      "edit_history_tweet_ids": ["1199786642791452673"],
+      "text": "C#"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "name": "Twitter Dev",
+        "username": "TwitterDev"
+      }
+    ]
+  }
+}
+```
+
+如果你想关闭连接，可以在 Mac 或 Windows 的命令行工具中按下 Control-C 以中断连接，或直接关闭窗口。 

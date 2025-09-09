@@ -1,0 +1,175 @@
+---
+title: インテグレーションガイド
+sidebarTitle: インテグレーションガイド
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+Direct Messages エンドポイント v2 では、会話および会話イベントが X API の中核オブジェクトとして導入され、1 対 1 の会話とグループ会話が区別されます。1 対 1 の会話には常に参加者が 2 人のみである一方、グループ会話は 2 人以上で構成され、メンバーは変更される場合があります。   
+
+このページでは、Manage Direct Messages エンドポイントをシステムに統合する際に把握しておくべき各種ツールおよび主要な概念について説明します。ページは次の 2 つのセクションで構成されています:
+
+- 重要な概念
+  - [Direct Message conversations](#direct-message-conversations)
+
+  - [Shared conversation and event IDs across v1.1 and v2](#shared-conversation-and-event-ids)
+
+  - [Including media attachments and referencing Posts](#including-media-attachments-and-referencing-tweets)
+
+  - [Authentication](#authentication)
+
+  - [Developer portal, Projects, and developer Apps](#developer-portal-projects-and-developer-apps)
+
+  - [Rate limits](#rate-limits)
+
+- [Helpful tools](#helpful-tools)
+
+**重要な概念**
+
+<div id="direct-message-conversations">
+  ### ダイレクトメッセージの会話
+</div>
+
+すべてのダイレクトメッセージは、ダイレクトメッセージの会話に属します。会話は1対1またはグループのいずれかです。今回のリリースでは、ダイレクトメッセージを作成し、ダイレクトメッセージの会話に関連するイベントを取得するために必要な基礎的なエンドポイントを提供します。すべての会話には一意の dm\_conversation\_id があり、その会話を構成する各イベントにも一意の dm\_event\_id が付与されます。  
+
+Manage Direct Message エンドポイントは、新規メッセージを作成して会話に追加するための3つの POST メソッドを提供します。
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - 1対1のダイレクトメッセージを作成します。このメソッドは、既存の1対1の会話にメッセージを追加するか、新規の会話を作成します。:participant\_id パスパラメータは、メッセージの受信アカウントの User ID です。 
+  以下は、1対1のダイレクトメッセージを送信するための JSON リクエストボディ例です。
+
+```
+{
+   "text": "Hello just you. This will appear as a new conversation if we have never messaged, or will be added to our existing thread. "
+}
+```
+
+- **POST /2/dm\_conversations** - 新しいグループ会話を作成し、そこにダイレクトメッセージを追加します。これらのリクエストには、会話参加者のリストが必要です。同じ参加者リストで複数の会話を作成できる点に注意してください。これらのリクエストは常に新しい会話 ID を返します。以下は、新しいグループ会話を作成してダイレクトメッセージを追加するための JSON リクエストボディ例です。"conversation\_type" フィールドが必須で、"Group"（大文字小文字を区別）に設定する必要があります。
+
+```
+{
+   "message": {"text": "Hello to just you two, this is a new group conversation."},
+   "participant_ids": ["944480690","906948460078698496"],
+   "conversation_type": "Group"
+}
+```
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - ダイレクトメッセージを作成し、既存の会話に追加します。:dm\_conversation\_id パスパラメータは、メッセージを追加する対象の会話 ID です。このメソッドは、1対1およびグループのいずれの会話にもメッセージを追加できます。
+  以下は、1対1およびグループの会話にダイレクトメッセージを送信するための JSON リクエストボディ例です。
+
+```
+{
+   "text": "Here is a new message."
+}
+```
+
+これらの POST メソッドは、メディア1件の添付をサポートします。POST リクエストボディには "text" フィールドまたは "attachments" フィールド、あるいはその両方を含める必要があります。"attachments" フィールドがない場合は "text" 属性が必須で、"text" フィールドがない場合は "attachments" フィールドが必須です。詳細は次のセクションを参照してください。
+
+詳細については、[Manage Direct Messages API リファレンス](/ja/x-api/direct-messages/create-a-new-dm-conversation)を参照してください。 
+
+<div id="shared-conversation-and-event-ids-across-v11-and-v2">
+  ### v1.1 と v2 間で共有される会話 ID とイベント ID
+</div>
+
+重要な概念として、X プラットフォームの v1.1 と v2 では会話 ID とイベント ID が共通です。つまり、両バージョンを組み合わせて使用できます。
+
+たとえば、Direct Messages v1.1 のエンドポイントには、単一のイベントを取得するメソッドやイベントを削除するメソッドがあります。これらのメソッドは v2 ではまだ提供されていません。ID は v1.1 と v2 で共通のため、v2 で取得した ID を使って v1.1 にリクエストしたり、X アプリの会話 URL に表示される会話 ID を参照したりできます。  
+
+<div id="including-media-attachments-and-referencing-posts">
+  ### メディアの添付と投稿の参照
+</div>
+
+Manage Direct Message エンドポイントはすべて、1 つのメディア（写真、動画、または GIF）の添付に対応しています。メディアを添付するには、v1.1 の [Upload media](https://developer.x.com/en/docs/x-api/v1/media/upload-media/overview) エンドポイントで生成されたメディア ID が必要です。ダイレクトメッセージを送信する認証済みユーザー自身が、そのメディアをアップロードしている必要があります。アップロード後、メディアはメッセージに添付する目的で 24 時間利用可能です。
+
+メディアの添付方法を示すため、以下は JSON リクエストボディの例です:
+
+```
+{
+ "text": "Here's a photo...",
+ "attachments": [{"media_id": "1583157113245011970}]
+}
+```
+
+生成される MessageCreate イベントには、次のメタデータが含まれます:
+
+```
+{
+    "attachments": {
+        "media_keys": [
+            "5_1583157113245011970"
+        ]
+    }
+}
+```
+
+投稿は、メッセージ本文に投稿の URL を含めることでも添付できます。メッセージに投稿を含める方法を示すため、以下は JSON リクエストボディの例です:
+
+```
+{
+ "text": "Here's the Tweet I was talking about: https://x.com/SnowBotDev/status/1580559079470145536"
+}
+```
+
+生成される MessageCreate イベントには、次のメタデータが含まれます:
+
+```
+{
+    "referenced_tweets": [
+        {
+            "id": "1580559079470145536"
+        }
+    ]
+}
+```
+
+<div id="authentication">
+  ### 認証
+</div>
+
+すべての X API v2 エンドポイントでは、キーやトークンとも呼ばれる一連の認証情報でリクエストに認証を付与する必要があります。ダイレクトメッセージはすべて非公開であり、アクセスにはユーザー認可が必要です。 
+
+これらのダイレクトメッセージエンドポイントの利用には、[OAuth 2.0 Authorization Flow with PKCE](/ja/x-api/posts/manage-tweets) か [1.0a User Context](/ja/resources/fundamentals/authentication) が必要です。つまり、リクエストを成功させるには API キー一式とユーザーのアクセストークンが必要です。アクセストークンは、あなたが代理でリクエストしているユーザーに紐づいていなければなりません。別のユーザーのアクセストークンを生成する場合は、そのユーザーが [3-legged OAuth flow](/ja/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) を用いてあなたのアプリを承認（または認証）する必要があります。
+
+OAuth のユーザーコンテキストは扱いが難しい場合があります。この認証方式に不慣れな場合は、[ライブラリ](/ja/x-api/tools-and-libraries/overview) か Postman のようなツールを使用して、適切にリクエストへ認証を付与することを推奨します。 
+
+[OAuth 2.0 Authorization Code with PKCE](ja/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-2) は、アプリケーションのスコープや複数デバイス間での認可フローをより細かく制御できます。OAuth 2.0 では、ユーザーに代わって特定の権限を付与する細かなスコープを選択できます。ダイレクトメッセージのルックアップエンドポイントには、次のスコープが必要です：dm.write、dm.read、tweet.read、user.read。
+
+アプリで OAuth 2.0 を有効にするには、デベロッパーポータルの App settings セクションにあるアプリの authentication settings で有効化してください。
+
+<div id="developer-portal-projects-and-developer-apps">
+  ### デベロッパーポータル、プロジェクトとアプリ
+</div>
+
+X API v2 のエンドポイントで利用できる認証情報を取得するには、承認済みの開発者アカウントを保有し、そのアカウント内でプロジェクトを作成し、そのプロジェクト内にアプリを作成する必要があります。キーとトークンは、作成したアプリ内で確認できます。 
+
+<div id="rate-limits">
+  ### レート制限
+</div>
+
+毎日、数千人規模の開発者が X API にリクエストを送信しています。これらの大量のリクエストを適切に管理するため、各エンドポイントにはレート制限が設けられており、アプリケーションまたは認証済みユーザーに代わって実行できるリクエスト数が制限されています。 
+
+Manage Direct Message エンドポイントには、ユーザー単位および X アプリ単位の両方でレート制限が適用されています。これは、あなたが代理でリクエストを送る認証済みユーザーが、あなたの X アプリを使って送信できるメッセージ数に上限があることを意味します。さらに、あなたの X アプリが 1 日に送信できるダイレクトメッセージの総数にも上限があります。 
+
+POST メソッドには、15 分あたり 200 件のリクエスト／メッセージというユーザー単位のレート制限があります。ユーザーは 24 時間あたり 1,000 件のダイレクトメッセージにも制限されます。さらに、X アプリには 24 時間あたり 15,000 件のメッセージという上限があります。これらのレート制限は POST エンドポイント間で共有されます。 
+
+**役立つツール**
+
+Direct Messages ルックアップエンドポイントを扱う際に活用を推奨する、いくつかの便利なツールを以下に紹介します。 
+
+****Postman****
+
+Postman はエンドポイントの検証に適したツールです。各 Postman リクエストには、利用可能な項目を素早く把握できるよう、すべてのパスおよびボディパラメータが含まれています。Postman コレクションの詳細については、[Using Postman](/ja/tutorials/postman-getting-started) ページをご覧ください。 
+
+****コードサンプル****
+
+v2 Direct Messages エンドポイント向けの Python サンプルコードは、[X API v2 sample code GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code)[](https://github.com/xdevplatform/Twitter-API-v2-sample-code) リポジトリにあります。"Manage-Direct-Messages" フォルダーには POST メソッドの例が、"Direct-Messages-lookup" フォルダーには GET メソッドの例が含まれています。
+
+**XDev Software Development Kits (SDKs)**
+
+これらの[ライブラリ](/ja/x-api/tools-and-libraries/overview)は v2 Direct Messages エンドポイント向けに更新中で、まもなく利用可能になる予定です。
+
+- [X API Java SDK](https://github.com/xdevplatform/twitter-api-java-sdk) - X API v2 の公式 Java SDK
+- [X API TypeScript/JavaScript SDK](https://github.com/xdevplatform/twitter-api-typescript-sdk) - X API v2 の公式 TS/JS SDK
+
+**サードパーティライブラリ**
+
+コミュニティにより開発された[サードパーティライブラリ](/ja/x-api/tools-and-libraries/overview#community-tools-and-libraries-for-v2)が増えています。これらのライブラリは導入を支援するために設計されており、いくつかは近く v2 Direct Messages エンドポイントをサポートする見込みです。適切なバージョンタグを確認することで、v2 エンドポイントに対応するライブラリを見つけられます。

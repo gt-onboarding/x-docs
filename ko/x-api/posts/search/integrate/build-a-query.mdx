@@ -1,0 +1,307 @@
+---
+title: 쿼리 만들기
+sidebarTitle: 쿼리 만들기
+---
+
+<div id="building-queries-for-search-posts">
+  ## 게시물 검색을 위한 쿼리 작성
+</div>
+
+검색 엔드포인트는 GET 요청으로 단일 쿼리를 받아 그와 일치하는 과거 게시물 집합을 반환합니다. 쿼리는 다양한 게시물 속성에 매칭하기 위한 연산자들로 구성됩니다. 
+
+<div id="table-of-contents">
+  ### 목차
+</div>
+
+- [쿼리 작성하기](#build)
+- [쿼리 제한사항](#limits)
+- [연산자 제공 여부](#availability)
+- [연산자 유형: 단독 사용 및 결합 필요](#types)
+- [불리언 연산자와 그룹화](#boolean)
+- [연산 순서](#order-of-operations)
+- [구두점, 발음 구별 기호, 대소문자 구분](#punctuation)
+- [정확도와 효율성](#specificity)
+- [인용 게시물 일치 동작](#quote-tweets)
+- [반복적으로 쿼리 작성하기](#iterative)
+- [요청에 쿼리 추가하기](#adding-a-query)
+- [쿼리 예제](#examples)
+- [연산자 목록](#list)
+
+<div id="building-a-query">
+  ### 쿼리 구성하기
+</div>
+
+<div id="query-limitations">
+  #### 쿼리 제한
+</div>
+
+사용 중인 [액세스 수준](/ko/x-api/getting-started/about-x-api)에 따라 쿼리 제한이 달라집니다.
+
+Basic 또는 Pro 액세스가 있는 경우, 최근 검색 엔드포인트에서 쿼리 길이는 최대 512자입니다.
+
+Pro 액세스가 있는 경우, 전체 아카이브 검색 엔드포인트에서 쿼리 길이는 최대 1,024자입니다. 
+
+<div id="operator-availability">
+  #### 연산자 사용 가능 여부
+</div>
+
+대부분의 연산자는 모든 개발자가 사용할 수 있지만, 일부는 특정 액세스 수준에서만 사용할 수 있습니다. 각 연산자의 사용 가능 액세스 수준은 다음 레이블을 사용하여 [연산자 목록](/ko/x-api/posts/search/integrate/build-a-query) 표에 표시됩니다.
+
+- **핵심 연산자:** 모든 [프로젝트](/ko/resources/fundamentals/projects)에서 사용 가능
+- **고급 연산자:** 특정 액세스 수준을 가진 프로젝트에서 사용 가능
+
+<div id="operator-types-standalone-and-conjunction-required">
+  #### 연산자 유형: 단독 사용 가능 및 결합 필수
+</div>
+
+**단독 사용 가능 연산자**는 그 자체로도, 또는 다른 모든 연산자(결합이 필요한 연산자 포함)와 함께도 사용할 수 있습니다.
+
+예를 들어, 다음 쿼리는 단독 사용 가능한 `#hashtag` 연산자를 사용하므로 정상적으로 동작합니다:
+
+`#xapiv2`
+
+**결합 필수** 연산자는 쿼리에서 단독으로 사용할 수 없습니다. 최소 한 개의 단독 사용 가능 연산자가 쿼리에 포함된 경우에만 사용할 수 있습니다. 이는 이러한 연산자를 단독으로 사용하면 조건이 지나치게 포괄적이 되어 매우 많은 게시물과 일치하기 때문입니다.
+
+예를 들어, 다음 쿼리는 결합 필수 연산자만 포함하고 있으므로 지원되지 않습니다:
+
+`has:media`
+
+`has:links OR is:retweet`
+
+문구 `"X data"`와 같은 단독 사용 가능 연산자를 추가하면 쿼리가 정상적으로 작동합니다.
+
+`"X data" has:mentions (has:media OR has:links)`
+
+<div id="boolean-operators-and-grouping">
+  #### 불리언 연산자와 그룹화
+</div>
+
+하나의 쿼리에서 여러 연산자를 연결해 사용하려면 다음 도구를 활용할 수 있습니다:
+
+|     |     |
+| :--- | :--- |
+| **AND 논리** | 공백으로 구분된 연속된 연산자는 불리언 "AND" 논리를 의미하며, 두 조건이 모두 충족될 때만 포스트가 매칭됩니다. 예: `snow day #NoSchool`은 snow와 day라는 용어와 해시태그 #NoSchool을 모두 포함하는 포스트와 매칭됩니다. |
+| **OR 논리** | 연산자 사이에 OR가 있으면 OR 논리가 적용되어, 조건 중 하나만 충족해도 포스트가 매칭됩니다. 예: `grumpy OR cat OR #meme`을 지정하면 grumpy 또는 cat이라는 용어, 혹은 해시태그 #meme 중 최소 하나를 포함하는 모든 포스트와 매칭됩니다. |
+| **NOT 논리, 부정** | 키워드(또는 어떤 연산자) 앞에 대시(-)를 붙이면 해당 항목을 부정(NOT)합니다. 예: `cat #meme -grumpy`는 해시태그 #meme과 용어 cat을 포함하되, 용어 grumpy는 포함하지 않는 포스트와 매칭됩니다. 자주 쓰이는 쿼리 절로 `-is:retweet`이 있으며, 이는 리트윗에는 매칭되지 않아 원본 포스트, 인용 트윗, 답글에만 매칭됩니다. 모든 연산자는 부정할 수 있지만, 부정된 연산자만 단독으로 사용할 수는 없습니다. |
+| **그룹화** | 괄호를 사용해 연산자를 묶어 그룹화할 수 있습니다. 예: `(grumpy cat) OR (#meme has:images)`는 grumpy와 cat이라는 용어를 모두 포함하는 포스트 또는 이미지가 있고 해시태그 #meme을 포함하는 포스트를 반환합니다. AND가 먼저 적용된 다음 OR가 적용됩니다. |
+
+**부정에 대한 참고 사항**
+
+연산자 `-is:nullcast`는 항상 부정형으로만 사용해야 합니다.
+
+부정된 연산자는 단독으로 사용할 수 없습니다.
+
+괄호로 묶인 연산자 집합 전체를 한 번에 부정하지 마십시오. 대신 각 연산자를 개별적으로 부정하십시오. 예를 들어, `skiing -(snow OR day OR noschool)` 대신 `skiing -snow -day -noschool`을 사용하는 것을 권장합니다. 
+
+<div id="order-of-operations">
+  #### 연산 순서
+</div>
+
+AND와 OR 기능을 함께 사용할 때는 다음 연산 순서에 따라 쿼리가 평가됩니다.
+
+1. AND 논리로 연결된 연산자가 먼저 결합됩니다
+2. 그다음 OR 논리로 연결된 연산자가 적용됩니다
+
+예를 들어:
+
+- `apple OR iphone ipad`는 `apple OR (iphone ipad)`로 평가됩니다
+- `ipad iphone OR android`는 `(iphone ipad) OR android`로 평가됩니다
+
+모호성을 줄이고 쿼리가 의도한 대로 평가되도록 하려면, 필요한 경우 괄호로 항목을 묶으세요.
+
+예를 들어:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### 구두점, 발음 구별 기호, 그리고 대소문자 구분
+</div>
+
+문자 악센트나 발음 구별 기호가 포함된 키워드 또는 해시태그 쿼리를 지정하면, 해당 악센트와 발음 구별 기호가 있는 용어뿐 아니라 일반 문자를 사용하는 용어가 포함된 게시물 텍스트와도 일치합니다. 예를 들어, 키워드 `Diacrítica` 또는 해시태그 `#cumpleaños`를 사용한 쿼리는 틸데 í 또는 에녜가 없는 _Diacritica_ 또는 \_#cumpleanos\_뿐만 아니라 _Diacrítica_ 또는 \_#cumpleaños\_와도 일치합니다.
+
+악센트나 발음 구별 기호가 있는 문자는 일반 문자와 동일하게 처리되며 단어 경계로 취급되지 않습니다. 예를 들어, 키워드 `cumpleaños`가 포함된 쿼리는 \_cumpleaños\_라는 단어를 포함하는 활동에만 일치하며, _cumplea_, _cumplean_, 또는 \_os\_를 포함하는 활동에는 일치하지 않습니다.
+
+모든 연산자는 대소문자를 구분하지 않고 평가됩니다. 예를 들어, 쿼리 `cat`는 다음 모두가 포함된 게시물과 일치합니다: _cat_, _CAT_, _Cat_.
+
+[필터드 스트림](/ko/x-api/posts/filtered-stream)의 일치 동작은 검색 게시물과 다르게 작동합니다. [필터드 스트림 규칙을 작성](/ko/x-api/posts/filtered-stream#building-rules-for-filtered-stream)할 때, 악센트와 발음 구별 기호가 포함된 키워드와 해시태그는 동일하게 악센트와 발음 구별 기호가 포함된 용어에만 일치하며, 일반 문자를 사용하는 용어에는 일치하지 않는다는 점을 유념하세요.
+
+예를 들어, 키워드 `Diacrítica` 또는 해시태그 `#cumpleaños`를 포함하는 필터드 스트림 규칙은 \_Diacrítica\_와 \_#cumpleaños\_에만 일치하며, 틸데 í 또는 에녜가 없는 _Diacritica_ 또는 \_#cumpleanos\_에는 일치하지 않습니다.
+
+<div id="specificity-and-efficiency">
+  #### 구체성과 효율성
+</div>
+
+쿼리를 작성하기 시작할 때 몇 가지를 염두에 두는 것이 중요합니다.
+
+- 단일 키워드나 #hashtag 같은 광범위한 독립형 연산자를 쿼리에 사용하는 것은 일반적으로 권장되지 않습니다. 방대한 양의 게시물과 일치할 가능성이 높기 때문입니다. 더 견고한 쿼리를 만들면 일치하는 게시물 집합이 더 구체화되어, 유용한 인사이트를 찾기 위해 살펴봐야 하는 페이로드의 잡음을 줄이는 데 도움이 됩니다.
+  - 예를 들어, 쿼리가 키워드 `happy` 하나뿐이라면 하루에 200,000~300,000개의 게시물이 반환될 수 있습니다.
+  - 조건 연산자를 더 추가하면 검색 결과 범위가 좁아집니다. 예: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+- 효율적인 쿼리를 작성하면 쿼리 길이의 문자 제한을 준수하는 데도 유리합니다. 문자 수에는 공백과 연산자를 포함한 전체 쿼리 문자열이 포함됩니다.
+  - 예를 들어, 다음 쿼리의 길이는 59자입니다: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+
+<div id="quote-tweet-matching-behavior">
+  #### 인용 트윗 매칭 동작
+</div>
+
+Search Posts 엔드포인트를 사용할 때 연산자는 인용된 원본 게시물의 내용에는 매칭되지 않지만, 인용 트윗에 포함된 내용에는 매칭됩니다.
+
+다만 [filtered stream](/ko/x-api/posts/filtered-stream)은 인용된 원본 게시물의 내용과 인용 트윗의 내용 모두에 매칭된다는 점에 유의하시기 바랍니다.
+
+<div id="iteratively-building-a-query">
+  #### 반복적으로 쿼리 빌드하기
+</div>
+
+<div id="test-your-query-early-and-often">
+  ##### 쿼리는 일찍, 그리고 자주 테스트하세요
+</div>
+
+처음부터 “정확한” 결과를 반환하는 쿼리를 만드는 일은 드뭅니다. X에는 처음에는 분명하지 않을 수 있는 요소가 많고, 위에서 설명한 쿼리 구문이 원하는 검색과 정확히 맞지 않을 수도 있습니다. 쿼리를 작성할 때는 주기적으로 테스트하는 것이 중요합니다.
+
+이 섹션에서는 다음 쿼리로 시작해 테스트에서 얻은 결과를 바탕으로 이를 조정해 보겠습니다: 
+
+`happy OR happiness`
+
+<div id="use-results-to-narrow-the-query">
+  ##### 결과를 활용해 쿼리를 좁히기
+</div>
+
+쿼리를 테스트할 때 반환된 게시물을 살펴보고 기대하는 데이터가 포함되어 있는지 확인해야 합니다. 더 넓은 쿼리와 더 큰 게시물 일치 집합으로 시작하면 결과를 검토한 뒤 원치 않는 결과를 걸러내도록 쿼리를 좁힐 수 있습니다.  
+
+예시 쿼리를 테스트했을 때 여러 언어의 게시물이 반환되는 것을 확인했습니다. 이 경우 영어로 된 게시물만 받기 원하므로 `lang:` 연산자를 추가하겠습니다:
+
+`(happy OR happiness) lang:en`
+
+테스트 결과 생일을 축하하는 게시물이 많이 포함되어 있었으므로 부정 키워드 연산자 `-birthday`를 추가하겠습니다. 또한 원본 게시물만 받기 원하므로 부정 연산자 `-is:retweet`도 추가했습니다:
+
+`(happy OR happiness) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-inclusion-where-needed">
+  ##### 필요한 경우 포함 범위 조정
+</div>
+
+예상한 데이터를 받지 못했고 반환되어야 할 기존 게시물이 있다고 확신한다면, 원하는 데이터를 걸러내고 있을 수 있는 연산자를 제거해 쿼리 범위를 넓혀야 할 수 있습니다.
+
+예시에서는, 우리가 찾는 감정을 표현했지만 테스트 결과에 포함되지 않은 다른 게시물들이 개인 타임라인에 있음을 확인했습니다. 더 넓은 커버리지를 확보하기 위해 `excited`와 `elated` 키워드를 추가하겠습니다.
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-popular-trendsbursts-over-the-time-period">
+  ##### 기간 내 유행/급증 트렌드에 맞춰 조정하기
+</div>
+
+X에서는 트렌드가 빠르게 생겼다가 사라집니다. 쿼리를 관리하는 일은 지속적으로 수행해야 합니다. 쿼리를 한동안 사용할 계획이라면, 주기적으로 수집 중인 데이터를 점검하여 조정이 필요한지 확인하는 것을 권장합니다.
+
+예시에서 사람들에게 “happy holidays”를 기원하는 게시물이 들어오기 시작한 것을 확인했습니다. 이러한 게시물을 결과에 포함하고 싶지 않으므로 부정 키워드인 `-holidays`를 추가하겠습니다.
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet -holidays`
+
+<div id="adding-a-query-to-your-request">
+  ### 요청에 쿼리 추가하기
+</div>
+
+요청에 쿼리를 추가하려면 `query` 매개변수를 사용해야 합니다. 다른 쿼리 매개변수와 마찬가지로 작성한 쿼리는 반드시 HTTP로 인코딩해야 합니다.
+
+다음은 cURL 명령을 사용한 예시로, `tweet.fields` 및 `max_results` 매개변수도 포함되어 있습니다. 이 명령을 사용하려면 `\$BEARER_TOKEN`을 본인의 [Bearer Token](/ko/resources/fundamentals/authentication#oauth-2-0)으로 바꾸세요:
+
+```bash
+curl https://api.x.com/2/tweets/search/recent?query=cat%20has%3Amedia%20-grumpy&tweet.fields=created_at&max_results=100 -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+<div id="query-examples">
+  ### 쿼리 예제
+</div>
+
+<div id="tracking-a-natural-disaster">
+  #### 자연재해 추적
+</div>
+
+다음 쿼리는 2017년 휴스턴을 강타한 허리케인 하비와 관련해 기상 기관 및 관측소에서 발신된 원본 게시물에 매칭되었습니다.
+
+다음은 HTTP 인코딩을 적용하지 않은 쿼리입니다:
+
+`has:geo (from:NWSNHC OR from:NHC\_Atlantic OR from:NWSHouston OR from:NWSSanAntonio OR from:USGS\_TexasRain OR from:USGS_TexasFlood OR from:JeffLindner1) -is:retweet`
+
+다음은 HTTP 인코딩, 쿼리 매개변수, 그리고 최근 검색 URI를 포함한 쿼리입니다:
+
+`https://api.x.com/2/tweets/search/recent?query=-is%3Aretweet%20has%3Ageo%20(from%3ANWSNHC%20OR%20from%3ANHC\_Atlantic%20OR%20from%3ANWSHouston%20OR%20from%3ANWSSanAntonio%20OR%20from%3AUSGS\_TexasRain%20OR%20from%3AUSGS_TexasFlood%20OR%20from%3AJeffLindner1)`
+
+<div id="reviewing-the-sentiment-of-a-conversation">
+  #### 대화의 감성 검토
+</div>
+
+다음 규칙은 해시태그 \_#nowplaying\_을 중심으로 전개되는 대화의 감성을 더 잘 파악하는 데 사용할 수 있지만, 북미 지역에서 게시된 포스트로만 범위를 한정합니다.
+
+아래는 서로 다른 두 가지 쿼리(각각 긍정과 부정)의 HTTP 인코딩을 적용하지 않은 형태입니다:
+
+`#nowplaying (happy OR exciting OR excited OR favorite OR fav OR amazing OR lovely OR incredible) (place\_country:US OR place\_country:MX OR place_country:CA) -horrible -worst -sucks -bad -disappointing`
+
+`#nowplaying (horrible OR worst OR sucks OR bad OR disappointing) (place\_country:US OR place\_country:MX OR place_country:CA) -happy -exciting -excited -favorite -fav -amazing -lovely -incredible`
+
+아래는 HTTP 인코딩, 쿼리 파라미터, 그리고 최근 검색 URI를 포함한 형태입니다:
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(happy%20OR%20exciting%20OR%20excited%20OR%20favorite%20OR%20fav%20amazing%20lovely%20incredible)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-horrible%20-worst%20-sucks%20-bad%20-disappointing`
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(horrible%20OR%20worst%20OR%20sucks%20OR%20bad%20disappointing)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-happy%20-exciting%20-excited%20-favorite%20-fav%20-amazing%20-lovely%20-incredible`
+
+<div id="find-posts-that-relate-to-a-specific-post-annotation">
+  #### 특정 게시물 주석과 관련된 게시물 찾기
+</div>
+
+이 규칙은 게시물의 언어가 일본어이며 고양이가 아닌 반려동물 이미지를 포함한 원본 게시물을 검색하도록 만들어졌습니다. 이를 위해 [게시물 주석](/ko/x-api/fundamentals/post-annotations) 기능을 활용하는 `context:` 연산자를 사용했습니다. 먼저 [게시물 조회](/ko/x-api/posts/lookup/introduction) 엔드포인트와 `tweet.fields=context_annotations` 필드 매개변수를 사용하여 쿼리에 사용할 domain.entity ID를 식별했습니다:
+
+- 고양이와 관련된 게시물은 `domain` 66(Interests and Hobbies 카테고리)과 entity 852262932607926273(Cats)을 반환합니다.
+- 반려동물과 관련된 게시물은 `domain` 65(Interests and Hobbies Vertical)와 entity 852262932607926273(Pets)을 반환합니다.
+
+다음은 HTTP 인코딩을 적용하지 않은 쿼리 예시입니다:
+
+`context:65.852262932607926273 -context:66.852262932607926273 -is:retweet has:images lang:ja`
+
+다음은 HTTP 인코딩, 쿼리 매개변수, 그리고 최근 검색 URI를 적용한 쿼리 예시입니다:
+
+`https://api.x.com/2/tweets/search/recent?query=context%3A65.852262932607926273%20-context%3A66.852262932607926273%20-is%3Aretweet%20has%3Aimages%20lang%3Aja`
+
+추가 지원이 필요하면 [쿼리 빌더 도구](https://developer.x.com/apitools/query?query=)를 사용해 보세요. 
+
+<div id="operators">
+  ### 연산자
+</div>
+
+<Note>**참고:** 일부 연산자는 대체 이름(별칭)을 사용할 수 있습니다.</Note>
+
+| **연산자** | **유형** | **설명** |
+|:-------------|:---------|:-----------------|
+| `keyword` | 단독 사용 | 게시물 본문 내 키워드를 일치시킵니다. 이는 토큰화 기반 일치로, 입력한 키워드 문자열을 게시물 본문의 토큰화된 텍스트와 비교합니다. 토큰화는 구두점, 기호, 유니코드 기본 평면 구분 문자를 기준으로 단어를 분리합니다.<br /><br />예를 들어 “I like coca-cola”라는 텍스트가 있는 게시물은 I, like, coca, cola와 같은 토큰으로 분리됩니다. 그런 다음 이 토큰을 쿼리에 사용한 키워드 문자열과 비교합니다. 구두점(예: coca-cola), 기호, 또는 구분 문자가 포함된 문자열을 일치시키려면 키워드를 큰따옴표로 감싸야 합니다.<br /><br />예시: `pepsi OR cola OR "coca cola"` |
+| `emoji` | 단독 사용 | 게시물 본문 내 이모지를 일치시킵니다. 키워드와 유사하게, 이모지도 토큰화 기반 일치로 처리되므로 입력한 이모지를 게시물 본문의 토큰화된 텍스트와 비교합니다.<br /><br />이모지에 변형이 있는 경우, 쿼리에 추가하려면 큰따옴표로 감싸야 합니다.<br /><br />예시: `(😃 OR 😡) 😬` |
+| `"exact phrase match"` | 단독 사용 | 게시물 본문 내 정확한 구문을 일치시킵니다.<br /><br />예시: `("X API" OR #v2) -"recent search"` |
+| `#` | 단독 사용 | 게시물에 인식된 해시태그가 포함된 경우를 일치시킵니다. 해시태그는 게시물에서 인식된 엔터티여야 합니다.<br /><br />이 연산자는 토큰화 일치가 아닌 정확히 일치하는 방식을 사용합니다. 즉, `#thanku` 규칙은 정확히 #thanku 해시태그가 있는 게시물에는 일치하지만, #thankunext 해시태그가 있는 게시물에는 일치하지 않습니다.<br /><br />예시: `#thankunext #fanart OR @arianagrande` |
+| `@` | 단독 사용 | 지정한 사용자명을 언급한 게시물을 일치시킵니다. 사용자명은 @ 문자를 포함한 인식된 엔터티여야 합니다.<br /><br />예시: `(@XDevelopers OR @API) -@X` |
+| `$` | 단독 사용 | 지정한 ‘캐시태그’(토큰의 첫 글자가 $인 경우)가 포함된 게시물을 일치시킵니다.<br /><br />캐시태그 연산자는 본문에서 캐시태그를 직접 추출하려고 시도하는 대신, X의 ‘symbols’ 엔터티 추출에 의존해 캐시태그를 일치시킵니다.<br /><br />예시: `$twtr OR @XDevelopers -$fb` |
+| `from:` | 단독 사용 | 특정 사용자가 작성한 게시물을 일치시킵니다.<br />값은 사용자명(@ 문자 제외) 또는 사용자의 숫자형 사용자 ID일 수 있습니다.<br /><br />`from:` 연산자마다 하나의 사용자명/ID만 전달할 수 있습니다.<br /><br />예시: `from:XDevelopers OR from:API -from:X` |
+| `to:` | 단독 사용 | 특정 사용자에게 보낸 답글인 게시물을 일치시킵니다.<br />값은 사용자명(@ 문자 제외) 또는 사용자의 숫자형 사용자 ID일 수 있습니다.<br /><br />`to:` 연산자마다 하나의 사용자명/ID만 전달할 수 있습니다.<br /><br />예시: `to:XDevelopers OR to:API -to:X` |
+| `url:` | 단독 사용 | 게시물에 포함된 올바른 형식의 URL을 토큰화 방식으로 일치시킵니다.<br /><br />이 연산자는 `url` 및 `expanded_url` 두 필드의 내용을 대상으로 일치합니다. 예를 들어 "You should check out X Developer Labs: https://t.co/c0A36SWil4"(짧은 URL이 https://developer.twitter.com 으로 리디렉트됨)이 포함된 게시물은 다음 두 규칙 모두와 일치합니다.<br /><br />`from:XDevelopers url:"https://developer.twitter.com"`(이는 `entities.urls.expanded_url`의 내용과 일치하기 때문입니다)<br /><br />`from:XDevelopers url:"https://t.co"`(이는 `entities.urls.url`의 내용과 일치하기 때문입니다)<br /><br />구두점이나 특수 문자가 포함된 토큰과 구는 큰따옴표로 감싸야 합니다(예: `url:"/developer"`). 마찬가지로 특정 프로토콜을 일치시키려면 큰따옴표로 감싸세요(예: `url:"https://developer.twitter.com"`). |
+| `retweets_of:` | 단독 사용 | 지정한 사용자를 리트윗한 게시물을 일치시킵니다. 값은 사용자명(@ 문자 제외) 또는 사용자의 숫자형 사용자 ID일 수 있습니다.<br /><br />`retweets_of:` 연산자마다 하나의 사용자명/ID만 전달할 수 있습니다.<br /><br />예시: `retweets_of:twitterdev OR retweets_of:twitterapi` |
+| `in_reply_to_tweet_id:` | Standalone | _사용 가능한 별칭:_ `in_reply_to_status_id:`<br />지정한 게시물에 대한 답글과 일치합니다.<br /><br />예시: `in_reply_to_tweet_id:1539382664746020864` |
+| `retweets_of_tweet_id:` | Standalone | _사용 가능한 별칭:_ `retweets_of_status_id:`<br />지정한 게시물의 명시적(네이티브) 리트윗과 일치합니다. 사용되는 게시물 ID는 리트윗이 아닌 원본 게시물의 ID여야 합니다.<br /><br />예시: `retweets_of_tweet_id:1539382664746020864` |
+| `quotes_of_tweet_id:` | Standalone | _사용 가능한 별칭:_ `quotes_of_status_id:`<br />지정한 게시물의 인용 게시물(인용 트윗)과 일치합니다. 사용되는 게시물 ID는 인용 게시물이 아닌 원본 게시물의 ID여야 합니다.<br /><br />예시: `quotes_of_tweet_id:1539382664746020864` |
+| `context:` | Standalone | 특정 도메인 ID/엔터티 ID 쌍을 가진 게시물과 일치합니다. 이 연산자에 대해 자세히 알아보려면 [annotations](/ko/x-api/fundamentals/post-annotations) 페이지를 방문하세요.<br /><br />`context:` 연산자당 하나의 도메인/엔터티만 전달할 수 있습니다.<br /><br />`context:domain_id.entity_id`<br /><br />또한 OR 연산자를 사용하여 여러 도메인/엔터티를 결합할 수 있습니다:<br /><br />`(context:47.1139229372198469633 OR context:11.1088514520308342784)`<br /><br />예시:<br />`context:10.799022225751871488` (`domain_id.entity_id`는 해당 도메인-엔터티 쌍과 일치하는 게시물을 반환합니다) |
+| `entity:` | Standalone | 특정 엔터티 문자열 값을 가진 게시물과 일치합니다. 이 연산자에 대해 자세히 알아보려면 [annotations](/ko/x-api/fundamentals/post-annotations) 페이지를 방문하세요.<br />**주의**: 최신 검색에서만 사용할 수 있습니다.<br /><br />`entity:` 연산자는 하나만 사용할 수 있습니다.<br /><br />`entity:"엔터티/장소의 문자열 선언"`<br /><br />예시: `entity:"Michael Jordan" OR entity:"Barcelona"` |
+| `conversation_id:` | Standalone | 동일한 대화 ID를 공유하는 게시물과 일치합니다. 대화 ID는 대화를 시작한 게시물의 게시물 ID로 설정됩니다. 게시물에 대한 답글이 게시될 때(답글에 대한 답글 포함) `conversation_id`가 해당 JSON 페이로드에 추가됩니다.<br /><br />`conversation_id:` 연산자당 하나의 대화 ID만 전달할 수 있습니다.<br /><br />예시: `conversation_id:1334987486343299072 (from:XDevelopers OR from:api)` |
+| `list:` | Standalone | **신규** 지정한 리스트의 구성원인 사용자가 게시한 게시물과 일치합니다.<br /><br />예를 들어 @XDevelopers와 @api가 리스트 123의 구성원이고 쿼리에 `list:123`을 포함했다면, 응답에는 해당 계정이 게시한 게시물만 포함됩니다. 리스트 ID는 [List lookup](/ko/x-api/lists/list-lookup/introduction) 엔드포인트로 확인할 수 있습니다.<br /><br />**주의**: 쿼리당 `list:` 연산자는 하나만 사용할 수 있으며, 각 `list:` 연산자에는 리스트를 하나만 지정할 수 있습니다.<br /><br />예시: `list:123` |
+| `place:` | Standalone | 지정한 위치 또는 X 장소 ID로 태그된 게시물과 일치합니다. 여러 단어로 된 장소명(“New York City”, “Palo Alto”)은 따옴표로 감싸야 합니다.<br /><br />`place:` 연산자당 하나의 장소만 전달할 수 있습니다.<br /><br />참고: X 장소 ID를 얻는 방법은 표준 v1.1 [GET geo/search](https://developer.x.com/content/developer-twitter/en/docs/geo/places-near-location/api-reference/get-geo-search) 엔드포인트를 참조하세요.<br /><br />참고: 이 연산자는 리트윗과 일치하지 않습니다. 리트윗의 장소 정보는 원본 게시물에 연결되기 때문입니다. 또한 인용 게시물의 원본 게시물에 연결된 장소와도 일치하지 않습니다.<br /><br />예시: `place:"new york city" OR place:seattle OR place:fd70c22040963ac7` |
+| `place_country:` | Standalone | 태그된 장소/위치에 연결된 국가 코드가 제공된 ISO alpha-2 문자 코드와 일치하는 게시물을 반환합니다.<br /><br />유효한 ISO 코드 목록은 [Wikipedia](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)에서 확인할 수 있습니다.<br /><br />`place_country:` 연산자마다 ISO 코드는 하나만 전달할 수 있습니다.<br /><br />참고: 이 연산자는 리트윗에는 매칭되지 않습니다. 리트윗의 장소는 원본 게시물에 연결되기 때문입니다. 또한 인용 트윗의 원본 게시물에 연결된 장소에도 매칭되지 않습니다.<br /><br />예시: `place_country:US OR place_country:MX OR place_country:CA` |
+| `point_radius:` | Standalone | 게시물에 `place.geo.coordinates` 객체가 있을 때 이를 기준으로 매칭하며, X에서는 장소의 지오 폴리곤을 기준으로 하되, 장소 폴리곤이 정의된 영역에 완전히 포함될 때만 매칭합니다.<br /><br />`point_radius:[longitude latitude radius]`<br /><br />- 지원되는 반경 단위는 마일(mi)과 킬로미터(km)입니다<br />- 반경은 25mi 미만이어야 합니다<br />- 경도 범위는 ±180입니다<br />- 위도 범위는 ±90입니다<br />- 모든 좌표는 십진수 도(degree)입니다<br />- 규칙 인수는 대괄호로 감싸고 공백으로 구분합니다<br /><br />`point_radius:` 연산자마다 지오 폴리곤은 하나만 전달할 수 있습니다.<br /><br />참고: 이 연산자는 리트윗에는 매칭되지 않습니다. 리트윗의 장소는 원본 게시물에 연결되기 때문입니다. 또한 인용 트윗의 원본 게시물에 연결된 장소에도 매칭되지 않습니다.<br /><br />예시: `point_radius:[2.355128 48.861118 16km] OR point_radius:[-41.287336 174.761070 20mi]` |
+| `bounding_box:` | Standalone | _사용 가능한 별칭:_ `geo_bounding_box:`<br />게시물에 place.geo.coordinates 객체가 있을 때 이를 기준으로 매칭하며, X에서는 장소의 지오 폴리곤을 기준으로 하되, 장소 폴리곤이 정의된 영역에 완전히 포함될 때만 매칭합니다.<br /><br />`bounding_box:[west_long south_lat east_long north_lat]`<br /><br />- `west_long south_lat`는 경계 상자의 남서 모서리를 나타내며, `west_long`은 해당 지점의 경도, `south_lat`은 위도입니다.<br />- `east_long north_lat`는 경계 상자의 북동 모서리를 나타내며, `east_long`은 해당 지점의 경도, `north_lat`은 위도입니다.<br />- 경계 상자의 너비와 높이는 25mi 미만이어야 합니다<br />- 경도 범위는 ±180입니다<br />- 위도 범위는 ±90입니다<br />- 모든 좌표는 십진수 도(degree)입니다.<br />- 규칙 인수는 대괄호로 감싸고 공백으로 구분합니다.<br /><br />`bounding_box:` 연산자마다 지오 폴리곤은 하나만 전달할 수 있습니다.<br /><br />참고: 이 연산자는 리트윗에는 매칭되지 않습니다. 리트윗의 장소는 원본 게시물에 연결되기 때문입니다. 또한 인용 트윗의 원본 게시물에 연결된 장소에도 매칭되지 않습니다.<br /><br />예시: `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]` |
+| `is:retweet` | Conjunction required | 지정한 규칙의 나머지 조건과 일치하는 리트윗을 매칭합니다. 이 연산자는 실제 리트윗(예: 리트윗 버튼으로 생성된 것)만 찾습니다. 인용 트윗은 이 연산자에 매칭되지 않습니다.<br /><br />예시: `data @XDevelopers -is:retweet` |
+| `is:reply` | Conjunction required | 규칙과 일치하는 명시적 답글만 전달합니다. 또한 부정하여 쿼리와 일치하는 답글을 전달에서 제외할 수 있습니다.<br /><br />참고: 이 연산자는 필터드 스트림 엔드포인트에서도 사용할 수 있습니다. 필터드 스트림에서 사용하면, 이 연산자는 원본 게시물에 대한 답글, 인용 트윗의 답글, 리트윗의 답글을 매칭합니다.<br /><br />예시: `from:XDevelopers is:reply` |
+| `is:quote` | Conjunction required | 인용 트윗(코멘트가 있는 게시물로도 알려짐)을 모두 반환합니다.<br /><br />예시: `"sentiment analysis" is:quote` |
+| `is:verified` | Conjunction required | 작성자가 X에서 인증된 게시물만 전달합니다.<br /><br />예시: `#nowplaying is:verified` |
+| `-is:nullcast` | 접속사 필요 | ads.twitter.com에서 프로모션 전용으로 생성되었고 `"source":"Twitter for Advertisers (legacy)"` 또는 `"source":"Twitter for Advertisers"` 값을 가진 게시물을 제외합니다.<br />이 연산자는 반드시 부정형으로 사용해야 합니다.<br /><br />Nullcast 게시물에 대한 자세한 내용은 [게시물 이용 가능성](https://developer.x.com/content/developer-twitter/en/docs/twitter-api/v1/tweets/post-and-engage/guides/tweet-availability) 페이지를 참조하세요.<br /><br />예: `"mobile games" -is:nullcast` |
+| `has:hashtags` | 접속사 필요 | 하나 이상의 해시태그를 포함하는 게시물과 일치합니다.<br /><br />예: `from:XDevelopers -has:hashtags` |
+| `has:cashtags` | 접속사 필요 | 캐시태그(앞에 ‘$’ 문자가 붙은 기호, 예: `$tag`)를 포함하는 게시물과 일치합니다.<br /><br />예: `#stonks has:cashtags` |
+| `has:links` | 접속사 필요 | 게시물 본문에 링크 또는 미디어가 포함된 게시물과 일치합니다.<br /><br />예: `from:XDevelopers announcement has:links` |
+| `has:mentions` | 접속사 필요 | 다른 X 사용자를 멘션한 게시물과 일치합니다.<br /><br />예: `#nowplaying has:mentions` |
+| `has:media` | 접속사 필요 | _사용 가능한 별칭:_ `has:media_link`<br />사진, GIF, 동영상 등 X에서 판별한 미디어 객체를 포함하는 게시물과 일치합니다. Periscope로 생성된 미디어나 다른 미디어 호스팅 사이트 링크가 있는 게시물에는 일치하지 않습니다.<br /><br />예: `(kittens OR puppies) has:media` |
+| `has:images` | 접속사 필요 | 이미지 URL이 포함된 게시물과 일치합니다.<br /><br />예: `#meme has:images` |
+| `has:video_link` | 접속사 필요 | _사용 가능한 별칭:_ `has:videos`<br />X에 직접 업로드된 네이티브 X 동영상이 포함된 게시물과 일치합니다. Periscope로 생성된 동영상이나 다른 동영상 호스팅 사이트 링크가 있는 게시물에는 일치하지 않습니다.<br /><br />예: `#icebucketchallenge has:video_link` |
+| `has:geo` | 접속사 필요 | X 사용자가 제공한 게시물별 지리정보가 있는 게시물과 일치합니다. 이는 X 장소의 형태(표시 이름, 지오 폴리곤 등 포함)일 수 있으며, 드물게는 위도/경도 좌표일 수 있습니다.<br /><br />참고: 장소(게시물 지오)로 일치하는 연산자는 원본 게시물만 포함합니다. 리포스트에는 장소 데이터가 없습니다.<br /><br />예: `recommend #paris has:geo -bakery` || `lang:` | 접속사 필요 | X가 특정 언어로 분류한 게시물과 일치합니다(게시물이 분류된 경우에 한함). 현재 각 게시물은 한 가지 언어로만 분류되므로 여러 언어를 AND로 결합해도 결과가 반환되지 않습니다.<br /><br />`lang:` 연산자에는 BCP 47 언어 식별자를 하나만 지정할 수 있습니다.<br /><br />참고: 언어를 분류할 수 없는 경우 제공되는 값은 ‘und’(정의되지 않음)입니다.<br /><br />예: `recommend #paris lang:en`<br /><br />아래는 현재 지원되는 언어와 해당 BCP 47 언어 식별자 목록입니다:<br /><br />Amharic: `am` | German: `de` | Malayalam: `ml` | Slovak: `sk`<br />Arabic: `ar` | Greek: `el` | Maldivian: `dv` | Slovenian: `sl`<br />Armenian: `hy` | Gujarati: `gu` | Marathi: `mr` | Sorani Kurdish: `ckb`<br />Basque: `eu` | Haitian Creole: `ht` | Nepali: `ne` | Spanish: `es`<br />Bengali: `bn` | Hebrew: `iw` | Norwegian: `no` | Swedish: `sv`<br />Bosnian: `bs` | Hindi: `hi` | Oriya: `or` | Tagalog: `tl`<br />Bulgarian: `bg` | Latinized Hindi: `hi-Latn` | Panjabi: `pa` | Tamil: `ta`<br />Burmese: `my` | Hungarian: `hu` | Pashto: `ps` | Telugu: `te`<br />Croatian: `hr` | Icelandic: `is` | Persian: `fa` | Thai: `th`<br />Catalan: `ca` | Indonesian: `in` | Polish: `pl` | Tibetan: `bo`<br />Czech: `cs` | Italian: `it` | Portuguese: `pt` | Traditional Chinese: `zh-TW`<br />Danish: `da` | Japanese: `ja` | Romanian: `ro` | Turkish: `tr`<br />Dutch: `nl` | Kannada: `kn` | Russian: `ru` | Ukrainian: `uk`<br />English: `en` | Khmer: `km` | Serbian: `sr` | Urdu: `ur`<br />Estonian: `et` | Korean: `ko` | Simplified Chinese: `zh-CN` | Uyghur: `ug`<br />Finnish: `fi` | Lao: `lo` | Sindhi: `sd` | Vietnamese: `vi`<br />French: `fr` | Latvian: `lv` | Sinhala: `si` | Welsh: `cy`<br />Georgian: `ka` | Lithuanian: `lt` |

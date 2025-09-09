@@ -1,0 +1,307 @@
+---
+title: クエリを構築する
+sidebarTitle: クエリを構築する
+---
+
+<div id="building-queries-for-search-posts">
+  ## Search Posts 向けのクエリの作成
+</div>
+
+検索エンドポイントは、GET リクエストで単一のクエリを受け取り、そのクエリに一致する過去の投稿のセットを返します。クエリは、さまざまな投稿属性にマッチさせるために使用される演算子で構成されます。 
+
+<div id="table-of-contents">
+  ### 目次
+</div>
+
+- [クエリの作成](#build)
+- [クエリの制約](#limits)
+- [オペレーターの利用可否](#availability)
+- [オペレーターの種類：単独使用／結合必須](#types)
+- [ブール演算子とグルーピング](#boolean)
+- [演算の順序](#order-of-operations)
+- [句読点・ダイアクリティカルマーク・大文字小文字の区別](#punctuation)
+- [特異性と効率](#specificity)
+- [引用投稿のマッチング動作](#quote-tweets)
+- [反復的なクエリの作成](#iterative)
+- [リクエストへのクエリの追加](#adding-a-query)
+- [クエリ例](#examples)
+- [オペレーター一覧](#list)
+
+<div id="building-a-query">
+  ### クエリの構築
+</div>
+
+<div id="query-limitations">
+  #### クエリの制限事項
+</div>
+
+使用している[アクセスレベル](/ja/x-api/getting-started/about-x-api)に応じて、クエリには制限があります。
+
+Basic または Pro アクセスでは、最近検索エンドポイントへのクエリは最大 512 文字までです。
+
+Pro アクセスでは、全アーカイブ検索エンドポイントへのクエリは最大 1,024 文字までです。 
+
+<div id="operator-availability">
+  #### オペレーターの利用可否
+</div>
+
+ほとんどのオペレーターはすべての開発者が利用できますが、一部は特定のアクセスレベルに限定されています。各オペレーターの利用可能なアクセスレベルは、以下のラベルを用いて[オペレーター一覧](/ja/x-api/posts/search/integrate/build-a-query)の表に示しています。
+
+- **Core operators:** いずれの[プロジェクト](/ja/resources/fundamentals/projects)でも利用可能。
+- **Advanced operators:** 特定のアクセスレベルのプロジェクトで利用可能。
+
+<div id="operator-types-standalone-and-conjunction-required">
+  #### 演算子の種類：単独使用可能と結合が必要
+</div>
+
+**単独使用可能な演算子** は、それ単体でも、（結合が必要な演算子を含む）他の任意の演算子と組み合わせても使用できます。
+
+たとえば、次のクエリは単独使用可能な `#hashtag` 演算子を使用しているため動作します。
+
+`#xapiv2`
+
+**結合が必要な演算子** は、クエリ内で単独では使用できません。クエリに少なくとも1つの単独使用可能な演算子が含まれている場合にのみ使用できます。これは、これらの演算子を単独で使用すると条件が広すぎ、極めて大量の投稿に一致してしまうためです。
+
+たとえば、次のクエリは結合が必要な演算子のみを含むためサポートされません。
+
+`has:media`
+
+`has:links OR is:retweet`
+
+`"X data"` のような単独使用可能な演算子（フレーズ）を追加すれば、そのクエリは正しく動作します。
+
+`"X data" has:mentions (has:media OR has:links)`
+
+<div id="boolean-operators-and-grouping">
+  #### ブール演算子とグルーピング
+</div>
+
+1つのクエリ内で複数の演算子を組み合わせたい場合、以下の方法が使用できます。
+
+|     |     |
+| :--- | :--- |
+| **AND ロジック** | 演算子をスペースで続けて並べると、ブールの「AND」ロジックになります。つまり、両方の条件が満たされた場合にのみ投稿が一致します。例: `snow day #NoSchool` は、用語 snow と day、およびハッシュタグ #NoSchool を含む投稿に一致します。 |
+| **OR ロジック** | 演算子の間に OR を挟んで並べると、OR ロジックになります。つまり、いずれかの条件が満たされれば投稿が一致します。例: `grumpy OR cat OR #meme` は、用語 grumpy または cat、もしくはハッシュタグ #meme の少なくともいずれかを含む投稿に一致します。 |
+| **NOT ロジック（否定）** | キーワード（または任意の演算子）の前にダッシュ（-）を付けると、それを否定（NOT）できます。例: `cat #meme -grumpy` は、ハッシュタグ #meme と用語 cat を含み、かつ用語 grumpy を含まない投稿に一致します。よく使われるクエリ句として `-is:retweet` があり、これはリツイートには一致せず、オリジナル投稿、引用投稿、返信のみに一致します。すべての演算子は否定できますが、否定した演算子を単独では使用できません。 |
+| **グルーピング** | 演算子をまとめるには括弧を使用します。例: `(grumpy cat) OR (#meme has:images)` は、用語 grumpy と cat を含む投稿、または画像を含みハッシュタグ #meme を含む投稿のいずれかを返します。AND が先に適用され、その後に OR が適用される点に注意してください。 |
+
+**否定に関する注意**
+
+演算子 `-is:nullcast` は常に否定形でなければなりません。
+
+否定した演算子を単独では使用できません。
+
+括弧でまとめた演算子の集合全体を否定しないでください。代わりに各演算子を個別に否定してください。例えば、`skiing -(snow OR day OR noschool)` の代わりに `skiing -snow -day -noschool` を使用することを推奨します。 
+
+<div id="order-of-operations">
+  #### 演算の順序
+</div>
+
+AND と OR を組み合わせる場合、次の演算順序に従ってクエリが評価されます。
+
+1. まず AND で接続された演算子が結合される
+2. 次に OR で接続された演算子が適用される
+
+例:
+
+- `apple OR iphone ipad` は `apple OR (iphone ipad)` として評価されます
+- `ipad iphone OR android` は `(iphone ipad) OR android` として評価されます
+
+あいまいさを避け、意図どおりに評価されるよう、必要に応じて括弧で語句をグルーピングしてください。
+
+例:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### 句読点、ダイアクリティカルマーク、大小文字の区別
+</div>
+
+アクセントやダイアクリティカルマークを含むキーワードまたはハッシュタグでクエリを指定すると、アクセント／ダイアクリティカルマーク付きの表記と、通常の文字での表記のいずれを含む投稿テキストにも一致します。たとえば、キーワード `Diacrítica` やハッシュタグ `#cumpleaños` を使ったクエリは、_Diacrítica_ や _#cumpleaños_ に加えて、チルダ付きの í やエニェ（ñ）のない _Diacritica_ や _#cumpleanos_ にも一致します。
+
+アクセントやダイアクリティカルマーク付きの文字は通常の文字と同様に扱われ、語境界とは見なされません。たとえば、キーワード `cumpleaños` を使ったクエリは、語 _cumpleaños_ を含むアクティビティにのみ一致し、_cumplea_、_cumplean_、_os_ を含むアクティビティには一致しません。
+
+すべてのオペレーターは大文字小文字を区別せずに評価されます。たとえば、クエリ `cat` は、_cat_、_CAT_、_Cat_ を含む投稿すべてに一致します。
+
+[フィルタードストリーム](/ja/x-api/posts/filtered-stream) の一致動作は Search Posts とは異なります。[フィルタードストリームのルールを作成する](/ja/x-api/posts/filtered-stream#building-rules-for-filtered-stream) 際、アクセントやダイアクリティカルマークを含むキーワードやハッシュタグは、それらのマークを含む用語にのみ一致し、通常の文字表記には一致しない点に注意してください。
+
+たとえば、キーワード `Diacrítica` やハッシュタグ `#cumpleaños` を含むフィルタードストリームのルールは、_Diacrítica_ と _#cumpleaños_ にのみ一致し、チルダ付きの í やエニェのない _Diacritica_ や _#cumpleanos_ には一致しません。
+
+<div id="specificity-and-efficiency">
+  #### 特異性と効率性
+</div>
+
+クエリの作成を始める際には、いくつか留意すべき点があります。
+
+- 単一のキーワードや #hashtag のような、範囲の広いオペレーターだけでクエリを組むことは、一般的に推奨されません。膨大な数の投稿に一致してしまう可能性が高いためです。より堅牢なクエリを作成すれば、より特定的な一致投稿の集合が得られ、ペイロード内のノイズが減り、価値あるインサイトを見つけるために精査すべき量を抑えられることが期待できます。
+  - たとえば、クエリがキーワード `happy` のみだと、1日あたりおよそ 200,000～300,000 件の投稿が返る可能性があります。
+  - 条件オペレーターを追加すると検索結果は絞り込めます。例: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+- 効率的なクエリを記述することは、クエリの文字数制限内に収めるうえでも有益です。文字数には、スペースやオペレーターを含むクエリ全体の文字列がカウントされます。
+  - たとえば、次のクエリは 59 文字です: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+
+<div id="quote-tweet-matching-behavior">
+  #### 引用投稿のマッチング動作
+</div>
+
+Search Posts エンドポイントを使用する場合、オペレーターは引用元の元投稿の内容にはマッチせず、引用投稿に含まれる内容にのみマッチします。
+
+ただし、[フィルタードストリーム](/ja/x-api/posts/filtered-stream) では、引用された元投稿の内容と引用投稿の内容の両方にマッチしますのでご留意ください。
+
+<div id="iteratively-building-a-query">
+  #### クエリを段階的に構築する
+</div>
+
+<div id="test-your-query-early-and-often">
+  ##### クエリは早めに、そして頻繁にテストする
+</div>
+
+最初の試行で「正しい」結果を返すクエリを作成できることは稀です。X には、最初は明確に見えないことも多く、上で説明したクエリ構文を意図する検索内容にうまく当てはめるのは難しい場合があります。クエリを作成する際は、定期的に検証を行うことが重要です。
+
+このセクションでは、次のクエリから始め、テストで得られた結果に基づいて調整していきます。
+
+`happy OR happiness`
+
+<div id="use-results-to-narrow-the-query">
+  ##### 結果を活用してクエリを絞り込む
+</div>
+
+クエリをテストする際は、返ってきた投稿をざっと確認し、期待するデータが含まれているかを確かめてください。まずは広めのクエリで投稿一致のスーパーセットを取得し、結果を見てから不要なものを除外する方向にクエリを絞っていくのが有効です。  
+
+例のクエリを試したところ、さまざまな言語の投稿が返ってくることに気づきました。この場合は英語の投稿だけを受け取りたいので、`lang:` 演算子を追加します:
+
+`(happy OR happiness) lang:en`
+
+テストでは、誕生日を祝う投稿が多数返ってきたため、否定キーワード演算子として `-birthday` を追加します。さらに、オリジナルの投稿のみを受け取りたいので、否定の `-is:retweet` 演算子も追加します:
+
+`(happy OR happiness) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-inclusion-where-needed">
+  ##### 必要に応じて網羅性を高める
+</div>
+
+期待するデータが得られず、返ってくるはずの既存の投稿があると分かっている場合は、目的のデータを絞り込みすぎているオペレーターを外して、クエリの範囲を広げる必要があるかもしれません。
+
+この例では、探している感情を表す他の投稿が自分のタイムラインにあるのに、テスト結果に含まれていないことに気付きました。より広く拾えるように、キーワード `excited` と `elated` を追加します。
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-popular-trendsbursts-over-the-time-period">
+  ##### 指定期間内のトレンドや急増に応じて調整する
+</div>
+
+X ではトレンドの移り変わりが速いものです。クエリのメンテナンスは継続的に行う必要があります。しばらく同じクエリを使用する予定がある場合は、受信しているデータを定期的に見直し、調整が必要か確認することをおすすめします。
+
+この例では、人々に「happy holidays」を願う投稿が含まれ始めたことに気付きました。これらの投稿を結果に含めたくないため、否定の `-holidays` キーワードを追加します。
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet -holidays`
+
+<div id="adding-a-query-to-your-request">
+  ### リクエストにクエリを追加する
+</div>
+
+作成したクエリをリクエストに追加するには、`query` パラメータを使用します。ほかのクエリパラメータと同様に、作成したクエリは必ず URL エンコードしてください。
+
+以下は cURL コマンドでの例で、`tweet.fields` と `max_results` パラメータも含まれています。このコマンドを使用する場合は、`$BEARER_TOKEN` をご自身の[Bearer Token](/ja/resources/fundamentals/authentication#oauth-2-0)に置き換えてください。
+
+```bash
+curl https://api.x.com/2/tweets/search/recent?query=cat%20has%3Amedia%20-grumpy&tweet.fields=created_at&max_results=100 -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+<div id="query-examples">
+  ### クエリ例
+</div>
+
+<div id="tracking-a-natural-disaster">
+  #### 自然災害の追跡
+</div>
+
+次のクエリは、2017 年にヒューストンを襲ったハリケーン・ハーヴェイについて取り上げた、気象機関や観測所からのオリジナル投稿にマッチします。
+
+HTTP エンコードを行わない場合、クエリは次のようになります。
+
+`has:geo (from:NWSNHC OR from:NHC\_Atlantic OR from:NWSHouston OR from:NWSSanAntonio OR from:USGS\_TexasRain OR from:USGS_TexasFlood OR from:JeffLindner1) -is:retweet`
+
+HTTP エンコード、クエリパラメータ、そして recent search の URI を使用する場合、クエリは次のようになります。
+
+`https://api.x.com/2/tweets/search/recent?query=-is%3Aretweet%20has%3Ageo%20(from%3ANWSNHC%20OR%20from%3ANHC\_Atlantic%20OR%20from%3ANWSHouston%20OR%20from%3ANWSSanAntonio%20OR%20from%3AUSGS\_TexasRain%20OR%20from%3AUSGS_TexasFlood%20OR%20from%3AJeffLindner1)`
+
+<div id="reviewing-the-sentiment-of-a-conversation">
+  #### 会話のセンチメントを確認する
+</div>
+
+次のルールは、ハッシュタグ _#nowplaying_ を中心に展開する会話のセンチメントをより的確に把握するために使用できます。対象は北米で公開された投稿に限定します。
+
+HTTP エンコードなしの場合、ポジティブ用とネガティブ用の2種類のクエリは次のとおりです。
+
+`#nowplaying (happy OR exciting OR excited OR favorite OR fav OR amazing OR lovely OR incredible) (place\_country:US OR place\_country:MX OR place_country:CA) -horrible -worst -sucks -bad -disappointing`
+
+`#nowplaying (horrible OR worst OR sucks OR bad OR disappointing) (place\_country:US OR place\_country:MX OR place_country:CA) -happy -exciting -excited -favorite -fav -amazing -lovely -incredible`
+
+HTTP エンコード、クエリパラメータ、および recent search の URI を含めると、クエリは次のようになります。
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(happy%20OR%20exciting%20OR%20excited%20OR%20favorite%20OR%20fav%20OR%20amazing%20OR%20lovely%20OR%20incredible)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-horrible%20-worst%20-sucks%20-bad%20-disappointing`
+
+`https://api.x.com/2/tweets/search/recent?query=%23nowplaying%20(horrible%20OR%20worst%20OR%20sucks%20OR%20bad%20OR%20disappointing)%20(place\_country%3AUS%20OR%20place\_country%3AMX%20OR%20place_country%3ACA)%20-happy%20-exciting%20-excited%20-favorite%20-fav%20-amazing%20-lovely%20-incredible`
+
+<div id="find-posts-that-relate-to-a-specific-post-annotation">
+  #### 特定の投稿アノテーションに関連する投稿を見つける
+</div>
+
+このルールは、投稿の言語が日本語で、猫以外のペットの画像を含むオリジナルの投稿を検索するために作成されました。これを行うために、[投稿アノテーション](/ja/x-api/fundamentals/post-annotations)の機能を活用できる `context:` 演算子を使用しました。まず、[投稿ルックアップ](/ja/x-api/posts/lookup/introduction) エンドポイントと `tweet.fields=context_annotations` フィールドパラメータを使用して、クエリで使用すべき domain.entity ID を特定しました。
+
+- 猫に関連する投稿は、`domain` 66（Interests and Hobbies カテゴリ）と entity 852262932607926273（Cats）を返します。
+- ペットに関連する投稿は、`domain` 65（Interests and Hobbies Vertical）と entity 852262932607926273（Pets）を返します。
+
+HTTP エンコードを行わない場合、クエリは次のようになります。
+
+`context:65.852262932607926273 -context:66.852262932607926273 -is:retweet has:images lang:ja`
+
+HTTP エンコード、クエリパラメータ、そして recent search の URI を含めると、クエリは次のようになります。
+
+`https://api.x.com/2/tweets/search/recent?query=context%3A65.852262932607926273%20-context%3A66.852262932607926273%20-is%3Aretweet%20has%3Aimages%20lang%3Aja`
+
+詳しくは、[クエリビルダーツール](https://developer.x.com/apitools/query?query=)をお試しください。 
+
+<div id="operators">
+  ### 演算子
+</div>
+
+<Note>**注:** 一部の演算子には別名（エイリアス）が利用可能です。</Note>
+
+| **演算子** | **種類** | **説明** |
+|:-------------|:---------|:-----------------|
+| `keyword` | スタンドアロン | 投稿本文内のキーワードに一致します。これはトークン化マッチであり、指定したキーワード文字列は投稿本文のトークン化されたテキストに対して照合されます。トークン化では、句読点、記号、および Unicode 基本多言語面の区切り文字に基づいて語を分割します。<br /><br />たとえば、「I like coca-cola」というテキストの投稿は次のトークンに分割されます：I、like、coca、cola。これらのトークンが、クエリで使用するキーワード文字列と比較されます。句読点（例：coca-cola）、記号、または区切り文字を含む文字列に一致させるには、キーワードを二重引用符で囲む必要があります。<br /><br />例: `pepsi OR cola OR "coca cola"` |
+| `emoji` | スタンドアロン | 投稿本文内の絵文字に一致します。キーワードと同様に、絵文字もトークン化マッチであり、指定した絵文字は投稿本文のトークン化されたテキストに対して照合されます。<br /><br />絵文字にバリアントがある場合は、クエリに追加する際に二重引用符で囲む必要がある点に注意してください。<br /><br />例: `(😃 OR 😡) 😬` |
+| `"exact phrase match"` | スタンドアロン | 投稿本文内のフレーズに完全一致します。<br /><br />例: `("X API" OR #v2) -"recent search"` |
+| `#` | スタンドアロン | 認識されたハッシュタグを含む任意の投稿に一致します（そのハッシュタグが投稿内で認識されたエンティティである場合）。<br /><br />この演算子はトークン化マッチではなく完全一致を行います。つまり、ルール `#thanku` はハッシュタグ #thanku を正確に含む投稿には一致しますが、#thankunext のハッシュタグを含む投稿には一致しません。<br /><br />例: `#thankunext #fanart OR @arianagrande` |
+| `@` | スタンドアロン | 指定したユーザー名に言及している任意の投稿に一致します（@ 文字を含む認識されたエンティティである場合）。<br /><br />例: `(@XDevelopers OR @API) -@X` |
+| `$` | スタンドアロン | 指定した「キャッシュタグ」を含む任意の投稿に一致します（トークンの先頭文字が $ のもの）。<br /><br />キャッシュタグ演算子は、本文からキャッシュタグを抽出しようとするのではなく、X の「symbols」エンティティ抽出に基づいてキャッシュタグに一致する点に注意してください。<br /><br />例: `$twtr OR @XDevelopers -$fb` |
+| `from:` | スタンドアロン | 特定ユーザーからの任意の投稿に一致します。<br />値はユーザー名（@ 文字を除く）またはユーザーの数値ユーザー ID のいずれかを指定できます。<br /><br />`from:` 演算子ごとに指定できるユーザー名／ID は 1 つのみです。<br /><br />例: `from:XDevelopers OR from:API -from:X` |
+| `to:` | スタンドアロン | 特定ユーザーへの返信である任意の投稿に一致します。<br />値はユーザー名（@ 文字を除く）またはユーザーの数値ユーザー ID のいずれかを指定できます。<br /><br />`to:` 演算子ごとに指定できるユーザー名／ID は 1 つのみです。<br /><br />例: `to:XDevelopers OR to:API -to:X` |
+| `url:` | スタンドアロン | 投稿内の正しい形式の URL に対してトークン化マッチを行います。<br /><br />この演算子は `url` と `expanded_url` の両方のフィールド内容に一致します。たとえば、「You should check out X Developer Labs: https://t.co/c0A36SWil4」（短縮 URL が https://developer.twitter.com にリダイレクトされる）の投稿は、次の両方のルールに一致します。<br /><br />`from:XDevelopers url:"https://developer.twitter.com"`（`entities.urls.expanded_url` の内容に一致するため）<br /><br />`from:XDevelopers url:"https://t.co"`（`entities.urls.url` の内容に一致するため）<br /><br />句読点や特殊文字を含むトークンやフレーズは二重引用符で囲む必要があります（例：`url:"/developer"`）。同様に、特定のプロトコルで一致させる場合も二重引用符で囲みます（例：`url:"https://developer.twitter.com"`）。 |
+| `retweets_of:` | スタンドアロン | 指定したユーザーのリツイートである投稿に一致します。値はユーザー名（@ 文字を除く）またはユーザーの数値ユーザー ID のいずれかを指定できます。<br /><br />`retweets_of:` 演算子ごとに指定できるユーザー名／ID は 1 つのみです。<br /><br />例: `retweets_of:twitterdev OR retweets_of:twitterapi` |
+| `in_reply_to_tweet_id:` | スタンドアロン | _利用可能なエイリアス:_ `in_reply_to_status_id:`<br />指定した投稿への返信に一致します。<br /><br />例: `in_reply_to_tweet_id:1539382664746020864` |
+| `retweets_of_tweet_id:` | スタンドアロン | _利用可能なエイリアス:_ `retweets_of_status_id:`<br />指定した投稿の明示的（ネイティブ）リツイートに一致します。使用する投稿 ID はリツイートではなく元の投稿の ID である必要があります。<br /><br />例: `retweets_of_tweet_id:1539382664746020864` |
+| `quotes_of_tweet_id:` | スタンドアロン | _利用可能なエイリアス:_ `quotes_of_status_id:`<br />指定した投稿の引用投稿に一致します。使用する投稿 ID は引用投稿ではなく元の投稿の ID である必要があります。<br /><br />例: `quotes_of_tweet_id:1539382664746020864` |
+| `context:` | スタンドアロン | 特定のドメイン ID／エンティティ ID のペアを持つ投稿に一致します。このオペレーターの詳細は、[注釈](/ja/x-api/fundamentals/post-annotations)のページをご覧ください。<br /><br />`context:` オペレーターごとに指定できるドメイン／エンティティは 1 つのみです。<br /><br />`context:domain_id.entity_id`<br /><br />ただし、OR 演算子で複数のドメイン／エンティティを組み合わせることができます。<br /><br />`(context:47.1139229372198469633 OR context:11.1088514520308342784)`<br /><br />例:<br />`context:10.799022225751871488`（`domain_id.entity_id` はその特定のドメインとエンティティの組に一致する投稿を返します） |
+| `entity:` | スタンドアロン | 特定のエンティティの文字列値を持つ投稿に一致します。このオペレーターの詳細は、[注釈](/ja/x-api/fundamentals/post-annotations)のページをご覧ください。<br />**注意**: これは直近検索でのみ利用可能です。<br /><br />使用できる `entity:` オペレーターは 1 つのみです。<br /><br />`entity:"string declaration of entity/place"`<br /><br />例: `entity:"Michael Jordan" OR entity:"Barcelona"` |
+| `conversation_id:` | スタンドアロン | 共通の会話 ID を共有する投稿に一致します。会話 ID は、会話を開始した投稿の投稿 ID に設定されます。投稿への返信（返信への返信も含む）が投稿されると、その JSON ペイロードに `conversation_id` が追加されます。<br /><br />`conversation_id:` オペレーターごとに指定できる会話 ID は 1 つのみです。<br /><br />例: `conversation_id:1334987486343299072 (from:XDevelopers OR from:api)` |
+| `list:` | スタンドアロン | **新機能** 指定したリストのメンバーであるユーザーが投稿した投稿に一致します。<br /><br />たとえば、@XDevelopers と @api がリスト 123 のメンバーで、クエリに `list:123` を含めた場合、レスポンスにはそれらのアカウントによって公開された投稿のみが含まれます。リスト ID は [リスト参照](/ja/x-api/lists/list-lookup/introduction)エンドポイントで取得できます。<br /><br />**注意**: クエリあたり使用できる `list:` オペレーターは 1 つのみで、`list:` オペレーターごとに指定できるリストも 1 つのみです。<br /><br />例: `list:123` |
+| `place:` | スタンドアロン | 指定した場所名または X のプレイス ID がタグ付けされた投稿に一致します。複数語からなる地名（“New York City”、“Palo Alto”）は引用符で囲んでください。<br /><br />`place:` オペレーターごとに指定できる場所は 1 つのみです。<br /><br />注意: X のプレイス ID の取得方法は、standard v1.1 の [GET geo/search](https://developer.x.com/content/developer-twitter/en/docs/geo/places-near-location/api-reference/get-geo-search) エンドポイントを参照してください。<br /><br />注意: このオペレーターはリツイートには一致しません。リツイートの場所情報は元の投稿に付与されるためです。また、引用投稿の元の投稿に付与された場所にも一致しません。<br /><br />例: `place:"new york city" OR place:seattle OR place:fd70c22040963ac7` |
+| `place_country:` | スタンドアロン | タグ付けされた場所／ロケーションに関連付けられた国コードが、指定した ISO アルファ2文字コードと一致する投稿にマッチします。<br /><br />有効な ISO コードの一覧は [Wikipedia](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) にあります。<br /><br />`place_country:` 演算子ごとに指定できる ISO コードは1つだけです。<br /><br />注意: この演算子はリツイートにはマッチしません。リツイートの場所情報は元の投稿に紐付いているためです。引用ツイートの元の投稿に紐付いた場所にもマッチしません。<br /><br />例: `place_country:US OR place_country:MX OR place_country:CA` |
+| `point_radius:` | スタンドアロン | 投稿に `place.geo.coordinates` オブジェクトがある場合はそれに対して、X ではプレースのジオポリゴンに対してマッチし、プレースのポリゴンが指定した領域内に完全に含まれている場合に一致します。<br /><br />`point_radius:[longitude latitude radius]`<br /><br />- 半径の単位はマイル（mi）とキロメートル（km）に対応<br />- 半径は 25mi 未満である必要があります<br />- 経度は ±180 の範囲<br />- 緯度は ±90 の範囲<br />- すべての座標は十進度<br />- ルール引数は角括弧内に入れ、スペースで区切ります<br /><br />`point_radius:` 演算子ごとに指定できるジオポリゴンは1つだけです。<br /><br />注意: この演算子はリツイートにはマッチしません。リツイートの場所情報は元の投稿に紐付いているためです。引用ツイートの元の投稿に紐付いた場所にもマッチしません。<br /><br />例: `point_radius:[2.355128 48.861118 16km] OR point_radius:[-41.287336 174.761070 20mi]` |
+| `bounding_box:` | スタンドアロン | _利用可能なエイリアス:_ `geo_bounding_box:`<br />投稿に place.geo.coordinates オブジェクトがある場合はそれに対して、X ではプレースのジオポリゴンに対してマッチし、プレースのポリゴンが指定した領域内に完全に含まれている場合に一致します。<br /><br />`bounding_box:[west_long south_lat east_long north_lat]`<br /><br />- `west_long south_lat` はバウンディングボックスの南西隅を表し、`west_long` はその点の経度、`south_lat` は緯度です。<br />- `east_long north_lat` はバウンディングボックスの北東隅を表し、`east_long` はその点の経度、`north_lat` は緯度です。<br />- バウンディングボックスの幅と高さは 25mi 未満である必要があります<br />- 経度は ±180 の範囲<br />- 緯度は ±90 の範囲<br />- すべての座標は十進度です。<br />- ルール引数は角括弧内に入れ、スペースで区切ります。<br /><br />`bounding_box:` 演算子ごとに指定できるジオポリゴンは1つだけです。<br /><br />注意: この演算子はリツイートにはマッチしません。リツイートの場所情報は元の投稿に紐付いているためです。引用ツイートの元の投稿に紐付いた場所にもマッチしません。<br /><br />例: `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]` |
+| `is:retweet` | 連言が必要 | 他の指定ルールにも一致するリツイートにマッチします。この演算子は真のリツイート（例: リツイートボタンで生成されたもの）のみを対象とします。引用ツイートはこの演算子ではマッチしません。<br /><br />例: `data @XDevelopers -is:retweet` |
+| `is:reply` | 連言が必要 | ルールに一致する明示的な返信のみを配信します。否定して、クエリに一致する返信を配信から除外することもできます。<br /><br />注意: この演算子はフィルタードストリームのエンドポイントでも利用できます。フィルタードストリームで使用する場合、この演算子は元の投稿への返信、引用ツイート内の返信、リツイート内の返信にマッチします。<br /><br />例: `from:XDevelopers is:reply` |
+| `is:quote` | 連言が必要 | 引用ツイート（コメント付きの投稿）をすべて返します。<br /><br />例: `"sentiment analysis" is:quote` |
+| `is:verified` | 連言が必要 | 投稿者が X によって認証済みの投稿のみを配信します。<br /><br />例: `#nowplaying is:verified` |
+| `-is:nullcast` | 連結が必要 | ads.twitter.com でプロモーション専用に作成され、"source":"Twitter for Advertisers (legacy)" または "source":"Twitter for Advertisers" を持つ投稿を除外します。<br />このオペレーターは必ず否定形で使用してください。<br /><br />Nullcast された投稿の詳細は、[投稿の利用可否](https://developer.x.com/content/developer-twitter/en/docs/twitter-api/v1/tweets/post-and-engage/guides/tweet-availability)をご参照ください。<br /><br />例: `"mobile games" -is:nullcast` |
+| `has:hashtags` | 連結が必要 | 少なくとも 1 つのハッシュタグを含む投稿にマッチします。<br /><br />例: `from:XDevelopers -has:hashtags` |
+| `has:cashtags` | 連結が必要 | 先頭に「$」が付くキャッシュタグ（例: `$tag`）を含む投稿にマッチします。<br /><br />例: `#stonks has:cashtags` |
+| `has:links` | 連結が必要 | 投稿本文にリンクまたはメディアを含む投稿にマッチします。<br /><br />例: `from:XDevelopers announcement has:links` |
+| `has:mentions` | 連結が必要 | 他の X ユーザーへのメンションを含む投稿にマッチします。<br /><br />例: `#nowplaying has:mentions` |
+| `has:media` | 連結が必要 | 利用可能なエイリアス: `has:media_link`<br />写真、GIF、動画など、X によりメディアオブジェクトと判定されたものを含む投稿にマッチします。Periscope で作成されたメディアや、他のメディアホスティングサイトへのリンクのみの投稿にはマッチしません。<br /><br />例: `(kittens OR puppies) has:media` |
+| `has:images` | 連結が必要 | 画像への有効な URL を含む投稿にマッチします。<br /><br />例: `#meme has:images` |
+| `has:video_link` | 連結が必要 | 利用可能なエイリアス: `has:videos`<br />X に直接アップロードされたネイティブ動画を含む投稿にマッチします。Periscope で作成された動画や、他の動画ホスティングサイトへのリンクのみの投稿にはマッチしません。<br /><br />例: `#icebucketchallenge has:video_link` |
+| `has:geo` | 連結が必要 | X ユーザーが提供した、投稿固有の位置情報データを持つ投稿にマッチします。これは、対応する表示名、ジオポリゴンなどのフィールドを含む X の場所情報、または稀に緯度・経度座標のいずれかです。<br /><br />注意: 場所（投稿のジオ）にマッチするオペレーターは、オリジナル投稿のみが対象です。リポストには場所データが含まれません。<br /><br />例: `recommend #paris has:geo -bakery` || `lang:` | 論理演算子が必要 | X によって特定の言語であると分類された投稿（投稿が分類されている場合に限る）に一致します。重要な点として、現在各投稿は1つの言語にのみ分類されるため、複数の言語を AND で組み合わせても結果は得られません。<br /><br />`lang:` オペレーターで指定できる BCP 47 言語識別子は1つのみです。<br /><br />注: 言語分類が行えない場合、返される結果は「und」（未定義）です。<br /><br />例: `recommend #paris lang:en`<br /><br />以下は、現在サポートされている言語と対応する BCP 47 言語識別子の一覧です。<br /><br />アムハラ語: `am` | ドイツ語: `de` | マラヤーラム語: `ml` | スロバキア語: `sk`<br />アラビア語: `ar` | ギリシャ語: `el` | ディベヒ語: `dv` | スロベニア語: `sl`<br />アルメニア語: `hy` | グジャラート語: `gu` | マラーティー語: `mr` | ソラニー・クルド語: `ckb`<br />バスク語: `eu` | ハイチ・クレオール語: `ht` | ネパール語: `ne` | スペイン語: `es`<br />ベンガル語: `bn` | ヘブライ語: `iw` | ノルウェー語: `no` | スウェーデン語: `sv`<br />ボスニア語: `bs` | ヒンディー語: `hi` | オリヤー語: `or` | タガログ語: `tl`<br />ブルガリア語: `bg` | ヒンディー語（ラテン文字）: `hi-Latn` | パンジャーブ語: `pa` | タミル語: `ta`<br />ビルマ語: `my` | ハンガリー語: `hu` | パシュトー語: `ps` | テルグ語: `te`<br />クロアチア語: `hr` | アイスランド語: `is` | ペルシア語: `fa` | タイ語: `th`<br />カタルーニャ語: `ca` | インドネシア語: `in` | ポーランド語: `pl` | チベット語: `bo`<br />チェコ語: `cs` | イタリア語: `it` | ポルトガル語: `pt` | 繁体字中国語: `zh-TW`<br />デンマーク語: `da` | 日本語: `ja` | ルーマニア語: `ro` | トルコ語: `tr`<br />オランダ語: `nl` | カンナダ語: `kn` | ロシア語: `ru` | ウクライナ語: `uk`<br />英語: `en` | クメール語: `km` | セルビア語: `sr` | ウルドゥー語: `ur`<br />エストニア語: `et` | 韓国語: `ko` | 簡体字中国語: `zh-CN` | ウイグル語: `ug`<br />フィンランド語: `fi` | ラーオ語: `lo` | シンド語: `sd` | ベトナム語: `vi`<br />フランス語: `fr` | ラトビア語: `lv` | シンハラ語: `si` | ウェールズ語: `cy`<br />ジョージア語: `ka` | リトアニア語: `lt` |

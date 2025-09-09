@@ -1,0 +1,132 @@
+---
+title: v1 到 v2
+sidebarTitle: v1 到 v2
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="list-lookup-standard-v11-compared-to-x-api-v2">
+  ### 列表查询：标准版 v1.1 与 X API v2 对比
+</div>
+
+如果您一直在使用标准版 v1.1 的 [GET lists/show](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/create-manage-lists/api-reference/get-lists-show) 和 [GET lists/ownerships](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/create-manage-lists/api-reference/get-lists-ownerships) 端点，本指南旨在帮助您理解标准版 v1.1 与 X API v2 列表查询端点的异同。
+
+- **相同点**
+  - 身份验证方式
+  - 速率限制
+- **不同点**
+  - 端点 URL
+  - 应用与项目要求
+  - 每次请求可返回的数据对象数量限制
+  - 响应数据格式
+  - 请求参数
+
+<div id="similarities">
+  #### 相似之处
+</div>
+
+**身份验证**
+
+两个端点版本均支持 [OAuth 1.0a 用户上下文](/zh/resources/fundamentals/authentication#oauth-1-0a-2) 和 [仅应用](/zh/resources/fundamentals/authentication#app-only-authentication-and-oauth-2-0-bearer-token)。因此，如果你之前使用的是标准 v1.1 的某个列表查询端点，迁移到 X API v2 后可以继续采用相同的身份验证方式。
+
+视你所选用的身份验证库/包而定，“仅应用”身份验证通常是最易上手的方式，并且可通过一个简单的请求头进行设置。要了解如何生成“仅应用”访问令牌，请参阅[此仅应用指南](/zh/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)。
+
+**速率限制**
+
+|     |     |
+| :--- | :--- |
+| **Standard v1.1** | **X API v2** |
+| /1.1/lists/show.json<br /><br />使用 OAuth 1.0a 用户上下文：每 15 分钟 75 次请求<br /><br />使用仅应用：每 15 分钟 75 次请求 | /2/lists/:id<br /><br />使用 OAuth 1.0a 用户上下文：每 15 分钟 75 次请求<br /><br />使用 OAuth 2.0 授权码（含 PKCE）：每 15 分钟 75 次请求 |
+| /1.1/lists/ownerships.json<br /><br />使用 OAuth 1.0a 用户上下文：每 15 分钟 15 次请求<br /><br />使用仅应用：每 15 分钟 15 次请求 | /2/users/:id/owned\_lists<br /><br />使用 OAuth 1.0a 用户上下文：每 15 分钟 15 次请求<br /><br />使用 OAuth 2.0 授权码（含 PKCE）：每 15 分钟 15 次请求<br /><br />使用仅应用：每 15 分钟 15 次请求 |
+
+<div id="differences">
+  #### 差异
+</div>
+
+**端点 URL**
+
+- 标准 v1.1 端点：
+  - GET https://api.x.com/1.1/lists/show.json
+    （查找指定的 List）
+  - GET https://api.x.com/1.1/lists/ownerships.json
+    （查找指定用户拥有的 Lists）
+- X API v2 端点：
+  - GET https://api.x.com/2/lists/:id
+    （查找指定的 List）
+
+  - GET https://api.x.com/2/users/:id/owned\_lists
+    （查找指定用户拥有的 Lists）
+
+**应用与项目要求**
+
+在对请求进行认证时，X API v2 端点要求使用与某个[开发者 App](/zh/resources/fundamentals/developer-apps)关联的[项目](/zh/resources/fundamentals/projects)的凭证。所有 X API v1.1 端点均可使用独立 App 或与项目关联的 App 的凭证。
+
+**每个请求的数据对象数量限制**
+
+标准 v1.1 的 /lists/ownerships 端点每个请求最多可返回 1000 个 List。新的 v2 端点每个请求最多可返回 100 个 List。默认会返回 100 个用户对象；如需更改结果数量，你需要传入查询参数 max\_results=，其取值为 1–100 之间的数字；随后可将响应负载中返回的 next\_token 作为下一次请求中 pagination\_token 查询参数的取值。
+
+**响应数据格式**
+
+标准 v1.1 与 X API v2 端点版本之间最大的差异之一在于如何选择要在负载中返回的字段。
+
+对于标准端点，你默认会收到许多响应字段，然后可以选择使用参数来指定应在负载中返回的附加字段或字段集。
+
+X API v2 版本默认仅返回 List 的 id 与 name 字段。若要请求任何附加字段或对象，你需要使用 [fields](/zh/x-api/fundamentals/fields) 与 [expansions](/zh/x-api/fundamentals/expansions) 参数。你从该端点请求的任何 List 字段将返回在主 List 对象中。任何展开的 Post 或用户对象及其字段将返回在响应中的 includes 对象中。随后你可以通过匹配用户与已展开的 Post 对象中的 ID，将任何展开对象与 List 对象对应起来。
+
+以下是可能的 List 字段与扩展示例：
+
+- created\_at
+
+- follower\_count
+
+- member\_count
+
+- owner\_id
+
+- description
+
+- private
+
+|     |     |
+| :--- | :--- |
+| **端点** | **扩展** |
+| /2/lists/:id | owner\_id |
+| /2/users/:id/owned\_lists | owner\_id |
+
+我们鼓励你在各自的指南中进一步了解这些新参数，或阅读我们的[如何使用 fields 与 expansions](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)指南。
+
+我们还整理了[数据格式迁移指南](/zh/x-api/migrate/data-format-migration)，帮助你将标准 v1.1 字段映射到较新的 v2 字段。该指南还将提供你在 v2 请求中需要传入的具体扩展与字段参数，以返回指定字段。
+
+除请求特定字段方式的变化外，X API v2 还为 API 返回的对象引入了新的 JSON 设计，包括 [Post](/zh/x-api/fundamentals/data-dictionary#tweet) 与 [user](/zh/x-api/fundamentals/data-dictionary#user) 对象。
+
+- 在 JSON 根级别，标准端点将 Post 对象返回在 statuses 数组中，而 X API v2 返回在 data 数组中。
+
+- X API v2 的 JSON 不再称转推与引用为“statuses”，而是称为 Retweeted 与 Quoted Tweets。许多遗留和已弃用字段（例如 contributors 和 user.translator\_type）将被移除。
+
+- X API v2 不再同时使用 favorites（Post 对象中）与 favourites（user 对象中），而统一使用术语 like。
+
+- X 采用的约定是：无值（例如 null）的 JSON 字段不会写入负载。仅当 Post 与 user 属性具有非空值时才会包含。
+
+**请求参数**
+
+以下标准 v1.1 请求参数在 X API v2 中有对应项：
+
+**按 ID 查找 List**
+
+|     |     |
+| :--- | :--- |
+| **标准 v1.1** | **X API v2** |
+| list\_id | id  |
+| slug | 无对应项 |
+| owner\_screen\_name | 无对应项 |
+| owner\_id | 通过 expansions/fields 参数请求 |
+
+**查找用户拥有的 List**
+
+|     |     |
+| :--- | :--- |
+| **Standard v1.1** | **X API v2** |
+| user\_id | id  |
+| screen\_name | 无对应 |
+| count | max\_results |
+| cursor | pagination\_token |

@@ -1,0 +1,92 @@
+---
+title: "Campi"
+---
+
+Gli endpoint dell’API X v2 offrono un set di parametri chiamati _campi_, che consentono di selezionare solo i dati necessari per ciascun oggetto nella risposta dell’endpoint.
+
+Per impostazione predefinita, l’oggetto Post restituisce solo i campi `id` e `text` e, per i Post creati dal 29 settembre 2022, il campo `edit_history_tweet_ids`. Se servono la data di creazione del Post o le metriche pubbliche, è necessario utilizzare il parametro `tweet.fields` per richiederle. Questo approccio offre un livello più elevato di personalizzazione, consentendo di richiedere solo i campi necessari in base al caso d’uso. Ad esempio, si può includere nella richiesta la seguente query string:
+
+`?tweet.fields=created_at,public_metrics`
+
+Ogni oggetto ha un proprio parametro per richiedere in modo specifico i campi associati a quell’oggetto. Di seguito i parametri dei campi attualmente disponibili:
+
+- [Post](/it/x-api/fundamentals/data-dictionary#tweet) → `tweet.fields`
+- [User](/it/x-api/fundamentals/data-dictionary#user) → `user.fields`
+- [Media](/it/x-api/fundamentals/data-dictionary#media) → `media.fields`
+- [Poll](/it/x-api/fundamentals/data-dictionary#poll) → `poll.fields`
+- [Place](/it/x-api/fundamentals/data-dictionary#place) → `place.fields`
+
+Quando si utilizza un endpoint che restituisce principalmente un determinato oggetto, usare il parametro di campo corrispondente e specificare i campi desiderati in un elenco separato da virgole come valore del parametro, per ottenere tali campi nella risposta.
+
+<div id="example">
+  ### Esempio
+</div>
+
+Se utilizzi l'endpoint [GET /tweets/search/recent](/it/x-api/posts/recent-search), nella risposta riceverai principalmente [oggetti Tweet](/it/x-api/fundamentals/data-dictionary#tweet). Se non specifichi alcun parametro dei campi, riceverai solo i valori predefiniti, `id` e `text`. Se desideri ricevere le metriche pubbliche dei Post restituiti nella risposta, includi il parametro `tweet.fields` nella richiesta, impostando `public_metrics` come valore.
+
+La richiesta si presenta così. Se vuoi utilizzarla, assicurati di sostituire `$BEARER_TOKEN` con il tuo [Bearer Token](/it/resources/fundamentals/authentication) e inviala con il tuo strumento da riga di comando.
+
+```bash
+curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Se invii questa richiesta nel terminale, ciascuno dei Post restituiti includerà i seguenti campi:
+
+```
+{
+   "data": {
+       "id": "1263150595717730305",
+       "public_metrics": {
+           "retweet_count": 12,
+           "reply_count": 14,
+           "like_count": 49,
+           "quote_count": 7
+       },
+       "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER"
+   }
+}
+```
+
+Se desideri recuperare un set di campi da un oggetto secondario associato all’oggetto primario restituito da un endpoint, devi includere un parametro di espansione aggiuntivo. Ad esempio, se stessi usando lo stesso endpoint GET search/tweets/recent di prima e volessi recuperare la descrizione del profilo dell’autore, dovrai passare `expansions=author_id` e `user.fields=description` nella richiesta. Ecco un esempio di come potrebbe apparire. Se vuoi provare questa richiesta, assicurati di sostituire `$BEARER_TOKEN` con il tuo [Bearer Token](/it/resources/fundamentals/authentication) prima di incollarla nel tuo strumento da riga di comando.
+
+```bash
+  curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics&expansions=author_id&user.fields=description' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Specificando questo nella richiesta, ciascuno dei Post restituiti avrà i seguenti campi, e i campi predefiniti e quelli specificati del [user object](/it/x-api/fundamentals/data-dictionary#user) correlato verranno restituiti all’interno di `includes`. L’oggetto utente può essere associato al Post (o ai Post) corrispondente abbinando i campi `tweet.author_id` e `users.id`.
+
+```
+{
+  "data": [
+    {
+      "id": "1263150595717730305",
+      "author_id": "2244994945",
+      "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 13,
+        "like_count": 51,
+        "quote_count": 7
+      }
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "username": "TwitterDev",
+        "description": "La voce del team #TwitterDev e la tua fonte ufficiale per aggiornamenti, notizie ed eventi relativi alla #TwitterAPI.",
+        "name": "Twitter Dev"
+      }
+    ]
+  }
+}
+```
+
+Tieni presente che non puoi richiedere sotto-campi specifici (ad esempio `public_metrics.retweet_count`). Tutti i sotto-campi verranno restituiti quando viene specificato il campo di primo livello (`public_metrics`). Abbiamo elencato tutti i possibili campi che puoi richiedere nella tabella dei parametri della pagina di riferimento API di ciascun endpoint. 
+
+Un elenco completo dei campi è disponibile nel [modello di oggetto](/it/x-api/fundamentals/data-dictionary#tweet). Per includere e richiedere campi su un oggetto che non è la risorsa principale di quell’endpoint, usa il parametro [expansions](/it/x-api/fundamentals/expansions) insieme ai campi.

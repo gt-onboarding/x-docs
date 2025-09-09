@@ -1,0 +1,939 @@
+---
+title: Web-Conversions
+---
+
+import { Button } from '/snippets/de/button.mdx';
+
+<div id="conversion-api-set-up">
+  ## Conversion-API-Einrichtung
+</div>
+
+### Voraussetzungen 
+
+<div id="ads-api-access-new-applications">
+  #### **Ads-API-Zugang – Neue Anwendungen**
+</div>
+
+- Die wichtigste Voraussetzung für die Conversion API ist ein [Developer Account](https://developer.x.com/en/portal/dashboard) und [Ads-API-Zugang](https://developer.x.com/en/docs/twitter-ads-api/getting-started). Der Ablauf ist im Leitfaden [Ads API Getting Started](https://developer.x.com/en/docs/twitter-ads-api/getting-started) beschrieben. Bitte beachten Sie Folgendes:
+
+**Schritt 1: Developer Account**
+
+- Wenn Sie einen [Developer Account](https://developer.x.com/en/portal/dashboard) beantragen, wählen Sie eines unserer Abonnement-[Pläne](https://developer.x.com/en/portal/products/) für eine sofortige Freischaltung.
+- **Hinweis**: Als Best Practice empfehlen wir ausdrücklich, den offiziellen X-Handle Ihres Unternehmens zu verwenden, um ein Developer-Konto zu erstellen und den Ads-API-Zugang zu beantragen. Wenn das Developer-Konto mit einem persönlichen Entwickler-Handle verknüpft ist, können diese Anmeldedaten bei Bedarf nicht übertragen werden. Es ist besser, das Konto unter einem Unternehmenskonto zu führen, um eine fortlaufende Verwaltung zu gewährleisten, und bei Bedarf die [Multi-User-Anmeldung](https://business.x.com/en/help/troubleshooting/multi-user-login-faq.html) zu nutzen. Andernfalls sollte das Konto mindestens mit individuellen Einstellungen (Headerbild, Avatar, Bio-Beschreibung und Bio-URL) eingerichtet werden und die Zwei-Faktor-Authentifizierung verwenden.
+
+**Schritt 2: Ads-API-Antrag**
+
+- Stellen Sie sicher, dass Sie die korrekte **App**-**ID** für Ihren Ads-API-Antrag bereithalten. Die App-ID finden Sie im [Developer Portal](https://developer.x.com/en/portal/dashboard) unter Projekte und Apps. Beispiel: 16489123
+- Fordern Sie den Zugang zur Ads-API an, indem Sie Ihren X-Ansprechpartner kontaktieren.
+
+<div id="ads-api-access-existing-applications">
+  #### **Zugriff auf die X-Ads-API – bestehende Anwendungen**
+</div>
+
+- Wenn Sie bereits eine aktiv genutzte X-Ads-API-Anwendung haben, können sowohl die Anwendung als auch bestehende Zugriffstoken für die Conversion-API verwendet werden.
+
+<div id="access-tokens">
+  #### **Zugriffstoken**
+</div>
+
+- Benutzerzugriffstoken für den Handle des Nutzers, dem die Ads-API-Anwendung gehört, können direkt im Developer-Portal erstellt und abgerufen werden. Dies wird als „persönliches Zugriffstoken“ bezeichnet, da es für den eigenen X-Handle gedacht ist. Allgemeine Informationen zur Authentifizierung und zum Developer-Portal finden Sie [hier](/de/resources/fundamentals/authentication/overview).
+- Benutzerzugriffstoken für andere Handles als den, dem die Ads-API-Anwendung gehört, müssen über einen 3-legged-OAuth-Flow erzeugt werden. Optionen zum Erzeugen des Zugriffstokens mit 3-legged OAuth umfassen:
+  - [Kommandozeile mit webbasiertem Autorisierungs-Flow über das twurl-Tool](https://github.com/twitter/twurl#getting-started)
+  - [Kommandozeile mit PIN-basierter Autorisierung](https://developer.x.com/resources/fundamentals/authentication/pin-based-oauth)
+  - [Benutzerdefinierter Web-Flow, der das 3-legged-OAuth-Muster implementiert](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)
+- Alle Benutzertoken, die mit der Conversion API verwendet werden, müssen für Nutzer mit dem Zugriffslevel AD\_MANAGER oder ACCOUNT\_ADMIN ausgestellt sein; dies kann über den Endpoint [authenticated\_user\_access](https://developer.x.com/en/docs/twitter-ads-api/campaign-management/api-reference/authenticated-user-access) geprüft werden.
+- **Hinweis:** Die Token selbst (nach Erstellung wie oben beschrieben) können zur Nutzung auch an Nutzer ohne das Zugriffslevel AD\_MANAGER oder ACCOUNT\_ADMIN weitergegeben werden.
+
+<div id="steps">
+  ### **Schritte**
+</div>
+
+<div id="creating-the-conversion-api-event">
+  ### Erstellen des Conversion-API-Ereignisses
+</div>
+
+Um die Conversion API zu verwenden, müssen Sie entweder ein neues Conversion-Ereignis im Ads Manager erstellen oder ein bereits vorhandenes Ereignis nutzen, das mit dem X Pixel eingerichtet und verwendet wurde. Wenn Sie eine Deduplizierung zwischen Pixel- und Conversion-API-Ereignissen vornehmen möchten, müssen Sie das vorhandene, für das Pixel erstellte Ereignis verwenden. 
+
+<div id="option-1-using-an-existing-conversion-event-in-ads-manager">
+  ##### Option 1: Verwendung eines vorhandenen Conversion-Events im Ads Manager
+</div>
+
+Wenn Sie ein bereits mit dem X-Pixel genutztes Event weiterverwenden möchten, können Sie das tun; übernehmen Sie dazu die Event-ID dieses Events. Wenn Sie für dasselbe Event sowohl Pixel als auch Conversion API einsetzen, stellen Sie sicher, dass Sie in sowohl dem Pixel-Code-Snippet als auch der Conversion-API-Anfrage (als `conversion_id`) denselben Deduplizierungsschlüssel verwenden, um Events zwischen Pixel und Conversion API zu deduplizieren. Weitere Informationen finden Sie in Abschnitt d. Testing Events and Deduplication. 
+
+<div id="option-2-creating-a-new-conversion-event-in-ads-manager">
+  ##### Option 2: Erstellen eines neuen Conversion-Events im Ads Manager:
+</div>
+
+Es ist wichtig, vor dem Erstellen eines Events eine Eventquelle im Events Manager angelegt zu haben. Um zu überprüfen, ob Sie eine Eventquelle (X Pixel) zu Ihrem Konto hinzugefügt haben, gehen Sie zum Events Manager und prüfen Sie, ob Sie „X Pixel“ in Ihrem linken Menü sehen.
+
+Wenn Sie noch keine Eventquelle hinzugefügt haben, folgen Sie bitte den nachstehenden Schritten, um eine Eventquelle zu erstellen.
+
+1. Gehen Sie zu ads.x.com
+2. Navigieren Sie oben links zum Bereich **Tools** und klicken Sie auf **Events Manager**
+3. Wählen Sie oben rechts „Eventquelle hinzufügen“, um **eine Eventquelle hinzuzufügen**, falls Sie noch keine X‑Pixel‑Eventquelle in Ihrer linken Seitenleiste haben
+   1. Die ID der X‑Pixel‑Eventquelle ist Ihre **Pixel-ID**
+
+Nun haben Sie eine Eventquelle und eine Pixel-ID. Sie müssen innerhalb der Eventquelle ein Event für die Conversion-Events erstellen, die Sie verfolgen möchten:
+
+1. Wählen Sie innerhalb der X‑Pixel‑Eventquelle auf der rechten Seite **Events hinzufügen**
+2. Wählen Sie Installation mit **Conversion API**
+3. Sie sehen die **Pixel-ID** und **Event-ID** dieses Events, die in der API verwendet werden
+   1. Die ID des Events ist Ihre Event-ID
+4. Klicken Sie auf Speichern, und Ihr Conversion-Event ist erstellt und einsatzbereit
+
+### Vorbereitung von Bezeichnern für Conversion-Ereignisse 
+
+Derzeit muss mindestens ein Bezeichner übergeben werden, z. B. Click-ID (`twclid`), E‑Mail‑Adresse oder Telefonnummer. Bei Verwendung von IP-Adresse oder User-Agent muss ein zweiter Bezeichner gesendet werden, um ein korrektes Conversion-Matching zu gewährleisten.
+
+Die Übermittlung weiterer Bezeichner führt zu einer höheren Conversion-Matching-Rate.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| Feld für Kundenabgleich | Format | Hashing erforderlich? |
+| X Click ID | Von X generiert ([mehr erfahren](https://business.x.com/en/help/campaign-measurement-and-analytics/conversion-tracking-for-websites.html#faq)) | Nein  |
+| E‑Mail‑Adresse | Führende und nachgestellte Leerzeichen entfernen | Erforderlich (SHA256) |
+| Telefonnummer | [E164-Standard](https://en.wikipedia.org/wiki/E.164) | Erforderlich (SHA256) |
+
+|     |     |     |
+| :--- | :--- | :--- |
+| IP-Adresse | Führende und nachgestellte Leerzeichen entfernen | Nein  |
+| User-Agent | Führende und nachgestellte Leerzeichen entfernen | Nein  |
+
+#### 1. X Click ID-Bezeichner vorbereiten 
+
+Es wird empfohlen, die Click ID stets in die Conversion-Anfrage aufzunehmen.
+
+Die Click ID sollte aus dem Query-String-Parameter twclid extrahiert werden, sobald dieser verfügbar ist, nachdem der Nutzer zur Zielwebsite navigiert ist. 
+
+Ein einfaches JavaScript-Beispiel:
+
+```js
+var queryString = document.location.search;
+if (queryString.has('twclid') {
+  twitterClickID = getParam(queryString, 'twclid');
+  // Empfohlene nächste Schritte: Logging, in den Local Storage schreiben
+}
+```
+
+Empfehlungen: 
+
+1. Den twclid-Wert immer zu extrahieren, wenn er in den URL-Query-Parametern vorhanden ist.
+
+2. Die Daten zusammen mit relevanten Formularfeldern oder Informationen zu Conversion-Ereignissen zu speichern.
+
+Die Verknüpfung der Click ID mit Conversion-Ereignissen und Workflow-Informationen ermöglicht Szenarien wie Batch-Verarbeitung, Algorithmen zur Analyse und Erstellung von Conversion-Ereignissen auf Basis mehrerer Website-Navigationsabläufe sowie Massenuploads.
+
+Die Event Source URL sollte [URL-codiert](https://en.wikipedia.org/wiki/Percent-encoding) sein und die Webseite repräsentieren, die das Ereignis ausgelöst hat.
+
+#### 2. E-Mail-Kennung vorbereiten 
+
+Unterstützte Felder für das Kundenabgleichen können gesendet werden, sollten jedoch normalisiert und, falls erforderlich, gehasht werden, um die Privatsphäre zu schützen.
+
+Die Informationen müssen mit SHA256 ohne Salt gehasht werden. 
+
+Beispielsweise sollte eine E-Mail-Adresse wie test@x.com in gehashter Form an uns gesendet werden: d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62.
+
+#### 3. Telefon-Identifier vorbereiten 
+
+Die Telefonnummer sollte gemäß dem [E.164-Standard](https://en.wikipedia.org/wiki/E.164) übermittelt werden, und die Daten müssen ohne Salt mit SHA256 gehasht werden. 
+
+Beispiel: Für eine US-Telefonnummer +11234567890 sollte sie in gehashter Form an uns gesendet werden: 1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231.
+
+<div id="4-prepare-ip-address-identifier">
+  #### 4. IP-Adressbezeichner vorbereiten
+</div>
+
+Die IP-Adresse muss zusammen mit einem weiteren Bezeichner (twclid, E‑Mail-Adresse, Telefonnummer oder User-Agent) übermittelt werden. Für diesen Bezeichner ist kein Hashing erforderlich.
+
+Dieser Wert wird in punktgetrennter Dezimalschreibweise angegeben, mit vier durch Punkte getrennten Zahlen. Als Beispiel könnte die IP-Adresse eines Nutzers 8.25.197.25 lauten.
+
+<div id="5-prepare-user-agent-identifier">
+  #### 5. User-Agent-Bezeichner vorbereiten
+</div>
+
+Der User-Agent muss zusammen mit einem weiteren Bezeichner (twclid, E-Mail-Adresse, Telefonnummer oder IP-Adresse) übermittelt werden. Für diesen Bezeichner ist kein Hashing erforderlich.
+
+Dieser Bezeichner ermöglicht es dem Server, die Anwendung, das Betriebssystem, den Anbieter und/oder die Version des anfragenden User-Agents zu identifizieren. Beispielsweise kann dieser Wert als Mozilla/5.0 (Macintosh; Intel Mac OS X 10\_15\_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 übermittelt werden.
+
+<div id="constructing-the-conversion-event-request">
+  ### Erstellen der Anfrage für das Conversion-Ereignis
+</div>
+
+`POST: version/measurement/conversions/:pixel_id`
+
+Senden Sie Conversion-Ereignisse für ein bestimmtes Werbekonto. Der Antwortcode sollte auf Erfolg geprüft werden (HTTP 200 OK). Es wird empfohlen, einen Retry-Mechanismus und grundlegendes Logging vorzusehen, falls Fehlercodes zurückgegeben werden.
+
+Ausführliche Informationen zur URL des Endpunkts und zu den POST-Body-Parametern finden Sie im Abschnitt [API Reference](https://developer.x.com/en/docs/twitter-ads-api/measurement/api-reference/conversions). 
+
+<div id="example-request-formatted-for-readability">
+  ### Beispielanfrage (zur besseren Lesbarkeit formatiert)
+</div>
+
+```json
+
+    twurl -H 'ads-api.x.com' -X POST '/12/measurement/conversions/oka17' --data '
+    {
+      "conversions":[
+         {
+            "conversion_time":"2022-02-18T01:14:00.603Z",
+            "event_id":"ol288",
+            "identifiers":[
+               {
+                  "twclid":"23opevjt88psuo13lu8d020qkn"
+               },
+               {
+                  "hashed_email":"d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62"
+               },
+               {
+                  "hashed_phone_number":"1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231"
+               },
+               {
+                  "ip_address":"1.0.0.0",
+                  "user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+               }
+            ],
+            "value":"20.00",
+            "number_items":3,
+            "conversion_id":"23294827",
+            "description":"Haustierbedarf-Käufe",
+            "contents":[
+               {
+                  "content_id":"1",
+                  "content_name":"Decken",
+                  "content_type":"Haustierbedarf",
+                  "content_price":100.99,
+                  "num_items":1,
+                  "content_group_id":"123"
+               }
+            ]
+         }
+      ]
+    }' --header 'Content-Type: application/json'
+
+```
+
+<div id="example-response">
+  ### Beispielantwort
+</div>
+
+```json
+{"request": {
+ "params": {
+     "account_id":"18ce552mlaq"}
+ },
+ "data": {
+    "conversions_processed":1,
+     "debug_id":"ff02e052-36e4-47d6-bdf0-6d8986446562"}
+}
+```
+
+<div id="rate-limit">
+  ### Rate Limit
+</div>
+
+Das Rate Limit beträgt 60.000 Events pro Konto und pro 15‑Minuten‑Intervall.
+
+Beachten Sie, dass Ihr Servercode möglicherweise Logik außerhalb dieses Request-Aufrufs implementieren muss, darunter:
+
+1. Instrumentierung von Nutzeraktionen (Logging), um pro Event korrekte Conversion-Daten senden zu können
+
+2. Alle erforderlichen Mechanismen, um Conversion-Events von Nutzern herauszufiltern, die relevante Datenschutzentscheidungen getroffen haben – zum Beispiel, wenn sie dem Tracking oder dem Verkauf ihrer personenbezogenen Daten auf der Website des Werbetreibenden widersprochen haben
+
+3. Integration mit Event-Triggern und Seiten, um Events zu erfassen und Conversions zu senden
+
+<div id="testing-events-and-deduplication">
+  ### Testen von Events und Deduplizierung
+</div>
+
+<div id="testing-events">
+  ### Testen von Events
+</div>
+
+Wenn Ihr Event erfolgreich Conversion-Events erhalten hat, sollte innerhalb von 12 bis 24 Stunden der Status des „Single event web tag“ auf der Seite Conversion Tracking im Ads Manager TRACKING anzeigen. Das Senden von Conversions über die Conversion API wirkt sich nicht auf laufende Kampagnen aus.
+
+Sie können außerdem die Analyseergebnisse Ihres Conversion-Events nach Tag-ID prüfen, indem Sie:
+
+- Daten im Ads Manager exportieren ([Hilfeseite zu Analytics für Website-Conversion-Tracking](https://business.x.com/en/help/campaign-measurement-and-analytics/conversion-tracking-for-websites.html))
+
+- Daten über die Ads API exportieren (segmentation\_type=CONVERSION\_TAGS) 
+
+<div id="duplication-between-pixel-and-conversion-api">
+  ### Duplikation zwischen Pixel und Conversion API
+</div>
+
+Wenn Sie Konversionen zwischen Pixel- und Conversion-API-Anfragen deduplizieren möchten, dient conversion\_id als Deduplizierungsschlüssel. Die Deduplizierung erfolgt nur auf Ereignisebene. Anders ausgedrückt: Um zwischen Pixel- und CAPI-Anfragen zu deduplizieren, muss ein Werbetreibender dasselbe Ereignis in beiden Anfragen verwenden und zusätzlich dieselbe conversion\_id einsetzen. Eine Deduplizierung ist nur bei Ereignissen möglich, die innerhalb eines Zeitfensters von 48 Stunden eingehen.
+
+<div id="conversion-tracking-overview">
+  ## Conversion Tracking (Überblick)
+</div>
+
+<div id="summary">
+  ### Zusammenfassung
+</div>
+
+Conversion-Tracking ermöglicht es Ihnen, die Anzahl der X Nutzer zu messen, die nach dem Ansehen und Interagieren mit Ihren Anzeigen auf X eine gewünschte Aktion ausführen. Es bietet Ihnen die Möglichkeit zu erfassen, welche Ihrer Kampagnen Aktionen wie Website-Besuche, Anmeldungen und Käufe auslösen. So erhalten Werbetreibende Off-X-Messfunktionen, um die Performance ihrer Direct-Response-Anzeigen zu verstehen und Kunden kosteneffizient zu gewinnen.
+
+Mithilfe eines Conversion-Tags können Werbetreibende Nutzer-Conversions erfassen und ihren Werbekampagnen auf X zuordnen. Dadurch erhalten sie die notwendige Transparenz, um ihre Kampagnen auf die Erreichung ihrer Cost-per-Acquisition-(CPA)-Ziele zu optimieren.
+
+Es gibt eine Vielzahl von Website-Aktionen, die ein Werbetreibender mit Conversion-Tracking messen kann. Er kann eine oder mehrere auswählen – entsprechend den Aktionen, die mit seiner Kampagne erzielt werden sollen:
+
+- Website-Besuch: Nutzer besucht eine Landingpage auf der Website des Werbetreibenden
+- Kauf: Nutzer schließt den Kauf eines Produkts oder einer Dienstleistung auf der Website des Werbetreibenden ab
+- Download: Nutzer lädt eine Datei, etwa ein Whitepaper oder ein Softwarepaket, von der Website des Werbetreibenden herunter
+- Anmeldung: Nutzer registriert sich für den Dienst, Newsletter oder die E-Mail-Kommunikation des Werbetreibenden
+- Benutzerdefiniert: Sammelkategorie für eine individuelle Aktion, die in keine der oben genannten Kategorien fällt
+
+Das Conversion-Tracking von X bietet Werbetreibenden einen vollständigen Überblick über die Conversion-Attribution. Im Vergleich zu Messsystemen von Drittanbietern, die Kunden anstelle der eigenen Conversion-Tracking-Funktion von X genutzt haben könnten (z. B. eindeutige Klick-URLs in Kombination mit Tracking-Tags von Drittanbietern), ermöglicht das Conversion-Tag von X, Conversions zu erfassen, die Interaktionen im mittleren und oberen Funnel zugeordnet sind – etwa Tweet-Aufklappungen, Retweets, Favoriten, Antworten und Follows – sowie Impressionen.
+
+<div id="faq">
+  ### FAQ
+</div>
+
+<AccordionGroup>
+  <Accordion title="Wie funktioniert das Conversion-Tracking-Tag?">
+    Zunächst erstellt ein Werbetreibender ein Conversion-Tag – ein von X bereitgestelltes Code-Snippet – und implementiert es auf seiner Website. Das Tag ist dann bereit, eine Conversion zu messen, sobald ein Nutzer die definierte Aktion ausführt.
+
+    Anschließend sehen Nutzer die Anzeige des Werbetreibenden im X-Client, klicken sich zur Website durch und führen die getaggte Aktion aus. Wenn der Nutzer diese Aktion innerhalb des/der vom Werbetreibenden bei der Tag-Einrichtung festgelegten Attributionsfenster(s) abschließt, erkennt das Tag, dass der Nutzer zuvor mit einer X-Anzeige interagiert hat. Das Tag „feuert“ dann bzw. sendet eine Benachrichtigung an die Server von X, damit die Conversion der Anzeige zugeschrieben werden kann, die die Conversion ausgelöst hat.
+  </Accordion>
+
+  <Accordion title="Gibt es im Kampagneneinrichtungsprozess eine Möglichkeit, auszuwählen, welche Tracking-Pixel für diese Kampagne relevant sind?">
+    Nein, unser Produkt ist nicht darauf ausgelegt, spezifische Conversion-Tags einzelnen Kampagnen zuzuordnen. Sobald ein Tag eingerichtet ist, verfolgt das System automatisch, welche Anzeige Conversions auf einem bestimmten Tag ausgelöst hat.
+  </Accordion>
+
+  <Accordion title="Was sind unsere standardmäßigen Einstellungen für Attributionsfenster bei Conversion-Tags?">
+    Standard-Attributionsfenster nach View: 1 Tag
+
+    Standard-Attribution nach Engagement: 14 Tage
+
+    Diese Standardwerte können während der Einrichtung des Conversion-Tags oder jederzeit nach Erstellung des Tags geändert werden. Die Optionen für Attributionsfenster nach Engagement sind 1, 7, 14, 30, 60 und 90 Tage. Die Optionen für Attributionsfenster nach View sind keine, 1, 7, 14, 30, 60 und 90 Tage.
+  </Accordion>
+
+  <Accordion title="Welche Ideen gibt es für effektive DR-Creatives und Strategien, die Conversions wirksam steigern?">
+    Auch wenn Ziele, Situationen und Strategien je nach Kunde variieren, finden Sie hier einige Ansätze, die sich bei Kunden in der Conversion-Tracking-Alpha bzw. -Beta bewährt haben:
+
+    **Creative:**
+
+    - **Angebote**: Kombinieren Sie einen Rabatt, eine Promotion oder kostenlosen Versand mit dem Promoted Tweet, um mehr Interesse an der Aktion zu wecken
+    - **Gewinnspiele und Wettbewerbe**: Besonders bei bekannten Marken führten Gewinnspiele und Wettbewerbe zu Conversions
+    - **Experimente mit Tweet-Text**: Testen von GROSSSCHRIFT vs. Kleinschreibung (FREE vs free bzw. NOW vs now)
+    - **Fristen**: Setzen Sie eine Frist, um zu sofortiger Aktion zu motivieren (Angebot endet am 12. Dezember!)
+    - **Aussagekräftige Fotos hinzufügen**: Es lohnt sich zu testen, ob visuell ansprechende Fotos im Tweet-Creative Conversions fördern; die Ergebnisse können variieren oder vom jeweiligen Angebot abhängen.
+
+    **Targeting:**
+
+    - @handle-Targeting und Targeting nach Interessenkategorien: Eine enge Abstimmung von Tweet-Text und @handles auf die beabsichtigte Zielgruppe des Tweets führte zu Conversions
+    - Einsatz von Nischen-, aber reichweitenstarken Keywords: Im Konzertbereich erwies sich die Nutzung von Keywords zum Künstler/Musiker (z. B. dessen Name) als effektiv
+    - Tailored Audiences: Kunden, die TA Web und Conversion-Tracking gemeinsam nutzten, erzielten niedrigere CPAs als Kontrollgruppen mit anderem Targeting
+
+    Je granularer Ihre Kampagnensegmentierung, desto umsetzbarer sind die berichteten Conversion-Ergebnisse. Es ist beispielsweise deutlich einfacher, eine Kampagne mit 4 Keywords zu optimieren als eine Kampagne mit 50.
+  </Accordion>
+</AccordionGroup>
+
+<div id="troubleshooting-and-support-for-conversion-api">
+  ## Fehlerbehebung und Support für die Conversion API
+</div>
+
+Bei Fragen zu Fehlercodes nach dem Aufruf der API finden Sie den entsprechenden Abschnitt unten. Für alle anderen Anliegen wenden Sie sich bitte an Ihre Twitter-Ansprechperson; wir werden diese so schnell wie möglich klären. 
+
+<div id="error-handling-and-explanation">
+  ### Fehlerbehandlung und Erläuterung
+</div>
+
+Eine Anfrage ist nur erfolgreich, wenn für alle darin enthaltenen Conversions keine Fehler auftreten. Tritt in einer einzelnen Conversion ein Fehler auf, gibt der Endpoint eine Liste aller zutreffenden Fehler zurück.
+
+<div id="x-ads-api-error-codes-overview">
+  ### Übersicht der Fehlercodes der X-Ads-API
+</div>
+
+Nachfolgend finden Sie eine vollständige Liste der Fehlercodes in der X-Ads-API:
+
+[https://developer.x.com/en/docs/twitter-ads-api/response-codes](https://developer.x.com/en/docs/twitter-ads-api/response-codes)
+
+Erfolgreiche Antworten der Conversion-API sind durch einen HTTP-Statuscode aus der 200er‑Serie gekennzeichnet und enthalten eine JSON-basierte Nutzlast mit dem angeforderten Objekt.
+
+<div id="when-there-is-a-500-series-http-code-its-related-to-a-server-issue-instead-of-your-request-or-account-set-up-please-check-the-x-api-status-page-or-the-developer-community-forum-in-case-others-are-having-similar-issues">
+  #### **Wenn ein HTTP-Code aus der 500er-Reihe auftritt**, liegt ein Serverproblem vor – nicht bei Ihrer Anfrage oder der Einrichtung Ihres Kontos. Bitte prüfen Sie die [X API Statusseite](https://api.twitterstat.us/) oder das [Developer Community Forum](https://devcommunity.x.com/), um festzustellen, ob andere ähnliche Probleme melden.
+</div>
+
+<div id="when-there-is-a-400-series-http-code-the-common-cases-are">
+  #### Wenn ein HTTP-Code aus der 400er-Reihe auftritt, sind die häufigsten Fälle:
+</div>
+
+- 400 Bad Request (Anfrage entspricht nicht den Vorgaben)
+
+- 401 Unauthorized (Authentifizierungsprobleme)
+
+- 403 Forbidden (API-Zugriffsprobleme im Zusammenhang mit diesem Entwicklerkonto)
+
+- 404 Not Found (URL oder Parameter sind für den Endpunkt möglicherweise nicht korrekt)
+
+<div id="conversion-api-error-codes">
+  ### Fehlercodes der Conversion API
+</div>
+
+<div id="400-bad-request-scenarios">
+  #### 400 Bad-Request-Szenarien
+</div>
+
+| **Grund** | **Typ** | **Fehlermeldung** |
+| :--- | :--- | :--- |
+| Fehlender Identifikator (derzeit gehashte E-Mail oder X-Click-ID – twclid) | 400 Bad Request | Mindestens ein Benutzeridentifikator muss angegeben werden |
+| Ungültige gehashte E-Mail | 400 Bad Request | hashed\_email ist kein gültiger SHA-256-Hash |
+| Der Typ von event\_id ist kein Single Event Tag (SET) | 400 Bad Request | event\_id (\<event\_id>) ist kein Single Event Tag (SET) |
+| Angeforderte Conversion-Ereignisse überschreiten das Limit (derzeit 500 Ereignisse pro Anfrage) | 400 Bad Request | Das Limit für die Anzahl der Conversions beträgt 500 |
+| Fehlende Event-ID | 400 Bad Request | Event-ID wurde nicht gefunden |
+
+<div id="json-error-code-example">
+  #### Beispiel für einen JSON-Fehlercode
+</div>
+
+<div id="request">
+  ##### Anfrage:
+</div>
+
+`POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dkt", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json`
+
+<div id="error-message">
+  #### Fehlermeldung:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"event_id (o6dkt) ist kein einzelnes Event-Tag (SET)","parameter":"event_id"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### Anfrage:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dl3", "identifiers": [{"twclid": ""}]}]}' --header 'Content-Type: application/json' `
+
+<div id="error-message">
+  #### Fehlermeldung:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"Es muss mindestens ein Benutzeridentifikator angegeben werden","parameter":""}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### Anfrage:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dl3", "identifiers": [{"hashed_email": "abc"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### Fehlermeldung:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"hashed_email (abc) ist kein gültiger SHA-256-Hash","parameter":"hashed_email"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### Anfrage:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603", "event_id":"o6dl3", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### Fehlermeldung:
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"Erwartete Zeit im Format yyyy-MM-ddTHH:mm:ss.SSSZ, erhalten „2022-06-16T01:14:00.603“ für conversion_time","parameter":"conversion_time"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="401-unauthorized">
+  ### 401 Nicht autorisiert
+</div>
+
+**Grund**: Authentifizierungsdaten fehlen oder sind falsch
+
+**Lösung**: Befolgen Sie die Schritte zur Authentifizierung in der [Set-up-Dokumentation](https://developer.x.com/en/docs/twitter-ads-api/measurement/guides/conversion-api) mit einer der drei Authentifizierungsmethoden:
+
+User-Access-Tokens für andere Handles als das Handle, dem die Ads-API-Anwendung gehört, müssen über einen 3-legged-OAuth-Flow generiert werden. Optionen zum Generieren des Access Tokens mit 3-legged OAuth umfassen:
+
+- [Kommandozeile mit webbasiertem Autorisierungsprozess über das twurl-Utility](https://github.com/twitter/twurl#getting-started)
+
+- [Kommandozeile mit PIN-basierter Autorisierung](https://developer.x.com/resources/fundamentals/authentication/pin-based-oauth)
+
+- [Benutzerdefinierter Webflow, der das 3-legged-OAuth-Muster implementiert](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)
+
+Alle Benutzertokens, die mit der Conversion-API verwendet werden, müssen zu Nutzern mit dem Zugriffslevel AD\_MANAGER oder ACCOUNT\_ADMIN\* gehören; dies kann über den Endpoint [authenticated\_user\_access](https://developer.x.com/en/docs/twitter-ads-api/campaign-management/api-reference/authenticated-user-access) geprüft werden.
+
+### 403 Zugriff verweigert 
+
+| Grund | Typ | Fehlermeldung |
+| :--- | :--- | :--- |
+| Das von Ihnen verwendete Entwicklerkonto hat keinen Zugriff auf die X-Ads-API. [Hier Zugang beantragen](https://developer.x.com/en/docs/twitter-ads-api/apply). | 403 Unauthorized Client | Die Client-Anwendung mit der ID \<>, die diese Anfrage stellt, hat keinen Zugriff auf die X-Ads-API. Stellen Sie sicher, dass Ihre Anwendung über advertiser-api-Zugriff verfügt. Verwenden Sie 'twurl accounts' und 'twurl set default \<username> \<key>', um die verwendete Anwendung zu ändern. |
+
+### 404 Nicht gefunden 
+
+| Grund | Typ | Fehlermeldung |
+| :--- | :--- | :--- |
+| Die Anforderungs-URL oder -Parameter sind für den Endpoint nicht korrekt | 404 Route nicht gefunden | Die angeforderte Ressource wurde nicht gefunden |
+| Sie haben keinen Zugriff auf das Konto, dem die pixel\_id/Universal Website Tag gehört | 404 Nicht gefunden | Benutzer \<user\_id> hat keinen Zugriff auf Konto \<account\_id>. Geben Sie „sn \<user\_id>“ ein, um den Handle des Benutzers zu erhalten. Verwenden Sie „twurl accounts“ und „twurl set default \u003Cusername\u003E“, um den verwendeten Benutzer zu ändern. |
+| Die Ereignis-ID gehört nicht zum bereitgestellten Konto, das der Pixel-ID (UWT-ID) zugeordnet ist | 404 Nicht gefunden | event\_id \<event\_id> gehört nicht zum bereitgestellten Konto |
+
+<div id="json-error-code-example">
+  ### Beispiel für einen JSON-Fehlercode
+</div>
+
+<div id="request">
+  #### Anfrage:
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o8z6j'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"abc", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+**Fehlermeldung:**
+
+`{"errors":[{"code":"NOT_FOUND","message":"event_id (abc) gehört nicht zum angegebenen Konto","parameter":"event_id"},{"code":"INVALID_PARAMETER","message":"event_id (abc) ist kein Single Event Tag (SET)","parameter":"event_id"}],"request":{"params":{"account_id":"18ce55gze09"}}}`
+
+<div id="api-reference-index">
+  ## API-Referenzindex
+</div>
+
+Wählen Sie für die vollständige API-Referenz einen Endpunkt aus der Liste aus:
+
+<div id="web-conversions">
+  ### Web-Conversions
+</div>
+
+|     |     |
+| :--- | :--- |
+| Conversion API | [measurement/conversions/:pixel\_id](https://developer.x.com/en/docs/x-ads-api/measurement/web-conversions/api-reference/conversions) |
+| Web-Event-Tag | [accounts/:account\_id/web\_event\_tags](https://developer.x.com/en/docs/x-ads-api/measurement/web-conversions/api-reference/web-event-tags) |
+
+<div id="web-conversions">
+  ### Web-Conversions
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  In Postman ausführen
+</Button>
+
+`POST version/measurement/conversions/:pixel_id`
+
+Senden Sie Website-Conversions für eine einzelne Event-Tag-ID.
+
+Der Antwortcode sollte auf Erfolg geprüft werden (HTTP 200 OK). Es wird empfohlen, für den Fall von Fehlercodes einen Wiederholungsmechanismus und grundlegtes Logging vorzusehen.
+
+Das Rate-Limit beträgt 100.000 Anfragen pro 15-Minuten-Intervall und Konto (jede Anfrage erlaubt 500 Ereignisse).
+
+<div id="resource-url">
+  ##### Ressourcen-URL
+</div>
+
+`https://ads-api.x.com/12/measurement/conversions/:pixel_id`
+
+<div id="request-url-parameters">
+  ##### Request-URL-Parameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| pixel\_id  <br />_erforderlich_ | Die Base-Tag-ID für ein Anzeigenkonto. Dies ist der base36-codierte Wert der Base-Tag-ID eines Anzeigenkontos.<br /><br />Typ: string<br /><br />Beispiel: `o8z6j` |
+| conversions  <br />_erforderlich_ | Das Objekt im POST-Body der API-Anfrage. Liste von Conversion-Ereignissen. Es können bis zu 500 Conversion-Ereignisse übermittelt werden. Siehe die Tabelle unten für die unterstützten Felder.<br /><br />Typ: array<br /><br />Beispiel: `"conversions":[{"conversion_time": "2022-02-18T01:14:00.603Z", "event_id":"o87ne", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}], "conversion_id": "23294827"}]` |
+
+<div id="conversions-object">
+  ###### conversions-Objekt
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| conversion\_time  <br />_erforderlich_ | Der Zeitpunkt im Format [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601).<br /><br />Typ: string<br /><br />Beispiel: `2017-10-05T00:00:00Z` |
+| event\_id  <br />_erforderlich_ | Die Base-36-ID eines bestimmten Events. Sie entspricht einem vorkonfigurierten Event in diesem Anzeigenkonto. Diese wird im entsprechenden Event im Events Manager als ID bezeichnet.<br /><br />Typ: string<br /><br />Beispiel: `o87ne` oder `tw-o8z6j-o87ne` (`tw-pixel_id-event-id`) — beides wird akzeptiert |
+| identifiers  <br />_erforderlich_ | Eine Liste von Identifier-Objekten, um das Conversion-Event abzugleichen. Unterstützte Felder sind in der Tabelle unten aufgeführt. Mindestens eines der Identifier-Objekte ist erforderlich.<br /><br />Bei Verwendung von IP-Adresse oder User-Agent muss ein zweiter Identifier gesendet werden, um ein korrektes Conversion-Matching zu gewährleisten.<br /><br />Typ: array<br /><br />Beispiel: `"identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"},{"hashed_email": "e586883b2b4faf78d48300a79e0e15138d664cdf796ffb86e533170a9893eda8"}]` |
+| number\_items  <br />_optional_ | Die Anzahl der im Event gekauften Artikel. Muss eine positive Zahl größer als null sein.<br /><br />Typ: integer<br /><br />Beispiel: `4` |
+| price\_currency  <br />_optional_ | Die Währung der im Event gekauften Artikel, angegeben gemäß [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217). Siehe [Currency](https://developer.x.com/en/docs/twitter-ads-api/currency) für detaillierte Informationen.<br /><br />Typ: string<br /><br />Standard: `USD`<br /><br />Beispiel: `JPY` |
+| value  <br />_optional_ | Der Preis der im Event gekauften Artikel, angegeben in der Währung `price_currency`.<br /><br />Typ: double<br /><br />Beispiel: `100.00` |
+| conversion\_id  <br />_optional_ | Zur Deduplizierung zwischen Pixel- und Conversion-API-Conversions. Ein Bezeichner für ein Conversion-Event, der zur Deduplizierung zwischen Web Pixel- und Conversion-API-Conversions im _gleichen Event-Tag_ verwendet werden kann. Siehe den Abschnitt „Testing Events and Deduplication“ im [Conversions Guide](https://developer.x.com/en/docs/twitter-ads-api/measurement/guides/conversion-api) für weitere Informationen.<br /><br />Typ: string<br /><br />Beispiel: `23294827` |
+| description  <br />_optional_ | Beschreibung mit zusätzlichen Informationen zu den Conversions.<br /><br />Typ: string<br /><br />Beispiel: `test conversion` |
+| contents  <br />_optional_ | Liste von Details zu einem bestimmten Produkt/Content für granularere Informationen. Siehe Tabelle unten für unterstützte Felder.<br /><br />Typ: array<br /><br />Beispiel: `contents": [{"content_id": "1", "content_name": "Blankets", "content_type": "home improvement", "content_price": 100.99, "num_items": 1, "content_group_id": "123"}, {"content_id": "2"}]` |
+
+<div id="identifiers-object">
+  ###### Bezeichnerobjekt
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| ********twclid********  <br />_manchmal erforderlich_ | Click-ID, wie aus der Click-Through-URL extrahiert. Erforderlich, wenn kein anderer Bezeichner übermittelt wird.<br /><br />Typ: string<br /><br />Beispiel: `26l6412g5p4iyj65a2oic2ayg2` |
+| ********hashed\_email********  <br />_manchmal erforderlich_ | Eine mit [SHA256](https://en.wikipedia.org/wiki/SHA-2) gehashte E-Mail-Adresse. Der Text muss in Kleinbuchstaben vorliegen; entferne vor dem Hashen alle führenden oder nachgestellten Leerzeichen. Erforderlich, wenn kein anderer Bezeichner übermittelt wird.<br /><br />Typ: string<br /><br />Beispiel: Für `test-email@test.com` = `e586883b2b4faf78d48300a79e0e15138d664cdf796ffb86e533170a9893eda8` |
+| ********hashed\_phone\_number********  <br />_manchmal erforderlich_ | Eine Telefonnummer im [E164](https://en.wikipedia.org/wiki/E.164)-Format, gehasht mit [SHA256](https://en.wikipedia.org/wiki/SHA-2). Die Telefonnummer muss vor dem Hashen im E164-Format vorliegen. Erforderlich, wenn kein anderer Bezeichner übermittelt wird.<br /><br />Typ: string<br /><br />Beispiel: Für `+11234567890` = `1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231` |
+| **ip\_address**  <br />_manchmal erforderlich_ | In Dezimalpunktnotation mit vier durch Punkte getrennten Zahlen.<br /><br />Die IP-Adresse muss zusammen mit einem anderen Bezeichner (twclid, E-Mail-Adresse, Telefonnummer oder User-Agent) übermittelt werden.<br /><br />Typ: string<br /><br />Beispiel: 8.25.197.25 |
+| **user\_agent**  <br />_manchmal erforderlich_ | Ermöglicht es dem Server, die Anwendung, das Betriebssystem, den Anbieter und/oder die Version des anfragenden User-Agents zu identifizieren.<br /><br />Der User-Agent muss zusammen mit einem anderen Bezeichner (twclid, E-Mail-Adresse, Telefonnummer oder IP-Adresse) übermittelt werden.<br /><br />Typ: string<br /><br />Beispiel: Mozilla/5.0 (Macintosh; Intel Mac OS X 10\_15\_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36. |
+
+<div id="contents-object">
+  ###### contents-Objekt
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| content\_id  <br />_optional_ | SKU oder GTIN; Kennung, die den Inhalt repräsentiert.<br /><br />Typ: string<br /><br />Beispiel: `jhp` |
+| content\_group\_id  <br />_optional_ | ID, die einer Gruppe von Produktvarianten zugeordnet ist<br /><br />Typ: integer<br /><br />Beispiel: `group 1` |
+| content\_name  <br />_optional_ | Name des Produkts oder der Dienstleistung.<br /><br />Typ: string<br /><br />Beispiel: `radio flyer` |
+| content\_price  <br />_optional_ | Preis des Produkts oder der Dienstleistung.<br /><br />Typ: double<br /><br />Beispiel: `5.00` |
+| content\_type  <br />_optional_ | Kategorie des gekauften Produkts.<br /><br />Typ: string<br /><br />Beispiel: `clothes` |
+| num\_items  <br />_optional_ | Anzahl der gekauften Produkte<br /><br />Typ: integer<br /><br />Beispiel: `1` |
+
+<div id="response-parameters">
+  ##### Antwortparameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| conversions\_processed | Anzahl der erfolgreich verarbeiteten Conversions<br /><br />Typ: Integer<br /><br />Beispiel: `1` |
+| debug\_id | Eine Debug-UUID, die für nachfolgende Untersuchungen verwendet werden kann<br /><br />Typ: String<br /><br />Beispiel: `ff02e052-36e4-47d6-bdf0-6d8986446562` |
+
+<div id="example-request">
+  ##### Beispielanfrage
+</div>
+
+```json
+    twurl -H 'ads-api.x.com' -X POST '/12/measurement/conversions/oka17' --data '
+    {
+      "conversions":[
+         {
+            "conversion_time":"2022-02-18T01:14:00.603Z",
+            "event_id":"ol288",
+            "identifiers":[
+               {
+                  "twclid":"23opevjt88psuo13lu8d020qkn"
+               },
+               {
+                  "hashed_email":"d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62"
+               },
+               {
+                  "hashed_phone_number":"1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231"
+               },
+               {
+                  "ip_address":"1.0.0.0",
+                  "user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+               }
+            ],
+            "value":"20.00",
+            "number_items":3,
+            "conversion_id":"23294827",
+            "description":"Einkäufe von Tierbedarf",
+            "contents":[
+               {
+                  "content_id":"1",
+                  "content_name":"Decken",
+                  "content_type":"Tierbedarf",
+                  "content_price":100.99,
+                  "num_items":1,
+                  "content_group_id":"123"
+               }
+            ]
+         }
+      ]
+    }' --header 'Content-Type: application/json'
+```
+
+<div id="example-request">
+  ##### Beispielanforderung
+</div>
+
+```json
+    {
+       "request":{
+          "params":{
+             "account_id":"18ce552mlaq"
+          }
+       },
+       "data":{
+          "conversions_processed":1,
+          "debug_id":"ff02e052-36e4-47d6-bdf0-6d8986446562"
+       }
+    }
+```
+
+<div id="web-event-tags">
+  ### Web-Event-Tags
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  In Postman ausführen
+</Button>
+
+`GET accounts/:account_id/web_event_tags`
+
+Rufen Sie Details zu einigen oder allen Web-Event-Tags ab, die dem aktuellen Konto zugeordnet sind.
+
+<div id="resource-url">
+  #### Ressourcen-URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags`
+
+<div id="parameters">
+  #### Parameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| account\_id  <br />_erforderlich_ | Der Bezeichner für das verwendete Konto. Er erscheint im Ressourcenpfad und ist im Allgemeinen ein erforderlicher Parameter für alle Advertiser-API-Anfragen mit Ausnahme von [GET accounts](/de/x-ads-api/campaign-management#accounts). Das angegebene Konto muss dem authentifizierten Benutzer zugeordnet sein.<br /><br />Typ: string<br /><br />Beispiel: `18ce54d4x5t` |
+| count  <br />_optional_ | Gibt die Anzahl der Datensätze an, die pro einzelner Anfrage abgerufen werden sollen.<br /><br />Typ: int<br /><br />Standard: `200`  <br />Min, Max: `1`, `1000` |
+| cursor  <br />_optional_ | Gibt einen Cursor an, um die nächste Ergebnisseite zu erhalten. Siehe [Pagination](/de/x-ads-api/introduction) für weitere Informationen.<br /><br />Typ: string<br /><br />Beispiel: `8x7v00oow` |
+| sort\_by  <br />_optional_ | Sortiert nach einem unterstützten Attribut in auf- oder absteigender Reihenfolge. Siehe [Sorting](/de/x-ads-api/fundamentals/sorting) für weitere Informationen.<br /><br />Typ: string<br /><br />Beispiel: `created_at-asc` |
+| web\_event\_tag\_ids  <br />_optional_ | Beschränkt die Antwort auf die gewünschten Web-Event-Tags, indem eine kommagetrennte Liste von Bezeichnern angegeben wird. Es können bis zu 200 IDs angegeben werden.<br /><br />Typ: string<br /><br />Beispiel: `o3bk1` |
+| with\_deleted  <br />_optional_ | Schließt gelöschte Ergebnisse in die Anfrage ein.<br /><br />Typ: boolean<br /><br />Standard: `false`  <br />Mögliche Werte: `true`, `false` |
+| with\_total\_count  <br />_optional_ | Schließt das Antwortattribut `total_count` ein.<br /><br />**Hinweis**: Dieser Parameter und `cursor` schließen sich gegenseitig aus.<br /><br />**Hinweis**: Anfragen, die `total_count` enthalten, unterliegen niedrigeren Ratenlimits, derzeit festgelegt auf 200 pro 15 Minuten.<br /><br />Typ: boolean<br /><br />Standard: `false`  <br />Mögliche Werte: `true`, `false` |
+
+<div id="example-request">
+  #### Beispielanforderung
+</div>
+
+`GET https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags?web_event_tag_ids=o3bk1`
+
+<div id="example-response">
+  #### Beispielantwort
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "web_event_tag_ids": [
+            "o3bk1"
+          ],
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "next_cursor": null,
+      "data": [
+        {
+          "name": "Web-Event-Tag",
+          "view_through_window": 7,
+          "click_window": 7,
+          "embed_code": "<script src=\"//platform.x.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.x.com/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+          "id": "o3bk1",
+          "retargeting_enabled": false,
+          "last_tracked_at": "2021-05-22T17:00:04Z",
+          "status": "TRACKING",
+          "type": "DOWNLOAD",
+          "website_tag_id": "ny3od",
+          "deleted": false
+        }
+      ]
+    }
+```
+
+#### GET accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+Ruft ein bestimmtes Web-Event-Tag ab, das dem aktuellen Account zugeordnet ist.
+
+<div id="resource-url">
+  ##### Ressourcen-URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  ##### Parameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| account\_id  <br />_erforderlich_ | Der Bezeichner für das verwendete Konto. Er erscheint im Pfad der Ressource und ist in der Regel ein erforderlicher Parameter für alle Anfragen an die Advertiser-API, mit Ausnahme von [GET accounts](/de/x-ads-api/campaign-management#accounts). Das angegebene Konto muss dem authentifizierten Benutzer zugeordnet sein.<br /><br />Typ: string<br /><br />Beispiel: `18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_erforderlich_ | Eine Referenz auf das Web-Event-Tag, mit dem Sie in der Anfrage arbeiten.<br /><br />Typ: string<br /><br />Beispiel: `o3bk1` |
+| with\_deleted  <br />_optional_ | Gelöschte Ergebnisse in die Anfrage einbeziehen.<br /><br />Typ: boolean<br /><br />Standard: `false`  <br />Mögliche Werte: `true`, `false` |
+
+<div id="example-request">
+  ##### Beispielanfrage
+</div>
+
+`GET https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1`
+
+<div id="example-response">
+  ##### Beispielantwort
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data": {
+        "name": "Web-Event-Tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src=\"//platform.x.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.x.com/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "TRACKING",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      }
+    }
+```
+
+#### POST accounts/:account\_id/web\_event\_tags
+
+Erstellen Sie ein neues Web-Event-Tag, das dem aktuellen Konto zugeordnet wird.
+
+<div id="resource-url">
+  #### Ressourcen-URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags`
+
+<div id="parameters">
+  #### Parameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| account\_id  <br />_required_ | Der Bezeichner für das verwendete Konto. Er erscheint im Pfad der Ressource und ist in der Regel ein erforderlicher Parameter für alle Advertiser-API-Anfragen mit Ausnahme von [GET accounts](/de/x-ads-api/campaign-management#accounts). Das angegebene Konto muss dem authentifizierten Nutzer zugeordnet sein.<br /><br />Typ: string<br /><br />Beispiel: `18ce54d4x5t` |
+| click\_window  <br />_required_ | Das Klickfenster für dieses Web-Tag.<br /><br />**Hinweis**: Es werden nur die unten aufgeführten Werte akzeptiert.<br /><br />Typ: int<br /><br />Mögliche Werte: `1`, `7`, `14`, `30` |
+| name  <br />_required_ | Der Name des Web-Tags.<br /><br />Typ: string<br /><br />Beispiel: `Sample single conversion event` |
+| retargeting\_enabled  <br />_required_ | Gibt an, ob Retargeting für dieses Web-Tag aktiviert sein soll.<br /><br />Typ: boolean<br /><br />Mögliche Werte: `true`, `false` |
+| type  <br />_required_ | Der Typ des Web-Tags.<br /><br />Typ: enum<br /><br />Mögliche Werte: `ADDED_PAYMENT_INFO`, `ADD_TO_CART`, `ADD_TO_WISHLIST`, `CHECKOUT_INITIATED`, `CONTENT_VIEW`, `CUSTOM`, `DOWNLOAD`, `PRODUCT_CUSTOMIZATION`, `PURCHASE`, `SEARCH`, `SIGN_UP`, `SITE_VISIT`, `START_TRIAL`, `SUBSCRIBE`<br /><br />(In der UI wird `SITE_VISIT` als „Page view“ und `SIGN_UP` als „Lead“ angezeigt) |
+| view\_through\_window  <br />_required_ | Das View-Through-Fenster für dieses Web-Tag. Dieser Wert muss stets kleiner oder gleich dem Wert von `click_window` sein.<br /><br />**Hinweis**: Es werden nur die unten aufgeführten Werte akzeptiert.<br /><br />Typ: int<br /><br />Mögliche Werte: `0`, `1`, `7`, `14`, `30` |
+
+<div id="example-request">
+  ##### Beispielanfrage
+</div>
+
+`POST https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags?click_window=7&name=web event tag&retargeting_enabled=false&type=SITE_VISIT&view_through_window=7`
+
+<div id="example-response">
+  #### Beispielantwort
+</div>
+
+```json
+    {
+      "data": {
+        "name": "Web-Event-Tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": null,
+        "status": "UNVERIFIED",
+        "type": "SITE_VISIT",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      },
+      "request": {
+        "params": {
+          "name": "Web-Event-Tag",
+          "view_through_window": 7,
+          "click_window": 7,
+          "retargeting_enabled": false,
+          "account_id": "18ce54d4x5t",
+          "type": "SITE_VISIT"
+        }
+      }
+    }
+```
+
+#### PUT accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+Aktualisieren Sie ein Web-Event-Tag, das dem aktuellen Konto zugeordnet ist.
+
+<div id="resource-url">
+  ##### Ressourcen-URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  #### Parameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| account\_id  <br />_erforderlich_ | Der Bezeichner für das verwendete Konto. Er erscheint im Ressourcenpfad und ist im Allgemeinen ein erforderlicher Parameter für alle Anfragen an die Advertiser-API mit Ausnahme von [GET accounts](/de/x-ads-api/campaign-management#accounts). Das angegebene Konto muss dem authentifizierten Nutzer zugeordnet sein.<br /><br />Typ: string<br /><br />Beispiel: `18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_erforderlich_ | Der Bezeichner für ein Web-Tag im aktuellen Konto.<br /><br />Typ: string<br /><br />Beispiel: `o3bk1` |
+| click\_window  <br />_optional_ | Das Klickfenster für dieses Web-Tag.<br /><br />**Hinweis**: Es werden nur die unten aufgeführten Werte akzeptiert.<br /><br />Typ: int<br /><br />Mögliche Werte: `1`, `7`, `14`, `30` |
+| name  <br />_optional_ | Der Name des Web-Tags.<br /><br />Typ: string<br /><br />Beispiel: `Sample single conversion event` |
+| retargeting\_enabled  <br />_optional_ | Gibt an, ob Retargeting für dieses Web-Tag aktiviert werden soll.<br /><br />Typ: boolean<br /><br />Mögliche Werte: `true`, `false` |
+| type  <br />_optional_ | Der Typ des Web-Tags.<br /><br />Typ: enum<br /><br />Mögliche Werte: `ADDED_PAYMENT_INFO`, `ADD_TO_CART`, `ADD_TO_WISHLIST`, `CHECKOUT_INITIATED`, `CONTENT_VIEW`, `CUSTOM`, `DOWNLOAD`, `PRODUCT_CUSTOMIZATION`, `PURCHASE`, `SEARCH`, `SIGN_UP`, `SITE_VISIT`, `START_TRIAL`, `SUBSCRIBE`<br /><br />(In der UI wird `SITE_VISIT` als „Page view“ und `SIGN_UP` als „Lead“ angezeigt) |
+| view\_through\_window  <br />_optional_ | Das View-through-Fenster für dieses Web-Tag. Dieser Wert muss stets kleiner oder gleich dem Wert von `click_window` sein.<br /><br />**Hinweis**: Es werden nur die unten aufgeführten Werte akzeptiert.<br /><br />Typ: int<br /><br />Mögliche Werte: `0`, `1`, `7`, `14`, `30` |
+
+<div id="example-request">
+  #### Beispielanfrage
+</div>
+
+`PUT https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1?type=DOWNLOAD`
+
+<div id="example-response">
+  #### Beispielantwort
+</div>
+
+```json
+    {
+      "data": {
+        "name": "Web-Event-Tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "UNVERIFIED",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      },
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "type": "DOWNLOAD",
+          "account_id": "18ce54d4x5t"
+        }
+      }
+    }
+```
+
+#### DELETE accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+Löschen Sie ein bestimmtes Web-Event-Tag, das dem aktuellen Konto zugeordnet ist.
+
+<div id="resource-url">
+  #### Ressourcen-URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  ##### Parameter
+</div>
+
+| Name | Beschreibung |
+| :--- | :--- |
+| account\_id  <br />_erforderlich_ | Der Bezeichner für das verwendete Konto. Er erscheint im Ressourcenpfad und ist im Allgemeinen ein erforderlicher Parameter für alle Advertiser-API-Anfragen mit Ausnahme von [GET accounts](/de/x-ads-api/campaign-management#accounts). Das angegebene Konto muss dem authentifizierten Benutzer zugeordnet sein.<br /><br />Typ: string<br /><br />Beispiel: `18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_erforderlich_ | Der Bezeichner für ein Web-Tag im aktuellen Konto.<br /><br />Typ: string<br /><br />Beispiel: `o3bk1` |
+
+<div id="example-request">
+  ##### Beispielanfrage
+</div>
+
+`DELETE https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1`
+
+<div id="example-response">
+  ##### Beispielantwort
+</div>
+
+```json
+    {
+      "data": {
+        "name": "Web-Event-Tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "UNVERIFIED",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": true
+      },
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "account_id": "18ce54d4x5t"
+        }
+      }
+    }
+```

@@ -1,0 +1,174 @@
+---
+title: X API v2 でユーザーの投稿とメンションを調べる
+description: "ユーザー投稿タイムラインエンドポイントとユーザーメンションタイムラインエンドポイントを使用すると、開発者はユーザーが作成した、またはそのユーザーに言及している公開投稿を取得できます。"
+sidebarTitle: ユーザーの投稿を調べる
+mode: wide
+---
+
+<div id="introduction">
+  ## はじめに
+</div>
+
+[recent search endpoint](/ja/x-api/posts/search/introduction) では直近7日間に公開された投稿のみを取得できますが、ユーザーポストタイムラインエンドポイントおよびユーザーメンションタイムラインエンドポイントを使用すると、認可済みユーザー（ユーザーIDを使用）について、直近7日より前の投稿やメンションも取得できます。開発者はこれらのエンドポイントを使って、ユーザーのタイムラインやメンションに含まれるトピック、エンティティ、感情を分析できます。本チュートリアルでは、ユーザーポストタイムラインエンドポイントとユーザーメンションタイムラインエンドポイントを用いて、ユーザーの投稿とメンションを探索する方法を説明します。
+ 
+
+<div id="prerequisites">
+  ## 前提条件
+</div>
+
+- ユーザー投稿タイムラインおよびユーザー言及タイムラインのエンドポイントを使用するには、有効な開発者アカウントが必要です。
+- [プロジェクト](/ja/resources/fundamentals/projects)が作成されている必要があります。
+- 開発者アカウントに[登録](https://developer.x.com/en/portal/petition/essential/basic-info)し、[新しい開発者ポータルのエクスペリエンス](https://developer.x.com/en/portal/opt-in.html)を有効化している必要があります。
+- [開発者ポータル](/ja/resources/fundamentals/developer-portal)で作成した[プロジェクト](/ja/resources/fundamentals/projects)に紐づく開発者アプリの有効なキーとトークンが必要です。
+- [X 開発者ポータル](/ja/resources/fundamentals/developer-portal)のご自身のアプリから発行されたベアラートークン。
+- 承認済みの開発者アカウントがない場合は、[申請してください](https://developer.x.com/en/apply-for-access)。
+
+<div id="approved-developer-account">
+  ## 承認済みの開発者アカウント
+</div>
+
+まだお持ちでない場合は、[申請してください](https://developer.x.com/en/apply-for-access)。
+
+<div id="create-a-project-and-connect-an-app">
+  ## プロジェクトを作成し、アプリを接続する
+</div>
+
+[developer portal](https://developer.x.com/en/portal/dashboard)で「Create a new Project」をクリックします。
+
+<Frame>
+  <img src="/images/projects.png.twimg.1920.png" />
+</Frame>
+
+名前を付け、適切なユースケースを選択し、プロジェクトの説明を入力します。次に、新しいアプリを作成するか、既存の[App](/ja/resources/fundamentals/developer-apps)を接続します（アプリは、X API に HTTP リクエストを送るために必要な API キーを格納するコンテナです）。
+
+<Frame>
+  <img src="/images/add-your-app.png.twimg.1920.png" />
+</Frame>
+
+「create a new App instead」をクリックし、アプリ名を入力して新しいアプリを作成します。
+
+<Frame>
+  <img src="/images/last-step-name-your-app.png.twimg.1920.png" />
+</Frame>
+
+「Complete」をクリックすると、X API v2 の新しいエンドポイントに接続する際に使用できる API キーとベアラートークンが発行されます。
+
+<Frame>
+  <img src="/images/here-are-your-keys.png.twimg.1920.png" />
+</Frame>
+
+API key、API secret key、Bearer token の横にある (+) をクリックし、これらの値をローカルマシンの安全な場所に保存してください。次の手順で API コールを行う際に必要になります。
+
+Note: 上のスクリーンショットのキーは非表示になっていますが、ご自身の developer portal では、API key、API secret key、Bearer token の実際の値を確認できます。
+ 
+
+<div id="how-to-get-the-user-id-for-a-user-to-use-in-the-user-tweet-timeline-and-user-mention-timeline-endpoints">
+  ## ユーザー投稿タイムラインおよびユーザー言及タイムラインのエンドポイントで使用するユーザー ID の取得方法
+</div>
+
+ユーザー投稿タイムラインおよびユーザー言及タイムラインの各エンドポイントでは、ユーザー ID を使って投稿を取得できます。ユーザー名からユーザー ID を取得するには、新しい [ユーザー参照エンドポイント v2](/ja/x-api/users/lookup/quickstart/user-lookup) を使用します。USER\_NAME を任意のユーザー名に、XXXX を上で取得した自身のベアラートークンに置き換えてください。
+
+```bash
+  curl --request GET 'https://api.x.com/2/users/by/username/USER_NAME --header 'Authorization: Bearer XXXXXX'
+```
+
+レスポンスには次のようにユーザー ID が含まれます。
+
+```json
+{
+   "data": {
+       "id": "2244994945",
+       "name": "Developers",
+       "username": "XDevelopers"
+   }
+}
+```
+
+<div id="connecting-to-the-user-tweet-timeline-and-user-mention-timeline-endpoints">
+  ## ユーザー投稿タイムラインおよびユーザー言及タイムラインのエンドポイントへの接続
+</div>
+
+特定ユーザーのユーザー投稿タイムラインを取得するには、ターミナルで次の curl コマンドを実行します（USER\_ID は目的のユーザー ID に、XXXX は上で取得したご自身のベアラートークンに置き換えてください）。
+
+```bash
+curl --request GET 'https://api.x.com/2/users/USER_ID/tweets' --header 'Authorization: Bearer XXXXXX'
+```
+
+これらのリクエストの JSON レスポンスには、既定で投稿の ID と本文が含まれます（例を以下に示します）。
+
+```yaml
+{
+   "id": "1334200897081987072",
+   "text": "👀 If you are new to the X API v2, check out this step-by-step guide to making your first request https://t.co/4rZqThpSbp"
+}
+```
+
+レスポンスで追加のフィールド（ユーザー情報やコンテキスト注釈などの追加の投稿フィールド）を取得したい場合は、これらのフィールドを明示的に指定する必要があります。詳細は[フィールドとエクスパンションの使用方法に関するガイド](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)をご覧ください。
+
+これらの投稿は、任意のプログラミング言語でも取得できます。ユーザー投稿タイムラインおよびユーザー言及タイムラインの各エンドポイント向けの Python、Node（JavaScript）、Java、Ruby のサンプルコードは、[GitHub リポジトリ](https://github.com/xdevplatform/Twitter-API-v2-sample-code)をご参照ください。
+ 
+
+<div id="exploring-the-users-posts">
+  ## ユーザーの投稿を探る
+</div>
+
+ユーザーのTweetタイムラインおよびユーザーのメンションタイムラインのエンドポイントで投稿を取得する方法を理解したら、その投稿をさらに探ることができます。たとえば、ユーザーのメンションに含まれる一般的な固有表現を特定したい場合は、次のようにします。
+
+APIリクエストで、Tweetレスポンスに `context_annotations` オブジェクトを含めるよう指定します：
+
+```bash
+curl --request GET 'https://api.x.com/2/users/USER_ID/mentions?tweet.fields=context_annotations' --header 'Authorization: Bearer XXXXXX'
+```
+
+レスポンスでは、メンションに固有表現が含まれているかを確認できます。例を示します：
+
+```json
+{
+   "domain": {
+       "id": "47",
+       "name": "Brand",
+       "description": "Brands and Companies"
+   },
+   "entity": {
+       "id": "783214",
+       "name": "X"
+   }
+}
+```
+
+メンションにどの人気の高いエンティティが現れるかを確認したい場合は、メンション内の各Tweetをパースして、人気のエンティティの出現回数を集計できます。
+
+タイムライン内でメディアを含むすべての投稿のプレビュー画像URLを調べたい場合は、次のようにします。
+
+APIリクエストで、tweet.media フィールドに `preview_image_url`、および `attachments.media_keys` の expansions を指定します：
+
+```bash
+curl --request GET 'https://api.x.com/2/users/2244994945/mentions?max_results=100&media.fields=preview_image_url&expansions=attachments.media_keys' --header 'Authorization: Bearer XXXXXX'
+```
+
+レスポンスでは、以下のように `includes` オブジェクト内に `preview_image_url` が含まれます：
+
+```json
+{
+   "includes": {
+       "media": [
+           {
+               "media_key": "16_1334657439640121344",
+               "preview_image_url": "https://pbs.twimg.com/tweet_video_thumb/EoWn3rqU8AAtFWL.jpg",
+               "type": "animated_gif"
+           }
+       ]
+   }
+}
+```
+
+ユーザーの投稿の扱い方を理解したら、他のAPIやサービスも組み合わせて、投稿をさらに活用できます。以下は、ユーザーのTweetタイムラインおよびユーザーのメンションタイムラインのエンドポイントを使用する際に手元に置いておきたいリソースです。
+
+<div id="resources">
+  ## リソース
+</div>
+
+- [ユーザーの投稿タイムラインとユーザーのメンションタイムラインのエンドポイント](/ja/x-api/posts/timelines/introduction)について詳しくご確認ください。
+- [ユーザーの投稿タイムラインエンドポイントの API リファレンス](/ja/x-api/posts/user-posts-timeline-by-user-id)で、提供機能の詳細をご確認ください。
+- [ユーザーのメンションタイムラインエンドポイントの API リファレンス](/ja/x-api/posts/user-mention-timeline-by-user-id)で、提供機能の詳細をご確認ください。
+- ほかの[チュートリアル](/ja/tutorials)もご覧ください。

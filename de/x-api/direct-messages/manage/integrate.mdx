@@ -1,0 +1,175 @@
+---
+title: Integrationshandbuch
+sidebarTitle: Integrationshandbuch
+---
+
+import { Button } from '/snippets/de/button.mdx';
+
+Die Endpunkte für Direct Messages v2 führen Konversationen und Konversationsereignisse als zentrale X-API-Objekte ein und unterscheiden zwischen Eins-zu-eins- und Gruppenkonversationen. Eins-zu-eins-Konversationen haben immer genau zwei Teilnehmer, während Gruppenkonversationen zwei oder mehr Teilnehmer haben können und deren Mitgliedschaften sich ändern können.   
+
+Diese Seite enthält Informationen zu mehreren Tools und Schlüsselkonzepten, die Sie kennen sollten, wenn Sie die Endpunkte zum Verwalten von Direct Messages in Ihr System integrieren. Wir haben die Seite in zwei Abschnitte unterteilt:
+
+- Zentrale Konzepte
+  - [Direct-Message-Konversationen](#direct-message-conversations)
+
+  - [Geteilte Konversations- und Ereignis-IDs in v1.1 und v2](#shared-conversation-and-event-ids)
+
+  - [Einbindung von Medienanhängen und Verweis auf Posts](#including-media-attachments-and-referencing-tweets)
+
+  - [Authentifizierung](#authentication)
+
+  - [Developer-Portal, Projekte und Entwickler-Apps](#developer-portal-projects-and-developer-apps)
+
+  - [Ratenlimits](#rate-limits)
+
+- [Hilfreiche Tools](#helpful-tools)
+
+**Zentrale Konzepte**
+
+<div id="direct-message-conversations">
+  ### Direktnachrichten-Unterhaltungen
+</div>
+
+Alle Direktnachrichten sind Teil einer Direktnachrichten-Unterhaltung. Diese Unterhaltungen können Eins-zu-eins- oder Gruppenunterhaltungen sein. Dieser Launch stellt die grundlegenden Endpunkte bereit, die benötigt werden, um Direktnachrichten zu erstellen und Ereignisse abzurufen, die mit Direktnachrichten-Unterhaltungen verknüpft sind. Alle Unterhaltungen haben eine eindeutige dm\_conversation\_id, und die Ereignisse, aus denen diese Unterhaltung besteht, haben jeweils eine eindeutige dm\_event\_id.  
+
+Die Endpunkte zum Verwalten von Direktnachrichten stellen drei POST-Methoden zum Erstellen neuer Nachrichten und zum Hinzufügen zu Unterhaltungen bereit:
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - Erstellt eine Eins-zu-eins-Direktnachricht. Diese Methode fügt die Nachricht entweder einer bestehenden Eins-zu-eins-Unterhaltung hinzu oder erstellt eine neue. Der Pfadparameter :participant\_id ist die User-ID des Kontos, das die Nachricht erhält. 
+  Hier ist ein Beispiel für einen JSON-Request-Body zum Senden einer Eins-zu-eins-Direktnachricht:
+
+```
+{
+   "text": "Hallo nur an dich. Das erscheint als neue Unterhaltung, wenn wir noch nie geschrieben haben, oder wird zu unserem bestehenden Thread hinzugefügt."
+}
+```
+
+- **POST /2/dm\_conversations** - Erstellt eine neue Gruppenunterhaltung und fügt ihr eine Direktnachricht hinzu. Diese Anfragen erfordern eine Liste der Teilnehmer der Unterhaltung. Beachten Sie, dass Sie mehrere Unterhaltungen mit derselben Teilnehmerliste erstellen können. Diese Anfragen geben immer eine neue Unterhaltungs-ID zurück. Unten ist ein Beispiel für einen JSON-Request-Body zum Erstellen einer neuen Gruppenunterhaltung und zum Hinzufügen einer Direktnachricht. Beachten Sie, dass hierfür ein Feld "conversation\_type" erforderlich ist und dieses auf "Group" gesetzt sein muss (Groß-/Kleinschreibung beachten).
+
+```
+{
+   "message": {"text": "Hallo ihr zwei, dies ist eine neue Gruppenunterhaltung."},
+   "participant_ids": ["944480690","906948460078698496"],
+   "conversation_type": "Group"
+}
+```
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - Erstellt eine Direktnachricht und fügt sie einer bestehenden Unterhaltung hinzu. Der Pfadparameter :dm\_conversation\_id ist die ID der Unterhaltung, der die Nachricht hinzugefügt wird. Diese Methode kann verwendet werden, um einer Eins-zu-eins- oder Gruppenunterhaltung eine Nachricht hinzuzufügen.
+  Hier ist ein Beispiel für einen JSON-Request-Body zum Senden einer Direktnachricht an sowohl Eins-zu-eins- als auch Gruppenunterhaltungen:
+
+```
+{
+   "text": "Hier ist eine neue Nachricht."
+}
+```
+
+Diese POST-Methoden unterstützen das Anhängen eines einzelnen Mediums. POST-Request-Bodys müssen entweder die Felder "text" oder "attachments" oder beide enthalten. Das Attribut "text" ist erforderlich, wenn das Feld "attachments" nicht enthalten ist, und das Feld "attachments" ist erforderlich, wenn das Feld "text" nicht enthalten ist. Weitere Informationen finden Sie im nächsten Abschnitt.
+
+Weitere Informationen finden Sie in den [API-Referenzen zum Verwalten von Direktnachrichten](/de/x-api/direct-messages/create-a-new-dm-conversation). 
+
+<div id="shared-conversation-and-event-ids-across-v11-and-v2">
+  ### Gemeinsame Konversations- und Ereignis-IDs in v1.1 und v2
+</div>
+
+Ein wichtiges Konzept ist, dass Konversations- und Ereignis-IDs in den Versionen v1.1 und v2 der X-Plattform identisch sind. Das bedeutet, dass beide Versionen zusammen verwendet werden können.
+
+Die Direct-Messages-Endpunkte in v1.1 bieten beispielsweise Methoden zum Abrufen eines einzelnen Ereignisses und zum Löschen von Ereignissen. Diese Methoden sind in v2 noch nicht verfügbar. Da IDs in v1.1 und v2 gleich sind, können Sie v1.1-Anfragen anhand von IDs stellen, die von v2 bereitgestellt werden, oder indem Sie auf Konversations-IDs verweisen, die in Konversations-URLs in der X-App angezeigt werden.  
+
+<div id="including-media-attachments-and-referencing-posts">
+  ### Einbinden von Medienanhängen und Referenzieren von Posts
+</div>
+
+Die Endpunkte zum Verwalten von Direct Messages unterstützen alle das Anhängen eines einzelnen Mediums (Foto, Video oder GIF). Das Anhängen von Medien erfordert eine Medien-ID, die vom v1.1-Endpunkt [Upload media](https://developer.x.com/en/docs/x-api/v1/media/upload-media/overview) generiert wird. Der authentifizierte Nutzer, der die Direct Message sendet, muss das Medium ebenfalls hochgeladen haben. Nach dem Hochladen steht das Medium 24 Stunden lang zur Einbindung in die Nachricht bereit.
+
+Zur Veranschaulichung, wie Medien eingebunden werden, folgt ein Beispiel für einen JSON-Request-Body:
+
+```
+{
+ "text": "Hier ist ein Foto ...",
+ "attachments": [{"media_id": "1583157113245011970}]
+}
+```
+
+Das resultierende MessageCreate-Ereignis enthält die folgenden Metadaten:
+
+```
+{
+    "attachments": {
+        "media_keys": [
+            "5_1583157113245011970"
+        ]
+    }
+}
+```
+
+Posts können ebenfalls eingebunden werden, indem die Post-URL im Nachrichtentext enthalten ist. Zur Veranschaulichung, wie Posts in Nachrichten eingebunden werden, folgt ein Beispiel für einen JSON-Request-Body:
+
+```
+{
+ "text": "Hier ist der Tweet, von dem ich gesprochen habe: https://x.com/SnowBotDev/status/1580559079470145536"
+}
+```
+
+Das resultierende MessageCreate-Ereignis enthält die folgenden Metadaten:
+
+```
+{
+    "referenced_tweets": [
+        {
+            "id": "1580559079470145536"
+        }
+    ]
+}
+```
+
+<div id="authentication">
+  ### Authentifizierung
+</div>
+
+Alle Endpunkte der X-API v2 erfordern, dass Sie Ihre Anfragen mit einem Satz von Zugangsdaten (Keys und Tokens) authentifizieren. Alle Direct Messages sind privat und erfordern eine Benutzerauthorisierung für den Zugriff. 
+
+Diese Direct-Message-Endpunkte erfordern die Verwendung von [OAuth 2.0 Authorization Flow mit PKCE](/de/x-api/posts/manage-tweets) oder [1.0a User Context](/de/resources/fundamentals/authentication). Das bedeutet, Sie müssen einen Satz von API-Schlüsseln und Benutzer-Access-Tokens verwenden, um eine erfolgreiche Anfrage zu stellen. Die Access-Tokens müssen dem Benutzer zugeordnet sein, in dessen Namen Sie die Anfrage stellen. Wenn Sie einen Satz von Access-Tokens für einen anderen Benutzer generieren möchten, muss dieser Ihre App über den [3-legged OAuth Flow](/de/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) autorisieren bzw. authentifizieren.
+
+Bitte beachten Sie, dass der OAuth-User-Context knifflig sein kann. Wenn Sie mit dieser Authentifizierungsmethode nicht vertraut sind, empfehlen wir die Verwendung einer [Bibliothek](/de/x-api/tools-and-libraries/overview) oder eines Tools wie Postman, um Ihre Anfragen korrekt zu authentifizieren. 
+
+[OAuth 2.0 Authorization Code mit PKCE](de/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-2) ermöglicht eine präzisere Kontrolle über den Scope und die Autorisierungsabläufe einer Anwendung über mehrere Geräte hinweg. OAuth 2.0 erlaubt die Auswahl fein abgestufter Scopes, die Ihnen bestimmte Berechtigungen im Namen eines Benutzers gewähren. Die Direct-Message-Lookup-Endpunkte erfordern diese Scopes: dm.write, dm.read, tweet.read, user.read.
+
+Um OAuth 2.0 in Ihrer App zu aktivieren, müssen Sie es in den Authentifizierungseinstellungen Ihrer App einschalten, die Sie im Bereich App-Einstellungen des Developer-Portals finden.
+
+<div id="developer-portal-projects-and-developer-apps">
+  ### Entwicklerportal, Projekte und Entwickler-Apps
+</div>
+
+Um Anmeldedaten zu erhalten, die mit den Endpunkten der X-API v2 funktionieren, benötigen Sie ein genehmigtes Entwicklerkonto, richten darin ein Projekt ein und erstellen innerhalb dieses Projekts eine Entwickler-App. Ihre Keys und Tokens finden Sie anschließend in Ihrer Entwickler-App. 
+
+<div id="rate-limits">
+  ### Ratenlimits
+</div>
+
+Jeden Tag senden viele Tausend Entwickler Anfragen an die X-API. Um das enorme Volumen dieser Anfragen zu steuern, gelten für jeden Endpoint Ratenlimits, die die Anzahl der Anfragen begrenzen, die Sie im Namen Ihrer App oder eines authentifizierten Nutzers stellen können. 
+
+Die Endpoints zum Verwalten von Direct Messages sind sowohl auf Nutzer- als auch auf X-App-Ebene ratebegrenzt. Das bedeutet: Der authentifizierte Nutzer, in dessen Namen Sie die Anfrage stellen, kann mit Ihrer X-App nur eine bestimmte Anzahl von Nachrichten senden. Zusätzlich gibt es ein tägliches Limit dafür, wie viele Direct Messages von Ihrer X-App gesendet werden dürfen. 
+
+Für die POST-Methoden gilt pro Nutzer ein Ratenlimit von 200 Anfragen/Nachrichten pro 15 Minuten. Nutzer sind außerdem auf 1.000 Direct Messages pro 24 Stunden begrenzt. Zusätzlich haben X-Apps ein Limit von 15.000 Nachrichten pro 24 Stunden. Diese Ratenlimits werden über die POST-Endpoints hinweg geteilt. 
+
+**Hilfreiche Tools**
+
+Hier sind einige hilfreiche Tools, die wir empfehlen, wenn Sie mit den Direct-Messages-Lookup-Endpoints arbeiten: 
+
+****Postman****
+
+Postman ist ein hervorragendes Tool, um einen Endpoint zu testen. Jede Postman-Anfrage enthält sämtliche Pfad- und Body-Parameter, damit Sie schnell verstehen, was Ihnen zur Verfügung steht. Weitere Informationen zu unseren Postman-Collections finden Sie auf der Seite [Using Postman](/de/tutorials/postman-getting-started). 
+
+****Codebeispiele****
+
+Python-Beispielcode für die v2-Endpoints zu Direct Messages finden Sie in unserem Repository [X API v2 sample code GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code)[](https://github.com/xdevplatform/Twitter-API-v2-sample-code). Der Ordner „Manage-Direct-Messages“ enthält Beispiele für die POST-Methoden, und der Ordner „Direct-Messages-lookup“ enthält Beispiele für die GET-Methoden.
+
+**XDev Software Development Kits (SDKs)**
+
+Diese [Bibliotheken](/de/x-api/tools-and-libraries/overview) werden für die v2-Endpoints zu Direct Messages aktualisiert und sollten bald verfügbar sein:
+
+- [X API Java SDK](https://github.com/xdevplatform/twitter-api-java-sdk) - Offizielles Java-SDK für die X-API v2
+- [X API TypeScript/JavaScript SDK](https://github.com/xdevplatform/twitter-api-typescript-sdk) - Offizielles TS/JS-SDK für die X-API v2
+
+**Bibliotheken von Drittanbietern**
+
+Es gibt eine wachsende Zahl von [Bibliotheken von Drittanbietern](/de/x-api/tools-and-libraries/overview#community-tools-and-libraries-for-v2), die von unserer Community entwickelt wurden. Diese Bibliotheken sollen Ihnen den Einstieg erleichtern, und mehrere werden voraussichtlich bald die v2-Endpoints zu Direct Messages unterstützen. Sie können eine Bibliothek finden, die mit den v2-Endpoints funktioniert, indem Sie auf den passenden Versionstag achten.

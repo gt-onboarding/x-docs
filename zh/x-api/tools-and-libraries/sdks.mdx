@@ -1,0 +1,162 @@
+---
+title: SDK 集
+---
+
+<div id="introduction">
+  ## 介绍
+</div>
+
+软件开发工具包（SDK）是一组为特定平台或 API 定制的软件工具和程序。SDK 旨在通过提供开发者可在其应用中直接使用的库或代码库，以高效且尽量少写代码的方式构建或扩展应用功能。这将显著加速开发流程，节省时间、成本与人力。
+
+> X Developer Platform 现已面向使用 TypeScript/JavaScript 和 Java 的开发者提供 2 个官方 SDK。借助这些 SDK，开发者无需手动处理 X API v2 的复杂细节，可直接使用为所有可用 v2 端点预构建的函数，并简化身份验证流程，从而更高效地构建应用。由于这些 SDK 由 Developer Platform 团队构建并维护，它们将随 X API v2 的未来版本持续保持最新。
+
+由于这些 SDK 封装了 X API，您必须拥有一个[开发者账号](https://developer.x.com/en/portal/dashboard)，并使用位于[项目](/zh/resources/fundamentals/projects)内[开发者应用](/zh/resources/fundamentals/developer-apps)的凭证对请求进行身份验证。
+
+<div id="installing">
+  #### 安装
+</div>
+
+<Tabs>
+  <Tab title="Java">
+    安装 Java 包有多种方式（需要 Java 1.8+）
+
+    - Maven 用户：将以下依赖添加到项目的 POM 文件中：
+
+    ```xml
+    <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>twitter-api-java-sdk</artifactId>
+      <version>1.1.4</version>
+    </dependency>
+    ```
+
+    - Gradle 用户：将以下依赖添加到项目的构建文件中：
+      `implementation "com.twitter:twitter-api-java-sdk:1.1.4"`
+
+    - 其他：先运行以下命令生成 JAR
+      `mvn clean package`
+      然后手动安装以下 JAR：
+
+    `target/twitter-api-java-sdk-1.1.4.jar`
+
+    `target/lib/*.jar`
+  </Tab>
+
+  <Tab title="TypeScript">
+    该软件包支持 Node.js 14+。要安装，请在 Node 项目的目录中运行以下命令：
+    `npm install twitter-api-sdk`
+  </Tab>
+</Tabs>
+
+<div id="client-basics">
+  #### 客户端基础
+</div>
+
+在工作文件的顶部导入类（Java）或包（TypeScript），以便使用身份验证与库客户端。要调用库客户端的方法，必须传入身份验证凭据：可以使用 Bearer Token（仅应用），或在采用 OAuth 2.0 用户上下文时使用 client id/client secret。
+
+示例如下：
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // Import classes:
+    import com.twitter.clientlib.ApiClient;
+    import com.twitter.clientlib.ApiException;
+    import com.twitter.clientlib.Configuration;
+    import com.twitter.clientlib.auth.*;
+    import com.twitter.clientlib.model.*;
+    import com.twitter.clientlib.TwitterCredentialsBearer;
+    import com.twitter.clientlib.api.TwitterApi;
+
+    // Instantiate library client
+    TwitterApi apiInstance = new TwitterApi();
+
+    // Instantiate auth credentials (App-only example)
+    TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(System.getenv("APP-ONLY-ACCESS-TOKEN"));
+
+    // Pass credentials to library client
+    apiInstance.setTwitterCredentials(credentials);
+    ```
+  </Tab>
+
+  <Tab title="TypeScript">
+    ```typescript
+    //Import package
+    import { Client, auth } from "twitter-api-sdk";
+
+    // Initialize auth client first
+    const authClient = new auth.OAuth2User({
+     client_id: process.env.CLIENT_ID as string,
+     client_secret: process.env.CLIENT_SECRET as string,
+     callback: "YOUR-CALLBACK",
+     scopes: ["tweet.read", "users.read", "offline.access"],
+    });
+
+    // Pass auth credentials to the library client
+    const twitterClient = new Client(authClient);
+    ```
+  </Tab>
+</Tabs>
+
+<div id="authentication-flow">
+  #### 身份验证流程
+</div>
+
+如果您使用“仅应用”方式为 SDK 进行身份验证，您只需提供令牌，库客户端即可立即调用各个端点方法。请注意，“仅应用”令牌不能用于需要用户上下文身份验证的端点。
+
+使用 OAuth 2.0 用户上下文进行身份验证，在创建身份验证客户端后还需要一些额外步骤：
+
+- 生成授权 URL
+- 通过授权 URL 授权应用
+- 重定向到回调（应与开发者门户中身份验证设置页配置的回调 URL 完全一致）
+- 解析 code verifier，用其交换访问令牌
+
+SDK 在身份验证客户端上提供了方法来简化这些步骤。要查看使用 OAuth 2.0 用户上下文进行身份验证并发起请求的完整示例，请参阅 GitHub 仓库。
+
+- [TypeScript](https://github.com/xdevplatform/twitter-api-typescript-sdk/blob/main/examples/oauth2-callback_pkce_s256.ts)
+
+- [Java](https://github.com/xdevplatform/twitter-api-java-sdk/blob/main/examples/src/main/java/com/twitter/clientlib/auth/OAuth20GetAccessToken.java)
+
+<div id="endpoint-methods">
+  #### 端点方法
+</div>
+
+库客户端中提供的方法均以清晰的名称对应各个端点，所有参数均作为函数参数传入。
+以下是按 ID 查找帖子的示例：
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    String id = "1511757922354663425"; // String | 单个推文 ID。
+    Set<String> expansions = new HashSet<>(Arrays.asList("author_id")); // Set<String> | 以逗号分隔的待展开字段列表。
+    Set<String> tweetFields = new HashSet<>(Arrays.asList("created_at", "lang", "context_annotations")); // Set<String> | 以逗号分隔的推文字段列表。
+    Set<String> userFields = new HashSet<>(Arrays.asList("created_at", "description", "name")); // Set<String> | 以逗号分隔的用户字段列表。
+
+    try {
+     SingleTweetLookupResponse result = apiInstance.tweets().findTweetById(id, expansions, tweetFields, userFields, null, null, null);
+     System.out.println(result);
+    } catch (ApiException e) {
+     System.err.println("调用 TweetsApi#findTweetById 时发生异常");
+     System.err.println("状态码: " + e.getCode());
+     System.err.println("原因: " + e.getResponseBody());
+     System.err.println("响应头: " + e.getResponseHeaders());
+     e.printStackTrace();
+    }
+
+    ```
+  </Tab>
+
+  <Tab title="TypeScript">
+    ```typescript
+    const lookupTweetById = await client.tweets.findTweetById(
+      // 推文 ID
+      "1511757922354663425",
+      {
+        // 可选参数
+        expansions: ["author_id"],
+        "user.fields": ["created_at", "description", "name"],
+      }
+    );
+    ```
+  </Tab>
+</Tabs>

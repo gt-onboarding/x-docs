@@ -1,0 +1,260 @@
+---
+title: Fazer login com o X
+---
+
+import { Button } from "/snippets/pt-BR/button.mdx";
+
+Use o Log in with X, também conhecido como Sign in with X, para adicionar um botão ao seu site ou aplicativo que permite que usuários do X aproveitem os benefícios de uma conta registrada com apenas um clique. Isso funciona em sites, iOS e aplicativos móveis e para desktop.
+
+![Botão Sign in with X](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/auth-docs/sign-in-with-twitter-gray.png.twimg.1920.png)
+
+<div id="features">
+  ## Recursos
+</div>
+
+- Facilidade de uso - Um novo visitante do seu site precisa apenas clicar em dois botões para fazer login pela primeira vez.
+- Integração com o X - O fluxo Entrar com o X pode conceder autorização para usar as APIs do X em nome dos seus usuários.
+- Baseado em OAuth - Uma grande variedade de bibliotecas cliente e exemplos de código é compatível com a API Entrar com o X.
+
+<div id="available-for">
+  ## Disponível para
+</div>
+
+- Navegadores - Se seus usuários têm acesso a um navegador, você pode integrar o Log in with X. Saiba mais sobre o fluxo de autenticação no navegador.
+- Dispositivos móveis - Qualquer dispositivo móvel conectado à internet pode usar o Log in with X. Saiba mais sobre o fluxo de autenticação em dispositivos móveis.
+
+<div id="implementing-log-in-with-x">
+  ## Implementando Entrar com o X
+</div>
+
+As implementações para navegador e web móvel de Entrar com o X são baseadas em OAuth. Esta página demonstra as requisições necessárias para obter um token de acesso para o fluxo de autenticação.
+
+Para usar o fluxo “Entrar com o X”, acesse as [configurações do seu app do X](/pt-BR/resources/fundamentals/developer-apps) e verifique se a opção _“Permitir que este app seja usado para Entrar com o X?”_ está ativada.
+
+Esta página pressupõe que o leitor sabe como assinar requisições usando o protocolo OAuth 1.0a. Se você quiser saber como assinar uma requisição, leia a página [Autorizando uma requisição](/pt-BR/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request).
+
+Se você quiser verificar a assinatura das requisições nesta página, o consumer secret utilizado é: L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg. Este valor é para fins de teste e não funcionará para requisições reais.
+
+Os três passos para implementar Entrar com o X — obter um token de solicitação, redirecionar o usuário e converter um token de solicitação em um token de acesso — estão listados abaixo.
+
+<Tabs>
+  <Tab title="Step 1">
+    ### Etapa 1: Obter um token de solicitação
+
+    Para iniciar um fluxo de autenticação, seu [app do X](/pt-BR/resources/fundamentals/developer-apps) deve obter um token de solicitação enviando uma mensagem assinada para [POST oauth/request\_token](/pt-BR/resources/fundamentals/authentication/api-reference#post-oauth-request-token). O único parâmetro específico nessa solicitação é oauth\_callback, que deve ser a versão codificada em URL do endereço para o qual você deseja que o usuário seja redirecionado ao concluir a etapa 2. Os demais parâmetros são adicionados pelo processo de assinatura do OAuth.
+
+    <Note>
+      **Observação:** Qualquer [URL de callback](/pt-BR/resources/fundamentals/developer-apps#callback-urls) usada com o endpoint [POST oauth/request\_token](/pt-BR/resources/fundamentals/authentication/api-reference#post-oauth-request-token) precisa estar registrada nas [configurações do app do X](/pt-BR/resources/fundamentals/developer-apps) no [portal do desenvolvedor](/pt-BR/resources/fundamentals/developer-portal).
+    </Note>
+
+    <Frame>
+      <img src="/images/auth-4.png.twimg.1920.png" alt="" />
+    </Frame>
+
+    **Exemplo de solicitação (o cabeçalho Authorization foi quebrado em linhas):**
+
+    ```
+    POST /oauth/request_token HTTP/1.1
+    User-Agent: themattharris' HTTP Client
+    Host: api.x.com
+    Accept: */*
+    Authorization:
+            OAuth oauth_callback="http%3A%2F%2Flocalhost%2Fsign-in-with-twitter%2F",
+                  oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w",
+                  oauth_nonce="ea9ec8429b68d6b77cd5600adbbb0456",
+                  oauth_signature="F1Li3tvehgcraF8DMJ7OyxO4w9Y%3D",
+                  oauth_signature_method="HMAC-SHA1",
+                  oauth_timestamp="1318467427",
+                  oauth_version="1.0"
+    ```
+
+    Seu app deve verificar o status HTTP da resposta. Qualquer valor diferente de 200 indica falha. O corpo da resposta conterá os parâmetros oauth\_token, oauth\_token\_secret e oauth\_callback\_confirmed. Seu app deve verificar se oauth\_callback\_confirmed é true e armazenar os outros dois valores para as próximas etapas.
+
+    **Exemplo de resposta (o corpo da resposta foi quebrado em linhas):**
+
+    ```
+    HTTP/1.1 200 OK
+    Date: Thu, 13 Oct 2011 00:57:06 GMT
+    Status: 200 OK
+    Content-Type: text/html; charset=utf-8
+    Content-Length: 146
+    Pragma: no-cache
+    Expires: Tue, 31 Mar 1981 05:00:00 GMT
+    Cache-Control: no-cache, no-store, must-revalidate, pre-check=0, post-check=0
+    Vary: Accept-Encoding
+    Server: tfe
+
+    oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0&
+    oauth_token_secret=veNRnAWe6inFuo8o2u8SLLZLjolYDmDP7SzL0YfYI&
+    oauth_callback_confirmed=true
+
+    ```
+  </Tab>
+
+  <Tab title="Step 2">
+    ### Etapa 2: Redirecionando o usuário
+
+    A próxima etapa é direcionar o usuário ao X para que conclua o fluxo adequado, conforme descrito em Fluxo de login no navegador abaixo. Direcione o usuário para [GET oauth/authenticate](/pt-BR/resources/fundamentals/authentication/api-reference#get-oauth-authenticate) e passe o token de solicitação obtido na etapa 1 como o parâmetro oauth\_token.
+
+    A forma mais simples e transparente para um site implementar isso é responder ao pedido original de “login” com um redirecionamento HTTP 302. Apps móveis e de desktop devem abrir uma nova janela do navegador ou navegar para a URL por meio de uma webview incorporada.
+
+    Exemplo de URL para redirecionamento:
+
+    https://api.x.com/oauth/authenticate?oauth\_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0
+
+    O endpoint de login terá um dos três comportamentos, dependendo do status do usuário:
+
+    1. Conectado e aprovado: Se o usuário estiver conectado em x.com e já tiver aprovado o aplicativo chamador, ele será autenticado imediatamente e retornado à URL de callback com um token de solicitação OAuth válido. O redirecionamento para x.com não é perceptível ao usuário.
+    2. Conectado, mas não aprovado: Se o usuário estiver conectado em x.com, mas não tiver aprovado o aplicativo chamador, será exibida uma solicitação para compartilhar acesso com o aplicativo chamador. Após aceitar a solicitação de autorização, o usuário será redirecionado para a URL de callback com um token de solicitação OAuth válido.
+    3. Não conectado: Se o usuário não estiver conectado em x.com, será solicitado que insira suas credenciais e conceda acesso ao aplicativo para acessar suas informações na mesma tela. Depois de conectado, o usuário será retornado à URL de callback com um token de solicitação OAuth válido.
+
+    Após uma autenticação bem-sucedida, seu callback\_url receberá uma solicitação contendo os parâmetros oauth\_token e oauth\_verifier. Seu aplicativo deve verificar se o token corresponde ao token de solicitação recebido na etapa 1.
+
+    Solicitação do redirecionamento do cliente (parâmetros de querystring encapsulados):
+
+    ```
+    GET /sign-in-with-twitter/?
+            oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0&
+            oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY HTTP/1.1
+    Host: localhost
+    User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/535.5 (KHTML, like Gecko) Chrome/16.0.891.1 Safari/535.5
+    Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+    Referer: http://localhost/sign-in-with-twitter/
+    Accept-Encoding: gzip,deflate,sdch
+    Accept-Language: en-US,en;q=0.8
+    Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.3
+    ```
+  </Tab>
+
+  <Tab title="Step 3">
+    ### Etapa 3: Converter o token de solicitação em um token de acesso
+
+    Para transformar o token de solicitação em um token de acesso utilizável, seu aplicativo deve fazer uma solicitação ao endpoint [POST oauth/access\_token](/pt-BR/resources/fundamentals/authentication/api-reference#post-oauth-access-token), contendo o valor oauth\_verifier obtido na etapa 2. O token de solicitação também é enviado na parte oauth\_token do cabeçalho, mas isso terá sido adicionado pelo processo de assinatura.
+
+    **Exemplo de solicitação (cabeçalho Authorization quebrado em várias linhas):**
+
+    ```
+    POST /oauth/access_token HTTP/1.1
+    User-Agent: themattharris' HTTP Client
+    Host: api.x.com
+    Accept: */*
+    Authorization: OAuth oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w",
+                          oauth_nonce="a9900fe68e2573b27a37f10fbad6a755",
+                          oauth_signature="39cipBtIOHEEnybAR4sATQTpl2I%3D",
+                          oauth_signature_method="HMAC-SHA1",
+                          oauth_timestamp="1318467427",
+                          oauth_token="NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0",
+                          oauth_version="1.0"
+    Content-Length: 57
+    Content-Type: application/x-www-form-urlencoded
+
+    oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY
+    ```
+
+    Uma resposta bem-sucedida contém os parâmetros oauth\_token e oauth\_token\_secret. O token e o segredo do token devem ser armazenados e usados em futuras solicitações autenticadas à API do X. Para determinar a identidade do usuário, use [GET account/verify\_credentials](https://dev.x.com/rest/reference/get/account/verify_credentials).
+
+    **Exemplo de resposta (corpo da resposta quebrado em várias linhas):**
+
+    ```
+    HTTP/1.1 200 OK
+    Date: Thu, 13 Oct 2011 00:57:08 GMT
+    Status: 200 OK
+    Content-Type: text/html; charset=utf-8
+    Content-Length: 157
+    Pragma: no-cache
+    Expires: Tue, 31 Mar 1981 05:00:00 GMT
+    Cache-Control: no-cache, no-store, must-revalidate, pre-check=0, post-check=0
+    Vary: Accept-Encoding
+    Server: tfe
+
+    oauth_token=7588892-kagSNqWge8gB1WwE3plnFsJHAZVfxWD7Vb57p0b4&
+    oauth_token_secret=PbKfYqSryyeKDWz4ebtY3o5ogNLG11WJuZBc9fQrQo
+    ```
+  </Tab>
+</Tabs>
+
+<Tabs>
+  <Tab title="Recursos adicionais">
+    ### Recursos do Faça login com o X
+
+    #### Bibliotecas cliente
+
+    As bibliotecas cliente listadas em [X libraries](/pt-BR/resources/tools-and-libraries) ajudarão a implementar o Faça login com o X. Use o endpoint /oauth/authenticate, conforme descrito nas etapas anteriores.
+
+    #### Botões
+
+    O X prefere que seu aplicativo use os botões a seguir para manter a consistência da marca. Salve essas imagens e hospede-as em seus próprios servidores.
+
+    Entrar com o X (estilo botão):
+
+    <Frame>
+      <img src="/images/sign-in-with-twitter.png" alt="" />
+    </Frame>
+
+    Entrar com o X (estilo link):
+
+    <Frame>
+      <img src="/images/sign-in-with-twitter-link.png" alt="" />
+    </Frame>
+  </Tab>
+
+  <Tab title="Fluxo de login no navegador">
+    O fluxo de login no navegador é apropriado para sites e aplicativos que podem abrir ou incorporar um navegador da web. Em alto nível:
+
+    - O aplicativo renderiza um link ou botão “Entrar com o X”.
+    - O usuário clica no botão de entrada.
+    - O navegador atual é redirecionado para o X (ou um novo navegador é aberto e direcionado ao X).
+    - O usuário conclui uma etapa de login e autorização no X, se necessário.
+    - O X redireciona de volta para uma URL sob o controle do aplicativo, passando informações de autorização do usuário.
+
+    O X gerencia as autorizações; assim, para usuários já conectados em X.com que autorizaram o aplicativo, nenhuma interface é exibida — em vez disso, eles são redirecionados automaticamente de volta para o aplicativo.
+
+    ### Fluxo em desktop
+
+    <Frame>
+      <img src="/images/browser_111.png" alt="" />
+    </Frame>
+
+    Para demonstrar os fluxos, imagine que o site exibido acima (“O melhor site já criado”) implementou esta API, como indicado pelo botão Entrar com o X na página inicial.
+
+    Quando o usuário clica no botão Entrar, a página exibida depende de ele estar conectado e de já ter permitido que o aplicativo acesse sua conta.
+
+    Quando o usuário está conectado a x.com, mas não concedeu acesso, é exibida uma lista das permissões solicitadas, junto com os botões Entrar e Cancelar.
+
+    Quando o usuário não está conectado a x.com, são exibidos campos para nome de usuário e senha. Observe que, mesmo que o usuário já tenha concedido acesso ao aplicativo, a lista de permissões ainda será exibida.
+
+    <Frame>
+      <img src="/images/browser_2.png" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/browser_3.png" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/browser_4.png" alt="" />
+    </Frame>
+
+    Depois que o usuário inserir credenciais válidas (se necessário) e clicar em “Entrar”, o X o redirecionará para o site que iniciou o fluxo de login.
+
+    Caso o usuário já esteja conectado a x.com e tenha concedido acesso ao site, esse redirecionamento ocorre imediatamente.
+  </Tab>
+
+  <Tab title="Fluxo de login em dispositivos móveis">
+    O fluxo de interface para navegadores móveis funciona exatamente como o fluxo de login no navegador, mas é otimizado para dispositivos móveis.
+
+    Abaixo estão capturas de tela dos estados conectado, desconectado e de redirecionamento:
+
+    <Frame>
+      <img src="/images/authorize-login-screenshot.png" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/authorize-logged-in" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/redirect-application.png" alt="" />
+    </Frame>
+  </Tab>
+</Tabs>

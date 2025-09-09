@@ -1,0 +1,135 @@
+---
+title: 从 v1 到 v2（企业版）
+sidebarTitle: 从 v1 到 v2（企业版）
+---
+
+<div id="enterprise-compared-to-x-api-v2">
+  ### Enterprise 与 X API v2 对比
+</div>
+
+**相似点**
+
+- 分页
+- 时区
+- 支持帖子编辑历史和元数据
+
+**差异**
+
+- 端点 URL
+- 应用与项目要求
+- 可用时间区间
+- 响应数据格式
+- HTTP 方法
+- 请求时间格式
+- 请求参数
+- 过滤操作符
+
+<div id="similarities">
+  #### 相似之处
+</div>
+
+**分页**
+
+尽管 v2 提供了更多分页功能（新增分页参数，允许通过 `since_id` 和 `until_id` 使用帖子 ID 进行导航），enterprise 和 v2 都支持按时间分页（enterprise 使用 `fromDate` 和 `toDate`，v2 使用 `start_time` 和 `end_time`）。
+
+**时区**
+
+如分页部分所述，您可以在 enterprise 和 v2 中按时间浏览不同页的数据。在这两种情况下，使用这些参数时均需使用 UTC 时区。
+
+**对帖子编辑历史及元数据的支持**
+
+两个版本都提供描述编辑历史的元数据。请参阅 [search API 参考](/zh/x-api/posts/recent-search) 和 [帖子编辑基础](/zh/x-api/fundamentals/edit-posts) 以了解更多详情。 
+
+<div id="differences">
+  #### 差异
+</div>
+
+**端点 URL**
+
+- 企业级端点：
+  - 30 天 - `http://gnip-api.x.com/search/30day/accounts/:account_name/:label.json`
+  - 全档案 - `http://gnip-api.x.com/search/fullarchive/accounts/:account_name/:label.json`
+- X API v2 端点
+  - 最近（7 天）- `https://api.x.com/2/tweets/search/recent`
+  - 全档案 - `https://api.x.com/2/tweets/search/all`
+
+**应用与项目要求**
+
+X API v2 端点要求在为请求进行身份验证时使用来自项目的凭据。所有 X API v1.1 端点都可以使用独立应用，或与项目关联的应用的凭据。
+ 
+
+**可用时间范围**
+
+企业级 API 与 X API v2 都提供端点，可用于检索整个帖子全档案的过滤后帖子数据。
+
+但 X API v2 并不像企业级 API 那样提供 30 天时间范围的端点。它提供前述的全档案端点，或 7 天时间范围，这与“Native Enriched 到 v2”和[“Activity Streams 到 v2”](/zh/x-api/migrate/data-format-migration#migrating-from-activity-streams-data-format-to-v2) 的迁移保持一致，可帮助你将企业级字段映射到更新的 v2 字段。本指南还将提供你在 v2 请求中需要传递的具体 fields 与 expansions 参数，以返回特定字段。
+ 
+
+**响应数据格式**
+
+[企业级响应格式](https://developer.x.com/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)与 [X API v2 的格式](/zh/x-api/fundamentals/data-dictionary) 之间最大的差异之一在于如何选择在有效负载中返回哪些字段。
+
+对于企业级 Search API，默认会返回许多响应字段，你还可以通过参数指定应在有效负载中返回哪些字段或字段集。
+
+X API v2 默认仅返回帖子 `id` 与 `text` 字段。要请求其他字段或对象，你需要使用[fields](/zh/x-api/fundamentals/fields) 和 [expansions](/zh/x-api/fundamentals/expansions) 参数。你从这些端点请求的任何帖子字段将返回在主帖子对象中。任何扩展的用户、媒体、投票或地点对象及其字段将返回在响应中的 `includes` 对象内。之后，你可以通过匹配帖子与扩展对象中出现的 ID，将扩展对象关联回帖子对象。
+
+我们鼓励你在各自的指南中进一步了解这些新参数，或阅读我们的[如何使用 fields 与 expansions](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) 指南。
+
+除请求字段方式的变化外，X API v2 还为 API 返回的对象引入了新的 JSON 设计，包括[帖子](/zh/x-api/fundamentals/data-dictionary#tweet) 与[用户](/zh/x-api/fundamentals/data-dictionary#user) 对象。
+
+- 在 JSON 根级，标准端点在 `statuses` 数组中返回帖子对象，而 X API v2 返回 `data` 数组。
+- X API v2 的 JSON 不再引用被转发与被引用的“statuses”，而是引用被转发与被引用的 Tweets。许多传统和已弃用字段（例如 `contributors` 和 `user.translator_type`）将被移除。
+- X API v2 不再同时使用 `favorites`（帖子对象中）与 `favourites`（用户对象中），而统一使用 like 一词。
+- X 采用了这样的约定：无值的 JSON 字段（例如 `null`）不会写入有效负载。仅当帖子和用户属性为非空时才会包含。
+   
+
+我们还为帖子对象引入了一组新字段，包括：
+
+- 一个 [conversation\_id](/zh/x-api/fundamentals/conversation-id) 字段
+- 两个新的[注释](/zh/x-api/fundamentals/post-annotations)字段，包括 context 和 entities
+- 若干新的[指标](/zh/x-api/fundamentals/metrics)字段
+- 一个新的 `reply_setting` 字段，指示谁可以回复某条帖子
+
+最后一点说明。高级版响应在根级包含一个 `requestParameters` 对象，其中包含你在请求中传入的参数。v2 版本则在根级包含一个 `meta` 对象，其中包括 `newest_id`、`oldest_id`、`result_count`，以及在存在额外结果页时的 `next_token`。
+
+**HTTP 方法**
+
+API 的企业版允许你通过两种方式发起请求：使用带有 JSON 正文的 POST 方法，或使用带有查询字符串的 GET 方法。
+
+V2 仅允许使用带有查询字符串的 GET 方法。
+ 
+
+**请求时间格式**
+
+此端点的企业版在分页参数以及 `timePeriod` 响应字段中使用以下日期/时间格式：`YYYYMMDDHHmm`
+
+v2 端点在分页参数以及 `start` 和 `end` 响应字段中使用 ISO 8601/RFC 3339 日期/时间格式：`YYYY-MM-DDTHH:mm:ssZ`
+ 
+
+**请求参数**
+
+以下是企业版与 X API v2 的请求参数对照表：
+
+| 企业版 | Search Posts v2 |
+| :--- | :--- |
+| query | query |
+| maxResults | max\_results |
+| fromDate (YYYYMMDDHHmm) | start\_time (YYYY-MM-DDTHH:mm:ssZ) |
+| toDate (YYYYMMDDHHmm) | end\_time (YYYY-MM-DDTHH:mm:ssZ) |
+|     | since\_id |
+|     | until\_id |
+| next | next\_token 或 pagination\_token |
+
+**过滤运算符**
+
+虽然企业版与 X API v2 的运算符大体相同，但在可用性方面存在一些差异，且 X API v2 新增了一些仅在该版本提供的运算符。
+
+要查看适用于 X API v2、企业版，以及 premium 和 standard 的完整运算符对照表，请访问[搜索帖子迁移页面](/zh/x-api/posts/search/migrate/overview)。
+
+**后续步骤**
+
+[查看我们的 X API v2 全档案搜索快速入门指南](/zh/x-api/posts/search/quickstart/full-archive-search)
+
+[查看全档案搜索的 API 参考](/zh/x-api/posts/full-archive-search)
+
+[查看这些端点的示例代码](https://github.com/xdevplatform/Twitter-API-v2-sample-code)

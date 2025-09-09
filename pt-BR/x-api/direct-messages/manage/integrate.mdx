@@ -1,0 +1,175 @@
+---
+title: Guia de integração
+sidebarTitle: Guia de integração
+---
+
+import { Button } from '/snippets/pt-BR/button.mdx';
+
+Os endpoints de Mensagens Diretas v2 introduzem conversas e eventos de conversa como objetos centrais da API do X e fazem uma distinção entre conversas individuais e em grupo. Conversas individuais sempre têm dois, e apenas dois, participantes, enquanto conversas em grupo podem ter dois ou mais e composições de membros que podem mudar.   
+
+Esta página contém informações sobre diversas ferramentas e conceitos essenciais que você deve conhecer ao integrar os endpoints de Gerenciar Mensagens Diretas ao seu sistema. Dividimos a página em duas seções:
+
+- Conceitos essenciais
+  - [Conversas de Mensagens Diretas](#direct-message-conversations)
+
+  - [IDs de conversa e de evento compartilhados entre v1.1 e v2](#shared-conversation-and-event-ids)
+
+  - [Inclusão de anexos de mídia e referência a Posts](#including-media-attachments-and-referencing-tweets)
+
+  - [Autenticação](#authentication)
+
+  - [Portal do Desenvolvedor, Projetos e Apps de desenvolvedor](#developer-portal-projects-and-developer-apps)
+
+  - [Limites de taxa](#rate-limits)
+
+- [Ferramentas úteis](#helpful-tools)
+
+**Conceitos essenciais**
+
+<div id="direct-message-conversations">
+  ### Conversas de Mensagens Diretas
+</div>
+
+Todas as Mensagens Diretas fazem parte de uma conversa de Mensagens Diretas. Essas conversas podem ser individuais (um a um) ou em grupo. Este lançamento fornece os endpoints fundamentais necessários para criar Mensagens Diretas e recuperar eventos associados a conversas de Mensagens Diretas. Todas as conversas têm um dm\_conversation\_id exclusivo, e todos os eventos que compõem essa conversa têm um dm\_event\_id exclusivo.  
+
+Os endpoints de Gerenciar Mensagens Diretas oferecem três métodos POST para criar novas mensagens e adicioná‑las às conversas:
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - Cria uma Mensagem Direta individual (um a um). Esse método adiciona a mensagem a uma conversa individual existente ou cria uma nova. O parâmetro de caminho :participant\_id é o ID do usuário da conta que receberá a mensagem. 
+  Veja um exemplo de corpo de requisição JSON para enviar uma Mensagem Direta individual:
+
+```
+{
+   "text": "Olá, só você. Isso aparecerá como uma nova conversa se nunca tivermos trocado mensagens ou será adicionado ao nosso tópico existente."
+}
+```
+
+- **POST /2/dm\_conversations** - Cria uma nova conversa em grupo e adiciona a ela uma Mensagem Direta. Essas requisições exigem uma lista de participantes da conversa. Observe que você pode criar várias conversas com a mesma lista de participantes. Essas requisições sempre retornarão um novo ID de conversa. Abaixo está um exemplo de corpo de requisição JSON para criar uma nova conversa em grupo e adicionar uma Mensagem Direta. Observe que isso requer um campo "conversation\_type", que deve ser definido como "Group" (diferencia maiúsculas de minúsculas).
+
+```
+{
+   "message": {"text": "Olá, vocês dois. Esta é uma nova conversa em grupo."},
+   "participant_ids": ["944480690","906948460078698496"],
+   "conversation_type": "Group"
+}
+```
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - Cria uma Mensagem Direta e a adiciona a uma conversa existente. O parâmetro de caminho :dm\_conversation\_id é o ID da conversa à qual a mensagem será adicionada. Esse método pode ser usado para adicionar uma mensagem tanto a conversas individuais quanto a conversas em grupo.
+  Veja um exemplo de corpo de requisição JSON para enviar uma Mensagem Direta para conversas individuais e em grupo:
+
+```
+{
+   "text": "Aqui está uma nova mensagem."
+}
+```
+
+Esses métodos POST permitem anexar uma única mídia. Os corpos de requisição POST devem incluir um ou ambos os campos "text" e "attachments". O atributo "text" é obrigatório se o campo "attachments" não for incluído, e o campo "attachments" é obrigatório se o campo "text" não for incluído. Consulte a próxima seção para mais informações.
+
+Para mais informações, consulte as [referências da API de Gerenciar Mensagens Diretas](/pt-BR/x-api/direct-messages/create-a-new-dm-conversation). 
+
+<div id="shared-conversation-and-event-ids-across-v11-and-v2">
+  ### IDs de conversa e evento compartilhados entre v1.1 e v2
+</div>
+
+Um conceito importante é que os IDs de conversa e de evento são compartilhados entre as versões v1.1 e v2 da Plataforma X. Isso significa que ambas as versões podem ser usadas em conjunto.
+
+Por exemplo, os endpoints de Mensagens Diretas v1.1 oferecem métodos para retornar um único evento e para excluir eventos. Esses métodos ainda não estão disponíveis na v2. Como os IDs são comuns entre v1.1 e v2, você pode fazer solicitações v1.1 com base em IDs fornecidos pela v2 ou referenciar IDs de conversa exibidos nas URLs de conversa no aplicativo X.  
+
+<div id="including-media-attachments-and-referencing-posts">
+  ### Incluindo anexos de mídia e referenciando Posts
+</div>
+
+Os endpoints de Manage Direct Message oferecem suporte ao anexo de um item de mídia (foto, vídeo ou GIF). Anexar mídia requer um ID de mídia gerado pelo endpoint v1.1 [Upload media](https://developer.x.com/en/docs/x-api/v1/media/upload-media/overview). O usuário autenticado que está enviando a Direct Message também deve ter feito o upload da mídia. Depois de enviado, o arquivo de mídia fica disponível por 24 horas para inclusão na mensagem.
+
+Para ilustrar como incluir mídia, segue um exemplo de corpo de requisição JSON:
+
+```
+{
+ "text": "Here's a photo...",
+ "attachments": [{"media_id": "1583157113245011970}]
+}
+```
+
+O evento MessageCreate resultante incluirá os seguintes metadados:
+
+```
+{
+    "attachments": {
+        "media_keys": [
+            "5_1583157113245011970"
+        ]
+    }
+}
+```
+
+Posts também podem ser incluídos inserindo a URL do Post no texto da mensagem. Para ilustrar como incluir Posts em mensagens, segue um exemplo de corpo de requisição JSON:
+
+```
+{
+ "text": "Here's the Tweet I was talking about: https://x.com/SnowBotDev/status/1580559079470145536"
+}
+```
+
+O evento MessageCreate resultante incluirá os seguintes metadados:
+
+```
+{
+    "referenced_tweets": [
+        {
+            "id": "1580559079470145536"
+        }
+    ]
+}
+```
+
+<div id="authentication">
+  ### Autenticação
+</div>
+
+Todos os endpoints da API do X v2 exigem que você autentique suas solicitações com um conjunto de credenciais, também conhecidas como chaves e tokens. Todas as Mensagens Diretas são privadas e requerem autorização do usuário para acessá-las.
+
+Esses endpoints de Mensagens Diretas exigem o uso de [OAuth 2.0 com PKCE](/pt-BR/x-api/posts/manage-tweets) ou [Contexto de Usuário 1.0a](/pt-BR/resources/fundamentals/authentication), o que significa que você deve usar um conjunto de chaves de API e tokens de acesso do usuário para fazer uma solicitação bem-sucedida. Os tokens de acesso devem estar associados ao usuário em cujo nome você está fazendo a solicitação. Se você quiser gerar um conjunto de tokens de acesso para outro usuário, ele deve autorizar ou autenticar seu App usando o [fluxo OAuth de 3 etapas](/pt-BR/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow).
+
+Observe que o contexto de usuário do OAuth pode ser complexo de usar. Se você não está familiarizado com esse método de autenticação, recomendamos usar uma [biblioteca](/pt-BR/x-api/tools-and-libraries/overview) ou uma ferramenta como o Postman para autenticar suas solicitações corretamente.
+
+[OAuth 2.0 Authorization Code com PKCE](pt-BR/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-2) permite maior controle sobre o escopo de um aplicativo e sobre os fluxos de autorização em vários dispositivos. O OAuth 2.0 permite escolher escopos específicos e granulares, que concedem permissões específicas em nome de um usuário. Os endpoints de consulta de Mensagens Diretas exigem estes escopos: dm.write, dm.read, tweet.read, user.read.
+
+Para habilitar o OAuth 2.0 no seu App, ative-o nas configurações de autenticação do seu App, na seção de configurações do App no portal do desenvolvedor.
+
+<div id="developer-portal-projects-and-developer-apps">
+  ### Portal do desenvolvedor, Projetos e Apps de desenvolvedor
+</div>
+
+Para obter um conjunto de credenciais de autenticação que funcione com os endpoints da API do X v2, você deve ter uma conta de desenvolvedor aprovada, configurar um Projeto nessa conta e criar um App de desenvolvedor nesse Projeto. Em seguida, você encontrará suas chaves e tokens no seu App de desenvolvedor. 
+
+<div id="rate-limits">
+  ### Limites de taxa
+</div>
+
+Todos os dias, muitos milhares de desenvolvedores fazem solicitações à API do X. Para ajudar a gerenciar o grande volume dessas solicitações, limites de taxa são aplicados a cada endpoint, restringindo quantas solicitações você pode fazer em nome do seu app ou de um usuário autenticado.
+
+Os endpoints de gerenciamento de Mensagens Diretas têm limites de taxa tanto por usuário quanto no nível do X App. Isso significa que o usuário autenticado em cujo nome você está fazendo a solicitação só pode enviar um determinado número de mensagens com o seu X App. Além disso, há um limite diário de quantas Mensagens Diretas podem ser enviadas pelo seu X App.
+
+Há um limite por usuário de 200 solicitações/mensagens a cada 15 minutos para os métodos POST. Os usuários também estão limitados a 1.000 Mensagens Diretas a cada 24 horas. Além disso, os X Apps têm um limite de 15.000 mensagens a cada 24 horas. Esses limites de taxa são compartilhados entre os endpoints POST.
+
+**Ferramentas úteis**
+
+Aqui estão algumas ferramentas úteis que recomendamos explorar ao trabalhar com os endpoints de consulta de Mensagens Diretas:
+
+****Postman****
+
+O Postman é uma ótima ferramenta para testar um endpoint. Cada requisição no Postman inclui todos os parâmetros de caminho e de corpo para ajudar você a entender rapidamente o que está disponível. Para saber mais sobre nossas coleções do Postman, visite a página [Usando o Postman](/pt-BR/tutorials/postman-getting-started).
+
+****Exemplos de código****
+
+Código de exemplo em Python para os endpoints de Mensagens Diretas v2 está disponível em nosso repositório no [GitHub de exemplos da API do X v2](https://github.com/xdevplatform/Twitter-API-v2-sample-code)[](https://github.com/xdevplatform/Twitter-API-v2-sample-code) repository. A pasta "Manage-Direct-Messages" contém exemplos para os métodos POST, e a pasta "Direct-Messages-lookup" contém exemplos para os métodos GET.
+
+**XDev Software Development Kits (SDKs)**
+
+Essas [bibliotecas](/pt-BR/x-api/tools-and-libraries/overview) estão sendo atualizadas para os endpoints de Mensagens Diretas v2 e devem estar disponíveis em breve:
+
+- [X API Java SDK](https://github.com/xdevplatform/twitter-api-java-sdk) - SDK oficial em Java para a API do X v2
+- [X API TypeScript/JavaScript SDK](https://github.com/xdevplatform/twitter-api-typescript-sdk) - SDK oficial em TS/JS para a API do X v2
+
+**Bibliotecas de terceiros**
+
+Há um número crescente de [bibliotecas de terceiros](/pt-BR/x-api/tools-and-libraries/overview#community-tools-and-libraries-for-v2) desenvolvidas pela nossa comunidade. Essas bibliotecas foram criadas para ajudar você a começar, e várias devem passar a oferecer suporte aos endpoints de Mensagens Diretas v2 em breve. Você pode encontrar uma biblioteca compatível com os endpoints v2 procurando pela tag de versão adequada.

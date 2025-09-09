@@ -1,0 +1,231 @@
+---
+title: Quickstart
+sidebarTitle: Quickstart
+---
+
+Diese Anleitung hilft Ihnen, Ihre ersten Anforderungen zum Hochladen von Medien über die Media-Upload-Endpunkte der X-API v2 zu stellen.
+
+In dieser Anleitung werden die chunked Endpunkte `POST /2/media/upload` verwendet, um ein Video hochzuladen. Dies erfordert einen anderen Ablauf als das Hochladen einzelner Bilder.
+
+Für Video- oder chunked Uploads müssen Sie:
+
+1. Den Upload mit dem Befehl `INIT` initialisieren
+2. Jeden Byte-Chunk mit dem Befehl `APPEND` hochladen
+3. Den Upload mit dem Befehl `FINALIZE` abschließen
+
+<Note>
+  **Hinweis:** Siehe [dieses Beispiel](https://github.com/xdevplatform/large-video-upload-python) für ein in Python geschriebenes Beispiel.
+</Note>
+
+<div id="authentication">
+  ## Authentifizierung
+</div>
+
+Um die in diesem Leitfaden bereitgestellten Beispiele auszuführen, müssen Sie die Authentifizierung mit [OAuth 2](/de/resources/fundamentals/authentication/oauth-2-0/overview) verwenden.
+
+Ihre `CONSUMER_KEY`, `CONSUMER_SECRET`, `ACCESS_KEY` und `ACCESS_TOKEN` finden Sie in der App innerhalb Ihres Projekts im [Dashboard des Developer-Portals](https://developer.x.com/en/portal/projects-and-apps).
+
+<div id="step-1-post-mediaupload-init">
+  ## Schritt 1: POST media/upload (INIT)
+</div>
+
+Die `INIT`-Anforderung wird verwendet, um eine Upload-Sitzung zu starten. Sie gibt eine `media_id` zurück, die für alle nachfolgenden Anfragen verwendet werden sollte. Der nächste Schritt nach einer erfolgreichen `INIT`-Antwort ist der Befehl `APPEND`.
+
+Siehe [Best Practices](/de/x-api/media/quickstart/best-practices) für Einschränkungen und Anforderungen an Mediendateien.
+
+**Beispielanfrage**
+
+```bash
+curl --location 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=INIT' \
+    --form 'media_type=video/mp4' \
+    --form 'total_bytes=1024' \
+    --form 'media_category=amplify_video'
+```
+
+<Note>
+  **Hinweis:** Bei direkten HTTP-Anfragen sollte die Anfrage entweder im POST-Format `multipart/form-data` oder `application/x-www-form-urlencoded` erfolgen.
+</Note>
+
+**Beispielantwort**
+
+```json
+{
+    "data":
+    {
+        "id":"1880028106020515840",
+        "media_key":"13_1880028106020515840",
+        "expires_after_secs":1295999
+    }
+}
+```
+
+Die Antwort enthält die Medienkennungen `id` (String) und `media_key` (String). Die gesamte Datei muss innerhalb von `expires_after_secs` Sekunden hochgeladen werden.
+
+<div id="step-2-post-mediaupload-append">
+  ## Schritt 2 : POST media/upload (APPEND)
+</div>
+
+Der Befehl `APPEND` wird verwendet, um einen Chunk (aufeinanderfolgender Bytebereich) der Mediendatei hochzuladen. Beispielsweise kann eine 3-MB-Datei in 3 Chunks zu je 1 MB aufgeteilt und mit 3 `APPEND`-Anfragen hochgeladen werden. Nachdem die gesamte Datei hochgeladen wurde, rufen Sie im nächsten Schritt den Befehl `FINALIZE` auf.
+
+<Info>
+  Das Hochladen einer Mediendatei in kleinen Chunks bietet mehrere Vorteile:
+
+  - Höhere Zuverlässigkeit und Erfolgsraten bei geringer Bandbreite
+  - Uploads können pausiert und fortgesetzt werden
+  - Datei-Chunks können einzeln erneut übertragen werden
+  - Möglichkeit, die Chunk-Größe an wechselnde Netzwerkbedingungen anzupassen, z. B. auf Mobilgeräten
+</Info>
+
+**Beispielanfrage**
+
+```bash
+curl --location 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=APPEND' \
+    --form 'media_id=1880028106020515840' \
+    --form 'segment_index=0' \
+    --form 'media=@/path/to/your/media/file.mp4'
+```
+
+`segment_index` ist der geordnete Index des Datei-Chunks. Er muss zwischen 0 und 999 (einschließlich) liegen. Das erste Segment hat den Index 0, das zweite den Index 1 usw. Fahren Sie mit dem Hochladen der Datei-Chunks fort, bis alle Chunks hochgeladen sind.
+
+<Note>
+  **Hinweis:** Bei Roh-HTTP-Anfragen sollte die Anfrage im `multipart/form-data`-POST-Format erfolgen.
+</Note>
+
+<Note>
+  **Hinweis:** Bei erfolgreichem Upload wird HTTP 2XX mit einem leeren Antwort-Body zurückgegeben.
+</Note>
+
+<div id="step-3-post-mediaupload-finalize">
+  ## Schritt 3 : POST media/upload (FINALIZE)
+</div>
+
+Der Befehl `FINALIZE` sollte aufgerufen werden, nachdem die gesamte Mediendatei mit `APPEND`-Befehlen hochgeladen wurde. Wenn und nur wenn die Antwort auf den Befehl `FINALIZE` ein Feld `processing_info` enthält, kann es erforderlich sein, einen `STATUS`-Befehl zu verwenden und zu warten, bis dieser Erfolg zurückmeldet, bevor mit der Erstellung des Posts fortgefahren wird.
+
+**Beispielanfrage**
+
+```bash
+curl --location --request POST 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=FINALIZE' \
+    --form 'media_id=1880028106020515840'
+```
+
+<Note>
+  **Hinweis:** Bei direkten HTTP-Anfragen sollte die Anfrage als POST entweder im Format `multipart/form-data` oder `application/x-www-form-urlencoded` erfolgen.
+</Note>
+
+**Beispielantwort**
+
+```json
+{
+    "data": {
+        "id": "1880028106020515840",
+        "media_key": "13_1880028106020515840",
+        "size": 1024,
+        "expires_after_secs": 86400,
+        "processing_info": {
+            "state": "pending",
+            "check_after_secs": 1
+        }
+    }
+}
+```
+
+Die Antwort liefert einen Medienbezeichner in den Feldern `media_id` (64‑Bit‑Integer) und `media_id_string` (String). Verwenden Sie die in der API-Antwort bereitgestellte `media_id_string` in JavaScript und anderen Sprachen, die lange Ganzzahlen nicht exakt darstellen können.
+
+Die zurückgegebene `media_id` ist nur für `expires_after_secs` Sekunden gültig. Jeder Versuch, die `media_id` nach diesem Zeitraum in anderen API-Aufrufen zu verwenden, führt zu einer Bad-Request-Antwort (HTTP 4xx).
+
+Wenn die Antwort ein Feld `processing_info` enthält, verwenden Sie den Befehl `STATUS`, um den Status des `FINALIZE`-Vorgangs abzufragen. Der asynchrone Finalize-Ansatz wird in Fällen verwendet, in denen die Medienverarbeitung mehr Zeit benötigt. Zukünftig wird die Verarbeitung von Videos und animierten GIFs nur noch mit asynchronem Finalize unterstützt. Dieses Verhalten ist aktiviert, wenn eine Upload-Sitzung mit dem Parameter `media_category` [initialisiert](###INIT) wurde und der Medientyp entweder Video oder animiertes GIF ist.
+
+<Note>
+  **Hinweis:**
+  Wenn in der Antwort KEIN Feld `processing_info` zurückgegeben wird, ist `media_id` für die Verwendung in anderen API-Endpunkten bereit.
+</Note>
+
+<div id="step-4-get-mediaupload-status">
+  ## **Schritt 4: GET media/upload (STATUS)**
+</div>
+
+Der Befehl `STATUS` wird verwendet, um periodisch den Fortschritt der Medienverarbeitung abzufragen. Sobald die Antwort auf `STATUS` den Wert `succeeded` zurückgibt, können Sie zum nächsten Schritt übergehen, der in der Regel das Erstellen eines Posts mit `media_id` ist.
+
+<Note>
+  **Hinweis:**
+  Der STATUS-Befehl sollte **nur dann** verwendet werden, wenn die Antwort des `FINALIZE`-Befehls oder eines vorherigen STATUS-Befehls ein `processing_info`-Feld enthalten hat.
+</Note>
+
+<div id="example-request">
+  ## **Beispielanfrage**
+</div>
+
+```bash
+curl --location --request GET 'https://api.x.com/2/media/upload?command=STATUS&media_id=1880028106020515840' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+```
+
+<div id="example-response">
+  ## **Beispielantwort**
+</div>
+
+```json
+{
+    "data":{
+        "id":"1880028106020515840",
+        "media_key":"13_1880028106020515840",
+        "processing_info":{
+            "state":"uploading" // Zustandsübergang: pending -> in_progress -> [failed|succeeded]
+        }
+    }
+}
+```
+
+Der Antworttext enthält das Feld `processing_info`, das Informationen über den aktuellen Status der Medienverarbeitung bereitstellt. Es enthält ein `state`-Feld mit folgendem Übergang: `pending` -> `in_progress` -> \[`failed` | `succeeded`]. Sie können die `media_id` nicht verwenden, um einen Post oder andere Entities zu erstellen, bevor das `state`-Feld auf `succeeded` gesetzt ist.
+
+<div id="step-5-post-tweet-with-media">
+  ## Schritt 5: Post mit Medien veröffentlichen
+</div>
+
+Erstellt einen Post über den Endpunkt `POST /2/tweets` und übergibt die `media_id` im Auftrag eines authentifizierten Nutzers.
+
+**Beispielanfrage**
+
+```bash
+curl --location 'https://api.x.com/2/tweets' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--data '{
+    "text": "I made a post with media!",
+     "media": {
+       "media_ids": [
+            "1880028106020515840"
+        ]
+    }
+}'
+
+```
+
+**Beispielantwort**
+
+```bash
+{
+    "data": {
+        "edit_history_tweet_ids": [
+            "1880028106020515840"
+        ],
+        "id": "1880028106020515840",
+        "text": "I made a post with media! https://t.co/DqNyXX"
+    }
+}
+```
+
+<div id="troubleshooting">
+  ## Fehlerbehebung
+</div>
+
+Bei Problemen mit den Media-APIs durchsuchen Sie die [Kategorie „Media APIs“](https://devcommunity.x.com/c/x-api/media-apis) in den Entwicklerforen, um eine Antwort zu finden.

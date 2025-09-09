@@ -1,0 +1,47 @@
+---
+title: OAuth Echo
+sidebarTitle: OAuth Echo
+---
+
+import { Button } from "/snippets/es/button.mdx";
+
+
+<div id="oauth-echo">
+  ### OAuth Echo
+</div>
+
+OAuth Echo es un mecanismo para delegar de forma segura la autorización OAuth con un tercero mientras se interactúa con una API.
+
+Hay cuatro partes involucradas en esta interacción:
+
+* **el Usuario**, quien está usando X a través de una aplicación de X específica y autorizada
+* **el Consumidor**, es decir, la aplicación de X que intenta interactuar con el proveedor de medios de terceros (p. ej., un sitio para compartir fotos)
+* **el Delegador**, es decir, el proveedor de medios de terceros
+* **el Proveedor de servicio**, también conocido como X
+     
+
+En esencia, se prepara una solicitud para que el delegador la envíe a la API de X en nombre de una aplicación y un usuario. Incluya lo que de otro modo sería una solicitud OAuth firmada en un encabezado HTTP y pida al delegador que envíe esa solicitud a X después de completar la operación intermedia.
+
+He aquí un ejemplo: el Usuario quiere subir una foto. El Consumidor va a invocar upload en el Delegador con un POST. El POST debe contener la imagen, pero también debe incluir dos elementos adicionales como encabezados HTTP:
+
+* `x-auth-service-provider` — en efecto, este es el ámbito al que se debe dirigir la delegación de identidad; en el caso de X, establézcalo en https://api.x.com/1.1/account/verify_credentials.json. Las integraciones de X basadas en iOS5 agregarán un parámetro adicional application_id a esta URL que también se utilizará para calcular la oauth_signature usada en x-verify-credentials-authorization.
+* `x-verify-credentials-authorization` — el Consumidor debe crear todos los parámetros OAuth necesarios para poder llamar a https://api.x.com/1.1/account/verify_credentials.json usando OAuth en el encabezado HTTP (p. ej., debería verse como OAuth oauth_consumer_key="...", oauth_token="...", oauth_signature_method="...", oauth_signature="...", oauth_timestamp="...", oauth_nonce="...", oauth_version="..." ).
+     
+
+Tenga en cuenta que toda la transacción debe ocurrir dentro de un periodo en el que `oauth_timestamp` siga siendo válido.
+
+Como alternativa, en lugar de enviar estos dos parámetros en el encabezado, podrían enviarse en el POST como x_auth_service_provider y x_verify_credentials_authorization; en este caso, recuerde escapar e incluir los parámetros en la cadena base de la firma OAuth, de forma similar a la codificación de parámetros en cualquier solicitud. Es preferible usar encabezados HTTP para mantener las operaciones lo más separadas posible.
+
+El objetivo del Delegador, en este punto, es verificar que el Usuario sea quien dice ser antes de guardar el contenido multimedia. Una vez que el Delegador reciba todos los datos anteriores a través de su método de carga, debe almacenar temporalmente la imagen y luego construir una llamada al endpoint especificado en el encabezado x-auth-service-provider —en este caso, https://api.x.com/1.1/account/verify_credentials.json— usando el mismo encabezado de autenticación OAuth proporcionado por el Consumidor en el encabezado x-verify-credentials-authorization.
+ 
+
+<div id="oauth-echo-best-practices">
+  #### Mejores prácticas de OAuth Echo
+</div>
+
+Use la URL proporcionada por `x-auth-service-provider` para realizar la consulta, no un valor codificado de forma fija. Apple iOS, por ejemplo, añade un parámetro adicional application_id a todas las solicitudes OAuth, y su presencia debe conservarse en cada etapa de OAuth Echo.
+
+Para la parte de autorización de OAuth, tome el valor del encabezado en x-verify-credentials-authorization y colóquelo en su propio encabezado Authorization para la llamada al proveedor de servicios. Para mayor seguridad, confirme que el valor en `x-auth-service-provider` sea el esperado.
+
+* Si el Proveedor de servicios devuelve un HTTP 200, perfecto. El Delegador debe almacenar la imagen de forma permanente, generar una URL y devolverla.
+* Si el Proveedor de servicios no devuelve un HTTP 200, descarte la imagen y devuelva un error al Consumidor.

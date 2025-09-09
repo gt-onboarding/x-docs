@@ -1,0 +1,195 @@
+---
+title: Identifiant de conversation
+---
+
+<div id="conversation-threads-using-the-x-api">
+  ### Fils de conversation avec l’API X
+</div>
+
+Si vous observez la manière dont les conversations évoluent sur X, un Post peut déclencher plusieurs fils, chacun pouvant gagner en longueur et en complexité à mesure que davantage de personnes interviennent. L’identification des relations entre les Posts et la compréhension des fils de conversation sont prises en charge par la charge utile et les fonctions de recherche de l’API X v2. Lorsque des Posts sont publiés en réponse à un Post (appelé une réponse), ou en réponse à une réponse, un `conversation_id` est désormais défini sur chaque réponse, correspondant à l’ID du Post original à l’origine de la conversation.
+
+Les réponses à un Post donné, ainsi que les réponses à ces réponses, sont toutes incluses dans la conversation issue du Post original. Quel que soit le nombre de fils de réponses, ils partageront tous le même `conversation_id` que le Post original qui a lancé la conversation. Avec l’API X v2, vous pouvez récupérer et reconstituer un fil de conversation complet, ce qui vous permet de comprendre ce qui est dit et comment les conversations et les idées évoluent.
+
+<div id="example-conversation-thread">
+  #### Exemple de fil de conversation
+</div>
+
+Ci-dessous se trouve un exemple de fil de conversation impliquant cinq personnes différentes, y compris une réponse à une réponse.
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1279944223114900000",
+      "in_reply_to_user_id": "1102323333",
+      "author_id": "63044444",
+      "created_at": "2020-07-06T15:58:10.000Z",
+      "id": "1280169177479744444",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1280155225706433333"
+        }
+      ],
+      "text": "@ThirdPerson333 @OriginalPerson000 Reply to the third reply!"
+    },
+    {
+      "conversation_id": "1279944223114900000",
+      "in_reply_to_user_id": "3001960000",
+      "author_id": "1102323333",
+      "created_at": "2020-07-06T15:02:44.000Z",
+      "id": "1280155225706433333",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1279944223114900000"
+        }
+      ],
+      "text": "@OriginalPerson000 Third reply"
+    },
+    {
+      "conversation_id": "1279944223114900000",
+      "in_reply_to_user_id": "3001960000",
+      "author_id": "199562222",
+      "created_at": "2020-07-06T15:02:36.000Z",
+      "id": "1280155190306340864",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1279944223114900000"
+        }
+      ],
+      "text": "@OriginalPerson000 Second Reply"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "name": "Original person",
+        "id": "3001960000",
+        "username": "OriginalPerson000"
+      },
+      {
+        "name": "First person",
+        "id": "179201111",
+        "username": "FirstPerson111"
+      }
+    ]
+  },
+  "meta": {
+    "newest_id": "1280169177479744444",
+    "oldest_id": "1279945722494811111",
+    "result_count": 4
+  }
+}
+```
+
+Récupération de `conversation_id` comme paramètre `tweet.fields`
+Pour demander le `conversation_id` pour tous les Posts renvoyés par un endpoint v2, ajoutez le champ tweet.fields=conversation\_id aux paramètres de la requête. Le champ conversation\_id correspond toujours à l’ID du Post d’origine dans le fil de réponses de la conversation. Tous les Posts d’un même fil de réponses, y compris les fils créés à partir de fils antérieurs, afficheront le même conversation\_id.
+
+<div id="request-with-conversation_id-parameter">
+  ### Requête avec le paramètre `conversation_id`
+</div>
+
+```
+curl --request GET \
+  --url 'https://api.x.com/2/tweets?ids=1225917697675886593&tweet.fields=author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets&expansions=author_id,in_reply_to_user_id,referenced_tweets.id&user.fields=name,username' \
+  --header 'Authorization: Bearer $ACCESS_TOKEN'
+```
+
+<div id="response">
+  ### Réponse
+</div>
+
+```
+{
+  "data": [
+    {
+      "id": "1225917697675886593",
+      "text": "@TwitterEng *hem* https://t.co/aroJHt2zQ1",
+      "created_at": "2020-02-07T23:02:10.000Z",
+      "author_id": "2244994945",
+      "in_reply_to_user_id": "6844292",
+      "conversation_id": "1225912275971657728",
+      "referenced_tweets": [
+        {
+          "type": "quoted",
+          "id": "1200517737669378053"
+        },
+        {
+          "type": "replied_to",
+          "id": "1225912275971657728"
+        }
+      ]
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "username": "TwitterDev",
+        "name": "Twitter Dev",
+        "id": "2244994945"
+      },
+      {
+        "username": "TwitterEng",
+        "name": "Twitter Engineering",
+        "id": "6844292"
+      }
+    ],
+    "tweets": [
+      {
+        "id": "1200517737669378053",
+        "text": "|￣￣￣￣￣￣￣￣￣￣￣|\n             ne poussez pas         \n           en prod le              \n              vendredi               \n|＿＿＿＿＿＿＿＿＿＿＿| \n(\\__/)",
+        "created_at": "2019-11-29T20:51:47.000Z",
+        "author_id": "2244994945",
+        "conversation_id": "1200517737669378053"
+      }
+    ]
+  }
+}
+```
+
+<div id="using-conversation_id-as-a-filter-operator">
+  ### Utiliser `conversation_id` comme opérateur de filtrage
+</div>
+
+Le `conversation_id` peut être utilisé comme paramètre de requête dans la recherche récente ou comme opérateur au sein d’une règle pour le [flux filtré](/fr/x-api/posts/filtered-stream/introduction). Cela renverra l’ensemble du fil de conversation des posts, soit en temps réel via le flux filtré, soit dans l’ordre antéchronologique via la [recherche de posts](/fr/x-api/posts/search/introduction). Vous pouvez également obtenir un décompte des posts d’une conversation en utilisant cet opérateur avec les [comptes de posts](/fr/x-api/posts/counts/introduction).
+
+<div id="request-to-query-by-conversation_id">
+  ## Requête pour rechercher par `conversation_id`
+</div>
+
+```
+curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=conversation_id:1279940000004973111&tweet.fields=in_reply_to_user_id,author_id,created_at,conversation_id' \
+  --header 'Authorization: Bearer $ACCESS_TOKEN'
+```
+
+<div id="response">
+  ### Réponse
+</div>
+
+_Remarque : les résultats de la recherche de posts sont présentés par ordre chronologique inverse._
+
+```
+{
+  "data": [
+    {
+      "id": "1280169000000704333",
+      "text": "@attributeisland @iterationjoe What beautiful creatures! Happy #seaturtleweek",
+      "conversation_id": "1279940000004973111",
+      "public_metrics": {
+        "retweet_count": 0,
+        "reply_count": 0,
+        "like_count": 7,
+        "quote_count": 0
+      }
+    }
+  ],
+  "meta": {
+    "newest_id": "1280169000000704333",
+    "oldest_id": "1279940000004973111",
+    "result_count": 5
+  }
+}
+```

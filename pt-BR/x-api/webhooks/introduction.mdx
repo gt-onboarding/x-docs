@@ -1,0 +1,396 @@
+<div id="v2-webhooks-api">
+  # API de Webhooks v2
+</div>
+
+<div id="overview">
+  ## Visão geral
+</div>
+
+A Webhooks API v2 permite que desenvolvedores recebam notificações de eventos em tempo real de contas do X por meio de mensagens JSON via webhook. Essas APIs permitem registrar e gerenciar webhooks, desenvolver aplicativos consumidores para processar eventos e garantir comunicação segura por meio de verificações de desafio-resposta (CRC) e cabeçalhos de assinatura.
+
+<div id="feature-summary">
+  ## Resumo do recurso
+</div>
+
+| Nível | Preço | Número de webhooks |
+| :---: | :---: | :---: |
+| Self-Serve Pro | US$ 5.000/mês | 1 |
+| Enterprise | [Fale com o time de vendas](/pt-BR/resources/enterprise/forms/enterprise-api-interest#enterprise-access-form) | 5+ |
+
+<div id="products-that-support-webhooks">
+  ## Produtos com suporte a webhooks
+</div>
+
+Estes são os produtos que atualmente oferecem suporte ao envio de eventos via webhook:
+
+- [Account Activity API (AAA)](/pt-BR/x-api/account-activity/introduction)
+- [Fluxo filtrado](/pt-BR/x-api/webhooks/stream/introduction)
+
+<div id="manage-webhooks">
+  ## Gerenciar webhooks
+</div>
+
+A Account Activity API fornece mensagens JSON baseadas em webhook sempre que houver eventos associados a contas do X inscritas no seu serviço. O X envia essas atividades para o seu webhook registrado. Nas etapas a seguir, você aprenderá a gerenciar webhooks e usuários inscritos.
+
+Você aprenderá a registrar, visualizar e remover tanto webhooks quanto usuários inscritos. Usaremos comandos cURL simples para fazer solicitações aos diversos endpoints da API. O cURL é uma ferramenta de linha de comando para obter ou enviar solicitações usando a sintaxe de URL.
+
+Há vários detalhes que exigem atenção antes que você possa começar a receber eventos de webhook no seu aplicativo consumidor de eventos. Conforme descrito abaixo, você precisará criar um app do X, obter acesso à Account Activity API e desenvolver um app web que consuma eventos de webhook. 
+
+<div id="1-develop-a-webhook-consumer-app">
+  ### 1. Desenvolva um app consumidor de webhooks
+</div>
+
+Para registrar um novo webhook associado ao seu app do X, você precisará desenvolver, implantar e hospedar um aplicativo web que receba eventos de webhook do X e responda às nossas solicitações de segurança.
+
+_Antes de começar, recomendamos conferir nossos [apps de exemplo](https://github.com/xdevplatform/account-activity-dashboard-enterprise/tree/master)!_
+
+- Crie um app web com uma URL HTTPS publicamente acessível que atuará como o endpoint do webhook para receber eventos.
+  - O caminho da URI fica totalmente a seu critério. Este exemplo seria válido: [https://mydomain.com/service/listen](https://mydomain.com/service/listen)
+  - Se você estiver recebendo webhooks de várias fontes, um padrão comum é: [https://mydomain.com/webhook/twitter](https://mydomain.com/webhook/twitter)
+  - Observe que a URL especificada não pode incluir uma porta ([https://mydomain.com:5000/NoWorkie](https://mydomain.com:5000/NoWorkie)).
+- Um primeiro passo é escrever código que receba uma solicitação GET do X Challenge Response Check (CRC) e responda com um JSON devidamente formatado.
+- Registre sua URL de webhook. Você fará uma solicitação POST para o endpoint /2/webhooks com a URL no corpo JSON. Quando você fizer essa solicitação, o X enviará uma solicitação CRC para seu app web.
+- Quando um webhook for registrado com sucesso, a resposta incluirá um ID de webhook. Esse ID de webhook será necessário mais tarde ao fazer solicitações para produtos que oferecem suporte a webhooks.
+- O X enviará solicitações POST contendo eventos para a URL que você registrou. Esses eventos serão codificados em JSON. Veja [aqui](/pt-BR/x-api/account-activity/introduction#account-activity-data-object-structure) exemplos de payloads JSON de webhook.
+
+<div id="optional-use-xurl-for-testing">
+  #### Opcional: use o xurl para testes
+</div>
+
+Para fins de teste, a ferramenta xurl agora oferece suporte a webhooks temporários! Instale a versão mais recente do projeto [`xurl`](https://github.com/xdevplatform/xurl) no GitHub, configure sua autorização e execute:
+
+```
+xurl webhook start
+```
+
+Isso gerará uma URL pública temporária de webhook, tratará automaticamente todas as verificações de CRC e registrará quaisquer eventos de assinatura recebidos. É uma ótima maneira de validar sua configuração antes da implantação. Exemplo de saída:
+
+```
+Starting webhook server with ngrok...
+Enter your ngrok authtoken (leave empty to try NGROK_AUTHTOKEN env var):
+
+Attempting to use NGROK_AUTHTOKEN environment variable for ngrok authentication.
+Configuring ngrok to forward to local port: 8080
+Ngrok tunnel established!
+  Forwarding URL: https://<your-ngrok-subdomain>.ngrok-free.app -> localhost:8080
+
+Use this URL for your X API webhook registration: https://<your-ngrok-subdomain>.ngrok-free.app/webhook
+
+Starting local HTTP server to handle requests from ngrok tunnel (forwarded from https://<your-ngrok-subdomain>.ngrok-free.app)...
+```
+
+**Notas importantes**
+
+- Ao registrar sua URL de webhook, seu app web precisa usar o consumer secret do seu app para criptografar a verificação de CRC.
+
+- Todas as Mensagens Diretas recebidas serão entregues via webhooks. Todas as Mensagens Diretas enviadas via [POST /2/dm\_conversations/with/:participant\_id/messages](/pt-BR/x-api/direct-messages/send-a-new-message-to-a-user) também serão entregues via webhooks. Isso permite que seu app web tenha visibilidade das Mensagens Diretas enviadas por um cliente diferente.
+
+- Se você tiver mais de um app web compartilhando a mesma URL de webhook e o mesmo usuário mapeado para cada app, o mesmo evento será enviado ao seu webhook várias vezes (uma por app web).
+
+- Em alguns casos, seu webhook pode receber eventos duplicados. Seu app de webhook deve ser tolerante a isso e fazer a deduplicação pelo ID do evento.
+
+- Veja código de exemplo:
+
+  - [Account Activity API Setup](https://github.com/m-rosinsky/XWebhookTest), um app web em Node que exibe eventos de webhook usando o nível Enterprise da Account Activity API.
+
+<div id="2-securing-webhooks">
+  ### 2. Protegendo Webhooks
+</div>
+
+As APIs baseadas em webhooks do X fornecem dois métodos para confirmar a segurança do seu servidor de webhook:
+
+1. As verificações de desafio-resposta permitem que o X confirme a propriedade do aplicativo web que recebe eventos de webhook.
+2. O cabeçalho de assinatura em cada solicitação POST permite que você confirme que o X é a origem dos webhooks recebidos.
+
+Consulte a seção Verificação CRC para obter os requisitos de implementação.
+
+<div id="3-the-webhooks-api">
+  ### 3. A API de Webhooks
+</div>
+
+Os webhooks são gerenciados por meio da Webhook Management API. Todos os endpoints exigem autenticação com OAuth 2.0 usando Bearer Token no modo apenas app.
+
+<div id="adding-a-webhook">
+  #### [Adicionando um webhook](/pt-BR/x-api/webhooks/create-webhook-config)
+</div>
+
+**POST /2/webhooks**
+
+**Descrição:**
+
+Crie uma configuração de webhook. Sua URL de callback `https` publicamente acessível deve ser enviada no corpo JSON.\
+Vamos começar registrando uma nova URL de webhook para o contexto do aplicativo fornecido.
+
+**Autenticação:**
+
+Bearer Token de App Only do OAuth2
+
+- **Bearer token** `<BEARER_TOKEN>` por exemplo, `AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...`
+
+**Parâmetros (Corpo JSON):**
+
+```
+{
+    "url": "<your publicly accessible https callback url>"
+}
+```
+
+- **URL** `<URL>` por exemplo, `https://yourdomain.com/webhooks/twitter/`
+
+**Requisição:** Copie a seguinte solicitação cURL no seu terminal após realizar as alterações abaixo:
+
+````
+  ```
+  curl --request POST --url 'https://api.twitter.com/2/webhooks?url=<URL>' --header 'authorization: Bearer <BEARER_TOKEN>'
+  --data '{
+"url": "https://yourdomain.com/webhooks/twitter"
+          }'
+  ```
+````
+
+**Respostas:**
+
+**Sucesso (200 OK)**
+
+Uma resposta bem-sucedida indica que o webhook foi criado e a verificação inicial de CRC foi aprovada.
+
+```
+{
+  "data": {
+    "id": "<webhook_id>",
+    "url": "<your callback url>",
+    "valid": true,
+    "created_at": "YYYY-mm-DDTHH:MM:ss.000Z"
+  }
+}
+```
+
+**Falha (400 Bad Request)**
+
+Falhas retornam um objeto de erro padrão.
+
+```
+{
+    "errors": [
+      {
+        "message": "<Reason>: <Details>"
+      }
+    ],
+    "title": "Invalid Request",
+    "detail": "One or more parameters to your request was invalid.",
+    "type": "https://api.twitter.com/2/problems/invalid-request"
+}
+```
+
+Motivos comuns de falha incluem:
+
+| Reason | Description |
+| :---- | :---- |
+| `CrcValidationFailed` | A URL de callback não respondeu corretamente à verificação de CRC (por exemplo, tempo limite, resposta incorreta). |
+| `UrlValidationFailed` | A URL de callback fornecida não atende aos requisitos (por exemplo, não é `https`, formato inválido). |
+| `DuplicateUrlFailed` | Já existe um webhook registrado pelo seu aplicativo para a URL de callback fornecida. |
+| `WebhookLimitExceeded` | Seu aplicativo atingiu o número máximo permitido de configurações de webhook. |
+
+<div id="viewing-a-webhook">
+  #### [Visualizando um webhook](/pt-BR/x-api/webhooks/get-a-list-of-webhook-configs-associated-with-a-client-app)
+</div>
+
+**GET /2/webhooks**
+
+**Descrição:** Recupere todas as configurações de webhook associadas ao seu aplicativo (conta de desenvolvedor).
+
+**Autenticação:**
+
+OAuth2 App Only Bearer Token
+
+- **Bearer token** `<BEARER_TOKEN>` por exemplo: `AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...`
+
+- **URL** `<URL>` por exemplo: `https://yourdomain.com/webhooks/twitter/`
+
+**Requisição:** Execute o seguinte comando para obter todas as URLs de webhook registradas e seus respectivos status para o aplicativo informado.
+
+Copie a solicitação cURL a seguir para o seu terminal após ajustar os seguintes valores:
+
+````
+  ```
+  curl --request GET --url 'https://api.twitter.com/2/webhooks' --header 'authorization: Bearer <BEARER_TOKEN>'
+  ```
+````
+
+**Sucesso (200 OK)**
+
+Retorna uma lista de configurações de webhook. A lista ficará vazia se nenhum webhook estiver configurado.
+
+_Exemplo (com um webhook configurado):_
+
+```
+{
+  "data": [
+    {
+      "created_at": "YYYY-mm-DDTHH:MM:ss.000Z",
+      "id": "<webhook_id>",
+      "url": "<callback url>",
+      "valid": true
+    }
+  ],
+  "meta": {
+    "result_count": 1
+  }
+}
+```
+
+_Exemplo (sem webhooks configurados):_
+
+```
+{
+  "data": [],
+  "meta": {
+    "result_count": 0
+  }
+}
+```
+
+<div id="removing-a-webhook">
+  #### [Removendo um webhook](/pt-BR/x-api/webhooks/delete-webhook-config)
+</div>
+
+DELETE /2/webhooks/:webhook\_id
+
+**Descrição:** Exclua uma configuração de webhook usando seu `webhook_id` específico. O ID pode ser obtido na resposta de criação do `POST /2/webhooks` ou na resposta de listagem do `GET /2/webhooks`.
+
+**Autenticação:**
+
+OAuth2 App Only Bearer Token
+
+- **Bearer token** `<BEARER_TOKEN>` por exemplo, `AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...`
+
+**Parâmetros de caminho:**
+
+| Parâmetro | Descrição |
+| :---- | :---- |
+| `webhook_id` | O ID do webhook a ser excluído. |
+
+**Requisição:** Execute o seguinte comando para remover o webhook da configuração do app fornecido.
+
+Copie a solicitação cURL a seguir para sua linha de comando após fazer as seguintes alterações:
+
+````
+  ```
+  curl --request DELETE --url 'https://api.twitter.com/2/webhooks/:WEBHOOK_ID' --header 'authorization: Bearer <BEARER_TOKEN>'
+  ```
+
+  **Respostas:**
+````
+
+**Sucesso (200 OK)**
+
+Retorna uma resposta JSON com o status "deleted" igual a true se a exclusão for bem-sucedida.
+
+_Exemplo (com exclusão bem-sucedida do webhook):_
+
+```
+{
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+**Falha (400 Bad Request)**
+
+| Motivo | Descrição |
+| :---- | :---- |
+| `WebhookIdInvalid` | O `webhook_id` fornecido não foi encontrado ou não está associado ao seu app. |
+
+<div id="validate-and-reenable-webhook">
+  #### [Validar e reativar o webhook](/pt-BR/x-api/webhooks/webhook-crc-check)
+</div>
+
+**PUT /2/webhooks/:webhook\_id**
+
+**Descrição:** Aciona a verificação de resposta ao desafio (CRC) para a URL do webhook informado. Se a verificação for bem-sucedida, retorna 200 e reativa o webhook definindo seu status como `valid`.
+
+**Autenticação:**
+
+OAuth2 App Only Bearer Token
+
+- **Bearer token** `<BEARER_TOKEN>` por exemplo, `AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...`
+
+**Parâmetros de caminho:**
+
+| Parâmetro | Descrição |
+| :---- | :---- |
+| `webhook_id` | O ID do webhook a ser validado. |
+
+**Solicitação:** Execute o comando a seguir para validar o webhook com base na configuração do aplicativo fornecido.
+
+Copie a solicitação cURL abaixo no seu terminal após ajustar o seguinte:
+
+````
+  ```
+  curl --request PUT --url 'https://api.twitter.com/2/webhooks/:WEBHOOK_ID' --header 'authorization: Bearer <BEARER_TOKEN>'
+  ```
+
+  **Responses:**
+````
+
+**Sucesso (200 OK)**
+
+Uma resposta 200 OK indica que a solicitação de verificação CRC foi iniciada. Ela não garante que a verificação CRC tenha sido aprovada. O campo `valid` na resposta reflete o status após a tentativa de verificação. Se a verificação CRC for bem-sucedida, o status do webhook será atualizado para `valid`. Você pode verificar o status atual usando `GET /2/webhooks`.
+
+```
+{
+  "data": {
+    "valid": true // Indica o status após a conclusão da tentativa de verificação CRC
+  }
+}
+```
+
+**Falha (400 Bad Request)**
+
+| Motivo | Descrição |
+| :---- | :---- |
+| `WebhookIdInvalid` | O `webhook_id` fornecido não foi encontrado ou não está associado ao seu app. |
+| `CrcValidationFailed` | A URL de callback não respondeu corretamente à solicitação de verificação CRC. |
+
+<div id="4-the-crc-check">
+  ### 4. A verificação CRC
+</div>
+
+A Challenge Response Check (CRC) é como o X valida que a URL de callback fornecida é válida e que você a controla.
+
+**Quando o CRC é acionado:**
+
+- No registro inicial do webhook (`POST /2/webhooks`)
+- A cada hora pelo X para validação
+- Manualmente via `PUT /2/webhooks/:id`
+
+Exemplo:
+
+```
+GET https://your-webhook-url.com/webhook?crc_token=challenge_string
+```
+
+Exemplo de corpo de resposta JSON:
+
+```
+{
+  "response_token": "sha256=<base64_encoded_hmac_hash>"
+}
+```
+
+**Como construir a resposta:**
+
+- Use o crc\_token como mensagem
+- Use o segredo do consumidor (consumer secret) do app como chave
+- Crie um hash HMAC SHA-256
+- Codifique o resultado em Base64
+
+<div id="sample-apps">
+  ## Apps de exemplo
+</div>
+
+- [Servidor de webhook simples](https://github.com/m-rosinsky/XWebhookTest/blob/main/app.py)
+  - Um script único em Python que mostra como responder à verificação CRC e aceitar eventos POST.
+- [Dashboard de exemplo da Account Activity API](https://github.com/xdevplatform/account-activity-dashboard-enterprise/tree/master)
+  - Um app web escrito com [bun.sh](https://bun.sh) que permite gerenciar webhooks, assinaturas e receber eventos em tempo real diretamente no app.

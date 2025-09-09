@@ -1,0 +1,947 @@
+<div id="v2-account-activity-api">
+  # API de actividad de cuenta v2
+</div>
+
+<Note>
+  ¡La API de actividad de cuenta v2 ya está disponible en [**Pro**](https://developer.x.com/en/portal/products)!
+</Note>
+
+<div id="overview">
+  ## Descripción general
+</div>
+
+La Account Activity API (AAA) ofrece una forma de recibir eventos en tiempo real relacionados con cuentas de usuario de X mediante webhooks. Al suscribir cuentas de usuario específicas a un webhook preconfigurado, tu aplicación puede recibir notificaciones de diversas actividades, como Publicaciones, Mensajes directos, Me gusta, Seguimientos, Bloqueos y más, desde una o varias de tus cuentas propias o suscritas, a través de una única conexión.\
+Esta API se utiliza comúnmente para crear aplicaciones que necesitan reaccionar de inmediato a las acciones de los usuarios o mantener un estado actualizado basado en su actividad. Recibirás todas las actividades relacionadas que se detallan a continuación para cada suscripción de usuario en el registro de tu webhook:
+
+<div id="activity-types">
+  ## Tipos de actividad
+</div>
+
+- **Publicaciones** (del usuario)
+- **Eliminaciones de publicaciones** (del usuario)
+- **@menciones** (del usuario)
+- **Respuestas** (para o del usuario)
+- **Reposts** (del usuario o sobre el usuario)
+- **Publicaciones con cita** (del usuario o sobre el usuario)
+- **Reposts de publicaciones con cita** (del usuario o sobre el usuario)
+- **Me gusta** (del usuario o sobre el usuario)
+- **Follows** (del usuario o sobre el usuario)
+- **Unfollows** (del usuario o sobre el usuario)
+- **Bloqueos** (del usuario o sobre el usuario)
+- **Desbloqueos** (del usuario o sobre el usuario)
+- **Silenciamientos** (del usuario o sobre el usuario)
+- **Anulaciones de silenciamiento** (del usuario o sobre el usuario)
+- **Mensajes directos enviados** (por el usuario)
+- **Mensajes directos recibidos** (por el usuario)
+- **Indicadores de escritura** (para el usuario)
+- **Confirmaciones de lectura** (para el usuario)
+- **Revocaciones de suscripción** (por el usuario)
+
+**Nota**: No entregamos datos de la cronología de inicio en la Account Activity API. Use el endpoint de la cronología de publicaciones de usuario por ID de usuario para obtener estos datos.
+
+Las publicaciones devueltas por la Account Activity API cuentan para el [límite de publicaciones](https://docs.x.com/x-api/fundamentals/post-cap) mensual.
+
+<div id="feature-summary">
+  ## Resumen de funcionalidades
+</div>
+
+| Nivel | Precio | Número de suscripciones únicas | Número de webhooks |
+| :----- | :----- | :----- | :----- |
+| Pro | US$ 5000/mes | 3 | 1 |
+| Enterprise | [Contactar al equipo de ventas](/es/enterprise/forms/enterprise-api-interest) | 5000+ | 5+ |
+
+Este documento se centra en la administración de suscripciones de usuarios asociadas a tus webhooks mediante los endpoints de la API de Actividad de Cuenta v2.
+
+<div id="manage-subscriptions">
+  ## Administrar suscripciones
+</div>
+
+La API Account Activity proporciona mensajes JSON basados en webhooks cada vez que se producen eventos asociados con cuentas de X suscritas a su servicio. X entrega esas actividades a su webhook registrado. En los siguientes pasos, aprenderá a configurar y administrar suscripciones para cuentas de usuario.
+
+<div id="1-create-an-x-app">
+  ### 1. Crea una App de X
+</div>
+
+Crea una app de X con una cuenta de desarrollador aprobada desde el [portal para desarrolladores](https://developer.x.com/en/portal/products/enterprise). Si creas la app en nombre de tu empresa, utiliza una cuenta corporativa de X.
+
+- Habilita “Read, Write, and Access direct messages” en la pestaña de permisos de la página de tu app.
+- En la pestaña “Keys and Access Tokens”, toma nota de los **Consumer Key (API Key)**, **Consumer Token (API Secret)** y **Bearer Token** de tu app.
+- Genera el **Access Token** y el **Access Token Secret** de tu app. Estos se necesitan para suscribirte a cuentas de usuario.
+- Revisa [Obtaining Access Tokens](https://developer.x.com/en/docs/authentication) si no estás familiarizado con X Sign-in y los contextos de usuario.
+- Toma nota del ID numérico de tu app en la página “Apps” del portal para desarrolladores. Esto se requiere al solicitar acceso a la Account Activity API.
+
+<div id="2-get-account-activity-api-access">
+  ### 2. Obtener acceso a la API de Account Activity
+</div>
+
+La API de Account Activity está disponible únicamente en el plan Enterprise. Solicite el acceso Enterprise a través del [portal para desarrolladores](https://developer.x.com/en/portal/products/enterprise).
+
+<div id="3-register-a-webhook">
+  ### 3. Registrar un webhook
+</div>
+
+Para recibir eventos de Actividad de Cuenta, debes registrar un webhook con una URL HTTPS accesible públicamente. Consulta la documentación de la API de Webhooks v2 para obtener detalles sobre cómo desarrollar una app consumidora de webhooks, registrar un webhook, protegerlo y manejar las comprobaciones de desafío-respuesta (CRC).
+
+- Asegúrate de que tu webhook esté configurado para aceptar solicitudes POST con cargas de evento codificadas en JSON.
+- Obtén el **webhook\_id** de la respuesta del registro del webhook, ya que es necesario para gestionar suscripciones.
+
+<div id="4-validate-setup">
+  ### 4. Validar la configuración
+</div>
+
+Para validar que su app y su webhook estén configurados correctamente:
+
+- Suscriba una cuenta de usuario a su webhook (consulte “Agregar una suscripción” más abajo).
+- Marque como favorito una Publicación realizada por una de las cuentas de X a las que su app esté suscrita.
+- Debería recibir un payload de favorite\_events mediante una solicitud POST a la URL de su webhook.
+- **Nota**: La entrega de eventos puede tardar hasta 10 segundos en comenzar después de agregar una suscripción.
+
+<div id="important-notes">
+  ### Notas importantes
+</div>
+
+- **Autenticación**: Al suscribir usuarios, use la consumer key, consumer secret, access token y access token secret de la cuenta del usuario.
+- **Mensajes Directos**: Todos los Mensajes Directos entrantes y salientes (enviados mediante POST /2/dm\_conversations/with/:participant\_id/messages) se entregan por webhooks para mantener su app al tanto de toda la actividad de MD.
+- **Duplicación de eventos**:
+  - Si dos usuarios suscritos están en la misma conversación de MD, su webhook recibe eventos duplicados (uno por usuario). Use el campo for\_user\_id para distinguirlos.
+  - Si varias apps comparten la misma URL de webhook y el mismo usuario, los eventos se envían varias veces (una por app).
+  - Su app debe desduplicar eventos usando el ID del evento para manejar duplicados ocasionales.
+- **Código de ejemplo**: Consulte la [configuración de la Account Activity API](https://github.com/xdevplatform/account-activity-dashboard-enterprise/tree/master) para ver una aplicación web que muestra eventos de webhook.
+
+<div id="managing-subscribed-users-v2-api">
+  ## Gestión de usuarios suscritos (API de X v2)
+</div>
+
+Una vez que tenga un webhook registrado con un webhook\_id válido, podrá gestionar las suscripciones de usuarios para recibir la actividad de sus cuentas. Use los siguientes endpoints para añadir, ver o eliminar suscripciones.
+
+<div id="adding-a-subscription">
+  ### [Añadir una suscripción](https://docs.x.com/x-api/account-activity/subscribes-the-provided-application-to-all-events-for-the-provided-user-context-for-all-message-types)
+</div>
+
+**Endpoint**: POST /2/account\_activity/webhooks/:webhook\_id/subscriptions/all\
+**Descripción**: Suscribe al usuario autenticado para recibir eventos mediante el webhook especificado.\
+**Autenticación**: OAuthUser (se requiere flujo OAuth de 3 patas, que representa al usuario que será suscrito).
+
+- **Consumer Key**: p. ej., xvz1evFS...
+- **Access Token**: p. ej., 370773112-GmHxMAgYyLbN...
+
+**Parámetros de ruta**:
+
+| Parámetro | Descripción |
+| :----- | :----- |
+| webhook\_id | El ID del webhook con el que asociar la suscripción. |
+
+**Solicitud**:\
+bash
+
+```
+curl --request POST --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all' \
+--header 'authorization: OAuth oauth_consumer_key="<CONSUMER_KEY>", oauth_nonce="GENERATED", oauth_signature="GENERATED", oauth_signature_method="HMAC-SHA1", oauth_timestamp="GENERATED", oauth_token="<ACCESS_TOKEN>", oauth_version="1.0"'
+```
+
+**Respuestas**:
+
+- **Éxito (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": true
+  }
+}
+```
+
+- **Error (400 Bad Request)**:
+
+| Motivo | Descripción |
+| :---- | :---- |
+| WebhookIdInvalid | El webhook\_id proporcionado no se encontró o no está asociado con la app. |
+| DuplicateSubscriptionFailed | Ya existe una suscripción para este usuario para el webhook\_id especificado. |
+| SubscriptionLimitExceeded | La aplicación ha alcanzado su límite de suscripciones en todos los webhooks. |
+
+###
+
+<div id="checking-a-subscription">
+  ### [Verificar una suscripción](https://docs.x.com/x-api/account-activity/check-if-a-subscription-exists-for-a-given-webhook-and-user)
+</div>
+
+**Endpoint**: GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all\
+**Description**: Verifica si el usuario autenticado está suscrito al webhook especificado.\
+**Authentication**: OAuthUser (se requiere flujo OAuth de 3 legged).\
+**Path Parameters**:
+
+| Parameter | Description |
+| :----- | :----- |
+| webhook\_id | El ID del webhook que se desea comprobar. |
+
+**Request**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all' \
+--header 'authorization: OAuth oauth_consumer_key="<CONSUMER_KEY>", oauth_nonce="GENERATED", oauth_signature="GENERATED", oauth_signature_method="HMAC-SHA1", oauth_timestamp="GENERATED", oauth_token="<ACCESS_TOKEN>", oauth_version="1.0"'
+```
+
+**Responses**:
+
+- **Success (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": true // o false
+  }
+}
+```
+
+- **Failure (400 Bad Request)**:
+
+| Reason | Description |
+| :---- | :---- |
+| WebhookIdInvalid | El webhook\_id proporcionado no se encontró o no está asociado con la app. |
+
+###
+
+<div id="removing-subscriptions">
+  ### [Eliminación de suscripciones](https://docs.x.com/x-api/account-activity/deactivates-a-subscription-for-the-specified-webhook-and-user-id)
+</div>
+
+**Endpoint**: DELETE /2/account\_activity/webhooks/:webhook\_id/subscriptions/:user\_id/all\
+**Description**: Desactiva la suscripción para un ID de usuario específico y detiene la entrega de eventos al webhook.\
+**Authentication**: Token Bearer de aplicación únicamente (OAuth2).
+
+- **Bearer Token**: p. ej., AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...
+
+**Path Parameters**:
+
+| Parameter | Description |
+| :----- | :----- |
+| webhook\_id | El ID del webhook que contiene la suscripción. |
+| user\_id | El ID numérico del usuario al que se dará de baja. |
+
+**Request**:\
+bash
+
+```
+curl --request DELETE --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/:USER_ID/all' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**Responses**:
+
+- **Success (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": false
+  }
+}
+```
+
+- **Failure (400 Bad Request)**:
+
+| Reason | Description |
+| :---- | :---- |
+| SubscriptionNotFound | No existe una suscripción para el user\_id especificado en el webhook\_id indicado. |
+| WebhookIdInvalid | El webhook\_id proporcionado no se encontró o no está asociado con la app. |
+
+<div id="viewing-all-subscriptions">
+  ### [Ver todas las suscripciones](https://docs.x.com/x-api/account-activity/get-a-list-of-the-current-all-activity-type-subscriptions-for-the-specified-webhook)
+</div>
+
+**Endpoint**: GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all/list\
+**Descripción**: Recupera una lista de todos los ID de usuario actualmente suscritos al webhook especificado.\
+**Autenticación**: OAuth2 App Only Bearer Token.\
+**Parámetros de ruta**:
+
+| Parámetro | Descripción |
+| :----- | :----- |
+| webhook\_id | El ID del webhook cuyas suscripciones se desean listar. |
+
+**Solicitud**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all/list' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**Respuestas**:
+
+- **Éxito (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "application_id": "<your app id>",
+    "webhook_id": "<webhook id>",
+    "webhook_url": "<the webhook's callback url>",
+    "subscriptions": [
+      { "user_id": "<user_id_1>" },
+      { "user_id": "<user_id_2>" }
+    ]
+  }
+}
+```
+
+- **Error (400 Solicitud incorrecta)**:
+
+| Motivo | Descripción |
+| :---- | :---- |
+| WebhookIdInvalid | El webhook\_id proporcionado no se encontró o no está asociado con la aplicación. |
+
+###
+
+<div id="subscriptions-count">
+  ### [Recuento de suscripciones](https://docs.x.com/x-api/account-activity/get-a-count-of-subscriptions-that-are-currently-active-on-your-account)
+</div>
+
+**Endpoint**: GET /2/account\_activity/subscriptions/count\
+**Descripción**: Devuelve el número total de suscripciones activas y el límite aprovisionado para la aplicación que se autentica.\
+**Autenticación**: Token Bearer de solo aplicación OAuth2.\
+**Solicitud**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/subscriptions/count' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**Respuestas**:
+
+- **Éxito (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "account_name": "<your application name>",
+    "provisioned_count": "<subscription limit allocated>",
+    "subscriptions_count_all": "<current active subscription count>",
+    "subscriptions_count_direct_messages": "0" // Ya no se admiten suscripciones solo de MD
+  }
+}
+```
+
+<div id="replay">
+  ## [Repetición](https://docs.x.com/x-api/account-activity/request-activity-replay)
+</div>
+
+AAAv2 proporciona una función de repetición que permite recuperar eventos pasados para un intervalo de tiempo especificado y volver a entregarlos a tu webhook. Esto es útil para recuperar eventos perdidos debido a tiempo de inactividad.
+
+**Endpoint**: POST /2/account\_activity/replay/webhooks/:webhook\_id/subscriptions/all
+
+**Descripción**: Inicia un trabajo de repetición
+
+**Autenticación**: OAuth2 App Only Bearer Token
+
+**Parámetros de ruta**:
+
+| Parámetro | Descripción |
+| :----- | :----- |
+| webhook\_id | El ID del webhook con el que iniciar la repetición |
+
+**Parámetros de consulta**:
+
+| Parámetro | Descripción |
+| :----- | :----- |
+| from\_date | La marca de tiempo UTC más antigua (inicial) a partir de la cual se proporcionarán los eventos; debe estar en el formato ‘yyyymmddhhmm’. La marca de tiempo tiene granularidad de minuto y es inclusiva (es decir, 12:00 incluye el minuto 00). Los horarios válidos deben estar dentro de las últimas 24 horas (hora UTC) y no ser más recientes que 31 minutos antes del momento actual. Se recomienda que from\_date y to\_date estén dentro de ~2 horas. |
+| to\_date | La marca de tiempo UTC más reciente (final) hasta la cual se proporcionarán los eventos; debe estar en el formato ‘yyyymmddhhmm’. La marca de tiempo tiene granularidad de minuto y es exclusiva (es decir, 12:30 no incluye el minuto 30 de la hora). Los horarios válidos deben estar dentro de las últimas 24 horas (hora UTC) y no ser más recientes que 10 minutos antes del momento actual. |
+
+**Respuestas**:
+
+Éxito:
+
+```
+200
+
+{
+  "for_user_id": "<USER_ID>"
+  "replay_event": {
+    "job_id": <REPLAY_JOB_ID>",
+    "created_at: "yyyy-mm-ddThh:mm:ss.000Z"
+  }
+}
+```
+
+Errores:
+
+| Motivo | Descripción |
+| :---- | :---- |
+| QueryParamInvalid | from\_date es anterior a 24 horas respecto del momento actual. |
+| QueryParamInvalid | from\_date es más reciente que to\_date. |
+| QueryParamInvalid | from\_date está en el futuro. |
+| QueryParamInvalid | to\_date está en el futuro. |
+| QueryParamInvalid | from\_date o to\_date no tiene el formato correcto. |
+| CrcValidationFailed | Se recibió una respuesta incorrecta desde la URL del webhook durante la validación de CRC. |
+| ReplayConflictError | Ya hay un trabajo de repetición en curso para el webhook especificado. |
+| WebhookIdInvalid | El webhook\_id proporcionado no es válido o no está asociado con la app.  |
+
+<div id="job-completed-messages">
+  ### Mensajes de finalización de trabajo
+</div>
+
+Una vez que su trabajo de reproducción se complete correctamente, X entregará el siguiente evento de finalización del trabajo. Al recibir este evento, el trabajo habrá terminado de ejecutarse y podrá enviar otro.
+
+```
+{
+  "replay_job_status": {
+    "webhook_id": "<WEBHOOK_ID>",
+    "job_state": "Complete",
+    "job_state_description": "Job completed successfully",
+    "job_id": "<JOB_ID>"
+  }
+}
+```
+
+Si su trabajo no se completa correctamente, devolveremos el siguiente mensaje para invitarlo a reintentar su trabajo de reproducción. Al recibir este evento, el trabajo habrá terminado de ejecutarse y podrá enviar otro.
+
+```
+{
+  "replay_job_status": {
+    "webhook_id": "<WEBHOOK_ID>",
+    "job_state": "Incomplete",
+    "job_state_description": "Job failed to deliver all events, please retry your replay job",
+    "job_id": "<JOB_ID>"
+  }
+}
+```
+
+<div id="account-activity-data-object-structure">
+  ## Estructura del objeto de datos de actividad de la cuenta
+</div>
+
+| Objeto | Detalles |
+| :----- | :----- |
+| for\_user\_id | Identifica la suscripción de usuario con la que está relacionado el evento. |
+| is\_blocked\_by | (Condicional) Se muestra solo para eventos de mención de publicaciones si el usuario que menciona está bloqueado por el usuario suscrito. |
+| source | El usuario que realiza la actividad (p. ej., el usuario que sigue, bloquea o silencia). |
+| target | El usuario al que se aplica la actividad (p. ej., el usuario que es seguido, bloqueado o silenciado). |
+
+<div id="available-activities">
+  ### Actividades disponibles
+</div>
+
+| Message Type | Details |
+| :----- | :----- |
+| tweet\_create\_events | Estado de publicación para publicaciones, retuits, respuestas, @menciones, tuits citados o retuits de tuits citados. |
+| favorite\_events | Evento de Me gusta con usuario y destinatario. |
+| follow\_events | Evento de Seguir con usuario y destinatario. |
+| unfollow\_events | Evento de Dejar de seguir con usuario y destinatario. |
+| block\_events | Evento de Bloquear con usuario y destinatario. |
+| unblock\_events | Evento de Desbloquear con usuario y destinatario. |
+| mute\_events | Evento de Silenciar con usuario y destinatario. |
+| unmute\_events | Evento de Quitar silencio con usuario y destinatario. |
+| user\_event | Eventos de revocación cuando un usuario elimina la autorización de la app (suscripción eliminada automáticamente). |
+| direct\_message\_events | Estado de MD para mensajes enviados o recibidos. |
+| direct\_message\_indicate\_typing\_events | Evento de escritura en MD con usuario y destinatario. |
+| direct\_message\_mark\_read\_events | Evento de lectura en MD con usuario y destinatario. |
+| tweet\_delete\_events | Aviso de publicaciones eliminadas para cumplimiento. |
+| spaces\_events | Actualmente no compatible. Próximamente. |
+
+<div id="payload-examples">
+  ## Ejemplos de cargas útiles
+</div>
+
+A continuación se muestran cargas útiles de ejemplo para cada evento de Account Activity.
+
+### tweet\_create\_events (Publicaciones, Retuits, Respuestas, Citas)
+
+```json
+{
+  "for_user_id": "2244994945",
+  "tweet_create_events": [
+    {
+      <Tweet Object>
+    }
+  ]
+}
+```
+
+###
+
+### tweet\_create\_events (@menciones)
+
+```json
+{
+  "for_user_id": "2244994945",
+  "user_has_blocked": "false",
+  "tweet_create_events": [
+    {
+      <Tweet Object>
+    }
+  ]
+}
+```
+
+### favorite\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "favorite_events": [{
+    "id": "a7ba59eab0bfcba386f7acedac279542",
+    "created_at": "Mon Mar 26 16:33:26 +0000 2018",
+    "timestamp_ms": 1522082006140,
+    "favorited_status": {
+      <Objeto Tweet>
+    },
+    "user": {
+      <Objeto Usuario>
+    }
+  }]
+}
+```
+
+### follow\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "follow_events": [{
+    "type": "follow",
+    "created_timestamp": "1517588749178",
+    "target": {
+      <User Object>
+    },
+    "source": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### eventos\_dejar\_de\_seguir
+
+```json
+{
+  "for_user_id": "2244994945",
+  "follow_events": [{
+    "type": "unfollow",
+    "created_timestamp": "1517588749178",
+    "target": {
+      <User Object>
+    },
+    "source": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### block\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "block_events": [{
+    "type": "block",
+    "created_timestamp": "1518127020304",
+    "source": {
+      <User Object>
+    },
+    "target": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### unblock\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "block_events": [{
+    "type": "unblock",
+    "created_timestamp": "1518127020304",
+    "source": {
+      <User Object>
+    },
+    "target": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### mute\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "mute_events": [
+    {
+      "type": "mute",
+      "created_timestamp": "1518127020304",
+      "source": {
+        <User Object>
+      },
+      "target": {
+        <User Object>
+      }
+    }
+  ]
+}
+```
+
+### eventos\_de\_reactivación\_de\_silencio
+
+```json
+{
+  "for_user_id": "2244994945",
+  "mute_events": [
+    {
+      "type": "unmute",
+      "created_timestamp": "1518127020304",
+      "source": {
+        <User Object>
+      },
+      "target": {
+        <User Object>
+      }
+    }
+  ]
+}
+```
+
+### evento\_de\_usuario
+
+```json
+{
+  "user_event": {
+    "revoke": {
+      "date_time": "2018-05-24T09:48:12+00:00",
+      "target": {
+        "app_id": "13090192"
+      },
+      "source": {
+        "user_id": "63046977"
+      }
+    }
+  }
+}
+```
+
+### direct\_message\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_events": [{
+    "type": "message_create",
+    "id": "954491830116155396",
+    "created_timestamp": "1516403560557",
+    "message_create": {
+      "target": {
+        "recipient_id": "4337869213"
+      },
+      "sender_id": "3001969357",
+      "source_app_id": "13090192",
+      "message_data": {
+        "text": "¡Hola, mundo!",
+        "entities": {
+          "hashtags": [],
+          "symbols": [],
+          "user_mentions": [],
+          "urls": []
+        }
+      }
+    }
+  }],
+  "apps": {
+    "13090192": {
+      "id": "13090192",
+      "name": "FuriousCamperTestApp1",
+      "url": "https://x.com/furiouscamper"
+    }
+  },
+  "users": {
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter ego - X PE opiniones son mías",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 22,
+      "friends_count": 45,
+      "statuses_count": 494,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    },
+    "4337869213": {
+      "id": "4337869213",
+      "created_timestamp": "1448312972328",
+      "name": "Harrison Test",
+      "screen_name": "Harris_0ff",
+      "location": "Burlington, MA",
+      "protected": false,
+      "verified": false,
+      "followers_count": 8,
+      "friends_count": 8,
+      "statuses_count": 240,
+      "profile_image_url_https": "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"
+    }
+  }
+}
+```
+
+### direct\_message\_indicate\_typing\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_indicate_typing_events": [{
+    "created_timestamp": "1518127183443",
+    "sender_id": "3284025577",
+    "target": {
+      "recipient_id": "3001969357"
+    }
+  }],
+  "users": {
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter Ego - X PE opinions-are-my-own",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 23,
+      "friends_count": 47,
+      "statuses_count": 509,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    },
+    "3284025577": {
+      "id": "3284025577",
+      "created_timestamp": "1437281176085",
+      "name": "Bogus Bogart",
+      "screen_name": "bogusbogart",
+      "protected": true,
+      "verified": false,
+      "followers_count": 1,
+      "friends_count": 4,
+      "statuses_count": 35,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/763383202857779200/ndvZ96mE_normal.jpg"
+    }
+  }
+}
+```
+
+### direct\_message\_mark\_read\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_mark_read_events": [{
+    "created_timestamp": "1518452444662",
+    "sender_id": "199566737",
+    "target": {
+      "recipient_id": "3001969357"
+    },
+    "last_read_event_id": "963085315333238788"
+  }],
+  "users": {
+    "199566737": {
+      "id": "199566737",
+      "created_timestamp": "1286429788000",
+      "name": "Le Braat",
+      "screen_name": "LeBraat",
+      "location": "Denver, CO",
+      "description": "datos de día en @X, diseño al atardecer",
+      "protected": false,
+      "verified": false,
+      "followers_count": 299,
+      "friends_count": 336,
+      "statuses_count": 752,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/936652894371119105/YHEozVAg_normal.jpg"
+    },
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter ego - X PE opiniones son mías",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 23,
+      "friends_count": 48,
+      "statuses_count": 510,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    }
+  }
+}
+```
+
+### tweet\_delete\_events
+
+```json
+{
+  "for_user_id": "930524282358325248",
+  "tweet_delete_events": [
+    {
+      "status": {
+        "id": "1045405559317569537",
+        "user_id": "930524282358325248"
+      },
+      "timestamp_ms": "1432228155593"
+    }
+  ]
+}
+```
+
+<div id="support-for-longform-posts">
+  ## Compatibilidad con publicaciones de formato largo
+</div>
+
+La Account Activity API v2 ahora admite publicaciones de **formato largo**, es decir, publicaciones que superan los 280 caracteres. Cuando se incluye una publicación de formato largo en una carga útil de tweet\_create\_events, el campo text contiene los primeros 140 caracteres (o menos) y el campo truncated se establece en true. El contenido completo de la publicación se entrega en el objeto extended\_tweet, que incluye:
+
+- full\_text: El texto completo de la publicación, incluidos todos los caracteres que exceden el límite de 280.
+- entities: Cualquier entidad (p. ej., hashtags, URL, menciones de usuarios, símbolos) que aparezca en el texto completo, incluidas las que estén después del carácter 280.
+- display\_text\_range: El rango de caracteres que se debe mostrar, considerando el texto completo.
+
+Esto garantiza que las aplicaciones puedan procesar todo el contenido de las publicaciones de formato largo, incluidas menciones u otras entidades que aparezcan más adelante en el texto. A continuación se muestra un ejemplo de una carga útil de tweet\_create\_events para una publicación de formato largo:
+
+```json
+{
+  "for_user_id": "1603419180975409153",
+  "tweet_create_events": [
+    {
+      "created_at": "Mon May 19 14:01:46 +0000 2025",
+      "id": 1924465506158879000,
+      "id_str": "1924465506158878979",
+      "text": "El mecanismo de Anticitera: una ventana a la ingeniosidad antigua. Descubierto en 1901 entre los restos de un barco romano frente a… https://t.co/bzbEKj8cd8",
+      "display_text_range": [
+        0,
+        140
+      ],
+      ...
+      "user": {
+        ...
+      },
+      ...
+      "extended_tweet": {
+        "full_text": "El mecanismo de Anticitera: una ventana a la ingeniosidad de la Antigüedad. Descubierto en 1901 entre los restos de un barco romano frente a la isla griega de Anticitera, el mecanismo de Anticitera suele ser considerado la primera computadora analógica del mundo. Este intrincado dispositivo de bronce, fechado en torno al 100 a. C., ha cautivado a historiadores, arqueólogos y científicos por su sofisticado diseño y su enigmático propósito. El mecanismo consta de un complejo sistema de engranajes, meticulosamente fabricados para realizar cálculos que siguen siendo asombrosamente avanzados para su época. Su descubrimiento desafió suposiciones arraigadas sobre las capacidades tecnológicas del mundo antiguo. La función principal del mecanismo de Anticitera parece haber sido astronómica. Podía predecir las posiciones del Sol, la Luna y posiblemente de los planetas, seguir los eclipses lunares y solares e incluso calcular las fechas de los Juegos Olímpicos. Las esferas y agujas del dispositivo, junto con inscripciones en griego antiguo, sugieren que era una herramienta tanto para la investigación científica como para eventos culturales. Su nivel de precisión, comparable al de la relojería del siglo XIX, pone de relieve la notable ingeniosidad de sus creadores, probablemente del mundo helenístico. Pese a décadas de estudio, muchas preguntas persisten. ¿Quién lo construyó y para quién? ¿Fue una obra maestra única o parte de una tradición más amplia de dispositivos mecánicos perdida en la historia? Las imágenes de rayos X y las técnicas computacionales modernas han revelado mucho sobre su funcionamiento interno, pero aún se debate el alcance completo de sus capacidades. Algunos proponen que se usó para predicciones astrológicas, mientras que otros lo ven como una herramienta didáctica para astrónomos. El mecanismo de Anticitera se erige como un testimonio de la curiosidad y la innovación humanas, tendiendo un puente entre los mundos antiguo y moderno. Nos recuerda que, incluso en la antigüedad, las personas buscaban comprender el cosmos con herramientas que rivalizan en complejidad con la tecnología actual. Su perdurable misterio sigue inspirando asombro e investigación, lo que lo convierte en uno de los artefactos más notables jamás desenterrados.\n@xai\n@HistoryInPics",
+        "display_text_range": [
+          0,
+          2051
+        ],
+        "entities": {
+          "hashtags": [],
+          "urls": [],
+          "user_mentions": [
+            {
+              "screen_name": "xai",
+              "name": "xAI",
+              "id": 1661523610111193000,
+              "id_str": "1661523610111193088",
+              "indices": [
+                2032,
+                2036
+              ]
+            },
+            {
+              "screen_name": "HistoryInPics",
+              "name": "History Photographed",
+              "id": 1582853809,
+              "id_str": "1582853809",
+              "indices": [
+                2037,
+                2051
+              ]
+            }
+          ],
+          "symbols": []
+        }
+      },
+      ...
+      "entities": {
+        "hashtags": [],
+        "urls": [
+          {
+            "url": "https://t.co/bzbEKj8cd8",
+            "expanded_url": "https://twitter.com/i/web/status/1924465506158878979",
+            "display_url": "twitter.com/i/web/status/1…",
+            "indices": [
+              117,
+              140
+            ]
+          }
+        ],
+        "user_mentions": [],
+        "symbols": []
+      },
+      ...
+    }
+  ]
+}
+```
+
+<div id="account-activity-api-migrating-from-legacy-enterprise-to-v2">
+  ## Migración de la Account Activity API de Legacy Enterprise a v2
+</div>
+
+Consulta nuestra [guía de migración](https://docs.x.com/x-api/account-activity/migrate/overview).
+
+<div id="frequently-asked-questions">
+  ## Preguntas frecuentes
+</div>
+
+**¿Cuáles son las ventajas de usar la Account Activity API?**
+
+La Account Activity API utiliza webhooks para entregar datos en tiempo real sin requerir una conexión abierta (a diferencia de las API de streaming) ni sondeos frecuentes (a diferencia de las API REST). Los beneficios incluyen:
+
+- **Velocidad**: Entrega datos a la velocidad de X.
+- **Simplicidad**: Proporciona todos los eventos de la cuenta a través de una única conexión de webhook, incluidos Publicaciones, @menciones, Respuestas, Reposts, Publicaciones citadas, Me gusta, MD, Follows, Blocks y Mutes.
+- **Escala**: Admite todas las actividades de cuentas gestionadas sin límites de tasa ni topes de eventos (nivel Enterprise).
+
+**Necesito entornos de desarrollo, staging y producción para la Account Activity API, ¿es posible?**
+
+Sí. Puedes registrar varias URL de webhook y gestionar las suscripciones por separado mediante la [V2 Webhooks API](https://docs.x.com/x-api/webhooks/introduction).
+
+**¿Tienen alguna guía paso a paso sobre cómo configurarse con la Account Activity API?**
+
+Sí. Consulta la [guía de Introducción a Webhooks](https://docs.x.com/x-api/webhooks/introduction) y la [aplicación de ejemplo de Account Activity API](https://github.com/m-rosinsky/XWebhookTest/blob/main/app.py).
+
+**¿Qué autenticación tengo que usar con la Account Activity API?**
+
+Los requisitos de autenticación se especifican por endpoint. Revisa la [sección de autenticación](https://developer.x.com/en/docs/authentication) para más detalles.
+
+**¿Recibiré actividades duplicadas si me suscribo a usuarios que están interactuando entre sí?**
+
+Sí. Si tu app tiene suscripciones para el Usuario A y el Usuario B, y el Usuario A menciona al Usuario B en una Publicación, tu webhook recibe dos eventos (uno por usuario). Usa el campo for\_user\_id para identificar la suscripción.
+
+**Cuando hago una suscripción a mi webhook, ¿puedo reemplazar la** /all/ **parte del endpoint con otros objetos de datos de actividad de la cuenta para limitar las actividades entregadas?**
+
+No. El producto /all/ es la única opción y entrega todos los tipos de eventos compatibles.
+
+**Si tengo acceso a tres webhooks, ¿puedo usar tres webhooks para cada una de las apps que he registrado para uso empresarial?**
+
+El límite de webhooks se establece a nivel de cuenta, no por app. Por ejemplo, con tres webhooks y dos apps, podrías usar dos webhooks para una app y uno para la otra, pero no tres por app.
+
+<div id="account-activity-api-reference-index">
+  ## Índice de referencia de la API de actividad de cuentas
+</div>
+
+| Propósito | Endpoint de v2 |
+| :----- | :----- |
+| Suscribe una aplicación a los eventos de una cuenta | POST /2/account\_activity/webhooks/:webhook\_id/subscriptions/all |
+| Devuelve el recuento de suscripciones activas actualmente | GET /2/account\_activity/subscriptions/count |
+| Comprueba si un webhook está suscrito a una cuenta | GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all |
+| Devuelve una lista de suscripciones activas actualmente | GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all/list |
+| Desactiva una suscripción usando OAuth solo para la app | DELETE /2/account\_activity/webhooks/:webhook\_id/subscriptions/:user\_id/all |
+| Crea un trabajo de reenvío | POST /2/account\_activity/replay/webhooks/:webhook\_id/subscriptions/all |
+
+Para los endpoints de gestión de webhooks (registrar, ver, validar, eliminar), consulta la [documentación de la API de webhooks v2](https://docs.x.com/x-api/webhooks/introduction)

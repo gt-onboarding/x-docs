@@ -1,0 +1,113 @@
+---
+title: Tweets bearbeiten
+---
+
+Enterprise-Endpunkte wurden aktualisiert, um Metadaten zu bearbeiteten Posts bereitzustellen. Die Funktion „Posts bearbeiten“ wurde erstmals am 1. September 2022 testweise unter X-Mitarbeitenden eingeführt. Ab diesem Datum konnten berechtigte Posts 30 Minuten lang und bis zu 5‑mal bearbeitet werden. Alle Objekte für Posts, die seit dem 29. September 2022 erstellt wurden, enthalten Bearbeitungsmetadaten, selbst wenn der Post nie bearbeitet wurde. Jedes Mal, wenn ein Post bearbeitet wird, wird eine neue Post-ID erstellt. Die Bearbeitungshistorie eines Posts kann beschrieben werden, indem diese IDs miteinander verknüpft werden, beginnend mit der ursprünglichen ID. Außerdem gilt: Wenn ein Post in der Bearbeitungskette gelöscht wird, werden alle Posts in dieser Kette ebenfalls gelöscht.
+
+Diese Metadaten werden automatisch hinzugefügt. Es sind keine Anfrageparameter erforderlich, um die verfügbare Bearbeitungshistorie als Teil des Post-Objekts einzuschließen.
+
+Mit diesen neuen Metadaten kann ein Entwickler Folgendes herausfinden:
+
+- Ob ein Post zum Zeitpunkt der Erstellung bearbeitbar war. Einige Posts – etwa solche mit Umfragen oder geplante Posts – können nicht bearbeitet werden.
+- Beiträge sind 30 Minuten lang editierbar und können bis zu 5-mal geändert werden. Bei editierbaren Beiträgen sehen Sie, ob noch Bearbeitungszeit verbleibt und wie viele weitere Änderungen möglich sind.
+- Wenn Sie eine bearbeitete Version eines Posts anzeigen. In der Regel gibt die API die aktuellste Version eines Posts zurück, es sei denn, eine bestimmte frühere Version wird über die Post-ID angefordert.
+
+Drei neue Post-Attribute wurden auf der Root-Ebene hinzugefügt:
+
+- **edit\_history**  - Stellt alle Post-IDs bereit, die der Bearbeitungshistorie des Posts zugeordnet sind. Das Attribut „initial\_tweet\_id“ kennzeichnet den ursprünglichen Post, und das Attribut „edit\_tweet\_ids“ ist ein Array, das alle IDs enthält, die seiner Bearbeitungshistorie zugeordnet sind. Wenn der Post nicht bearbeitet wurde, enthält dieses Array nur eine einzige ID.
+
+```
+"edit_history": {
+    "initial_tweet_id": "1283764123"
+    "edit_tweet_ids": ["1283764123"]
+  }
+```
+
+- **edit\_controls** - Liefert Attribute, die angeben, wann das 30‑minütige Bearbeitungsfenster endet und wie viele mögliche Bearbeitungen noch verbleiben.
+
+```
+"edit_controls": {  
+     "editable_until_ms": 1660155761384,
+     "edits_remaining": 3   
+  }
+```
+
+- **editable** - Gibt an, ob ein Post zum Zeitpunkt der Erstellung bearbeitbar war.
+
+"editable": true
+
+Die meisten Posts sind zulässig. Die folgenden Arten von Posts sind jedoch ausgeschlossen:
+
+- Beitrag wird hervorgehoben
+- Beitrag enthält eine Umfrage
+- Der Post ist eine Antwort außerhalb des eigenen Threads
+- Beitrag ist ein Retweet (beachte, dass Zitier-Posts bearbeitet werden können)
+- Beitrag ist Nullcast
+- Community-Beitrag
+- Super Follow-Post
+- Gemeinsamer Beitrag
+
+**Beispielattribute für unbearbeiteten Post**
+
+Das folgende JSON zeigt Bearbeitungsmetadaten für einen Post, der nach der Einführung der Bearbeiten-Funktion für Posts veröffentlicht wurde. Dieses Beispiel betrifft einen Post ohne Bearbeitungshistorie.
+
+Beachten Sie, dass das Array „edit\_tweet\_ids“ nur eine einzige ID enthält.
+
+```
+{
+  "created_at": "Wed Aug 16 18:29:02 +0000 2022",
+  "id": 1557433858676740098,
+  "id_str": "1557433858676740098",
+  "text": "Ich frage mich, ob ich jemals die Bearbeiten-Schaltfläche benutzen werde",
+  "edit_history": {
+    "initial_tweet_id": "1557433858676740098",
+    "edit_tweet_ids": ["1557433858676740098"]
+  },
+  "edit_controls": {
+    "editable_until_ms": 1660155761384,
+    "edits_remaining": 5
+  },
+  "editable": true
+}
+```
+
+**Beispielattribute für einen bearbeiteten Post**
+
+Das folgende JSON hebt Bearbeitungsmetadaten hervor, die bei einem Post enthalten sind, der nach der Einführung der Funktion „Post bearbeiten“ veröffentlicht wurde. Dieses Beispiel zeigt einen Post mit genau einer Bearbeitung.
+
+Beachten Sie, dass das Array `"edit_tweet_ids"` zwei IDs enthält: eine für den ursprünglichen Post und eine für die bearbeitete Version.
+
+```
+{
+  "created_at": "Wed Aug 16 18:35:42 +0000 2022",
+  "id": 1557445923210514432,
+  "id_str": "1557445923210514432",
+  "text": "Ich frage mich, ob ich jemals die Bearbeiten-Schaltfläche verwenden werde",
+  "edit_history": {
+    "initial_tweet_id": "1557433858676740098",
+    "edit_tweet_ids": ["1557433858676740098", "1557445923210514432"]
+  },
+  "edit_controls": {
+    "editable_until_ms": 1660155761384,
+    "edits_remaining": 4
+  },
+  "editable": true
+}
+```
+
+**Compliance-Support**
+
+Der [Compliance Firehose](/de/x-api/enterprise-gnip-2.0/fundamentals/firehouse) und der v2-[Batch-Compliance-Endpunkt](/de/x-api/compliance/batch-compliance/introduction) wurden beide aktualisiert und unterstützen nun das Bearbeiten von Posts:
+
+Ein neuer Ereignistyp „tweet\_edit“ wurde dem Compliance Firehose hinzugefügt.
+
+```
+{
+  "tweet_edit": {
+    "id": <tweetId>,
+    "initial_tweet_id": <tweetId>,
+    "edit_tweet_ids": [<tweetId1>, <tweetId2>, <tweetId3> ...],
+    "timestamp_ms": "<timestampMsStr>"
+  }
+}
+```

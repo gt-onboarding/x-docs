@@ -1,0 +1,113 @@
+---
+title: Modificare i post
+---
+
+Gli endpoint Enterprise sono stati aggiornati per fornire i metadati dei Post modificati. La funzionalità Modifica Post è stata introdotta per la prima volta per i test tra i dipendenti di X il 1º settembre 2022. A partire da quella data, i Post idonei potevano essere modificati per 30 minuti e fino a 5 volte. Tutti gli oggetti relativi ai Post creati dal 29 settembre 2022 includono i metadati di modifica del Post, anche se il Post non è mai stato modificato. Ogni volta che un Post viene modificato, viene creato un nuovo ID Post. La cronologia delle modifiche di un Post può essere descritta concatenando questi ID, a partire dall’ID originale. Inoltre, se un qualsiasi Post nella catena di modifiche viene eliminato, tutti i Post in quella catena vengono eliminati.
+
+Questi metadati sono inclusi automaticamente. Non sono necessari parametri della richiesta per includere la cronologia delle modifiche disponibile come parte dell’oggetto Post.
+
+Con questi nuovi metadati, uno sviluppatore può scoprire:
+
+- Se un Post era idoneo alla modifica al momento della creazione. Alcuni Post, come quelli con sondaggi o post programmati, non possono essere modificati.
+- I post sono modificabili per 30 minuti e fino a 5 volte. Per i post modificabili, puoi vedere se rimane tempo per modificarli e quante altre modifiche sono ancora possibili.
+- Se stai visualizzando una versione modificata di un post. Nella maggior parte dei casi, l’API restituirà la versione più recente di un post, a meno che non venga richiesta una versione precedente specifica tramite ID del post.
+
+Sono stati aggiunti tre nuovi attributi di Post a livello radice:
+
+- **edit\_history** - Fornisce tutti gli ID del Post associati alla cronologia delle modifiche del Post. L'attributo "initial\_tweet\_id" indica il Post originale e l'attributo "edit\_tweet\_ids" è un array che elenca tutti gli ID associati alla sua cronologia delle modifiche. Se il Post non è stato modificato, questo array conterrà un solo ID.
+
+```
+"edit_history": {
+    "initial_tweet_id": "1283764123"
+    "edit_tweet_ids": ["1283764123"]
+  }
+```
+
+- **edit\_controls** - Fornisce attributi che indicano quando termina la finestra di modifica di 30 minuti e quante modifiche potenziali restano.
+
+```
+"edit_controls": {  
+     "editable_until_ms": 1660155761384,
+     "edits_remaining": 3   
+  }
+```
+
+- **editable** - Indica se un post era modificabile al momento della creazione.
+
+"modificabile": true
+
+La maggior parte dei post è idonea. Tuttavia, i seguenti tipi di post non lo sono:
+
+- Il post è in promozione
+- Il post contiene un sondaggio
+- Il post è una risposta che non fa parte del proprio thread
+- Il post è un Retweet (nota che i Quote Tweet possono essere modificati)
+- Il post è in nullcast
+- Post della Community
+- Post Super Follow
+- Post collaborativo
+
+**Esempio di attributi per un post non modificato**
+
+Il JSON seguente evidenzia i metadati di modifica inclusi per un post pubblicato dopo l’introduzione della funzionalità di modifica dei post. Questo esempio si riferisce a un post senza cronologia di modifiche.
+
+Nota che l’array `"edit_tweet_ids"` contiene un solo ID.
+
+```
+{
+  "created_at": "Wed Aug 16 18:29:02 +0000 2022",
+  "id": 1557433858676740098,
+  "id_str": "1557433858676740098",
+  "text": "Mi chiedo se userò mai il pulsante di modifica"
+  "edit_history": {
+    "initial_tweet_id": "1557433858676740098",
+    "edit_tweet_ids": ["1557433858676740098"]
+  },
+  "edit_controls": {
+    "editable_until_ms": 1660155761384,
+    "edits_remaining": 5
+  },
+  "editable": true
+}
+```
+
+**Esempio di attributi per un Post modificato**
+
+Il JSON seguente evidenzia i metadati di modifica inclusi per un post pubblicato dopo l’introduzione della funzione Modifica post. Questo esempio riguarda un post che è stato modificato una sola volta.
+
+Nota che l’array `"edit_tweet_ids"` contiene due ID: uno per il Post originale e uno per l’aggiornamento modificato.
+
+```
+{
+  "created_at": "Wed Aug 16 18:35:42 +0000 2022",
+  "id": 1557445923210514432,
+  "id_str": "1557445923210514432",
+  "text": "Mi chiedo se userò mai il pulsante Modifica",
+  "edit_history": {
+    "initial_tweet_id": "1557433858676740098",
+    "edit_tweet_ids": ["1557433858676740098", "1557445923210514432"]
+  },
+  "edit_controls": {
+    "editable_until_ms": 1660155761384,
+    "edits_remaining": 4
+  },
+  "editable": true
+}
+```
+
+**Supporto per la conformità**
+
+Il [Compliance Firehose](/it/x-api/enterprise-gnip-2.0/fundamentals/firehouse) e l’endpoint v2 di [conformità batch](/it/x-api/compliance/batch-compliance/introduction) sono stati entrambi aggiornati per supportare le modifiche ai Post:
+
+È stato aggiunto un nuovo tipo di evento "tweet\_edit" al Compliance Firehose.
+
+```
+{
+  "tweet_edit": {
+    "id": <tweetId>,
+    "initial_tweet_id": <tweetId>,
+    "edit_tweet_ids": [<tweetId1>, <tweetId2>, <tweetId3> ...],
+    "timestamp_ms": "<timestampMsStr>"
+  }
+}
+```

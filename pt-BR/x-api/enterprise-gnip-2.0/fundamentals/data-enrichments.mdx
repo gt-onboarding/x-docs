@@ -1,0 +1,306 @@
+---
+title: "Enriquecimento de dados: Enterprise"
+---
+
+<div id="introduction">
+  ## Introdução
+</div>
+
+`Enterprise`
+
+Os enriquecimentos Enterprise são metadados adicionais incluídos no payload de resposta de algumas APIs de dados. Eles estão disponíveis apenas em planos de assinatura pagos.
+
+A tabela abaixo oferece uma breve descrição de cada enriquecimento:
+
+| Enriquecimento: | Descrição: |
+| :--- | :--- |
+| URLs expandidas e aprimoradas | Expande automaticamente URLs encurtadas (por exemplo, Bitly) incluídas no corpo de um Post e fornece metadados de título e descrição em HTML da página de destino. |
+| Objeto de regras correspondentes | Indica quais regras corresponderam aos Posts recebidos. O objeto retorna a tag da regra e o ID da regra no objeto de resposta. |
+| Metadados de enquete | Indica a presença de uma enquete em um Post, inclui a lista de opções da enquete e informa tanto a duração quanto o horário de expiração da enquete. |
+| Geolocalização de perfil | Dados de localização derivados do perfil do usuário, incluindo as coordenadas \[longitude, latitude] (quando possível) e metadados de lugar relacionados. |
+
+<div id="expanded-and-enhanced-urls">
+  ### URLs expandidas e aprimoradas
+</div>
+
+O enriquecimento de URL expandida e aprimorada expande automaticamente URLs encurtadas incluídas no corpo de um Post e inclui a URL resultante como metadado no payload. Além disso, esse enriquecimento também fornece metadados da página HTML a partir do `title` e `description` da página de destino.
+
+**Detalhes importantes:**
+
+- Para resolver um link encurtado, nosso sistema envia solicitações HTTP HEAD para a URL fornecida e segue quaisquer redirecionamentos até chegar à URL final. Essa URL final (NÃO o conteúdo da própria página) é então incluída no payload da resposta.
+
+- O enriquecimento de URL adiciona entre 5 e 10 segundos de latência a fluxos em tempo real
+
+- Para solicitações feitas à API de Busca em todo o arquivo, os dados de enriquecimento de URL expandida estão disponíveis apenas para Posts de até 13 meses.
+
+- O enriquecimento de URL não está disponível para links de Post (incluindo Tweets com citação), links de Moments e links de perfil incluídos em um Post. 
+   
+
+<div id="post-payload">
+  #### Payload de Post
+</div>
+
+O enriquecimento de URL expandida e aprimorada pode ser encontrado dentro do objeto `entities` do payload do Post — especificamente no objeto `entities.urls.unwound`. Ele fornece os seguintes campos de metadados:
+
+- URL expandida — `unwound.url`
+- Status HTTP expandido — `unwound.status`
+- Título HTML da URL expandida — limite de 300 caracteres — `unwound.title`
+- Descrição HTML da URL expandida — limite de 1000 caracteres — `unwound.description`
+
+**Este é um exemplo de um [objeto entities](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#x-entities) com o enriquecimento de URL:**
+
+```
+"entities": {
+    "hashtags": [
+
+    ],
+    "urls": [
+      {
+        "url": "https:\/\/t.co\/HkTkwFq8UT",
+        "expanded_url": "http:\/\/bit.ly\/2wYTb9y",
+        "display_url": "bit.ly\/2wYTb9y",
+        "unwound": {
+          "url": "https:\/\/www.forbes.com\/sites\/laurencebradford\/2016\/12\/08\/11-websites-to-learn-to-code-for-free-in-2017\/",
+          "status": 200,
+          "title": "11 Websites To Learn To Code For Free In 2017",
+          "description": "It\u2019s totally possible to learn to code for free...but what are the best resources to achieve that? Here are 11 websites where you can get started."
+        },
+        "indices": [
+          10,
+          33
+        ]
+      }
+    ],
+    "user_mentions": [
+
+    ],
+    "symbols": [
+
+    ]
+  },
+```
+
+\*\*Este é um exemplo de um objeto entities contendo um link de Post que não está enriquecido:
+\*\*
+
+```
+"entities": {
+  "urls": [{
+    "url": "https://t.co/SywNbZdDmb",
+    "expanded_url": "https://x.com/XDevelopers/status/1050118621198921728",
+    "display_url": "x.com/XDevelopers/s…",
+     "indices": [
+        142,
+        165
+     ]
+   }
+  ]
+}
+```
+
+<div id="filtering-operators">
+  #### Operadores de filtragem
+</div>
+
+Os operadores a seguir filtram e fazem correspondência tokenizada nos campos relacionados dos metadados de URL:
+
+**url:**
+
+- Exemplo: “url:tennis”
+- Correspondência tokenizada em qualquer URL expandida que inclua a palavra tennis
+- Também pode ser usado como filtro para incluir ou excluir links de um site específico, como em “url:npr.org”
+
+**url\_title:**
+
+- Exemplo: “url\_title:tennis”
+- Correspondência tokenizada em qualquer título HTML de URL expandida que inclua a palavra tennis
+- Faz correspondência com os dados do título HTML incluídos no payload, limitado a 300 caracteres.
+
+**url\_description:**
+
+- Exemplo: “url\_description:tennis”
+- Correspondência tokenizada em qualquer descrição HTML de URL expandida que inclua a palavra tennis
+- Faz correspondência com a descrição HTML incluída no payload, limitada a 1000 caracteres.
+   
+
+<div id="http-status-codes">
+  #### Códigos de status HTTP
+</div>
+
+O enriquecimento de URL expandida também fornece o código de status HTTP para a URL final que estamos tentando desdobrar. Em situações normais, será 200. Outros códigos da série 400 indicam problemas ao resolver a URL.
+
+Vários códigos de status podem ser retornados ao tentar desdobrar uma URL. Durante esse processo, se houver um redirecionamento, iremos segui-los indefinidamente até que:
+
+- Alcancemos um código da série 200 (sucesso)
+- Alcancemos um código de uma série que não seja de redirecionamento (falha)
+- Ocorra um timeout porque a URL final não pôde ser resolvida em um tempo razoável (retorna 408 — timeout)
+- Ocorra algum tipo de exceção
+   
+
+Se uma exceção ocorrer, usamos o seguinte mapeamento entre motivos e códigos de status retornados:
+
+| Motivo | Código de status retornado |
+| :--- | :--- |
+| Exceções de SSL | 403 (Forbidden) |
+| Desdobramento não permitido pela URL | 405 |
+| Timeout de socket | 408 (Timeout) |
+| Exceção de host desconhecido | 404 (Not Found) |
+| Operação não suportada | 404 (Not Found) |
+| Exceção de conexão | 404 (Not Found) |
+| Argumento inválido | 400 (Bad Request) |
+| Todo o restante | 400 (Bad Request) |
+
+<div id="matching-rules">
+  ### Regras de correspondência
+</div>
+
+O enriquecimento de regras de correspondência é um objeto de metadados que indica qual regra ou quais regras corresponderam aos Posts recebidos. Isso é mais comumente usado com o fluxo PowerTrack.
+
+A correspondência é feita por meio de correspondência exata dos termos contidos em uma regra, examinando o conteúdo da atividade com e sem pontuação. A correspondência não diferencia maiúsculas de minúsculas. Quando for identificado que o conteúdo contém todos os termos definidos na regra, haverá, no nível raiz, um objeto matching\_rules indicando a(s) regra(s) que levaram à correspondência.
+
+**PowerTrack**
+
+Posts entregues por meio do PowerTrack (tempo real, Replay e Histórico) conterão o objeto matching\_rules como a seguir:
+
+```
+"matching_rules": [{
+        "tag": null,
+        "id": 907728589029646336,
+        "id_str": "907728589029646336"
+    }]
+```
+
+No PowerTrack, o objeto `matching_rules` reflete _todas_ as regras que corresponderam ao resultado em questão. Em outras palavras, se mais de uma regra corresponder a um Post específico, ele será entregue apenas uma vez, mas o elemento `matching_rules` conterá todas as regras que corresponderam.
+
+<div id="poll-metadata">
+  ### Metadados de enquete
+</div>
+
+Os metadados de enquete são um enriquecimento gratuito disponível em todos os produtos (APIs em tempo real e históricas) em cargas no formato nativo enriquecido. Eles indicam a presença de uma enquete em um Post, incluem a lista de opções e informam tanto a duração quanto o horário de expiração da enquete. Esse enriquecimento facilita o reconhecimento da presença de uma enquete e permite a renderização apropriada de um Post com enquete para exibição.
+
+<div id="important-details">
+  ##### Detalhes importantes:
+</div>
+
+- Disponível em todas as APIs empresariais (PowerTrack, Replay, Search, Historical PowerTrack)
+  - _Observação:_ Para Replay e Historical PowerTrack, esses metadados ficaram disponíveis pela primeira vez em 22/02/2017.
+- Não inclui informações de voto nem resultados de enquetes
+- No momento, não há suporte a filtros/operadores
+- Disponível apenas no **formato nativo enriquecido**
+  - O formato nativo enriquecido é uma configuração controlada pelo usuário que pode ser alterada a qualquer momento pelo Console: _Select a Product (PowerTrack, Replay, Search) > Settings tab > Output Format (Leave data in its original format)_
+
+<div id="post-payload">
+  #### Payload do Post
+</div>
+
+Um Post com enquete conterá os seguintes metadados no objeto "entities.polls" do payload:
+
+- Um array "options" com até quatro opções que incluem a posição (1–4) e o texto da opção
+- Data de expiração da enquete
+- Duração da enquete
+
+Consulte o payload de exemplo abaixo para mais detalhes.
+
+<div id="sample-payload">
+  #### Exemplo de payload
+</div>
+
+Abaixo está um trecho do payload no formato nativo enriquecido, destacando os metadados de enquete adicionados:
+
+```json
+"entities":{
+          "hashtags":[],
+          "urls":[],
+          "user_mentions":[],
+          "symbols":[],
+          "polls":[
+             {
+                "options":[
+                   {
+                      "position":1,
+                      "text":"The better answer"
+                   },
+                   {
+                      "position":2,
+                      "text":"The best answer"
+                   }
+                ],
+                "end_datetime":"Sat Feb 04 15:33:11 +0000 2017",
+                "duration_minutes":1440
+             }
+          ]
+       },
+```
+
+<div id="profile-geo">
+  ### Geolocalização do Perfil
+</div>
+
+<div id="introduction">
+  #### Introdução
+</div>
+
+Muitos perfis de usuários do X incluem informações públicas de localização fornecidas pelo próprio usuário. Esses dados são retornados como uma string comum em user.location (consulte o [dicionário de dados do objeto User](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)). O enriquecimento Profile Geo adiciona geodados estruturados relevantes ao valor de user.location, geocodificando e normalizando as strings de localização quando possível. Tanto as coordenadas de latitude/longitude quanto os metadados de locais relacionados são adicionados a user.derived.locations somente quando incluídos como parte do payload do Post em produtos de API empresariais. Esses dados estão disponíveis ao usar [o formato nativo enriquecido](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) e podem ser filtrados com uma combinação de [regras do PowerTrack](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators).
+
+<Note>
+  **Observação:** Alguns dos geodados de suporte usados para criar o enriquecimento Profile Geo vêm do GeoNames.org e são usados pelo X sob a [Licença Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/us/legalcode).
+</Note>
+
+Os dados do Profile Geo serão incluídos nas APIs PowerTrack, Replay, Volume Stream, Search e Historical PowerTrack do X.
+
+<div id="profile-geo-data">
+  #### Dados de geolocalização do perfil
+</div>
+
+| Nome do campo nativo enriquecido | Valor de exemplo | Descrição |
+| :--- | :--- | :--- |
+| user.derived.locations.country | United States | O país de origem do usuário que criou o Post. |
+| user.derived.locations.country\_code | US  | Um código de país ISO-3166 de duas letras que corresponde ao país de origem do usuário que criou o Post. |
+| user.derived.locations.locality | Birmingham | A localidade (geralmente cidade) de origem do usuário que criou o Post. |
+| user.derived.locations.region | Alabama | A região (geralmente estado/província) de origem do usuário que criou o Post. |
+| user.derived.locations.sub\_region | Jefferson County | A sub-região (geralmente condado) de origem do usuário que criou o Post. |
+| user.derived.locations.full\_name | Birmingham, Alabama, United States | O nome completo (excluindo a sub-região) do local de origem do usuário que criou o Post. |
+| user.derived.locations.geo | See Below | Uma matriz que inclui um valor de latitude/longitude para uma coordenada que corresponde à menor granularidade da localização de origem do usuário que criou o Post. |
+
+As APIs Historical PowerTrack, Search e PowerTrack oferecem suporte à filtragem com base em dados de geolocalização de perfil. Consulte a documentação do produto apropriado para mais detalhes sobre quais operadores estão disponíveis para filtrar dados de geolocalização de perfil.
+
+<div id="sample-payload">
+  #### Exemplo de payload
+</div>
+
+```
+{
+    "user": {
+        "derived": {
+            "locations": \[
+                {
+                    "country": "United States",
+                    "country_code": "US",
+                    "locality": "Birmingham",
+                    "region": "Alabama",
+                    "sub_region": "Jefferson County",
+                    "full_name": "Birmingham, Alabama, United States",
+                    "geo": {
+                        "coordinates": \[
+                            -86.80249,
+                            33.52066
+                        \],
+                        "type": "point"
+                    }
+                }
+            \]
+        }
+    }
+}
+```
+
+<div id="limitations">
+  #### Limitações
+</div>
+
+- O enriquecimento Profile Geo tenta determinar a melhor opção para o lugar geográfico descrito na string de localização do perfil. O resultado pode não ser preciso em todos os casos devido a fatores como vários lugares com nomes semelhantes ou nomes ambíguos.
+- Se não houver valor no campo de localização do perfil de um usuário (actor.location), não tentaremos fazer uma classificação.
+- Nível de precisão: Se um enriquecimento Profile Geo só puder ser determinado com confiança no nível de país ou região, geografias de nível inferior, como subRegion e localidade, serão omitidas do payload.
+- O enriquecimento Profile Geo fornece coordenadas de latitude/longitude (um único ponto) que correspondem ao nível de precisão dos resultados do enriquecimento. Essas coordenadas representam o centro geográfico do local resultante do enriquecimento. Por exemplo, se o nível de precisão for país, então essas coordenadas serão definidas para o centro geográfico desse país.
+- Os operadores do PowerTrack fornecidos para propriedades de endereço (localidade/região/país/código do país) são intencionalmente granulares para permitir muitas combinações de regras. Ao tentar segmentar um local específico que compartilha o nome com outro local, considere combinar regras de endereço. Por exemplo, o seguinte evita corresponder a “San Francisco, Philippines”: profile\_locality:"San Francisco" profile\_region:California. Ao criar regras que segmentam campos individuais de Profile Geo, tenha em mente que cada aumento de granularidade limitará os resultados exibidos. Em alguns casos, ao analisar dados de uma cidade, pode ser preferível usar apenas uma regra de região quando houver sobreposição significativa com a cidade; por exemplo, a cidade de Zurique, Suíça, pode ser segmentada de forma eficaz junto com áreas ao redor com profile\_region:"Zurich".
+- Uso com posts com geografia nativa: O enriquecimento Profile Geo fornece um tipo alternativo de geografia para um post, diferente do valor de geografia nativo no payload. Esses dois tipos de geografia podem ser combinados para capturar todos os possíveis posts relacionados a uma determinada área (com base nos geodados disponíveis), embora não sejam conceitualmente equivalentes.

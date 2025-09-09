@@ -1,0 +1,61 @@
+---
+title: Paginación
+---
+
+<div id="introduction">
+  ## Introducción
+</div>
+
+La paginación es una funcionalidad de los endpoints de la API de X v2 que devuelve más resultados de los que pueden incluirse en una única respuesta. Cuando eso sucede, los datos se devuelven en una serie de “páginas”. La paginación hace referencia a los métodos para solicitar de forma programática todas las páginas y recuperar el conjunto completo de resultados. No todos los endpoints de la API admiten o requieren paginación, pero suele utilizarse cuando los conjuntos de resultados son grandes.
+
+<div id="use-cases-for-pagination">
+  ### Casos de uso de la paginación
+</div>
+
+**Para obtener todos los resultados de una solicitud:** Usa la paginación para recibir todos los datos relevantes asociados a una solicitud y sus parámetros. La paginación es necesaria cuando hay más resultados coincidentes que el valor de `max_results` de la solicitud. Repetir solicitudes con tokens de paginación te permite obtener todos los resultados. Cuando la respuesta no incluya un `next_token`, puede asumirse que ya se recorrieron todas las páginas de resultados. No utilices la paginación para sondeo. Para obtener los resultados más recientes desde una solicitud anterior, consulta el sondeo con `since_id`.
+
+**Para desplazarte por los resultados de una solicitud:** La paginación ofrece opciones direccionales para navegar por los resultados de una solicitud, usando los valores `next_token` y `previous_token` de las respuestas. Estos tokens pueden establecerse como `pagination_token` en la siguiente solicitud para ir a la página siguiente o anterior de resultados.
+
+<div id="pagination-token-definitions">
+  ### Definiciones de tokens de paginación
+</div>
+
+- `next_token` - Cadena opaca devuelta dentro del objeto meta en las respuestas de endpoints que admiten paginación. Indica que hay más resultados disponibles y puede usarse como parámetro `pagination_token` en la siguiente solicitud para devolver la página siguiente de resultados. La última página de resultados no incluirá un `next_token`.
+  - `previous_token` - Cadena opaca devuelta dentro del objeto meta en las respuestas de endpoints que admiten paginación. Indica que hay una página anterior de resultados disponible y puede establecerse como parámetro `pagination_token` en la siguiente solicitud para devolver la página anterior de resultados.
+  - `pagination_token` - Parámetro utilizado en las solicitudes de paginación. Establézcalo con el valor de `next_token` para la siguiente página de resultados. Establézcalo con el valor de `previous_token` para la página anterior de resultados.
+
+<div id="fundamentals-of-pagination">
+  ### Fundamentos de la paginación
+</div>
+
+- Los endpoints que usan paginación responderán a una solicitud inicial con la primera página de resultados y proporcionarán un `next_token` dentro del objeto meta en la respuesta JSON si hay páginas adicionales disponibles. Para recibir todos los resultados, repita este proceso hasta que la respuesta ya no incluya un `next_token`.
+  - Los resultados se devuelven en orden cronológico inverso. Esto se cumple dentro de cada página y también entre páginas:
+    - La primera publicación en la primera respuesta será la más reciente.
+    - La última publicación en la última respuesta será la más antigua.
+  - El parámetro de solicitud `max_results` le permite configurar la cantidad de publicaciones devueltas por página de respuesta. Existe un valor predeterminado y un valor máximo para `max_results`.
+  - Toda implementación de paginación implicará extraer tokens del payload de la respuesta, que pueden usarse en solicitudes posteriores.
+  - En algunas circunstancias, puede recibir menos elementos que el valor de `max_results` por página. No suponga que los resultados por página siempre serán iguales al valor del parámetro `max_results`.
+  - Las mejores formas de usar la paginación para obtener resultados completos son mediante lógica de bucle en el código de integración o utilizando una [biblioteca](/es/x-api/tools-and-libraries/overview) compatible con la API de X v2.
+
+<div id="pagination-example">
+  ### Ejemplo de paginación
+</div>
+
+Aquí hay tres páginas de resultados porque `max_results` está configurado en `100`, y hay aproximadamente 295 publicaciones creadas por el ID de usuario `2244994945` (@XDevelopers) entre el 1 de enero de 2019 a las 17:00:00 UTC y el 12 de diciembre a las 00:00:00 UTC. La primera publicación en la primera página (`1337498609819021312`) es la más reciente y la última publicación en la tercera página de resultados (`1082718487011885056`) es la más antigua.
+
+<div id="initial-request">
+  #### Solicitud inicial
+</div>
+
+```bash
+      https://api.x.com/2/users/2244994945/tweets?tweet.fields=created_at&max_results=100&start_time=2019-01-01T17:00:00Z&end_time=2020-12-12T01:00:00Z
+```
+
+<div id="sequence-table">
+  ### Tabla de secuencia
+</div>
+
+|             | **Primera solicitud**                                                                                                                                                                                                                                                                                                                                                       | **Segunda página**                                                                                                                                                                                                                                                                                                                                                                         | **Tercera página**                                                                                                                                                                                                                                                                                                                                                                          | **Cuarta página**                                                                                    |
+|:-------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------|
+| **Parámetros de la solicitud** | - `max_results` = `100`  - `tweet.fields` = `created_at`  - `start_time` = `2019-01-01T17:00:00Z`  - `end_time` = `2020-12-12T01:00:00Z`                                                                                                                                                                                                               | - `max_results` = `100`  - `tweet.fields` = `created_at`  - `start_time` = `2019-01-01T17:00:00Z`  - `end_time` = `2020-12-12T01:00:00Z`  - `pagination_token` = `7140w`                                                                                                                                                             | - `max_results` = `100`  - `tweet.fields` = `created_at`  - `start_time` = `2019-01-01T17:00:00Z`  - `end_time` = `2020-12-12T01:00:00Z`  - `pagination_token` = `7140k9`                                                                                                                                                             | - `max_results` = `100`  - `tweet.fields` = `created_at`  - `start_time` = `2019-01-01T17:00:00Z`  - `end_time` = `2020-12-12T01:00:00Z`  - `pagination_token` = `71408hi`                                   |
+| **Respuesta**          | `json { "data": [ { "created_at": "2020-12-11T20:44:52.000Z", "id": "1337498609819021312", "text": "Gracias a todos los que se conectaron hoy..." }, ... , { "created_at": "2020-05-06T17:24:31.000Z", "id": "1258085245091368960", "text": "Ahora es más fácil entender el impacto de los tuits..." } ], "meta": { "oldest_id": "1258085245091368960", "newest_id": "1337498609819021312", "result_count": 100, "next_token": "7140w" } } ` | `json { "data": [ { "created_at": "2020-04-29T17:01:44.000Z", "id": "1255542797765013504", "text": "Nuestra comunidad de desarrolladores está llena de ideas inspiradoras..." }, ... , { "created_at": "2019-11-21T16:17:23.000Z", "id": "1197549579035496449", "text": "Pronto lanzaremos herramientas en..." } ], "meta": { "oldest_id": "1197549579035496449", "newest_id": "1255542797765013504", "result_count": 100, "next_token": "7140k9", "previous_token": "77qp8" } } ` | `json { "data": [ { "created_at": "2019-11-21T16:17:23.000Z", "id": "1197549578418941952", "text": "Sabemos que algunas personas que reciben un gran volumen de respuestas pueden..." }, ... , { "created_at": "2019-01-08T19:19:37.000Z", "id": "1082718487011885056", "text": "Actualizaciones en las inserciones de Grid..." } ], "meta": { "oldest_id": "1082718487011885056", "newest_id": "1197549578418941952", "result_count": 95, "next_token": "71408hi", "previous_token": "77qplte" } } ` | `json { "meta": { "result_count": 0, "previous_token": "77qpw8l" } } ` || **Acciones para la siguiente solicitud** | Para obtener la página siguiente, tome el valor de `next_token` directamente de la respuesta (`7140w`) y establézcalo como `pagination_token` en la siguiente llamada.                                                                                                                                                          | Para seguir obteniendo todos los resultados: tome el valor de `next_token` directamente de la respuesta (`7140k9`) y establézcalo como `pagination_token` en la siguiente llamada. Para ir a la página anterior: tome el valor de `previous_token` directamente de la respuesta (`77qp8`) y establézcalo como `pagination_token` en la siguiente llamada.             | Para seguir obteniendo todos los resultados: tome el valor de `next_token` directamente de la respuesta (`71408hi`) y establézcalo como `pagination_token` en la siguiente llamada. Para ir a la página anterior: tome el valor de `previous_token` directamente de la respuesta (`77qplte`) y establézcalo como `pagination_token` en la siguiente llamada.             | Tenga en cuenta que no hay `next_token`, lo que indica que se han recibido todos los resultados. Para ir a la página anterior: tome el valor de `previous_token` directamente de la respuesta (`77qpw8l`) y establézcalo como `pagination_token` en la siguiente llamada. |

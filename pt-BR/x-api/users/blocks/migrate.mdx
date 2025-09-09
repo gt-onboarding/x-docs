@@ -1,0 +1,90 @@
+---
+title: Guia de migração
+sidebarTitle: Guia de migração
+---
+
+import { Button } from '/snippets/pt-BR/button.mdx';
+
+<div id="blocks-lookup-standard-v11-compared-to-x-api-v2">
+  ### Consulta de bloqueios: Standard v1.1 em comparação com a API do X v2
+</div>
+
+Se você vem trabalhando com os endpoints padrão v1.1 [GET blocks/ids](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/mute-block-report-users/api-reference/get-blocks-ids) e [GET blocks/list](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/mute-block-report-users/api-reference/get-blocks-list), o objetivo deste guia é ajudá-lo a entender as semelhanças e diferenças entre os endpoints de consulta de bloqueios do padrão v1.1 e da API do X v2.
+
+- **Semelhanças**
+  - Autenticação
+- **Diferenças**
+  - URLs de endpoint
+
+  - Limites de usuários por requisição
+
+  - Requisitos de App e Projeto
+
+  - Formatos de dados de resposta
+
+  - Parâmetros de requisição
+
+<div id="similarities">
+  #### Semelhanças
+</div>
+
+**Autenticação**
+
+Tanto os endpoints de consulta de bloqueios do padrão v1.1 quanto os da API do X v2 usam [OAuth 1.0a User Context](/pt-BR/resources/fundamentals/authentication#oauth-1-0a-2). Portanto, se você já usava um dos endpoints de consulta de bloqueios do padrão v1.1, pode continuar usando o mesmo método de autenticação ao migrar para a versão da API do X v2. 
+
+<div id="differences">
+  #### Diferenças
+</div>
+
+**URLs de endpoint**
+
+- Endpoints padrão v1.1:
+  - GET https://api.x.com/1.1/blocks/ids.json
+    (lista de IDs de usuários bloqueados pelo usuário especificado)
+  - GET https://api.x.com/1.1/blocks/lists.json
+    (lista de usuários bloqueados pelo usuário especificado)
+- Endpoint da API do X v2:
+  - GET https://api.x.com/2/users/:id/blocking
+    (lista de usuários bloqueados pelo ID de usuário especificado)
+     
+
+**Limites de usuários por solicitação**
+
+Os endpoints padrão v1.1 permitem retornar até 5000 usuários por solicitação. Os novos endpoints v2 permitem retornar até 1000 usuários por solicitação. Para retornar os 1000 usuários completos, você precisará passar max\_results=1000 como parâmetro de consulta; em seguida, poderá passar o next\_token retornado no payload da resposta para o parâmetro de consulta pagination\_token na sua próxima solicitação.
+ 
+
+**Requisitos de App e Projeto**
+
+Os endpoints da API do X v2 exigem que você use credenciais de um [App de desenvolvedor](/pt-BR/resources/fundamentals/developer-apps) associado a um [Projeto](/pt-BR/resources/fundamentals/developer-apps) ao autenticar suas solicitações. Todos os endpoints da API do X v1.1 podem usar credenciais de Apps independentes ou de Apps associados a um projeto.
+
+**Formato de dados da resposta**
+
+Uma das maiores diferenças entre as versões de endpoint do v1.1 padrão e da API do X v2 é como você seleciona quais campos retornam no payload.
+
+Nos endpoints padrão, você recebe muitos campos da resposta por padrão e depois tem a opção de usar parâmetros para identificar quais campos ou conjuntos de campos devem retornar no payload.
+
+A versão da API do X v2 entrega apenas os campos id do usuário, name e username por padrão. Para solicitar campos ou objetos adicionais, você precisará usar os parâmetros [fields](/pt-BR/x-api/fundamentals/fields) e [expansions](/pt-BR/x-api/fundamentals/expansions). Quaisquer campos de usuário solicitados a partir desse endpoint retornarão no objeto de usuário principal. Qualquer objeto de Post expandido e seus campos retornarão em um objeto includes dentro da sua resposta. Você pode então correlacionar os objetos expandidos ao objeto de usuário correspondendo os IDs presentes tanto no usuário quanto no objeto de Post expandido. 
+
+Recomendamos que você leia mais sobre esses novos parâmetros em seus respectivos guias, ou consultando nosso guia sobre [como usar fields e expansions](/pt-BR/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions). 
+
+Também preparamos um [guia de migração de formato de dados](/pt-BR/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2) que pode ajudar você a mapear campos do v1.1 padrão para os novos campos do v2. Esse guia também fornecerá o parâmetro específico de expansão e de campo que você precisará passar na sua solicitação v2 para retornar campos específicos. 
+ 
+
+Além das mudanças em como você solicita certos campos, a API do X v2 também está introduzindo novos designs JSON para os objetos retornados pelas APIs, incluindo objetos de [P](/pt-BR/x-api/fundamentals/data-dictionary#tweet)ost e de [user](/pt-BR/x-api/fundamentals/data-dictionary#user).
+
+- No nível raiz do JSON, os endpoints padrão retornam objetos de Post em um array statuses, enquanto a API do X v2 retorna um array data. 
+- Em vez de se referir a “statuses” Retweeted e Quoted, o JSON da API do X v2 se refere a Tweets Retweeted e Quoted. Muitos campos herdados e obsoletos, como contributors e user.translator\_type, estão sendo removidos. 
+- Em vez de usar favorites (no objeto Post) e favourites (no objeto user), a API do X v2 usa o termo like. 
+- O X está adotando a convenção de que valores JSON sem conteúdo (por exemplo, null) não são escritos no payload. Atributos de Post e user só são incluídos se tiverem valores não nulos. 
+   
+
+Também introduzimos um novo conjunto de campos no [objeto Post](/pt-BR/x-api/fundamentals/data-dictionary#tweet), incluindo:
+
+- Um campo [conversation\_id](/pt-BR/x-api/fundamentals/conversation-id)
+- Dois novos campos de [annotations](/pt-BR/x-api/fundamentals/post-annotations), incluindo context e entities
+- Vários novos campos de [metrics](/pt-BR/x-api/fundamentals/metrics) 
+- Um novo campo reply\_setting, que mostra quem pode responder a um determinado Post
+
+**Parâmetros de solicitação**
+
+Os seguintes parâmetros de solicitação padrão da v1.1 aceitavam dois parâmetros de consulta (user\_id ou screen\_name). A API do X v2 aceita apenas o ID numérico do usuário, que deve ser passado como parte do caminho do endpoint.

@@ -1,0 +1,92 @@
+---
+title: "필드"
+---
+
+X API v2 엔드포인트에는 엔드포인트 응답의 각 객체에서 필요한 데이터만 선택할 수 있게 해주는 매개변수 집합인 ‘필드’가 제공됩니다.
+
+기본적으로 Post 객체는 `id`와 `text` 필드만 반환하며, 2022년 9월 29일 이후 생성된 Post의 경우 `edit_history_tweet_ids` 필드도 반환합니다. Post의 생성 날짜나 공개 지표가 필요하다면 `tweet.fields` 매개변수를 사용해 요청해야 합니다. 이를 통해 사용 사례에 따라 필요한 필드만 요청하는 높은 수준의 커스터마이징이 가능합니다. 예를 들어, 요청에 다음 쿼리 문자열을 포함할 수 있습니다:
+
+`?tweet.fields=created_at,public_metrics`
+
+각 객체는 해당 객체에 연결된 필드를 명시적으로 요청하기 위한 자체 매개변수를 가집니다. 현재 사용 가능한 필드 매개변수는 다음과 같습니다:
+
+- [Post](/ko/x-api/fundamentals/data-dictionary#tweet) → `tweet.fields`
+- [User](/ko/x-api/fundamentals/data-dictionary#user) → `user.fields`
+- [Media](/ko/x-api/fundamentals/data-dictionary#media) → `media.fields`
+- [Poll](/ko/x-api/fundamentals/data-dictionary#poll) → `poll.fields`
+- [Place](/ko/x-api/fundamentals/data-dictionary#place) → `place.fields`
+
+특정 객체를 주로 반환하는 엔드포인트를 사용할 때는 해당하는 필드 매개변수를 사용하고, 원하는 필드를 쉼표로 구분한 목록으로 지정하여 응답에서 해당 필드를 가져오면 됩니다.
+
+<div id="example">
+  ### 예시
+</div>
+
+[GET /tweets/search/recent](/ko/x-api/posts/recent-search) 엔드포인트를 사용 중이라면 응답에는 주로 [트윗 객체](/ko/x-api/fundamentals/data-dictionary#tweet)가 포함됩니다. fields 매개변수를 지정하지 않으면 기본값인 `id`와 `text`만 반환됩니다. 응답에 포함된 게시물의 공개 지표를 받고 싶다면 요청에 `tweet.fields` 매개변수를 포함하고 값으로 `public_metrics`를 설정하세요.
+
+요청은 아래와 같습니다. 이 요청을 사용하려면 `$BEARER_TOKEN`을 [Bearer Token](/ko/resources/fundamentals/authentication)으로 바꿔 명령줄 도구로 전송하세요.
+
+```bash
+curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+이 요청을 터미널에서 전송하면 반환되는 각 게시물에는 다음 필드가 포함됩니다.
+
+```
+{
+   "data": {
+       "id": "1263150595717730305",
+       "public_metrics": {
+           "retweet_count": 12,
+           "reply_count": 14,
+           "like_count": 49,
+           "quote_count": 7
+       },
+       "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER"
+   }
+}
+```
+
+엔드포인트가 반환하는 기본 객체와 연관된 보조 객체에서 특정 필드 집합을 가져오려면 추가로 expansions 매개변수를 포함해야 합니다. 예를 들어 앞서와 같은 GET search/tweets/recent 엔드포인트를 사용하면서 작성자의 프로필 설명을 가져오려면 요청에 `expansions=author_id`와 `user.fields=description`을 전달해야 합니다. 예시는 다음과 같습니다. 이 요청을 시도하려면 명령줄 도구에 붙여넣기 전에 `$BEARER_TOKEN`을 [Bearer Token](/ko/resources/fundamentals/authentication)으로 바꾸세요.
+
+```bash
+  curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics&expansions=author_id&user.fields=description' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+요청에 이렇게 지정하면 반환되는 각 게시물에는 다음 필드가 포함되며, 연관된 [사용자 객체](/ko/x-api/fundamentals/data-dictionary#user)의 기본 필드와 지정한 필드가 `includes`에 함께 반환됩니다. 사용자 객체는 `tweet.author_id`와 `users.id` 필드를 매칭하여 해당 게시물과 다시 매핑할 수 있습니다.
+
+```
+{
+  "data": [
+    {
+      "id": "1263150595717730305",
+      "author_id": "2244994945",
+      "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 13,
+        "like_count": 51,
+        "quote_count": 7
+      }
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "username": "TwitterDev",
+        "description": "The voice of the #TwitterDev team and your official source for updates, news, and events, related to the #TwitterAPI.",
+        "name": "Twitter Dev"
+      }
+    ]
+  }
+}
+```
+
+특정 하위 필드(예: `public_metrics.retweet_count`)만을 별도로 요청할 수는 없습니다. 최상위 필드(`public_metrics`)를 지정하면 모든 하위 필드가 함께 반환됩니다. 각 엔드포인트의 API 참고 문서의 매개변수 표에 요청 가능한 모든 필드를 나열해 두었습니다. 
+
+필드의 전체 목록은 [객체 모델](/ko/x-api/fundamentals/data-dictionary#tweet)에 나와 있습니다. 해당 엔드포인트의 기본 리소스가 아닌 객체의 필드를 요청하려면, 필드와 함께 [expansions](/ko/x-api/fundamentals/expansions) 매개변수를 사용하십시오.

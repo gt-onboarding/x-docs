@@ -1,0 +1,166 @@
+---
+title: Obtention de jetons d’accès via le flux OAuth à 3 étapes
+sidebarTitle: Jetons d’accès utilisateur (flux OAuth à 3 étapes)
+---
+
+import { Button } from "/snippets/fr/button.mdx";
+
+<div id="obtaining-access-tokens-using-3-legged-oauth-flow">
+  ### Obtention de jetons d’accès via le flux OAuth à 3 volets
+</div>
+
+Pour effectuer des actions au nom d’un autre utilisateur, vous devez obtenir ses jetons d’accès. Les jetons d’accès indiquent le compte X pour le compte duquel la requête est effectuée ; pour que vous puissiez les obtenir, l’utilisateur doit d’abord vous accorder l’accès. Ces jetons n’expirent pas, mais peuvent être révoqués par l’utilisateur à tout moment.
+
+X vous permet d’obtenir des jetons d’accès utilisateur via le flux OAuth à 3 volets, qui permet à votre application d’obtenir un **jeton d’accès** et un secret de jeton d’accès en redirigeant un utilisateur vers X et en lui faisant autoriser votre application. Ce flux est presque identique à celui décrit dans [implémentation de Se connecter avec X](/fr/resources/fundamentals/authentication/guides/log-in-with-x), à deux exceptions près :
+
+- Le point de terminaison [GET oauth/authorize](/fr/resources/fundamentals/authentication/api-reference#get-oauth-authorize) est utilisé au lieu de [GET oauth/authenticate](/fr/resources/fundamentals/authentication/api-reference#get-oauth-authenticate).
+- L’utilisateur sera **toujours** invité à autoriser l’accès à votre application, même si l’accès a déjà été accordé.
+   
+
+Avant de commencer, vous devez vérifier les autorisations de votre [application](/fr/resources/fundamentals/developer-apps) et connaître les clés consommateur et l’URL de rappel. Si vous n’avez pas d’URL de rappel ou d’interface publique accessible, envisagez d’utiliser l’[autorisation par code PIN](/fr/resources/fundamentals/authentication/oauth-1-0a/pin-based-oauth), destinée aux applications qui ne peuvent pas accéder à un navigateur web ni l’intégrer pour rediriger l’utilisateur après l’autorisation. 
+
+Les états possibles de l’authentification à 3 volets sont illustrés dans le logigramme suivant :
+
+![](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/docs/obtaining-access-tokens.png.twimg.1920.png)
+
+<div id="overview-of-the-process">
+  #### Vue d’ensemble du processus
+</div>
+
+À un niveau général, le processus OAuth à 3 étapes va :
+
+1. Créer une requête pour qu’une application consommatrice obtienne un jeton de requête.
+2. Faire authentifier l’utilisateur, puis envoyer à l’application consommatrice un jeton de requête.
+3. Convertir le jeton de requête en un jeton d’accès utilisateur utilisable.
+
+**Clarification de la terminologie**
+
+Dans le guide ci-dessous, vous pouvez voir différents termes renvoyant à la même chose.
+
+**Identifiants client :**
+
+- App Key === API Key === Consumer API Key === Consumer Key === Customer Key === `oauth_consumer_key`
+- App Key Secret === API Secret Key === Consumer Secret === Consumer Key === Customer Key === `oauth_consumer_secret`
+- Callback URL === `oauth_callback`
+   
+
+**Identifiants temporaires :**
+
+- Request Token === `oauth_token`
+- Request Token Secret === `oauth_token_secret`
+- oauth\_verifier
+   
+
+**Identifiants de jeton :**
+
+- Access token === Token === `oauth_token` obtenu
+- Access token secret === Token Secret === `oauth_token_secret` obtenu
+
+<div id="walkthrough-steps">
+  #### Étapes guidées
+</div>
+
+**Étape 1 : [POST oauth/request\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-request-token)**
+
+Créez une requête permettant à une application consommatrice d’obtenir un jeton de requête.
+
+Le seul paramètre spécifique dans cette requête est oauth\_callback, qui doit être une version [encodée en URL](/fr/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) de l’URL vers laquelle vous souhaitez rediriger votre utilisateur une fois l’étape 2 terminée. Les autres paramètres sont ajoutés par le processus de signature OAuth.
+
+Veuillez noter : toute URL de rappel que vous utilisez avec le point de terminaison [POST oauth/request\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-request-token) devra être configurée dans les paramètres de votre [application développeur](/fr/resources/fundamentals/developer-apps), sur la page des détails de l’application du portail développeur.
+ 
+
+**La requête inclut :**
+
+`oauth_callback="https%3A%2F%2FyourCallbackUrl.com"`
+
+`oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w"`
+
+Votre application doit examiner le code d’état HTTP de la réponse. Toute valeur différente de 200 indique un échec. Le corps de la réponse contiendra les paramètres `oauth_token`, `oauth_token_secret` et `oauth_callback_confirmed`. Votre application doit vérifier que `oauth_callback_confirmed` est true et stocker les deux autres valeurs pour les étapes suivantes.
+ 
+
+**La réponse inclut**
+
+`oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0`
+
+`oauth_token_secret=veNRnAWe6inFuo8o2u8SLLZLjolYDmDP7SzL0YfYI`
+
+`oauth_callback_confirmed=true`
+
+**Étape 2 : [GET oauth/authorize](/fr/resources/fundamentals/authentication/api-reference#get-oauth-authorize)**
+
+Faites authentifier l’utilisateur et faites transmettre à l’application consommatrice un jeton de requête.
+ 
+
+**Exemple d’URL vers laquelle rediriger l’utilisateur :**
+
+`https://api.x.com/oauth/authorize?oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0`
+
+Après une authentification réussie, votre `callback_url` recevra une requête contenant les paramètres `oauth_token` et `oauth_verifier`. Votre application doit vérifier que le jeton correspond au jeton de requête reçu à l’étape 1.
+ 
+
+**Requête issue de la redirection du client :**
+
+`https://yourCallbackUrl.com?oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0&oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY`
+
+**Étape 3 : [POST oauth/access\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-access-token)**
+
+Convertissez le jeton de requête en un jeton d’accès exploitable.
+
+Pour convertir le jeton de requête en un jeton d’accès exploitable, votre application doit effectuer une requête vers le point de terminaison [POST oauth/access\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-access-token), contenant la valeur `oauth_verifier` obtenue à l’étape 2. Le jeton de requête est également transmis dans la partie `oauth_token` de l’en-tête, mais cela aura été ajouté par le processus de signature.
+ 
+
+**La requête inclut :**
+
+`POST /oauth/access_token`
+
+`oauth_consumer_key=cChZNFj6T5R0TigYB9yd1w`
+
+`oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0`
+
+`oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY`
+
+Une réponse réussie contient les paramètres `oauth_token` et `oauth_token_secret`. Le jeton et son secret doivent être stockés et utilisés pour de futures requêtes authentifiées vers l’API X. Pour déterminer l’identité de l’utilisateur, utilisez [GET account/verify\_credentials](/fr/resources/fundamentals/authentication/api-reference).
+ 
+
+**La réponse inclut :**
+
+`oauth_token=7588892-kagSNqWge8gB1WwE3plnFsJHAZVfxWD7Vb57p0b4`
+
+`oauth_token_secret=PbKfYqSryyeKDWz4ebtY3o5ogNLG11WJuZBc9fQrQo`
+
+**Utilisation de ces identifiants pour les requêtes OAuth 1.0a (application-utilisateur) requises**
+
+Maintenant que vous avez obtenu les jetons d’accès utilisateur, vous pouvez les utiliser pour accéder à certaines API, telles que [POST statuses/update](/fr/x-api/posts/manage-tweets/introduction), pour créer des Tweets au nom des utilisateurs.
+ 
+
+**La requête inclut :**
+
+`POST statuses/update.json`
+
+`oauth_consumer_key=cChZNFj6T5R0TigYB9yd1w`
+
+`oauth_token=7588892-kagSNqWge8gB1WwE3plnFsJHAZVfxWD7Vb57p0b4`
+
+<div id="sample-use-case">
+  #### Exemple d’utilisation
+</div>
+
+Le parcours standard est web et utilise le flux d’autorisation OAuth à 3 étapes (3-legged). Les captures d’écran présentées ici font partie d’un exemple dont vous pouvez consulter le code source à l’adresse [https://github.com/xdevplatform/twauth-web](https://github.com/xdevplatform/twauth-web).
+
+À un moment donné dans votre application, vous devrez rediriger vers X afin d’autoriser votre application.
+
+<Frame>
+  <img src="/images/twauth-web-2.png" alt="" />
+</Frame>
+
+Lorsque vous redirigez vers X avec le jeton de requête, il sera demandé à l’utilisateur d’autoriser votre application.
+
+<Frame>
+  <img src="/images/twauth-web-3.png" alt="" />
+</Frame>
+
+Une fois l’autorisation accordée, l’utilisateur est redirigé vers l’URL de rappel fournie lors de la génération du jeton de requête. Vous l’utiliserez pour obtenir le jeton d’accès permanent de cet utilisateur et le stocker localement.
+
+<Frame>
+  <img src="/images/twauth-web-4.png" alt="" />
+</Frame>

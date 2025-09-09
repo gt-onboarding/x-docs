@@ -1,0 +1,260 @@
+---
+title: Connexion avec X
+---
+
+import { Button } from "/snippets/fr/button.mdx";
+
+Utilisez Connexion avec X, également appelée Se connecter avec X, pour ajouter un bouton sur votre site ou dans votre application permettant aux utilisateurs de X de bénéficier des avantages d’un compte enregistré en un seul clic. Cela fonctionne sur les sites web, iOS, ainsi que sur les applications mobiles et de bureau.
+
+![Bouton Se connecter avec X](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/auth-docs/sign-in-with-twitter-gray.png.twimg.1920.png)
+
+<div id="features">
+  ## Fonctionnalités
+</div>
+
+- Simplicité d’utilisation - Un nouveau visiteur de votre site n’a qu’à cliquer sur deux boutons pour se connecter pour la première fois.
+- Intégration à X - Le parcours « Se connecter avec X » peut accorder l’autorisation d’utiliser les API X au nom de vos utilisateurs.
+- Fondé sur OAuth - De nombreuses bibliothèques clientes et des exemples de code sont compatibles avec l’API « Se connecter avec X ».
+
+<div id="available-for">
+  ## Disponible pour
+</div>
+
+- Navigateurs - Si vos utilisateurs ont accès à un navigateur, vous pouvez intégrer Se connecter avec X. Découvrez le parcours de connexion via le navigateur.
+- Appareils mobiles - Tout appareil mobile connecté au web peut tirer parti de Se connecter avec X. Découvrez le parcours de connexion sur mobile.
+
+<div id="implementing-log-in-with-x">
+  ## Mettre en œuvre « Se connecter avec X »
+</div>
+
+Les implémentations pour navigateur et web mobile de « Se connecter avec X » sont basées sur OAuth. Cette page présente les requêtes nécessaires pour obtenir un jeton d’accès dans le cadre du flux de connexion.
+
+Pour utiliser le flux « Se connecter avec X », accédez à vos [paramètres d’application X](/fr/resources/fundamentals/developer-apps) et vérifiez que l’option _« Autoriser cette application à être utilisée pour Se connecter avec X ? »_ est activée.
+
+Cette page part du principe que le lecteur sait signer des requêtes à l’aide du protocole OAuth 1.0a. Si vous souhaitez savoir comment signer une requête, consultez la page [Autoriser une requête](/fr/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request).
+
+Si vous souhaitez vérifier la signature des requêtes sur cette page, le secret consommateur utilisé est : L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg. Cette valeur est destinée aux tests et ne fonctionnera pas pour des requêtes réelles.
+
+Les trois étapes pour mettre en œuvre « Se connecter avec X » — obtenir un jeton de requête, rediriger un utilisateur, puis convertir un jeton de requête en jeton d’accès — sont listées ci-dessous.
+
+<Tabs>
+  <Tab title="Step 1">
+    ### Étape 1 : Obtenir un jeton de requête
+
+    Pour démarrer un parcours de connexion, votre [application X](/fr/resources/fundamentals/developer-apps) doit obtenir un jeton de requête en envoyant un message signé à [POST oauth/request\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-request-token). Le seul paramètre spécifique de cette requête est oauth\_callback, qui doit être la version encodée en URL de l’URL vers laquelle vous souhaitez que l’utilisateur soit redirigé lorsqu’il termine l’étape 2. Les autres paramètres sont ajoutés par le processus de signature OAuth.
+
+    <Note>
+      **Remarque :** Toute [URL de rappel](/fr/resources/fundamentals/developer-apps#callback-urls) que vous utilisez avec le point de terminaison [POST oauth/request\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-request-token) doit être enregistrée dans les [paramètres de l’application X](/fr/resources/fundamentals/developer-apps) du [portail développeur](/fr/resources/fundamentals/developer-portal).
+    </Note>
+
+    <Frame>
+      <img src="/images/auth-4.png.twimg.1920.png" alt="" />
+    </Frame>
+
+    **Exemple de requête (l’en-tête Authorization a été renvoyé à la ligne) :**
+
+    ```
+    POST /oauth/request_token HTTP/1.1
+    User-Agent: themattharris' HTTP Client
+    Host: api.x.com
+    Accept: */*
+    Authorization:
+            OAuth oauth_callback="http%3A%2F%2Flocalhost%2Fsign-in-with-twitter%2F",
+                  oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w",
+                  oauth_nonce="ea9ec8429b68d6b77cd5600adbbb0456",
+                  oauth_signature="F1Li3tvehgcraF8DMJ7OyxO4w9Y%3D",
+                  oauth_signature_method="HMAC-SHA1",
+                  oauth_timestamp="1318467427",
+                  oauth_version="1.0"
+    ```
+
+    Votre application doit vérifier le code d’état HTTP de la réponse. Toute valeur autre que 200 indique un échec. Le corps de la réponse contient les paramètres oauth\_token, oauth\_token\_secret et oauth\_callback\_confirmed. Votre application doit vérifier que oauth\_callback\_confirmed vaut true et stocker les deux autres valeurs pour les étapes suivantes.
+
+    **Exemple de réponse (le corps de la réponse a été renvoyé à la ligne) :**
+
+    ```
+    HTTP/1.1 200 OK
+    Date: Thu, 13 Oct 2011 00:57:06 GMT
+    Status: 200 OK
+    Content-Type: text/html; charset=utf-8
+    Content-Length: 146
+    Pragma: no-cache
+    Expires: Tue, 31 Mar 1981 05:00:00 GMT
+    Cache-Control: no-cache, no-store, must-revalidate, pre-check=0, post-check=0
+    Vary: Accept-Encoding
+    Server: tfe
+
+    oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0&
+    oauth_token_secret=veNRnAWe6inFuo8o2u8SLLZLjolYDmDP7SzL0YfYI&
+    oauth_callback_confirmed=true
+
+    ```
+  </Tab>
+
+  <Tab title="Step 2">
+    ### Étape 2 : Rediriger l’utilisateur
+
+    L’étape suivante consiste à rediriger l’utilisateur vers X afin qu’il puisse terminer le parcours approprié, comme décrit ci-dessous dans la section Parcours de connexion via le navigateur. Redirigez l’utilisateur vers [GET oauth/authenticate](/fr/resources/fundamentals/authentication/api-reference#get-oauth-authenticate), et transmettez le jeton de requête obtenu à l’étape 1 en tant que paramètre oauth\_token.
+
+    La manière la plus fluide pour un site web de mettre ceci en œuvre consiste à renvoyer une redirection HTTP 302 en réponse à la requête initiale « Se connecter ». Les applications mobiles et desktop doivent ouvrir une nouvelle fenêtre de navigateur ou accéder à l’URL via une webview intégrée.
+
+    **Exemple d’URL de redirection :**
+
+    https://api.x.com/oauth/authenticate?oauth\_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0
+
+    Le point de terminaison de connexion se comportera de l’une des trois manières suivantes selon l’état de l’utilisateur :
+
+    1. **Connecté et ayant déjà approuvé** : Si l’utilisateur est connecté sur x.com et a déjà approuvé l’application appelante, il sera immédiatement authentifié et renvoyé vers l’URL de rappel avec un jeton de requête OAuth valide. La redirection vers x.com n’est pas perceptible pour l’utilisateur.
+    2. **Connecté mais non approuvé** : Si l’utilisateur est connecté à x.com mais n’a pas approuvé l’application appelante, une demande d’autorisation pour partager l’accès avec l’application sera affichée. Après acceptation, l’utilisateur sera redirigé vers l’URL de rappel avec un jeton de requête OAuth valide.
+    3. **Non connecté** : Si l’utilisateur n’est pas connecté sur x.com, il lui sera demandé de saisir ses identifiants et d’accorder à l’application l’accès à ses informations sur le même écran. Une fois connecté, l’utilisateur sera renvoyé vers l’URL de rappel avec un jeton de requête OAuth valide.
+
+    Après une authentification réussie, votre callback\_url recevra une requête contenant les paramètres oauth\_token et oauth\_verifier. Votre application doit vérifier que le jeton correspond au jeton de requête reçu à l’étape 1.
+
+    **Requête issue de la redirection du client (paramètres de chaîne de requête encapsulés) :**
+
+    ```
+    GET /sign-in-with-twitter/?
+            oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0&
+            oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY HTTP/1.1
+    Host: localhost
+    User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/535.5 (KHTML, like Gecko) Chrome/16.0.891.1 Safari/535.5
+    Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+    Referer: http://localhost/sign-in-with-twitter/
+    Accept-Encoding: gzip,deflate,sdch
+    Accept-Language: en-US,en;q=0.8
+    Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.3
+    ```
+  </Tab>
+
+  <Tab title="Step 3">
+    ### Étape 3 : conversion du jeton de requête en jeton d’accès
+
+    Pour convertir le jeton de requête en un jeton d’accès utilisable, votre application doit envoyer une requête au point de terminaison [POST oauth/access\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth-access-token), contenant la valeur oauth\_verifier obtenue à l’étape 2. Le jeton de requête est également transmis dans le champ oauth\_token de l’en-tête, mais celui-ci aura été ajouté par le processus de signature.
+
+    **Exemple de requête (en-tête Authorization replié) :**
+
+    ```
+    POST /oauth/access_token HTTP/1.1
+    User-Agent: themattharris' HTTP Client
+    Host: api.x.com
+    Accept: */*
+    Authorization: OAuth oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w",
+                          oauth_nonce="a9900fe68e2573b27a37f10fbad6a755",
+                          oauth_signature="39cipBtIOHEEnybAR4sATQTpl2I%3D",
+                          oauth_signature_method="HMAC-SHA1",
+                          oauth_timestamp="1318467427",
+                          oauth_token="NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0",
+                          oauth_version="1.0"
+    Content-Length: 57
+    Content-Type: application/x-www-form-urlencoded
+
+    oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY
+    ```
+
+    Une réponse réussie contient les paramètres oauth\_token et oauth\_token\_secret. Le jeton et son secret doivent être stockés et utilisés pour de futures requêtes authentifiées vers l’API X. Pour déterminer l’identité de l’utilisateur, utilisez [GET account/verify\_credentials](https://dev.x.com/rest/reference/get/account/verify_credentials).
+
+    **Exemple de réponse (corps de la réponse replié) :**
+
+    ```
+    HTTP/1.1 200 OK
+    Date: Thu, 13 Oct 2011 00:57:08 GMT
+    Status: 200 OK
+    Content-Type: text/html; charset=utf-8
+    Content-Length: 157
+    Pragma: no-cache
+    Expires: Tue, 31 Mar 1981 05:00:00 GMT
+    Cache-Control: no-cache, no-store, must-revalidate, pre-check=0, post-check=0
+    Vary: Accept-Encoding
+    Server: tfe
+
+    oauth_token=7588892-kagSNqWge8gB1WwE3plnFsJHAZVfxWD7Vb57p0b4&
+    oauth_token_secret=PbKfYqSryyeKDWz4ebtY3o5ogNLG11WJuZBc9fQrQo
+    ```
+  </Tab>
+</Tabs>
+
+<Tabs>
+  <Tab title="Ressources supplémentaires">
+    ### Ressources pour « Se connecter avec X »
+
+    #### Bibliothèques clientes
+
+    Les bibliothèques clientes répertoriées dans [X libraries](/fr/resources/tools-and-libraries) vous aideront à implémenter « Se connecter avec X ». Utilisez l’endpoint /oauth/authenticate, comme décrit aux étapes précédentes.
+
+    #### Boutons
+
+    X préfère que votre application utilise les boutons suivants pour une image de marque cohérente. Enregistrez ces images et hébergez-les sur vos propres serveurs.
+
+    Se connecter avec X (style bouton) :
+
+    <Frame>
+      <img src="/images/sign-in-with-twitter.png" alt="" />
+    </Frame>
+
+    Se connecter avec X (style lien) :
+
+    <Frame>
+      <img src="/images/sign-in-with-twitter-link.png" alt="" />
+    </Frame>
+  </Tab>
+
+  <Tab title="Flux de connexion via le navigateur">
+    Le flux de connexion via le navigateur convient aux sites web et aux applications capables d’ouvrir ou d’intégrer un navigateur web. À un niveau très général :
+
+    - L’application affiche un lien ou un bouton « Se connecter avec X ».
+    - L’utilisateur clique sur le bouton de connexion.
+    - Le navigateur web en cours est redirigé vers X (ou un nouveau navigateur est ouvert et dirigé vers X).
+    - L’utilisateur effectue, si nécessaire, une étape de connexion et d’autorisation sur X.
+    - X redirige vers une URL contrôlée par l’application, en transmettant les informations d’autorisation de l’utilisateur.
+
+    X suit les autorisations : pour les utilisateurs déjà connectés à X.com et ayant autorisé l’application, aucune interface n’est affichée ; ils sont automatiquement redirigés vers l’application.
+
+    ### Flux sur ordinateur
+
+    <Frame>
+      <img src="/images/browser_111.png" alt="" />
+    </Frame>
+
+    Pour illustrer les flux, supposons que le site web ci-dessus (« The greatest website ever created ») a implémenté cette API, comme l’indique le bouton « Se connecter avec X » sur la page d’accueil.
+
+    Lorsque l’utilisateur clique sur le bouton Se connecter, la page affichée dépend du fait qu’il soit connecté et s’il a déjà autorisé l’application à accéder à son compte.
+
+    Lorsque l’utilisateur est connecté à x.com mais n’a pas accordé l’accès, une liste des autorisations demandées s’affiche, accompagnée des boutons « Sign In » et « Cancel ».
+
+    Lorsque l’utilisateur n’est pas connecté à x.com, des champs de saisie pour le nom d’utilisateur et le mot de passe s’affichent. Notez que même si l’utilisateur a déjà accordé l’accès à l’application, la liste des autorisations s’affichera tout de même.
+
+    <Frame>
+      <img src="/images/browser_2.png" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/browser_3.png" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/browser_4.png" alt="" />
+    </Frame>
+
+    Après que l’utilisateur a saisi des identifiants valides (si nécessaire) et cliqué sur « Sign In », X redirige l’utilisateur vers le site web à l’origine du flux de connexion.
+
+    Si l’utilisateur est déjà connecté à x.com et a accordé l’accès au site web, cette redirection intervient immédiatement.
+  </Tab>
+
+  <Tab title="Flux de connexion mobile">
+    Le flux d’interface pour les navigateurs web mobiles fonctionne exactement comme le flux de connexion via le navigateur, mais est optimisé pour les navigateurs mobiles.
+
+    Vous trouverez ci-dessous des captures d’écran pour les états connecté, déconnecté et la redirection :
+
+    <Frame>
+      <img src="/images/authorize-login-screenshot.png" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/authorize-logged-in" alt="" />
+    </Frame>
+
+    <Frame>
+      <img src="/images/redirect-application.png" alt="" />
+    </Frame>
+  </Tab>
+</Tabs>

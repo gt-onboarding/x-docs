@@ -1,0 +1,175 @@
+---
+title: 集成指南
+sidebarTitle: 集成指南
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+Direct Messages 端点 v2 将“会话”和“会话事件”引入为核心 X API 对象，并区分一对一与群组会话。一对一会话始终且仅有两名参与者；群组会话则可包含两名或更多参与者，且成员关系可能发生变化。   
+
+本页汇总了在将 Manage Direct Messages 端点集成到你的系统时需要了解的多种工具与关键概念。我们将内容分为两个部分：
+
+- 关键概念
+  - [Direct Message 会话](#direct-message-conversations)
+
+  - [跨 v1.1 与 v2 共享的会话与事件 ID](#shared-conversation-and-event-ids)
+
+  - [包含媒体附件与引用帖子](#including-media-attachments-and-referencing-tweets)
+
+  - [身份验证](#authentication)
+
+  - [开发者门户、项目与开发者应用](#developer-portal-projects-and-developer-apps)
+
+  - [速率限制](#rate-limits)
+
+- [实用工具](#helpful-tools)
+
+**关键概念**
+
+<div id="direct-message-conversations">
+  ### 直接消息会话
+</div>
+
+所有直接消息都属于某个直接消息会话。会话可以是一对一会话，也可以是群组会话。本次发布提供了创建直接消息以及检索与直接消息会话相关事件所需的基础端点。所有会话都有唯一的 dm\_conversation\_id，构成该会话的所有事件也各自具有唯一的 dm\_event\_id。  
+
+“管理直接消息”端点提供三种 POST 方法，用于创建新消息并将其添加到会话中：
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - 创建一条一对一直接消息。此方法会将消息添加到现有的一对一会话，或创建一个新会话。:participant\_id 路径参数是接收消息账户的用户 ID。\
+  以下是一对一直接消息的示例 JSON 请求正文：
+
+```
+{
+   "text": "Hello just you. This will appear as a new conversation if we have never messaged, or will be added to our existing thread. "
+}
+```
+
+- **POST /2/dm\_conversations** - 创建一个新的群组会话并向其中添加一条直接消息。此类请求需要提供会话参与者列表。请注意，你可以使用相同的参与者列表创建多个会话，这类请求将始终返回一个新的会话 ID。下面是创建新群组会话并添加直接消息的示例 JSON 请求正文。请注意，该请求需要包含字段 "conversation\_type"，且必须设为 "Group"（区分大小写）。
+
+```
+{
+   "message": {"text": "Hello to just you two, this is a new group conversation."},
+   "participant_ids": ["944480690","906948460078698496"],
+   "conversation_type": "Group"
+}
+```
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - 创建一条直接消息并将其添加到现有会话中。:dm\_conversation\_id 路径参数是要添加消息的会话 ID。此方法可用于向一对一或群组会话添加消息。\
+  以下是向一对一和群组会话发送直接消息的示例 JSON 请求正文：
+
+```
+{
+   "text": "Here is a new message."
+}
+```
+
+这些 POST 方法支持附加一条媒体。POST 请求正文必须至少包含 "text" 或 "attachments" 字段中的一个，也可以同时包含两者。如果未包含 "attachments" 字段，则必须提供 "text" 属性；如果未包含 "text" 字段，则必须提供 "attachments" 字段。更多信息请参见下一节。
+
+更多信息请参阅[管理直接消息 API 参考](/zh/x-api/direct-messages/create-a-new-dm-conversation)。 
+
+<div id="shared-conversation-and-event-ids-across-v11-and-v2">
+  ### 在 v1.1 与 v2 之间共享的会话和事件 ID
+</div>
+
+一个重要概念是，会话和事件 ID 在 X 平台的 v1.1 与 v2 版本之间是共享的。这意味着这两个版本可以配合使用。
+
+例如，Direct Messages v1.1 端点提供了返回单个事件以及删除事件的方法。这些方法在 v2 中尚不可用。由于 ID 在 v1.1 与 v2 之间通用，你可以基于 v2 提供的 ID 发起 v1.1 请求，或引用 X 应用中会话 URL 中显示的会话 ID 来进行操作。  
+
+<div id="including-media-attachments-and-referencing-posts">
+  ### 包含媒体附件并引用帖子
+</div>
+
+Manage Direct Message 端点均支持附加一项媒体（照片、视频或 GIF）。附加媒体需要使用由 v1.1 [Upload media](https://developer.x.com/en/docs/x-api/v1/media/upload-media/overview) 端点生成的媒体 ID。发送私信的已认证用户也必须是该媒体的上传者。媒体上传后，在 24 小时内可用于随消息一同发送。
+
+为说明如何包含媒体，以下是一个示例 JSON 请求正文：
+
+```
+{
+ "text": "Here's a photo...",
+ "attachments": [{"media_id": "1583157113245011970}]
+}
+```
+
+生成的 MessageCreate 事件将包含以下元数据：
+
+```
+{
+    "attachments": {
+        "media_keys": [
+            "5_1583157113245011970"
+        ]
+    }
+}
+```
+
+也可以通过在消息文本中包含帖子 URL 来引用帖子。为说明如何在消息中包含帖子，以下是一个示例 JSON 请求正文：
+
+```
+{
+ "text": "Here's the Tweet I was talking about: https://x.com/SnowBotDev/status/1580559079470145536"
+}
+```
+
+生成的 MessageCreate 事件将包含以下元数据：
+
+```
+{
+    "referenced_tweets": [
+        {
+            "id": "1580559079470145536"
+        }
+    ]
+}
+```
+
+<div id="authentication">
+  ### 身份验证
+</div>
+
+所有 X API v2 端点都要求你使用一组凭证（也称为密钥和令牌）对请求进行身份验证。所有私信均为私密内容，访问它们需要用户授权。
+
+这些私信端点需要使用 [OAuth 2.0（含 PKCE）授权流程](/zh/x-api/posts/manage-tweets) 或 [1.0a 用户上下文](/zh/resources/fundamentals/authentication)，这意味着你必须使用一组 API 密钥和用户访问令牌才能成功发起请求。访问令牌必须与所代为请求的用户关联。如果你想为另一位用户生成一组访问令牌，对方必须通过 [三方（3-legged）OAuth 流程](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)授权或验证你的应用。
+
+请注意，基于用户上下文的 OAuth 使用起来可能较为复杂。如果你不熟悉这种身份验证方法，建议使用[库](/zh/x-api/tools-and-libraries/overview)或 Postman 等工具来正确完成请求的身份验证。
+
+[OAuth 2.0 授权码（含 PKCE）](zh/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-2) 允许在多设备场景下对应用的作用域和授权流程进行更精细的控制。OAuth 2.0 允许你选择细粒度的作用域，从而代表用户获得相应的权限。私信查询端点需要以下作用域：dm.write、dm.read、tweet.read、user.read。
+
+要在你的应用中启用 OAuth 2.0，请前往开发者门户的应用设置，在身份验证设置中将其启用。
+
+<div id="developer-portal-projects-and-developer-apps">
+  ### 开发者门户、项目与开发者应用
+</div>
+
+若要获取可用于 X API v2 端点的一组身份验证凭据，您必须拥有已获批准的开发者账户，在该账户中设置一个项目，并在该项目内创建一个开发者应用。随后，您可以在该开发者应用中找到密钥和令牌。 
+
+<div id="rate-limits">
+  ### 速率限制
+</div>
+
+每天有成千上万的开发者向 X API 发起请求。为帮助管理庞大的请求量，我们在每个端点上设置了速率限制，限制你代表应用或已认证用户所能发起的请求次数。 
+
+Manage Direct Message 端点在“按用户”和“X 应用”两个层级都受速率限制。这意味着，你代表其发起请求的已认证用户，使用你的 X 应用只能发送有限数量的消息。此外，你的 X 应用每天可发送的私信（Direct Messages）也有上限。 
+
+对于 POST 方法，用户级速率限制为每 15 分钟 200 次请求/消息。用户还被限制为每 24 小时最多 1000 条私信。此外，X 应用每 24 小时的上限为 15000 条消息。这些速率限制在所有 POST 端点之间共享。 
+
+**实用工具**
+
+在使用 Direct Messages 查询端点时，以下是我们建议你探索的一些实用工具： 
+
+****Postman****
+
+Postman 是一个非常适合测试端点的工具。每个 Postman 请求都包含所有路径和请求体参数，帮助你快速了解可用项。要了解更多关于我们的 Postman 集合，请访问[使用 Postman](/zh/tutorials/postman-getting-started)页面。 
+
+****代码示例****
+
+v2 Direct Messages 端点的 Python 示例代码可在我们的 [X API v2 sample code GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code) 仓库中找到。该仓库地址为：https://github.com/xdevplatform/Twitter-API-v2-sample-code。 "Manage-Direct-Messages" 文件夹包含 POST 方法示例，"Direct-Messages-lookup" 文件夹包含 GET 方法示例。仓库页面的另一个链接为：[](https://github.com/xdevplatform/Twitter-API-v2-sample-code)
+
+**XDev 软件开发工具包（SDK）**
+
+这些[库](/zh/x-api/tools-and-libraries/overview)正在为 v2 Direct Messages 端点更新，预计很快可用：
+
+- [X API Java SDK](https://github.com/xdevplatform/twitter-api-java-sdk) - X API v2 的官方 Java SDK
+- [X API TypeScript/JavaScript SDK](https://github.com/xdevplatform/twitter-api-typescript-sdk) - X API v2 的官方 TS/JS SDK
+
+**第三方库**
+
+由我们的社区开发的[第三方库](/zh/x-api/tools-and-libraries/overview#community-tools-and-libraries-for-v2)数量不断增长。这些库旨在帮助你快速上手，且预计很快将支持 v2 Direct Messages 端点。你可以通过查找相应的版本标签，找到适用于 v2 端点的库。

@@ -1,0 +1,119 @@
+---
+title: 从 v1 迁移到 v2
+sidebarTitle: 从 v1 迁移到 v2
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="list-posts-lookup-standard-v11-compared-to-x-api-v2">
+  ### 列表帖子查询：标准版 v1.1 与 X API v2 对比
+</div>
+
+如果你一直在使用标准版 v1.1 的 [GET lists/statuses](https://developer.x.com/en/docs/twitter-api/v1/accounts-and-users/create-manage-lists/api-reference/get-lists-statuses) 端点，本指南旨在帮助你理解标准版 v1.1 与 X API v2 端点之间的相同点与不同点。
+
+- **相同点**
+  - 认证方式
+  - 速率限制
+- **不同点**
+  - 端点 URL
+  - 应用与项目要求
+  - 每次请求可返回的数据对象上限
+  - 响应数据格式
+  - 请求参数
+
+<div id="similarities">
+  #### 相似之处
+</div>
+
+**身份验证**
+
+两个端点版本都支持 [OAuth 1.0a 用户上下文](/zh/resources/fundamentals/authentication#oauth-2-0)。因此，如果你之前使用的是标准 v1.1 的列表帖子查询端点之一，在迁移到 X API v2 后仍可继续使用相同的身份验证方式。
+
+根据你所选的身份验证库/包，“仅应用”身份验证通常是最容易上手的方式，并且可通过一个简单的请求头进行设置。要了解如何生成“仅应用”访问令牌，请参阅[该“仅应用”指南](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+**速率限制**
+
+|     |     |
+| :--- | :--- |
+| **Standard v1.1** | **X API v2** |
+| /1.1/lists/statuses.json<br /><br />使用 OAuth 1.0a 用户上下文时，每 15 分钟内可发起 900 次请求<br /><br />使用“仅应用”时，每 15 分钟内可发起 900 次请求 | /2/lists/:id/tweets<br /><br />使用 OAuth 1.0a 用户上下文时，每 15 分钟内可发起 900 次请求<br /><br />使用 OAuth 2.0 授权码（含 PKCE）时，每 15 分钟内可发起 900 次请求<br /><br />使用“仅应用”时，每 15 分钟内可发起 900 次请求 |
+
+<div id="differences">
+  #### 差异
+</div>
+
+**端点 URL**
+
+- 标准 v1.1 端点：
+  - GET https://api.x.com/1.1/lists/statuses.json
+    （从指定列表检索推文）
+- X API v2 端点：
+  - GET https://api.x.com/2/lists/:id/tweets
+    （从指定列表检索推文）
+
+**应用与项目要求**
+
+X API v2 端点要求你在对请求进行身份验证时，使用与某个[开发者应用](/zh/resources/fundamentals/developer-apps)关联的[项目](/zh/resources/fundamentals/projects)的凭证。所有 X API v1.1 端点均可使用独立应用或与项目关联的应用的凭证。
+
+**每次请求的数据对象限制**
+
+标准 v1.1 的 /lists/statuses 端点每次请求最多可返回 5000 条帖子。新的 v2 端点每次请求最多可返回 100 条帖子。默认情况下，将返回 100 个用户对象；要更改结果数量，你需要传递查询参数 max\_results=（取值范围为 1–100）；随后可将响应负载中返回的 next\_token 作为下一次请求的 pagination\_token 查询参数传入。
+
+**响应数据格式**
+
+标准 v1.1 与 X API v2 端点版本之间最大的差异之一在于你如何选择在负载中返回的字段。
+
+对于标准端点，许多响应字段默认返回，你也可以通过参数指定应在负载中返回的其他字段或字段集合。
+
+X API v2 默认仅返回帖子 id 和 text 字段。要请求任何额外字段或对象，你需要使用 [fields](/zh/x-api/fundamentals/fields) 和 [expansions](/zh/x-api/fundamentals/expansions) 参数。你从此端点请求的任何帖子字段将返回在主帖子对象中。任何展开对象的字段将作为 includes 对象返回于响应中。随后，你可以通过匹配主对象与展开对象中的 ID，将展开对象关联回主帖子对象。
+
+以下是可能的帖子字段和扩展示例：
+
+- attachments
+
+- author\_id
+
+- context\_annotations
+
+- created\_at
+
+- geo
+
+- lang
+
+|     |     |
+| :--- | :--- |
+| **端点** | **扩展** |
+| /2/lists/:id/tweets | author\_id |
+
+我们鼓励你在各自的指南中进一步了解这些新参数，或阅读我们的[如何使用 fields 与 expansions](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)指南。
+
+我们还准备了[数据格式迁移指南](/zh/x-api/migrate/data-format-migration)，可帮助你将标准 v1.1 字段映射到较新的 v2 字段。该指南还将提供你在 v2 请求中需要传递的具体扩展与字段参数，以返回特定字段。
+
+除请求字段方式的变化外，X API v2 还为 API 返回的对象引入了新的 JSON 设计，包括[帖子](/zh/x-api/fundamentals/data-dictionary#tweet)和[用户](/zh/x-api/fundamentals/data-dictionary#user)对象。
+
+- 在 JSON 根级别，标准端点将帖子对象返回在 **statuses** 数组中，而 X API v2 返回在 **data** 数组中。
+
+- X API v2 的 JSON 不再将转发与引用称为“statuses”，而是称为转发与引用推文。许多旧版和已弃用字段（例如 **contributors** 与 **user.translator\_type**）正在被移除。
+
+- X API v2 不再同时使用（帖子对象中的）**favorites** 和（用户对象中的）**favourites**，而统一使用术语 **like**。
+
+- X 采用的约定是：无值的 JSON 字段（例如 **null**）不会写入负载。帖子与用户属性仅在其具有非 null 值时才会包含。
+   
+
+**请求参数**
+
+以下标准 v1.1 请求参数在 X API v2 中存在对应项：
+
+|     |     |
+| :--- | :--- |
+| 标准 v1.1 | X API v2 |
+| list\_id | id  |
+| slug | 无对应项 |
+| owner\_screen\_name | 无对应项 |
+| owner\_id | 通过 expansions 参数请求，取值为 author\_id |
+| since\_id | 无对应项 |
+| max\_id | 无对应项 |
+| include\_entities | 通过 tweet.fields 参数请求，取值为 entities |
+| include\_rts | 无对应项 |
+| count | max\_results |

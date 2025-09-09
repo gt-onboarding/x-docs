@@ -1,0 +1,357 @@
+---
+title: "규칙과 필터링: 엔터프라이즈"
+---
+
+<div id="getting-started-with-enterprise-rules-and-queries">
+  ## 엔터프라이즈 규칙 및 쿼리 시작하기
+</div>
+
+엔터프라이즈 연산자를 활용하는 제품은 사용자가 설정한 필터링 규칙에 따라 소셜 데이터를 제공합니다. 규칙은 하나 이상의 ‘절’로 구성되며, 절은 키워드, 정확한 구문 또는 다양한 엔터프라이즈 연산자 중 하나일 수 있습니다. 엔터프라이즈 연산자로 규칙을 만들기 전에 아래에 설명된 구문을 검토하고 사용 가능한 연산자 목록을 확인하며, 규칙 작성과 관련된 제한 사항을 이해해야 합니다. 또한 규칙이 논리적으로 어떻게 평가되는지에 대한 세부 사항은 "[연산 순서](#orderofoperations)" 섹션에서 반드시 숙지하시기 바랍니다.
+
+여러 절은 "and"와 "or" 논리를 모두 사용하여 결합할 수 있습니다.
+
+**참고:** "And" 논리는 절 사이에 공백으로 지정하며, "or" 논리는 대문자 `OR`로 지정합니다.
+
+각 규칙은 최대 2,048자까지 작성할 수 있으며, 긍정 절(일치 또는 필터링하려는 항목)과 부정 절(제외하여 일치하지 않기를 원하는 항목)의 개수에는 제한이 없습니다.
+ 
+
+### 규칙과 쿼리 작성 
+
+**키워드 매칭**
+
+키워드 매칭은 검색 인터페이스의 쿼리와 유사합니다. 예를 들어, 다음 엔터프라이즈 오퍼레이터 규칙은 본문 텍스트에 "social"이라는 용어가 있는 활동과 일치합니다.
+
+`social`
+
+**공백으로 용어 AND 결합**
+
+키워드를 하나 더 추가하는 것은 매칭을 위한 조건을 하나 더 추가하는 것과 같습니다. 예를 들어, 이 규칙은 텍스트에 "social"과 "media"가 모두 존재할 때만 일치하며, 순서는 상관없습니다. _용어 사이에 공백이 있으면 불리언 AND 로직으로 동작합니다._ 규칙에 AND를 명시적으로 포함하면 rules 엔드포인트에서 거부됩니다.
+
+`social media`
+
+**대문자 OR로 용어 OR 결합**
+
+많은 경우에는 불리언 OR 로직이 필요합니다. 이것도 간단합니다. _OR 오퍼레이터는 반드시 대문자여야 하며, 소문자 ‘or’는 일반 키워드로 처리됩니다._
+
+`social OR data`
+
+**용어 부정**
+
+다른 시나리오에서는 특정 키워드가 포함된 결과를 제외해야 할 수도 있습니다(불리언 NOT 로직). 예를 들어, ‘happy’는 포함하되 텍스트에 ‘birthday’가 있는 것은 제외합니다.
+
+`social -personality`
+
+**괄호로 그룹화**
+
+이러한 로직은 괄호로 그룹화해 결합할 수 있으며, 훨씬 더 복잡한 쿼리로 확장할 수 있습니다.
+
+`(social OR data) (academic OR research) -personality -information -university`
+
+하지만 이는 시작에 불과합니다. 위의 예시는 키워드에 대한 토크나이즈된 매칭에만 의존하지만, 엔터프라이즈 제품은 텍스트에 대해 다른 유형의 매칭을 수행하는 오퍼레이터도 제공합니다.
+
+**정확 일치**
+
+`"social media research"`
+
+**부분 문자열 일치**
+
+`contains:info`
+
+**근접도 매칭**
+
+`"social media research"~3`
+
+또한 텍스트뿐만 아니라 소셜 데이터의 고유한 속성으로 필터링할 수 있는 다른 오퍼레이터도 있습니다. 
+
+**게시물을 올리는 사용자**
+
+`from:XDeveloeprs`
+
+**미국 콜로라도주 볼더 Pearl St. 반경 10마일 내의 지오태그된 트윗**
+
+`point_radius:[-105.27346517 40.01924738 10.0mi]`
+
+**모두 종합하기**
+
+이는 위에서 설명한 동일한 유형의 로직을 사용해 텍스트 필터와 결합할 수 있습니다.
+
+`(social OR data) (academic OR research OR "social media research") point_radius:[-105.27346517 40.01924738 10.0mi] lang:en -personality -information -university`
+
+<div id="boolean-syntax">
+  ### 불리언 구문
+</div>
+
+이전 섹션의 예시에서는 다양한 유형의 불리언 논리와 그룹핑을 활용했습니다. 각 구문의 문법과 요구 사항에 대한 추가 세부정보는 아래 표를 참고하세요.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **논리 유형** | **연산자 구문** | 설명 |
+| AND | social data | 두 연산자 사이의 공백은 그 사이에 AND 논리를 적용합니다.  <br />  <br />두 키워드("social", "data")를 모두 포함하는 활동과 일치합니다.  <br />  <br />**규칙에서 AND를 명시적으로 사용하지 마세요. 공백만 사용하세요. 명시적인 AND는 일반 키워드로 처리됩니다.** |
+| OR  | social OR data | 두 연산자를 OR로 연결하려면, 그 사이에 공백으로 둘러싸인 대문자 OR을 넣으세요.  <br />  <br />둘 중 하나의 키워드("social" OR "data")를 포함하는 활동과 일치합니다.  <br />  <br />하나의 규칙에서 OR과 AND 기능을 결합하는 경우, "[연산자 적용 순서](#OrderOfOperations)" 섹션에 설명된 연산 순서를 이해하고, 아래에 설명된 대로 괄호를 사용해 부정되지 않은 연산자들을 함께 그룹핑하여 규칙이 기대대로 동작하도록 하세요.  <br />  <br />규칙에서는 반드시 대문자 "OR"을 사용해야 합니다. 소문자 'or'는 일반 키워드로 처리됩니다. |
+| NOT | social data  <br />-apple -android -phone | 연산자 또는 연산자 그룹 바로 앞에 `-` 문자를 삽입합니다.  <br />  <br />예시 규칙은 키워드 "social"을 포함하는 활동과 일치하지만, 키워드 "data"를 포함하는 것은 제외합니다.  <br />  <br />부정된 OR은 규칙이 "부정을 제외한 파이어호스의 모든 것"을 요청하게 되는 경우 허용되지 않습니다. 예를 들어, `apple OR -ipad`는 "ipad"를 언급하지 않는 모든 활동과 일치하게 되므로 유효하지 않습니다. |
+| 그룹핑 | (social OR data) -XDevelopers -api | 여러 연산자 주위에 괄호를 사용하면 기능적인 "그룹"이 생성됩니다.<br /><br />그룹은 개별 절과 동일한 방식으로 공백(AND) 또는 OR로 절에 연결할 수 있습니다. 다만, 전체 그룹에 부정 접두사 -를 적용해 부정들을 함께 그룹핑하지 않는 것이 모범 사례임을 유의하세요. 대신 각 개별 연산자를 부정하고, 공백(AND)으로 이어 붙이세요. <br /><br />예를 들어 -(iphone OR imac OR macbook)을 사용하는 대신 다음을 사용하세요: -iphone -imac -macbook  <br />  <br />그룹핑은 하나의 규칙에 AND와 OR 기능이 결합될 때, 규칙을 평가하는 연산자 적용 순서 때문에 특히 중요합니다. 아래에서 자세히 확인하세요. |
+
+**참고:** 연산자는 긍정이거나 부정일 수 있습니다.
+
+**긍정 연산자**는 결과에 **포함**하고자 하는 것을 정의합니다. 예: `has:hashtags` 연산자는 “해시태그를 포함하는 활동을 원한다”는 의미입니다.
+
+**부정 연산자**는 결과에서 **제외**하고자 하는 것을 정의하며, 위에서 설명한 불리언 NOT 논리를 사용해 생성됩니다. 예를 들어, `-has:hashtags`는 “내 규칙과 다른 조건은 일치하더라도 해시태그를 포함하는 모든 활동을 제외한다”는 의미입니다.
+
+프리미엄 연산자 제품은 최대 길이 2,048자 이내에서 긍정 및 부정 절의 개수에 제한이 없습니다.
+ 
+
+<div id="order-of-operations">
+  #### 연산 순서
+</div>
+
+하나의 규칙에서 AND와 OR을 함께 사용할 때는 다음 연산 순서에 따라 규칙이 평가됩니다.
+
+1. AND로 연결된 연산자가 먼저 결합됩니다
+2. 그다음 OR로 연결된 연산자가 적용됩니다
+
+**예시:**
+
+- `apple OR iphone ipad`는 `apple OR (iphone ipad)`로 평가됩니다
+- `ipad iphone OR android`는 `(iphone ipad) OR android`로 평가됩니다
+
+불확실성을 줄이고 규칙이 의도대로 평가되도록 하려면, 적절한 경우 괄호로 용어를 묶어 그룹화하세요. 예:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### 구두점, 발음 구별 기호, 대소문자 구분
+</div>
+
+엔터프라이즈 연산자에서 발음 구별 기호(악센트)가 있는 키워드 또는 해시태그 규칙을 지정하면, 해당 발음 구별 기호를 그대로 반영하여 게시물 텍스트(해시태그 또는 키워드)와 일치합니다. 예를 들어, 키워드 `Diacr**í**tica` 또는 해시태그 `#cumplea**ñ**os`를 지정한 규칙은 "Diacr**í**tica" 또는 "#cumplea**ñ**os"와는 일치하지만 물결표가 없는 "Diacritica" 또는 "#cumpleanos"와는 일치하지 않습니다. 여기서 **í**는 악센트가 있는 i, **eñe**는 ñ을 의미합니다.
+
+악센트나 발음 구별 기호가 있는 문자는 일반 문자와 동일하게 취급되며 단어 경계로 간주되지 않습니다. 예를 들어, 규칙 cumplea**ñ**os는 cumpleaños라는 단어를 포함하는 활동과만 일치하며, cumplea, cumplean, 또는 os를 포함하는 활동과는 일치하지 않습니다.
+
+모든 연산자는 대소문자를 구분하지 않고 평가됩니다. 예를 들어, 규칙 `Cat`은 다음과 모두 일치합니다: "cat", "CAT", "Cat".
+
+<div id="powertrack-rule-tags">
+  #### PowerTrack 규칙 태그
+</div>
+
+"[Matching rules](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#matching-rules)" 페이지에서 설명했듯이, 각 규칙은 태그를 함께 지정하여 생성할 수 있습니다. 이러한 태그는 필터링에는 영향을 주지 않지만, 앱 내에서 규칙을 논리적으로 그룹화하는 데 사용할 수 있습니다. 각 규칙에는 하나의 태그만 지정할 수 있으며, 최대 255자까지 가능합니다. 태그는 API를 통해 규칙을 생성할 때 JSON 형식의 규칙에 함께 포함되며, 자세한 내용은 "Matching rules" 페이지를 참조하세요.
+
+<div id="putting-rules-in-json-format">
+  #### 규칙을 JSON 형식으로 작성하기
+</div>
+
+API를 통해 스트림에 규칙을 추가하거나 삭제하려면 규칙은 JSON 형식을 사용해야 합니다. 기본적으로 각 규칙을 다음 구조에 넣습니다:
+
+`{"value":"insert_rule_here"}`
+
+**큰따옴표가 포함된 규칙**
+
+규칙에 정확히 일치나 기타 연산자와 관련된 큰따옴표 문자(`"`)가 포함되어 있다면, JSON 구조와 구분되도록 역슬래시로 이스케이프해야 합니다.
+
+`"social data" @XDevelopers`
+
+JSON 형식의 규칙은 다음과 같습니다:
+
+`{"value":"\"social data\" @XDevelopers"}`
+
+**큰따옴표 문자열 리터럴이 포함된 규칙**
+
+정확히 일치하는 구문 내에서 큰따옴표 문자를 문자열 리터럴로 포함하려면 두 번 이스케이프해야 합니다. 예를 들어 "Toys “R” Us"라는 정확한 구절을 일치시키되 "R" 주변의 큰따옴표를 포함하려면 일반 텍스트 표현은 다음과 같습니다:
+
+`"Toys \"R\" Us"`
+
+이를 JSON 형식으로 변환할 때는 다음 구조를 사용합니다:
+
+`{"value":"\"Toys \\\"R\\\" Us\""}`
+
+**태그가 있는 규칙**
+
+위에서 설명한 대로 규칙에 선택적 태그를 포함하려면 규칙 값과 함께 `tag` 필드를 추가로 포함합니다.
+
+`{"value":"\"social data\" @XDevelopers","tag":"RULE-TAG-01"}`
+
+**API 요청을 위한 형식 지정**
+
+API를 통해 스트림의 규칙을 추가하거나 삭제할 때 여러 JSON 형식 규칙은 쉼표로 구분하고, 아래와 같이 JSON "rules" 배열로 감싸야 합니다:
+
+`{"rules":[{"value":"from:XDevelopers"},{"value":"\"social data\" @XDevelopers","tag":"RULE-TAG-01"}]}`
+
+<div id="operators-that-match-quote-tweets">
+  #### 인용 트윗과 매칭되는 연산자
+</div>
+
+[PowerTrack API](/ko/x-api/enterprise-gnip-2.0/powertrack-api) 및 Historical PowerTrack API를 사용할 때 아래 연산자들은 인용된 원본 게시물과 새 인용 트윗의 콘텐츠 모두에서 매칭됩니다.
+
+반면 [Search API](/ko/x-api/enterprise-gnip-2.0/fundamentals/search-api)를 사용하는 경우 이러한 연산자들은 인용 트윗의 콘텐츠에만 매칭되며, 인용된 원본 게시물의 어떤 콘텐츠에도 매칭되지 않습니다.
+
+- `Keywords`
+- `Phrases`
+- `Proximity`
+- `#hashtags`
+- `@mentions`
+- `$cashtags`
+- `url:`
+- `url_contains:`
+- `has:links`
+- `has:mentions`
+- `has:hashtags`
+- `has:media`
+- `has:symbols`
+- `is:quote`
+- `is:reply`
+
+<div id="enterprise-operators">
+  ## 엔터프라이즈 연산자
+</div>
+
+아래는 PowerTrack 및 Historical PowerTrack에서 사용 가능한 연산자입니다. 이 중 일부는 30일 및 전체 아카이브 검색 API에서도 사용할 수 있습니다. 제품별로 사용 가능한 연산자 목록은 [이 표](/ko/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product)를 참조하세요. 
+
+| Operator                  | 설명                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|:---------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| keyword                   | 게시물 본문 또는 URL 내 키워드와 일치합니다. 키워드는 숫자(0-9) 또는 비문장 부호 문자로 시작해야 합니다.<br />키워드 일치는 토큰화 방식으로, 키워드를 게시물 본문의 토큰화된 텍스트에 대조합니다.<br />문장 부호가 포함된 문자열(예: "coca-cola")은 큰따옴표로 묶어 "정확한 구문 일치"를 사용하세요.<br />_예시_: `(social OR pizza OR wildfire) -planet`                                                                                                                                                                                    |
+| emoji                     | 게시물 본문 내 이모지와 일치합니다. 문장 부호, 기호/이모지, 구분자 문자를 기반으로 한 토큰화 일치를 사용합니다.<br />이모지에 변형이 있는 경우, 정확히 일치시키려면 큰따옴표를 사용하세요.<br />_예시_: `(🍕 OR 💜 OR 🐢) -🤖`                                                                                                                                                                                                                                                                                                                                                                 |
+| "exact phrase match"      | 게시물 본문 내 정확히 해당 구문과 일치합니다. 문장 부호는 공백으로 처리됩니다.<br />_예시_: `("social media" OR "developer.x.com" OR "wildfire911" OR "coca-cola") -"planet earth"`                                                                                                                                                                                                                                                                                                                                                                                                       |
+| #                         | 지정한 해시태그가 있는 모든 게시물과 일치합니다. 이는 정확한 일치이므로, `#2016`은 `#2016`이 있는 게시물과는 일치하지만 `#2016election`과는 일치하지 않습니다.<br />_예시_: `(#social OR #pizza OR #2016election) -#planet`                                                                                                                                                                                                                                                                                                                                                                              |
+| @                         | 지정한 사용자명을 언급한 모든 게시물과 일치합니다.<br />_예시_: `(@XDevelopers OR @api OR @twittereng) -@jack`                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| "keyword1 keyword2"~N     | 두 키워드가 서로 N 토큰 이내에 있을 때 일치시키는 근접 연산자입니다.<br />역순의 경우 두 키워드 간 간격은 최대 N-2 토큰까지 허용됩니다. N은 6을 초과할 수 없습니다.<br />_예시_: `"social media"~5 OR "API"~3`                                                                                                                                                                                                                                                                                                                                                                   |
+| contains:                 | 본문에 지정한 하위 문자열이 있으면 토큰화 여부와 무관하게 일치합니다.<br />공백이나 문장 부호가 있는 하위 문자열은 큰따옴표로 감싸세요.<br />_예시_: `(contains:social OR contains:"wikipedia.com") -contains:"buy now"`                                                                                                                                                                                                                                                                                                                                                     |
+| from:                     | X 숫자 계정 ID 또는 사용자명(`@` 제외)을 기준으로 특정 사용자가 작성한 모든 게시물과 일치합니다.<br />_예시_: `(from:2244994945 OR from:api OR from:twittereng) -from:jack`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| to:                       | X 숫자 계정 ID 또는 사용자명(`@` 제외)을 기준으로 특정 사용자에게 보낸 답글과 일치합니다.<br />_예시_: `(to:2244994945 OR to:api OR to:twittereng) -to:jack`                                                                                                                                                                                                                                                                                                                                                                                                     |
+| url:                      | 게시물의 확장 URL에 대해 토큰화된(키워드/구문) 일치를 수행합니다.<br />_예시_: `@XDevelopers url:"developer.x.com"`                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| url\_title:                | 확장된 URL의 HTML 제목 메타데이터에 대해 키워드/구문 일치를 수행합니다.<br />_PowerTrack 및 Historical PowerTrack에서만 사용 가능합니다._                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| url\_description:          | 확장된 페이지 설명 메타데이터에 대해 키워드/구문 일치를 수행합니다.<br />_PowerTrack 및 Historical PowerTrack에서만 사용 가능합니다._                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| url\_contains:             | 지정한 구문 또는 키워드를 포함하는 URL이 있는 게시물과 일치합니다.<br />문장 부호가 포함된 검색어는 큰따옴표로 감싸세요.<br />_예시_: `(url_contains:"developer.x.com" OR url_contains:wildfire) -url_contains:reddit`                                                                                                                                                                                                                                                                                                                                                                        |
+| bio:                      | 게시물 작성자의 프로필 소개란에서 키워드 또는 구문과 일치합니다. 이는 [User object](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)의 description 필드에서 토큰화 방식으로 일치합니다.<br />_예시_: `(bio:engineer OR bio:"wordpress.com" OR bio:🚀) -bio:troll`<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용 가능합니다.                                                                                                                             |
+| bio\_name:                 | 게시물 작성자의 프로필 이름에서 키워드와 일치합니다. 이는 [User object](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)의 name 필드에서 토큰화 방식으로 일치합니다.<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용 가능합니다.                                                                                                                                                                                                                                          |
+| bio\_location:             | 사용자 객체의 위치에 지정한 키워드나 구문이 포함된 게시물을 매칭합니다.<br />이 연산자는 메시지 본문의 일반 키워드 규칙과 유사하게 토큰화된 매칭을 수행합니다.<br />이 위치는 [User object](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)의 일부이며 계정의 ‘홈’ 위치입니다.<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                |
+| statuses\_count:           | 작성자가 지정된 범위 내에서 일정 개수의 상태를 게시한 경우 게시물을 매칭합니다.<br />단일 숫자를 지정하면 해당 숫자 이상이면 모두 매칭됩니다.<br />범위를 지정하면 해당 범위 내의 모든 숫자와 매칭됩니다(예: `statuses_count:1000..10000`).<br />_예:_ `to:api statuses_count:10`<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                           |
+| followers\_count:          | 작성자의 팔로워 수가 지정된 범위 내에 있는 경우 게시물을 매칭합니다.<br />단일 숫자를 지정하면 해당 숫자 이상이면 모두 매칭됩니다.<br />범위를 지정하면 해당 범위 내의 모든 숫자와 매칭됩니다(예: `followers_count:1000..10000`).<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                                                                          |
+| friends\_count:            | 작성자의 친구 수(팔로우하는 사용자 수)가 지정된 범위 내에 있는 경우 게시물을 매칭합니다.<br />단일 숫자를 지정하면 해당 숫자 이상이면 모두 매칭됩니다.<br />범위를 지정하면 해당 범위 내의 모든 숫자와 매칭됩니다(예: `friends_count:1000..10000`).<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                                              |
+| listed\_count:             | 작성자가 X에서 지정된 범위 내에서 특정 횟수만큼 목록에 포함된 경우 게시물을 매칭합니다.<br />단일 숫자를 지정하면 해당 숫자 이상이면 모두 매칭됩니다.<br />범위를 지정하면 해당 범위 내의 모든 숫자와 매칭됩니다(예: `listed_count:10..100`).<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                                                    |
+| $                         | 지정된 ‘캐시태그’ 엔티티를 포함하는 모든 게시물을 매칭합니다.<br />_예:_ `($TWTR OR $TSLA OR $BRK.A) -$F`<br />_참고:_ 캐시태그 연산자는 본문에서 직접 추출하지 않고 X의 ‘symbols’ 엔티티 추출에 의존해 캐시태그를 매칭합니다.                                                                                                                                                                                                                                                          |
+| retweets\_of:              | 지정된 사용자의 리트윗인 게시물을 매칭합니다.<br />사용자 이름과 숫자형 X 계정 ID(게시물 상태 ID 아님) 모두 허용합니다.<br />_예:_ `(retweets_of:2244994945 OR retweets_of:api OR retweets_of:twittereng) -retweets_of:jack`                                                                                                                                                                                                                                                                                                               |
+| retweets\_of\_status\_id:    | 지정된 게시물의 명시적 리트윗만 전달합니다. 리트윗이 아닌 원본 게시물의 ID를 사용하세요.<br />_예:_ `retweets_of_status_id:1293593516040269825`<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                                                                                                                                                                                                               |
+| in\_reply\_to\_status\_id:    | 지정된 게시물에 대한 명시적 답글만 전달합니다.<br />_예:_ `in_reply_to_status_id:1293593516040269825`<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                                                                                                                                                                                                                             |
+| sample:                   | 규칙과 매칭되는 게시물의 무작위 샘플을 반환합니다. 샘플 비율은 1에서 100 사이의 정수여야 합니다.<br />이 연산자는 모집단을 X%로 축소한 뒤, 그 샘플 하위 집합에 규칙/필터를 적용합니다.<br />_예:_ `#happybirthday sample:5`<br />`"happy birthday"~5 sample:80`<br />_참고:_ PowerTrack 및 Historical PowerTrack에서만 사용할 수 있습니다.                                                                                                                            |
+| source:                   | 지정된 소스 애플리케이션에서 생성된 모든 게시물을 매칭합니다. 값은 애플리케이션 이름 또는 애플리케이션의 URL일 수 있습니다.<br />_예:_ `#happybirthday source:"X for iPhone"`<br />`"This is a test X from my TestingApp" source:MyTestAppName`<br />_참고:_ source 연산자는 게시물의 source 속성을 검색하며 단독으로 사용할 수 없습니다.                                                                                                                 |
+| lang:                     | X에서 특정 언어로 분류된 게시물을 매칭합니다. 게시물은 현재 한 가지 언어로만 분류되므로 여러 언어를 동시에 매칭하면 결과가 나오지 않습니다. _단독 사용은 권장하지 않습니다._                                                                                                                                                                                                                                                                                                                                                     |
+
+아래 목록은 현재 지원되는 언어와 해당 BCP 47 언어 식별자를 나타냅니다:
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Amharic: am | German: de | Malayalam: ml | Slovak: sk |
+| Arabic: ar | Greek: el | Maldivian: dv | Slovenian: sl |
+| Armenian: hy | Gujarati: gu | Marathi: mr | Sorani Kurdish: ckb |
+| Basque: eu | Haitian Creole: ht | Nepali: ne | Spanish: es |
+| Bengali: bn | Hebrew: iw | Norwegian: no | Swedish: sv |
+| Bosnian: bs | Hindi: hi | Oriya: or | Tagalog: tl |
+| Bulgarian: bg | Latinized Hindi: hi-Latn | Panjabi: pa | Tamil: ta |
+| Burmese: my | Hungarian: hu | Pashto: ps | Telugu: te |
+| Croatian: hr | Icelandic: is | Persian: fa | Thai: th |
+| Catalan: ca | Indonesian: in | Polish: pl | Tibetan: bo |
+| Czech: cs | Italian: it | Portuguese: pt | Traditional Chinese: zh-TW |
+| Danish: da | Japanese: ja | Romanian: ro | Turkish: tr |
+| Dutch: nl | Kannada: kn | Russian: ru | Ukrainian: uk |
+| English: en | Khmer: km | Serbian: sr | Urdu: ur |
+| Estonian: et | Korean: ko | Simplified Chinese: zh-CN | Uyghur: ug |
+| Finnish: fi | Lao: lo | Sindhi: sd | Vietnamese: vi |
+| French: fr | Latvian: lv | Sinhala: si | Welsh: cy |
+| Georgian: ka | Lithuanian: lt |     |
+
+예시:
+
+(@XDevelopers OR to:XDevelopers) lang:es
+
+**참고:** 언어 연산자는 X에서 판별하여 Post의 lang 속성으로 설정한 특정 게시 언어와 매칭됩니다. X 엔터티의 JSON 속성에 대한 자세한 내용은 [여기](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)를 참조하세요. 특정 Post에 대해 언어를 분류할 수 없는 경우 해당 Post의 lang은 ‘und’(미정)로 설정됩니다.
+
+| Operator                 | 설명                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+|:--------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| place                    | 지정된 위치 또는 X place ID로 태그된 게시물을 매칭합니다.<br />여러 단어로 된 장소 이름은 큰따옴표로 감싸세요.<br />_예:_ `(place:London OR place:"Great Britain") -place:USA`<br />`place:fd70c22040963ac7`<br />**참고:** X place ID를 얻는 방법은 [GET geo/search](https://developer.x.com/en/docs/x-api/v1/geo/places-near-location/api-reference/get-geo-search) 공개 API 엔드포인트를 참고하세요.<br />**참고:** 리트윗 또는 인용 트윗에는 매칭되지 않습니다. 리트윗의 장소 정보는 원본 게시물에 연결됩니다. |
+| place\_country            | 태그된 장소/위치에 연결된 국가 코드가 지정한 ISO alpha-2 두 글자 코드와 일치하는 게시물을 매칭합니다.<br />_예:_ `place_country:GB OR place_country:AU OR place_country:CA`<br />**참고:** 리트윗 또는 인용 트윗에는 매칭되지 않습니다. 리트윗의 장소 정보는 원본 게시물에 연결됩니다.<br />유효한 ISO 코드: [ISO 3166-1 alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).                                                                                                                                      |
+| point\_radius:\[lon lat radius] | 게시물의 정확한 위치(x, y) 또는 지정된 반경 내 “Place” 지오 폴리곤을 기준으로 매칭합니다.<br />\* 반경: \< 25mi<br />\* 지원 단위: mi, km<br />\* 경도: ±180<br />\* 위도: ±90<br />좌표는 소수점 도(degree)입니다.<br />인수는 대괄호로 감싸고 공백으로 구분합니다.<br />_예:_ `point_radius:[-105.27346517 40.01924738 0.5mi]`<br />_예:_ `point_radius:[2.355128 48.861118 16km]`<br />**참고:** 리트윗 또는 인용 트윗에는 매칭되지 않습니다.                             |
+| bounding\_box:\[west\_long south\_lat east\_long north\_lat] | 경계 상자에 완전히 포함된 정확한 위치 또는 “Place” 지오 폴리곤을 기준으로 매칭합니다.<br />인수는 대괄호로 감싸고 공백으로 구분합니다.<br />좌표: 소수점 도(경도 ±180, 위도 ±90).<br />너비와 높이는 \< 25mi여야 합니다.<br />_예:_ `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]`<br />**참고:** 리트윗 또는 인용 트윗에는 매칭되지 않습니다.                                                                                                                                                    |
+| profile\_country          | 작성자의 프로필 지오 국가 코드가 지정한 ISO 3166-1 alpha-2 두 글자 코드와 일치하는 게시물을 매칭합니다.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| profile\_region           | 작성자의 프로필 지오 보강 정보의 “region” 필드에 대해 정확한 전체 문자열 일치로 매칭합니다.<br />공백이나 구두점이 포함된 부분 문자열에는 큰따옴표를 사용하세요.<br />_예:_ `profile_region:"New York"`                                                                                                                                                                                                                                                                                |
+| profile\_locality         | 작성자의 프로필 지오 보강 정보의 “locality” 필드에 대해 정확한 전체 문자열 일치로 매칭합니다.<br />공백이나 구두점이 포함된 부분 문자열에는 큰따옴표를 사용하세요.<br />_예:_ `profile_locality:"San Francisco"`                                                                                                                                                                                                                                                                             |
+| profile\_subregion        | 작성자의 프로필 지오 보강 정보의 “subRegion” 필드(특정 카운티 또는 광역권 포함)에 대해 매칭합니다.<br />정확한 전체 문자열 일치가 필요합니다.<br />_예:_ `profile_subregion:"Santa Clara County"`                                                                                                                                                                                                                                                                                               |
+| has:geo                  | X의 게시물 전용 지오 위치 데이터가 있는 게시물을 매칭합니다. 여기에는 “geo” 위도·경도 또는 표시 이름과 지오 폴리곤이 있는 “Place” 위치 데이터가 포함됩니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                            |
+| has:profile\_geo          | 값과 관계없이 프로필 지오 메타데이터가 있는 게시물을 매칭합니다.<br />사용 가능한 별칭: `has:derived_user_geo`.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                            |
+| has:links                | 페이로드의 "text" 객체에 링크 또는 참조된 미디어가 있는 게시물을 매칭합니다. 미디어와 인용 트윗을 포함합니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                      |
+| is:retweet               | 명시적 리트윗만 반환합니다. 부정을 사용해 리트윗을 제외하고 원본 콘텐츠만 받을 수 있습니다.<br />이 연산자는 인용 트윗이 아닌 실제 리트윗만을 찾습니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                               |
+| is:reply                 | 명시적 답글만 반환합니다. 부정을 사용해 답글을 제외할 수 있습니다.<br />PowerTrack은 원본 게시물에 대한 답글, 인용된 게시물의 답글, 리트윗의 답글까지 모두 매칭합니다.<br />Search API는 원본 게시물에 대한 답글만 매칭합니다.<br />_예:_ `@XDevelopers -is:reply`                                                                                                                                                                                                                                         |
+| is:quote                 | 다른 게시물을 참조하는 인용 트윗 또는 게시물만 반환합니다.<br />부정을 사용해 인용 트윗을 제외할 수 있습니다.<br />_예:_ `@XDevelopers is:quote`                                                                                                                                                                                                                                                                                                                                                            |
+| is:verified              | ‘인증됨’ 작성자의 게시물만 반환합니다. 부정을 사용해 인증된 작성자의 게시물을 제외할 수 있습니다.<br />_예:_ `@XDevelopers is:verified`                                                                                                                                                                                                                                                                                                                                                                 |
+| has:mentions             | 다른 X 사용자를 언급한 게시물을 매칭합니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                                                                                                 |
+| has:hashtags             | 해시태그가 포함된 게시물을 매칭합니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                                                                                                       |
+| has:media                | X에서 분류한 미디어 URL이 포함된 게시물을 매칭합니다(예: pic.x.com).<br />사용 가능한 별칭: `has:media_link`.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                           |
+| has:images               | 미디어 URL이 포함된 게시물을 매칭합니다(예: pic.x.com).<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                                                                                  |
+| has:videos               | X에 업로드된 네이티브 X 동영상이 포함된 게시물을 매칭합니다.<br />사용 가능한 별칭: `has:video_link`.<br />이 연산자는 YouTube, Periscope 등 다른 동영상 호스팅 사이트의 동영상은 매칭하지 않습니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                            |
+| has:symbols              | 캐시태그(예: $TWTR)가 포함된 게시물을 매칭합니다.<br />**참고:** Search API에서는 `is:` 또는 `has:`가 아닌 다른 연산자와 함께 사용해야 합니다.                                                                                                                                                                                                                                                                                                                                                                 |
+
+<div id="operators-by-product">
+  ## 제품별 오퍼레이터
+</div>
+
+<div id="rules-and-filtering-enterprise">
+  ### 규칙 및 필터링: 엔터프라이즈
+</div>
+
+모든 엔터프라이즈 연산자는 PowerTrack 및 Historical PowerTrack API에서 사용할 수 있습니다. 다만, 이 페이지에 명시된 것처럼 엔터프라이즈 Search API에서는 일부 연산자만 제공됩니다.
+
+짙은 파란색 태그는 각 엔터프라이즈 제품에서 사용 가능한 연산자를 표시합니다:
+
+PowerTrack Search
+
+| 연산자 | 제품 | 설명 | 페이로드 요소에서의 매칭 대상 |
+| :--- | :--- | :--- | :--- |
+| "정확한 구문 일치" | PowerTrack<br /><br />Search | 게시물 본문에서 정확히 일치하는 구문을 매칭합니다.<br /><br />검색 연산자로 해석될 수 있는 구성 요소는 단어로 취급됩니다. 즉,<br /><br />\* `"#hashtag"`는 `hashtag`와는 매칭되지만 `#hashtag`와는 매칭되지 않습니다(실제 해시태그와 매칭하려면 따옴표 없이 [hashtag 연산자](#hashtag-operator)를 사용하세요). <br />\* `"$TWTR"`는 단어 `TWTR`와는 매칭되지만 캐시태그 `$TWTR`와는 매칭되지 않습니다(실제 캐시태그와 매칭하려면 따옴표 없이 [cashtag 연산자](#cashtag-operator)를 사용하세요).<br /><br />**참고:** 30일 검색과 전체 아카이브 검색(Enterprise 및 Premium)에서는 구두점이 토큰화되지 않고 공백으로 처리됩니다. | `text` |
+| @   | PowerTrack<br /><br />Search | 지정한 사용자 이름을 언급한 모든 게시물과 매칭됩니다. 값은 사용자 이름(`@` 문자 제외) 또는 사용자의 숫자 ID일 수 있습니다(예: [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 엔드포인트로 획득). | `entities.user_mentions` |
+| #   | PowerTrack<br /><br />Search | 지정한 해시태그가 포함된 모든 게시물과 매칭됩니다.<br /><br />이 연산자는 정확히 일치로 동작합니다. 예를 들어 규칙 `#1989`는 정확한 해시태그 `#1989`를 포함하는 게시물과는 매칭되지만, 해시태그 `#TaylorSwift1989`가 있는 게시물과는 매칭되지 않습니다.<br /><br />**참고:** 이 연산자는 해시태그를 본문에서 직접 추출하는 대신 X의 엔터티 추출에 의존하여 해시태그를 매칭합니다. 엔터티의 JSON 속성에 대한 자세한 내용은 [X 엔터티](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)를 참조하세요. | `entities.hashtags` |
+| $   | PowerTrack<br /><br />Search | 지정된 캐시태그(토큰의 선행 문자가 `$`인 경우)가 포함된 모든 게시물과 매칭됩니다.<br /><br />**참고:** 이 연산자는 링크를 본문에서 직접 추출하는 대신 X의 엔터티 추출에 의존하여 링크를 매칭합니다. 엔터티의 JSON 속성에 대한 자세한 내용은 [X 엔터티](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)를 참조하세요. | `entities.symbols` |
+| bio: | PowerTrack | _사용 가능한 별칭_: user\_bio:<br /><br />게시물 작성자의 사용자 바이오에서 키워드(토큰화 매칭 사용) 또는 구문을 매칭합니다. 구문을 매칭하려면 큰따옴표를 사용하세요. 즉,<br /><br />\* `bio:software engineer`는 바이오에 `software`라는 단어가 있는 사용자 중 키워드 `engineer`가 들어간 게시물을 매칭합니다<br />\* `bio:"software engineer"`는 바이오에 `software engineer`라는 구문이 있는 사용자가 게시한 모든 게시물을 매칭합니다 | `user.description` |
+| bio\_location: | PowerTrack | _사용 가능한 별칭_: user\_bio\_location:<br /><br />[User 객체](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)의 위치에 지정한 키워드(토큰화 매칭 사용) 또는 구문이 포함된 게시물을 매칭합니다.<br /><br />이 위치는 정규화되지 않은 사용자 생성 자유 형식 문자열이며, 게시물의 위치(가능한 경우)와는 다릅니다. | `user.location` |
+| bio\_name: | PowerTrack | [User 객체](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)의 이름에 지정한 키워드(토큰화 매칭 사용) 또는 구문이 포함된 게시물을 매칭합니다. | `user.name` |
+| bounding\_box: | PowerTrack<br /><br />Search | 게시물의 정확한 위치(경도, 위도)가 있을 경우 그 값과, 지정된 영역을 완전히 포함하는 지오 폴리곤(Place가 정의된 영역 내에 완전히 포함되는 경우)에 대해 일치시킵니다.<br /><br />\* west\_long과 south\_lat는 경계 상자의 남서쪽 꼭짓점을 나타내며, west\_long은 그 지점의 경도, south\_lat는 위도입니다.<br />\* east\_long과 north\_lat는 경계 상자의 북동쪽 꼭짓점을 나타내며, east\_long은 그 지점의 경도, north\_lat는 위도입니다.<br />\* 경계 상자의 너비와 높이는 25마일 미만이어야 합니다<br />\* 경도는 ±180 범위입니다<br />\* 위도는 ±90 범위입니다<br />\* 모든 좌표는 소수점 표기의 도 단위입니다.<br />\* 규칙 인수는 대괄호로 묶고 공백으로 구분합니다.<br /><br />**참고:** place(게시물 지오)에 대한 일치 연산자는 원본 게시물에서만 일치를 포함합니다. 리트윗에는 place 데이터가 없습니다. | `place` (original Posts only) |
+| contains: | PowerTrack | 토큰화와 무관하게 본문에 지정한 부분 문자열이 포함된 게시물과 부분 문자열 일치를 수행합니다. 즉, 단어 경계를 고려하지 않는 순수 부분 문자열 매치입니다.<br /><br />공백이나 구두점이 포함된 부분 문자열을 일치시키려면 큰따옴표를 사용하세요. | `text` |
+| \<emoji> | PowerTrack<br /><br />Search | 게시물 본문에 포함된 이모지를 일치시킵니다.<br /><br />이 연산자는 토큰화 기반으로 동작하므로, 지정한 이모지는 게시물 본문의 토큰화된 텍스트와 비교됩니다. 토큰화는 구두점, 기호/이모지, 구분자에 해당하는 유니코드 기본 평면 문자를 기준으로 합니다. 예를 들어 “I like 🍕”라는 텍스트가 있는 게시물은 I, like, 🍕의 토큰으로 분리됩니다. 그런 다음 이 토큰들이 규칙에 사용한 이모지와 비교됩니다.<br /><br />**참고:** 이모지에 변형이 있는 경우 규칙에 추가할 때 큰따옴표를 사용해야 합니다. | `text` |
+| followers\_count: | PowerTrack | 작성자의 팔로워 수가 지정된 범위에 있을 때 게시물과 일치시킵니다.<br /><br />\* 단일 숫자(예: `followers_count:42`)는 지정한 값 이상인 모든 숫자와 일치합니다.<br />\* 범위(예: `followers_count:42..1337`)는 지정된 범위의 모든 숫자와 일치합니다. | `user.followers_count` |
+| friends\_count: | PowerTrack | _Available alias_: following\_count:<br /><br />작성자가 팔로우하는 사용자 수(팔로잉 수)가 지정된 범위에 있을 때 게시물과 일치시킵니다.<br /><br />\* 단일 숫자(예: `followers_count:42`)는 지정한 값 이상인 모든 숫자와 일치합니다.<br />\* 범위(예: `followers_count:42..1337`)는 지정된 범위의 모든 숫자와 일치합니다. | `user.friends_count` |
+| from: | PowerTrack<br /><br />Search | 특정 사용자가 작성한 모든 게시물과 일치시킵니다. 값은 사용자명(`@` 문자 제외) 또는 사용자의 숫자 ID일 수 있습니다(예: [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 엔드포인트를 통해 획득). | `user.id`, `user.id_str` (if using User ID)<br /><br />`user.screen_name` (if using username) |
+| has:geo | PowerTrack<br /><br />Search | X에서 제공하는 게시물별 위치 정보가 있는 게시물과 일치시킵니다. 이는 “geo” 위도-경도 좌표이거나, 표시 이름, 지오 폴리곤 및 기타 필드를 포함하는 X [Place](https://dev.x.com/overview/api/places) 형태의 “location”일 수 있습니다.<br /><br />단독 연산자로는 사용할 수 없습니다.<br /><br />**참고:** place(게시물 지오)에 대한 일치 연산자는 원본 게시물에서만 일치를 포함합니다. 리트윗에는 place 데이터가 없습니다. | `place` (original Tweets only) |
+| has:hashtags | PowerTrack<br /><br />Search | 하나 이상의 해시태그를 포함하는 게시물과 일치시킵니다.<br /><br />단독 연산자로는 사용할 수 없습니다. | `entities.hashtags` |
+| has:images | PowerTrack<br /><br />Search | 분류된 이미지 URL을 하나 이상 포함하는 게시물과 일치시킵니다.<br /><br />단독 연산자로는 사용할 수 없습니다. | `entities.media` |
+| has:lang | PowerTrack | X에서 특정 언어로 분류된 게시물과 일치합니다.<br /><br />게시물이 분류되지 않은 경우 이 연산자는 매칭되지 않습니다. 각 게시물은 현재 하나의 언어로만 분류되므로 여러 언어를 AND로 결합하면 결과가 반환되지 않습니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `lang` 값이 `und`가 아닐 때 |
+| has:links | PowerTrack<br /><br />Search | 이 연산자는 본문에 링크가 포함된 게시물을 매칭합니다.<br /><br />독립형 연산자로는 사용할 수 없습니다.<br /><br />**참고:** 이 연산자는 본문에서 직접 링크를 추출하는 대신 X의 엔터티 추출에 기반해 링크를 매칭합니다. 엔터티의 JSON 속성에 대한 자세한 내용은 [X Entities](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)를 참조하세요. | `entities.urls` |
+| has:media | PowerTrack<br /><br />Search | _사용 가능한 별칭_: has:media\_link<br /><br />분류된 미디어 URL이 하나 이상 포함된 게시물을 매칭합니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `entities.media` |
+| has:mentions | PowerTrack<br /><br />Search | 다른 X 사용자를 언급한 게시물을 매칭합니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `entities.user_mentions` |
+| has:profile\_geo | PowerTrack<br /><br />Search | _사용 가능한 별칭_: has:derived\_user\_geo<br /><br />실제 값과 관계없이 [Profile Geo](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#profile-geo) 메타데이터가 있는 게시물을 매칭합니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `user.location` |
+| has:symbols | PowerTrack<br /><br />Enterprise | 캐시태그 기호(예: `$TWTR`)가 포함된 게시물을 매칭합니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `entities.symbols` |
+| has:videos | PowerTrack<br /><br />Search | _사용 가능한 별칭_: has:video\_link<br /><br />분류된 미디어 URL이 하나 이상 포함된 게시물을 매칭합니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `entities.media` |
+| in\_reply\_to\_status\_id: | PowerTrack | _사용 가능한 별칭_: in\_reply\_to\_tweet\_id:<br /><br />지정된 게시물에 대한 명시적 답글만 전달합니다. | 대상 게시물의 `id`, `id_str` |
+| is:quote | PowerTrack | 규칙과 일치하는 인용 게시물만 명시적으로 전달합니다.<br /><br />또한 부정형(`-is:quote`)으로 사용해 규칙과 일치하는 인용 게시물을 전달에서 제외할 수 있습니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | `is_quote_status` (`true`인 경우) |
+| is:reply | PowerTrack<br /><br />Search | 규칙과 일치하는 답글만 전달합니다.<br /><br />또한 부정형(`-is:reply`)으로 사용해 지정한 규칙과 일치하는 답글을 전달에서 제외할 수 있습니다.<br /><br />PowerTrack에서는 이 연산자가 다음에 매칭됩니다:<br /><br />\* 원본 게시물에 대한 답글<br />\* 인용된 게시물의 답글<br />\* 리트윗의 답글<br /><br />  <br />Search API에서 사용하면 이 연산자는 원본 게시물에 대한 답글과 매칭되지만, 인용된 게시물의 답글과 리트윗의 답글은 제외합니다.<br /><br />이 연산자는 `is:retweet`, `is:quote`와 함께 사용해 원본 게시물에 대한 답글만 전달하도록 할 수 있습니다.<br /><br />Search API에서는 독립형 연산자로 사용할 수 없습니다.<br /><br />**참고**: Premium에서는 이 연산자를 Sandbox 개발 환경에서 사용할 수 없습니다. | 답글 요소, 예: `in_reply_to_status_id` |
+| is:retweet | PowerTrack<br /><br />Search | 규칙과 일치하는 명시적 리트윗만 전달합니다.<br /><br />또한 부정형(`-is:retweet`)으로 사용해 규칙과 일치하는 리트윗을 전달에서 제외하고 원본 콘텐츠만 전달되도록 할 수 있습니다.<br /><br />이 연산자는 실제 리트윗(즉, 리트윗 버튼을 사용해 게시된 리트윗)만 찾습니다. 인용 게시물과 X의 리트윗 기능을 사용하지 않은 수정된 게시물은 이 연산자와 매칭되지 않습니다.<br /><br />독립형 연산자로는 사용할 수 없습니다. | 리트윗 요소, 예: `retweeted_status` |
+| is:verified | PowerTrack<br /><br />Search | 작성자가 X에서 인증된 경우에만 게시물을 전달합니다.<br /><br />부정 형태로 사용하면 작성자가 인증된 게시물을 제외할 수 있습니다.<br /><br />단독 연산자로는 사용할 수 없습니다. | `user.verified` |
+| keyword | PowerTrack<br /><br />Search | 게시물 본문에 포함된 키워드와 일치합니다.<br /><br />이는 토큰화 기반 매칭으로, 입력한 키워드 문자열을 게시물 본문의 토큰화된 텍스트와 비교합니다. 토큰화는 문장 부호, 기호/이모지, 구분자에 해당하는 유니코드 기본 평면 문자를 기준으로 이루어집니다. 예를 들어 “I like coca-cola”라는 텍스트가 있는 게시물은 `I`, `like`, `coca`, `cola`와 같은 토큰으로 분리됩니다. 이후 이 토큰들을 규칙에 사용한 키워드 문자열과 비교합니다. 문장 부호(예: coca-cola), 기호 또는 구분자 문자가 포함된 문자열을 매칭하려면 [정확한 구문 일치](#exact-match) 연산자를 사용해야 합니다. | `text` |
+| lang: | PowerTrack<br /><br />Search | X에서 특정 언어로 분류된 게시물과 일치합니다(게시물이 분류된 경우에 한함). 각 게시물은 하나의 언어로만 분류되므로 여러 언어를 AND로 결합하면 결과가 없습니다.<br /><br />**참고:** 언어 분류를 할 수 없는 경우 결과는 `und`(정의되지 않음)입니다.<br /><br />이 연산자는 지원되는 언어에만 매칭됩니다. 그 외의 값(`und` 포함)을 제공하면 연산자는 무시됩니다(즉, 이 연산자로 게시물이 필터링되지 않음). 아래 목록은 현재 지원되는 언어와 해당 BCP 47 언어 식별자입니다:<br /><br />`am` 아므하라어<br /><br />`hu` 헝가리어<br /><br />`pt` 포르투갈어<br /><br />`ar` 아랍어<br /><br />`is` 아이슬란드어<br /><br />`ro` 루마니아어<br /><br />`hy` 아르메니아어<br /><br />`in` 인도네시아어<br /><br />`ru` 러시아어<br /><br />`bn` 벵골어<br /><br />`it` 이탈리아어<br /><br />`sr` 세르비아어<br /><br />`bg` 불가리아어<br /><br />`ja` 일본어<br /><br />`sd` 신드어<br /><br />`my` 버마어<br /><br />`kn` 칸나다어<br /><br />`si` 싱할라어<br /><br />`zh` 중국어<br /><br />`km` 크메르어<br /><br />`sk` 슬로바키아어<br /><br />`cs` 체코어<br /><br />`ko` 한국어<br /><br />`sl` 슬로베니아어<br /><br />`da` 덴마크어<br /><br />`lo` 라오어<br /><br />`ckb` 소라니 쿠르드어<br /><br />`nl` 네덜란드어<br /><br />`lv` 라트비아어<br /><br />`es` 스페인어<br /><br />`en` 영어<br /><br />`lt` 리투아니아어<br /><br />`sv` 스웨덴어<br /><br />`et` 에스토니아어<br /><br />`ml` 말라얄람어<br /><br />`tl` 타갈로그어<br /><br />`fi` 핀란드어<br /><br />`dv` 디베히어(몰디브어)<br /><br />`ta` 타밀어<br /><br />`fr` 프랑스어<br /><br />`mr` 마라티어<br /><br />`te` 텔루구어<br /><br />`ka` 조지아어<br /><br />`ne` 네팔어<br /><br />`th` 태국어<br /><br />`de` 독일어<br /><br />`no` 노르웨이어<br /><br />`bo` 티베트어<br /><br />`el` 그리스어<br /><br />`or` 오리야어<br /><br />`tr` 터키어<br /><br />`gu` 구자라트어<br /><br />`pa` 펀자브어<br /><br />`uk` 우크라이나어<br /><br />`ht` 아이티 크리올어<br /><br />`ps` 파슈토어<br /><br />`ur` 우르두어<br /><br />`iw` 히브리어<br /><br />`fa` 페르시아어<br /><br />`ug` 위구르어<br /><br />`hi` 힌디어<br /><br />`pl` 폴란드어<br /><br />`vi` 베트남어<br /><br />`cy` 웨일스어 | `lang` 값이 `und`가 아닐 때 |
+| listed\_count: | PowerTrack | _사용 가능한 별칭_: user\_in\_lists\_count:<br /><br />작성자가 X에서 목록에 포함된 횟수가 지정한 범위에 속할 때 게시물을 매칭합니다.<br /><br />\* 단일 숫자(예: `listed_count:42`)는 지정한 값과 같거나 큰 모든 숫자와 매칭합니다.<br />\* 범위(예: `listed_count:42..1337`)는 지정한 범위의 모든 숫자와 매칭합니다. | `user.listed_count` |
+| place\_country: | PowerTrack<br /><br />Search | 태그된 [place/location](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-geo-objects)에 연관된 국가 코드가 지정한 [ISO 알파-2 문자 코드](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)와 일치하는 게시물을 매칭합니다.<br /><br />**참고:** 장소(게시물 지오) 기반 매칭 연산자는 원본 게시물만 포함합니다. 리트윗에는 장소 데이터가 없습니다. | `place` (원본 게시물만) |
+| place: | PowerTrack<br /><br />Search | 지정한 위치 또는 [X place ID](https://developer.x.com/en/docs/x-api/v1/geo/places-near-location/api-reference/get-geo-search)로 태그된 게시물을 매칭합니다. 여러 단어로 된 장소 이름은 큰따옴표로 감싸야 합니다(예: `place:"San Francisco"`).<br /><br />**참고:** 장소(게시물 지오) 기반 매칭 연산자는 원본 게시물만 포함합니다. 리트윗에는 장소 데이터가 없습니다. | `place` (원본 게시물만) |
+| point\_radius: | PowerTrack<br /><br />Search | **참고:** 장소(게시물 지오) 기반 매칭 연산자는 원본 게시물만 포함합니다. 리트윗에는 장소 데이터가 없습니다. | `place` (원본 게시물만) |
+| profile\_bounding\_box:\[west\_long south\_lat east\_long north\_lat] | PowerTrack | [Profile Geo enrichment](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)의 사용자의 정확한 위치(경도, 위도)에 대해, Place가 정의한 영역에 완전히 포함되는 경우에 매칭합니다.<br /><br />\* west\_long과 south\_lat는 경계 상자의 남서쪽 꼭짓점을 나타내며, west\_long은 해당 지점의 경도, south\_lat는 위도입니다.<br />\* east\_long과 north\_lat는 경계 상자의 북동쪽 꼭짓점을 나타내며, east\_long은 해당 지점의 경도, north\_lat는 위도입니다.<br />\* 경계 상자의 너비와 높이는 25마일 미만이어야 합니다.<br />\* 경도 범위는 ±180입니다.<br />\* 위도 범위는 ±90입니다.<br />\* 모든 좌표는 십진 도(degree) 단위입니다.<br />\* 규칙 인수는 대괄호로 감싸고 공백으로 구분합니다.<br /><br />**참고:** 장소(게시물 지오) 기반 매칭 연산자는 원본 게시물만 포함합니다. 리트윗에는 장소 데이터가 없습니다. | `user.derived.locations.geo.coordinates` |
+| profile\_country: | PowerTrack<br /><br />Search | [Profile Geo enrichment](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)의 국가 코드와 정확히 일치합니다.<br /><br />[ISO-3166-1-alpha-2 사양](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)을 기반으로 정규화된 두 글자 국가 코드 집합을 사용합니다.<br /><br />간결성을 위해 주소 객체의 country 필드용 연산자 대신 이 연산자를 제공합니다.<br /><br />**참고:** 장소(게시물 지오) 기반 매칭 연산자는 원본 게시물만 포함합니다. 리트윗에는 장소 데이터가 없습니다. | `user.derived.locations.country_code` |
+| profile\_locality: | PowerTrack<br /><br />Search | [Profile Geo enrichment](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)의 Locality 필드와 정확히 일치합니다.<br /><br />이는 전체 문자열에 대한 정확 일치입니다.<br /><br />역슬래시로 문자를 이스케이프할 필요가 없습니다. 예를 들어 슬래시가 포함된 값을 매칭하려면 `one/two`를 사용합니다.<br /><br />공백이나 문장부호를 포함하는 하위 문자열을 매칭하려면 큰따옴표를 사용합니다(예: `profile_locality:"Lower East Side"`). | `user.derived.locations.locality` |
+| profile\_point\_radius:\[lon lat radius] | PowerTrack | 사용자의 [프로필 Geo 보강](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)에 있는 정확한 위치(x,y)와 매칭합니다.<br /><br />\* 지원되는 반경 단위는 마일(mi)과 킬로미터(km)입니다.<br />\* 반경은 25mi 미만이어야 합니다.<br />\* 경도 범위는 ±180입니다.<br />\* 위도 범위는 ±90입니다.<br />\* 모든 좌표는 소수점 도(degree) 단위입니다.<br />\* 규칙 인수는 대괄호 안에 넣고 공백으로 구분합니다.<br /><br />**참고:** place(게시물 위치)로 매칭하는 연산자는 원본 게시물만 포함합니다. 리트윗에는 place 데이터가 없습니다. | `user.derived.locations.geo` |
+| profile\_region: | PowerTrack<br /><br />Search | [프로필 Geo 보강](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)의 Region 필드에 대한 정확 일치입니다.<br /><br />전체 문자열의 정확 일치입니다.<br /><br />백슬래시로 문자를 이스케이프할 필요가 없습니다. 예를 들어 슬래시가 포함된 항목을 매칭하려면 `one/two`를 사용하세요.<br /><br />공백이나 구두점이 포함된 부분 문자열을 매칭하려면 큰따옴표를 사용하세요. 예: `profile_locality:"New York"`. | `user.derived.locations.region` |
+| profile\_subregion: | PowerTrack | [프로필 Geo 보강](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)의 Subregion 필드에 대한 정확 일치입니다.<br /><br />전체 문자열의 정확 일치입니다.<br /><br />백슬래시로 문자를 이스케이프할 필요가 없습니다. 예를 들어 슬래시가 포함된 항목을 매칭하려면 `one/two`를 사용하세요.<br /><br />공백이나 구두점이 포함된 부분 문자열을 매칭하려면 큰따옴표를 사용하세요. 예: `profile_locality:"Kings County"`. | `user.derived.locations.sub_region` |
+| "keyword1 keyword2"~N | PowerTrack<br /><br />Search | 일반적으로 근접 연산자로 불리며, 키워드들이 서로 N 토큰 이내에 있는 게시물을 매칭합니다.<br /><br />키워드의 순서가 반대인 경우에는 서로 N-2 토큰보다 멀어질 수 없습니다.<br /><br />따옴표 안에는 임의의 개수의 키워드를 포함할 수 있습니다.<br /><br />N은 6을 초과할 수 없습니다. | `text` |
+| retweets\_of\_status\_id: | PowerTrack | 사용 가능한 별칭: retweets\_of\_tweet\_id:<br /><br />지정된 원본 게시물의 명시적 리트윗만 전달합니다. | `retweeted_status.id`, `retweeted_status.id_str` |
+| retweets\_of: | PowerTrack<br /><br />Search | 사용 가능한 별칭: retweets\_of\_user:<br /><br />지정된 사용자의 리트윗인 모든 게시물과 매칭합니다. 값은 사용자 이름(`@` 문자를 제외) 또는 사용자의 숫자 ID일 수 있습니다(예: [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 엔드포인트를 통해 획득). | `retweeted_status.id` (있는 경우) |
+| sample: | PowerTrack | 규칙과 매칭되는 전체 게시물 집합이 아니라 무작위 백분율 샘플을 반환합니다. 퍼센트 값은 1에서 100 사이의 정수여야 합니다.<br /><br />이 연산자는 전체 규칙에 적용되며, 모든 OR 조건을 그룹화해야 합니다.<br /><br />**참고:** sample 연산자는 먼저 파이어호스 범위를 X%로 축소한 다음, 그 샘플 하위집합에 규칙/필터를 적용합니다. 예를 들어 `sample:10`을 사용하는 경우 각 게시물이 샘플에 포함될 확률은 10%입니다. <br /><br />**참고:** 샘플링은 결정적이므로, 과거 데이터를 가져올 때와 동일한 데이터 샘플을 실시간으로도 받게 됩니다. |     |
+| source: | PowerTrack | 지정된 소스 애플리케이션에서 생성된 모든 게시물과 매칭합니다. 값은 애플리케이션 이름 또는 애플리케이션의 URL이어야 합니다.<br /><br />단독으로는 사용할 수 없습니다. | `source` |
+| statuses\_count: | PowerTrack | _사용 가능한 별칭_: tweets\_count:<br /><br />작성자의 전체 게시 수가 지정한 범위에 해당하는 게시물을 매칭합니다.<br /><br />\* 단일 숫자(예: `statuses_count:42`)는 지정한 값 이상인 모든 값을 매칭합니다.<br />\* 범위(예: `statuses_count:42..1337`)는 해당 범위 내의 모든 값을 매칭합니다. | `user``.statuses_count` |
+| to: | PowerTrack<br /><br />Search | 특정 사용자에게 보낸 답글인 게시물을 매칭합니다. 값은 사용자 이름(‘@’ 문자 제외) 또는 사용자의 숫자 ID일 수 있습니다(예: [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 엔드포인트로 확인). | `text` |
+| url: | PowerTrack<br /><br />Search | 게시물의 확장 URL에 대해 토큰화된 매칭을 수행합니다. 구두점이나 특수 문자가 포함된 토큰과 구는 큰따옴표로 묶어야 합니다(예: `url:"/developer"`).<br /><br />일반적으로 권장되지는 않지만, 이 연산자는 큰따옴표로 감싼 특정 프로토콜과도 매칭할 수 있습니다(예: `url:"https://developer.x.com"`). | `entities.urls.expanded_url` |
+| url\_contains: | PowerTrack | (신규) [확장 URL 제목 메타데이터 보강](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)에 대해 키워드/구문 매칭을 수행합니다. | `entities.urls.expanded_url` |
+| url\_description: | PowerTrack | _사용 가능한 별칭_: within\_url\_description:<br /><br />(신규) [확장 페이지 설명 메타데이터 보강](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)에 대해 키워드/구문 매칭을 수행합니다. | `entities.urls.unwound.description` |
+| url\_title: | PowerTrack | _사용 가능한 별칭_: within\_url\_title:<br /><br />(신규) [확장 URL 제목 메타데이터 보강](/ko/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)에 대해 키워드/구문 매칭을 수행합니다. | `entities.urls.title` |

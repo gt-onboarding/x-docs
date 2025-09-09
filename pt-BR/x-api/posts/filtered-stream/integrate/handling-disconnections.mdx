@@ -1,0 +1,108 @@
+---
+title: Tratando desconexões
+sidebarTitle: Tratando desconexões
+---
+
+<div id="what-is-a-disconnection">
+  ### O que é uma desconexão?
+</div>
+
+Estabelecer uma conexão com as APIs de streaming significa fazer uma requisição HTTPS de longa duração e processar a resposta de forma incremental. Ao se conectar ao endpoint do Fluxo filtrado, você deve criar uma requisição HTTPS e consumir o fluxo resultante pelo maior tempo possível. Nossos servidores manterão a conexão aberta indefinidamente, exceto em caso de erro no servidor, atraso excessivo no cliente, problemas de rede, manutenção rotineira ou logins duplicados. Em conexões com endpoints de streaming, é provável — e esperado — que ocorram desconexões, portanto a lógica de reconexão deve ser implementada.
+ 
+
+<div id="why-a-streaming-connection-might-be-disconnected">
+  #### Por que uma conexão de streaming pode ser desconectada
+</div>
+
+Seu fluxo pode se desconectar por vários motivos. Verifique a mensagem de erro retornada pelo fluxo para entender a causa da falha. Possíveis razões para desconexões incluem:
+
+- Um erro de autenticação (como uso de token incorreto ou do método de autenticação errado).
+- Reinício de um servidor de streaming no lado do X. Isso geralmente está relacionado a uma implantação de código e deve ser esperado e contemplado no design.
+- Seu cliente não está acompanhando o volume de Posts que o fluxo está entregando ou está lendo os dados muito lentamente. Cada conexão de streaming é respaldada por uma fila de mensagens a serem enviadas ao cliente. Se essa fila crescer demais ao longo do tempo, a conexão será encerrada.
+- Sua conta excedeu sua cota diária/mensal de Posts.
+- Há conexões redundantes ativas em excesso.
+- O cliente para de ler dados repentinamente. Se a taxa de Posts lidos do fluxo cair de forma abrupta, a conexão será encerrada.
+- Possíveis problemas de rede entre servidor e cliente.
+- Problema temporário no servidor, manutenção ou atualizações programadas. (Verifique a [página de status](https://api.twitterstat.us/))
+   
+
+#### Erros comuns de desconexão incluem: 
+
+```{
+	"errors": [{
+		"title": "operational-disconnect",
+		"disconnect_type": "UpstreamOperationalDisconnect",
+		"detail": "Este stream foi desconectado na origem por motivos operacionais.",
+		"type": "https://api.x.com/2/problems/operational-disconnect"
+	}]
+}
+```
+
+```
+{
+	"title": "ConnectionException",
+	"detail": "Este stream atingiu o limite máximo permitido de conexões.",
+	"connection_issue": "TooManyConnections",
+	"type": "https://api.x.com/2/problems/streaming-connection"
+}
+```
+
+<div id="anticipating-disconnects-and-reconnecting">
+  #### Antecipando desconexões e reconexões
+</div>
+
+Ao transmitir Posts, o objetivo é permanecer conectado pelo máximo de tempo possível, ciente de que desconexões podem ocorrer. O endpoint envia um sinal de keep-alive a cada 20 segundos (ele aparece como um caractere de nova linha). Use esse sinal para detectar se a conexão foi interrompida.
+
+1. Seu código deve detectar quando o conteúdo novo e o heartbeat (keep-alive) deixam de chegar.
+2. Se isso acontecer, seu código deve acionar a lógica de reconexão. Alguns clientes e linguagens permitem definir um tempo limite de leitura, que você pode ajustar para 20 segundos.
+3. Seu serviço deve identificar essas desconexões e reconectar o mais rápido possível.
+
+Quando uma conexão estabelecida cair, tente reconectar imediatamente. Se a reconexão falhar, reduza a frequência das tentativas conforme o tipo de erro:
+
+- Faça backoff linear para erros de rede no nível TCP/IP. Esses problemas geralmente são temporários e tendem a se resolver rapidamente. Aumente o atraso entre reconexões em 250 ms a cada tentativa, até 16 segundos.
+- Faça backoff exponencial para erros HTTP em que a reconexão seja apropriada. Comece com uma espera de 5 segundos, dobrando a cada tentativa, até 320 segundos.
+- Faça backoff exponencial para erros HTTP 429 (limite de taxa excedido). Comece com uma espera de 1 minuto e dobre a cada tentativa. Observe que cada HTTP 429 recebido aumenta o tempo que você deve aguardar até que a limitação de taxa deixe de vigorar para sua conta.
+   
+
+<div id="recovering-lost-data">
+  #### Recuperando dados perdidos
+</div>
+
+Se você enfrentar uma desconexão, há diferentes estratégias que podem ajudar a garantir que você receba todos os dados que possam ter sido perdidos. Documentamos etapas essenciais para recuperar dados ausentes no nosso guia de integração sobre [recuperação de dados](/pt-BR/x-api/posts/filtered-stream/integrate/recovery-and-redundancy-features). 
+ 
+
+<div id="rate-limits-and-usage">
+  #### Limites de taxa e uso
+</div>
+
+Para verificar os limites de conexão, a resposta retornará três cabeçalhos. Isso é útil para entender quantas vezes você pode usar o endpoint de regras e quantas tentativas de reconexão são permitidas para o endpoint de streaming.
+
+- x-rate-limit-limit indica o número de solicitações que seu cliente pode fazer durante a janela de 15 minutos.
+
+- x-rate-limit-remaining indica o número de solicitações restantes na janela de 15 minutos.
+
+- x-rate-limit-reset é um timestamp UNIX que indica quando a janela de 15 minutos será reiniciada, redefinindo x-rate-limit-remaining para 0.
+
+O endpoint do Fluxo filtrado atualmente não informa dados de uso. Para verificar quantos Posts foram entregues, seu código pode implementar uma lógica de medição, para que o consumo possa ser mensurado e pausado, se necessário.
+
+O código que hospeda o lado cliente do fluxo simplesmente insere os Posts recebidos em uma fila FIFO (first in, first out), ou estrutura de memória similar; um processo/thread separado deve consumir os Posts dessa fila para analisar e preparar o conteúdo para armazenamento. Com esse design, você pode implementar um serviço que escale de forma eficiente caso o volume de Posts recebidos mude drasticamente. Conceitualmente, você pode pensar nisso como baixar um arquivo infinitamente longo via HTTP.
+
+<div id="reconnection-best-practices">
+  #### Melhores práticas de reconexão
+</div>
+
+**Teste estratégias de backoff**
+
+Uma boa maneira de testar uma implementação de backoff é usar credenciais de autorização inválidas e observar as tentativas de reconexão. Uma boa implementação não deve receber respostas 429.
+
+**Emita alertas para múltiplas reconexões**
+
+Se um cliente atingir o limite superior do intervalo entre reconexões, ele deve enviar notificações para que você possa triagear os problemas que estão afetando sua conexão.
+
+**Lide com alterações de DNS**
+
+Verifique se o processo do seu cliente respeita o TTL (Time To Live) do DNS. Algumas stacks manterão em cache um endereço resolvido por toda a duração do processo e não captarão alterações de DNS dentro do TTL estipulado. Esse cache agressivo causará interrupções de serviço no seu cliente à medida que o X distribui a carga entre endereços IP.
+
+**User Agent**
+
+Garanta que o cabeçalho HTTP User-Agent inclua a versão do cliente. Isso será fundamental para diagnosticar problemas do lado do X. Se o seu ambiente impedir a definição do campo User-Agent, defina um cabeçalho x-user-agent.

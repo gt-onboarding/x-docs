@@ -1,0 +1,974 @@
+---
+title: 数据格式迁移
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="introduction">
+  ## 介绍
+</div>
+
+随着 X API v2 的发布，我们采用了全新的数据响应格式以及请求不同对象和字段的方法，统称为 X API v2 格式。
+
+在“总体差异”部分，您可以了解与标准版和企业版用户相关的一些更改。此外，我们还为[标准版 v1.1 原生格式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)、企业版的[原生增强格式](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-tweet-object)以及企业版的[Activity Streams 格式](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#activity-object)准备了专门指南，帮助您完成字段映射，并说明在请求新的 v2 字段时必须使用哪些字段和扩展。
+
+- [原生格式迁移至 X API v2（标准版 v1.1）](/zh/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2)
+- [原生增强格式迁移至 X API v2（企业版）](/zh/x-api/migrate/data-format-migration#migrating-from-native-enriched-data-format-to-v2)
+- [Activity Streams 迁移至 X API v2（企业版）](/zh/x-api/migrate/data-format-migration#migrating-from-activity-streams-data-format-to-v2)
+
+您也可以使用我们的[可视化数据格式迁移工具](/zh/x-api/migrate/data-format-migration#visual-data-format-migration-tool)，快速对比 [X API v1.1 数据格式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)与 [X API v2 格式](/zh/x-api/introduction)之间的差异。
+
+<div id="general-differences">
+  ### 一般性差异
+</div>
+
+<div id="requesting-objects-and-fields">
+  #### 请求对象与字段
+</div>
+
+在 v2 之前的端点与 v2 相比，最大的变化之一是新版本默认仅返回少数字段，而标准版、高级版和企业版端点默认会返回大多数字段。新版本通过名为 [fields](/zh/x-api/fundamentals/fields) 和 [expansions](/zh/x-api/fundamentals/expansions) 的参数来显式请求超出默认返回的额外数据，这意味着你可以只请求所需的数据，而无需获取对你无关的字段。
+
+你请求的、与主数据对象相关的任何字段，都会与默认字段一起返回在该主数据对象中。另一方面，如果你通过 expansions 参数请求了任何可展开对象，次级对象将返回在一个新的 includes 对象中。你可以使用同时存在于两者中的 ID 字段，将 includes 中的可展开对象匹配回主对象。
+
+例如，如果你使用 v2 的 [Post lookup](/zh/x-api/posts/lookup/introduction) 端点，并在请求中包含参数 expansions=author\_id，你将会在主 Post 对象中收到 author\_id 字段，同时还会在 includes 对象中针对每个 Post 返回一个 user 对象。每个对象都包含默认的 id 字段，可用于将该 user 对象匹配回对应的 Post 对象。如下示例所示：
+
+```
+{
+  "data": [
+    {
+      "author_id": "2244994945",
+      "id": "1397568983931392004",
+      "text": "The Twitter Developer Platform. Ooh la la! https://t.co/iGTdPXBfOv https://t.co/Ze8z8EODdg"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "Twitter Dev",
+        "username": "TwitterDev"
+      }
+    ]
+  }
+}
+```
+
+<div id="updated-json-design">
+  #### 更新后的 JSON 设计
+</div>
+
+除了调整请求特定字段的方式外，X API v2 还为 API 返回的对象（包括 [Post](/zh/x-api/fundamentals/data-dictionary#tweet) 和 [user](/zh/x-api/fundamentals/data-dictionary#user) 对象）引入了新的 JSON 设计。
+
+- 在 JSON 根级，标准端点会在 **statuses** 数组中返回 Post 对象，而 X API v2 则在 **data** 数组中返回。
+- X API v2 的 JSON 不再将转发和引用称为“statuses”，而是称为转发和引用的 Tweets。许多旧版与已弃用字段（例如 **contributors** 和 **user.translator\_type**）将被移除。
+- X API v2 不再分别在 Post 对象中使用 **favorites**、在 user 对象中使用 **favourites**，而是统一为 like。
+- X 采用的约定是：没有值的 JSON 字段（例如 null）不会写入载荷。仅当 Post 和 user 的属性为非空值时才会包含。 
+   
+
+<div id="new-v2-fields">
+  #### 新增 v2 字段
+</div>
+
+我们还在[帖子对象](/zh/x-api/fundamentals/data-dictionary#tweet)中引入了一组新字段，包括：
+
+- 一个 [conversation\_id](/zh/x-api/fundamentals/conversation-id) 字段
+- 两个新的 [annotations](/zh/x-api/fundamentals/post-annotations) 字段，包括 context 和 entities
+- 若干新的 [metrics](/zh/x-api/fundamentals/metrics) 字段
+- 一个新的 reply\_setting 字段，用于指示哪些人可以回复指定帖子
+
+<div id="migrating-from-standard-v11s-data-format-to-v2">
+  ### 从标准 v1.1 的数据格式迁移到 v2
+</div>
+
+如果你尚未阅读，建议先通读[数据格式迁移](/zh/x-api/migrate/data-format-migration)简介。你也可以使用我们的[可视化数据格式迁移工具](/zh/x-api/migrate/data-format-migration#visual-data-format-migration-tool)，以便快速对比 [X API v1.1 数据格式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)与 [X API v2 格式](/zh/x-api/fundamentals/data-dictionary)之间的差异。
+
+标准 v1.1 数据格式（亦称原生格式）是通过 [standard v1.1](https://developer.x.com/en/docs/twitter-api/v1) 端点提供的主要格式。
+
+如果你使用高级版产品，请参阅[原生增强格式迁移指南](/zh/x-api/migrate/data-format-migration#migrating-from-native-enriched-data-format-to-v2)。企业客户可能会使用原生增强格式或活动流，具体取决于你在 Gnip 控制台中的配置方式。 
+
+<div id="standard-v11-vs-v2-payload-structure">
+  #### 标准 v1.1 与 v2 载荷结构对比
+</div>
+
+下表展示了与 v1.1 格式相比，您可从 v2 收到的高层对象及其格式。
+
+|     | **v1.1 结构** | **v2 结构** |
+| :--- | :--- | :--- |
+| **默认** | \{<br />	~all tweet object fields~,<br />	"entities": \{<br />		"hashtags": \[],<br />		"symbols": \[],<br />		"user\_mentions": \[],<br />		"urls": \[],<br />		"media": \[]<br />	},<br />	"extended\_entities": {},<br />	"user": {},<br />	"place": {},<br />	"retweeted\_status/quoted\_status"<br />} | \{<br />	"data": \[\{<br />		"id",<br />		"text",<br /><br />      "edit\_history\_tweet\_ids"<br />	}]<br />} |
+| **使用已定义的 [字段与扩展](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) 参数** |     | \{<br />	"data": \[\{<br />		~tweet object fields~,<br />		"entities": \{<br />			"hashtags": \[],<br />			"cashtags": \[],<br />			"mentions": \[],<br />			"urls": \[],<br />		},<br />		"attachments": \{<br /><br />        "media\_keys": \[],<br /><br />        "poll\_ids": \[]<br /><br />     }<br />	}],<br />	"includes": \[<br />		"tweets": \[~tweet objects~],<br />		"users": \[~user objects~],<br />		"media": \[~media objects~],<br />		"places": \[~place object~],<br /><br />      "polls": \[~poll object~]<br />	],<br /><br />   "matching\_rules": \[]<br />} |
+
+**字段映射**
+
+下文说明哪些 v1.1 字段映射到 v2 字段，以及接收新字段所需的 v2 参数。
+ 
+
+<div id="tweet-object">
+  #### 推文对象
+</div>
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Twitter 1.1 格式** | **Twitter v2 格式** | **所需 v2 参数** |
+| created\_at | data.created\_at | tweet.fields=created\_at |
+| id  |     | 不适用：id 为字符串 |
+| id\_str | data.id | 默认 |
+| text | data.text | 默认 |
+| full\_text |     | 不适用：text 已包含完整文本 |
+| truncated |     | 不适用：text 已包含完整文本 |
+| display\_text\_range |     | 不适用：text 已包含完整文本 |
+| edit\_history | data.edit\_history\_tweet\_ids | 默认 |
+| edit\_controls | data.edit\_controls | tweet.fields=edit\_controls |
+| editable | data.edit\_controls.is\_edit\_eligible | tweet.fields=edit\_controls |
+| entities | data.entities | tweet.fields=entities |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities |
+| entities.urls | data.entities.urls | tweet.fields=entities |
+| entities.media | includes.media | expansions=attachments.media\_keys |
+| extended\_entities | data.attachments | tweet\_fields=attachments |
+| in\_reply\_to\_status\_id |     | 不适用：referenced\_tweets.id 为字符串 |
+| in\_reply\_to\_status\_id\_str | data.referenced\_tweets.id（当 type=replied\_to 时） | expansions=referenced\_tweets.id |
+| in\_reply\_to\_user\_id |     | 不适用：in\_reply\_to\_user\_id 为字符串 |
+| in\_reply\_to\_user\_id\_str | data.in\_reply\_to\_user\_id | tweet.fields=in\_reply\_to\_user\_id |
+| in\_reply\_to\_screen\_name | includes.users..username | tweet.fields=in\_reply\_to\_user\_id\&expansions=entities.mentions.username |
+| user | includes.users | expansions=author\_id |
+| geo | data.geo.place\_id | tweet.fields=geo |
+| coordinates | data.geo.place\_id | expansions=geo.place\_id |
+| place | data.geo.place\_id | expansions=geo.place\_id |
+| retweeted\_status | data.referenced\_tweets.id（当 type=retweeted 时） | expansions=referenced\_tweets.id |
+| is\_quoted\_status |     | 不可用 |
+| quoted\_status\_id |     | 不适用：referenced\_tweets.id 为字符串 |
+| quoted\_status\_id\_str | data.referenced\_tweets.id（当 type=quoted 时） | expansions=referenced\_tweets.id |
+| quoted\_status\_permalink |     | 不可用 |
+| quoted\_status | data.referenced\_tweets（当 type=quoted 时） | expansions=referenced\_tweets.id |
+| retweet\_count | data.public\_metrics.retweet\_count | tweet.fields=public\_metrics |
+| favorite\_count | data.public\_metrics.like\_count | tweet.fields=public\_metrics |
+| favorited |     | 不可用 |
+| retweeted |     | 不可用 |
+| possibly\_sensitive | data.possibly\_sensitive | tweet.fields=possibly\_sensitive |
+| lang | data.lang | tweet.fields=lang |
+| scopes |     | 不可用 |
+| withheld | data.withheld | tweet.fields=withheld |
+
+**示例**
+
+|     |     |
+| :--- | :--- |
+| **1.1 版的推文对象**<br /><br />带参数的示例 URI：<br /><br />https://api.x.com/1.1/statuses/lookup.json?id=1359554366051504129\&tweet\_mode=extended | **v2 版的推文对象与请求**<br /><br />带参数的示例 URI：<br /><br />https://api.x.com/2/tweets?ids=1359554366051504129\&tweet.fields=attachments,author\_id,context\_annotations,conversation\_id,created\_at,entities,geo,id,in\_reply\_to\_user\_id,lang,possibly\_sensitive,public\_metrics,referenced\_tweets,reply\_settings,text,withheld || \{<br />	"text": "尽管去关注另一个小狗账号吧。我们不会评头论足。 \n\n隆重介绍用于全新……的“管理关注”端点 https:\\/\\/t.co\\/3cBZKZUevF",<br />	<br />	"urls": \[\{<br />			"expanded\_url": "https:\\/\\/twitter.com\\/i\\/web\\/status\\/1359554366051504129",<br />			"display\_url": "twitter.com\\/i\\/web\\/status\\/1…",<br />			"indices": \[<br />				111,<br />				134<br />			]<br />		}]<br />	},<br />	<br />	"user": \{<br />		...<br />	},<br />	| \{<br />	"data": \[\{<br />		"text": "尽管去关注另一个小狗账号吧。我们不会评头论足。 \n\n隆重介绍用于全新 #TwitterAPI 的“管理关注”端点。你现在可以使用 v2 API 关注或取消关注账号。了解更多 https://t.co/mtpd9VIMDa",<br />		"entities": \{<br />			"hashtags": \[\{<br />				"tag": "TwitterAPI"<br />			}],<br />			"urls": \[\{<br />				"expanded\_url": "https://devcommunity.x.com/t/introducing-the-new-manage-follows-endpoints-to-the-twitter-api-v2/149465",<br />				"display\_url": "devcommunity.com/t/introducing-…",<br />				"images": \[\{<br />						"width": 1200,<br />						"height": 630<br />					},<br />					\{<br />						"width": 150,<br />						"height": 150<br />					}<br />				],<br />				"title": "介绍 X API v2 中全新的“管理关注”端点",<br />				"description": "关注，还是不关注？现在你可以使用 X API v2 自由选择答案。今天，我们很高兴地宣布在全新的 Twitter API 中发布“管理关注”端点。正如我们在一个多月前推出关注查询端点时所预告的那样，管理关注关系的能力终于来了。这些端点是我们 v1.1 API 中最受欢迎的之一，因此我们很高兴能在 X API v2 上解锁更广泛的用例。W...",<br />				"unwound\_url": "https://devcommunity.x.com/t/introducing-the-new-manage-follows-endpoints-to-the-twitter-api-v2/149465"<br />			}]<br />		},<br />		"context\_annotations": \[\{<br />				"domain": \{<br />					"name": "品牌类别",<br />					"description": "品牌纵向中的类别，用于细化品牌范围"<br />				},<br />				"entity": \{<br />					"name": "服务"<br />				}<br />			},<br />			\{<br />				"domain": \{<br />					"name": "品牌",<br />					"description": "品牌与公司"<br />				},<br />				"entity": \{<br />					"name": "Twitter"<br />				}<br />			}<br />		]<br />	}]<br />} |
+
+---
+
+<div id="user-object">
+  #### 用户对象
+</div>
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Twitter 1.1 格式** | **Twitter v2 格式** | **所需 v2 参数** |
+| user\_id | data.author\_id | tweet.fields=author\_id |
+| user.id |     | 不适用，请使用 includes.users.id |
+| user.id\_str | includes.users.id | expansions=author\_id |
+| user.name | includes.users.name | expansions=author\_id |
+| user.screen\_name | includes.users.username | expansions=author\_id |
+| user.location | includes.users.location | expansions=author\_id\&user.fields=location |
+| user.description | includes.users.description | expansions=author\_id\&user.fields=description |
+| user.url | includes.users.url | expansions=author\_id\&user.fields=entities |
+| user.entities | includes.users.entities |     |
+| user.entities.url.urls.url | includes.users.entities.url.urls.url |     |
+| user.entities.url.urls.expanded\_url | includes.users.entities.url.urls.expanded\_url | expansions=author\_id\&user.fields=entities |
+| user.entities.url.urls.display\_url | includes.users.entities.url.urls.display\_url | expansions=author\_id\&user.fields=entities |
+| user.entities.url.urls.display\_url.indicies\[0] | includes.users.entities.url.urls.start | expansions=author\_id\&user.fields=entities |
+| user.entities.url.urls.display\_url.indicies\[1] | includes.users.entities.url.urls.end | expansions=author\_id\&user.fields=entities |
+| user.protected | includes.users.protected | expansions=author\_id\&user.fields=protected |
+| user.followers\_count | includes.users.public\_metrics.followers\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.friends\_count | includes.users.public\_metrics.following\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.listed\_count | includes.users.public\_metrics.listed\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.created\_at | includes.users.created\_at | expansions=author\_id\&user.fields=created\_at |
+| user.favourites\_count |     |     |
+| user.verified | includes.users.verified | expansions=author\_id\&user.fields=verified |
+| user.statuses\_count | includes.users.public\_metrics.tweet\_count | expansions=author\_id\&user.fields=public\_metrics |
+| user.profile\_image\_url\_https | includes.users.profile\_image\_url | expansions=author\_id\&user.fields=profile\_image\_url |
+
+**示例**
+
+|     |     |
+| :--- | :--- |
+| **1.1 版本的用户对象** | **v2 版本的用户对象与请求** || "user": \{<br />	"id": 2244994945,<br />	"id\_str": "2244994945",<br />	"name": "Twitter Dev",<br />	"screen\_name": "TwitterDev",<br />	"location": "127.0.0.1",<br />	"description": "来自 #TwitterDev 团队的声音；关于 #TwitterAPI 的更新、新闻和活动的官方信息来源。",<br />	"url": "https:\\/\\/t.co\\/3ZX3TNiZCY",<br />	"entities": \{<br />		"url": \{<br />			"urls": \[\{<br />				"url": "https:\\/\\/t.co\\/3ZX3TNiZCY",<br />				"expanded\_url": "https:\\/\\/developer.x.com\\/en\\/community",<br />				"display\_url": "developer.x.com\\/en\\/community",<br />				"indices": \[<br />					0,<br />					23<br />				]<br />			}]<br />		},<br />		"description": \{<br />			"urls": \[]<br />		}<br />	},<br />	"protected": false,<br />	"followers\_count": 517232,<br />	"friends\_count": 2032,<br />	"listed\_count": 1722,<br />	"created\_at": "Sat Dec 14 04:35:55 +0000 2013",<br />	"favourites\_count": 2134,<br />	"utc\_offset": null,<br />	"time\_zone": null,<br />	"geo\_enabled": true,<br />	"verified": true,<br />	"statuses\_count": 3677,<br />	"lang": null,<br />	"contributors\_enabled": false,<br />	"is\_translator": false,<br />	"is\_translation\_enabled": false,<br />	"profile\_background\_color": "FFFFFF",<br />	"profile\_background\_image\_url": "http:\\/\\/abs.twimg.com\\/images\\/themes\\/theme1\\/bg.png",<br />	"profile\_background\_image\_url\_https": "https:\\/\\/abs.twimg.com\\/images\\/themes\\/theme1\\/bg.png",<br />	"profile\_background\_tile": false,<br />	"profile\_image\_url": "http:\\/\\/pbs.twimg.com\\/profile\_images\\/1354494203451961345\\/d8HkZl6p\_normal.jpg",<br />	"profile\_image\_url\_https": "https:\\/\\/pbs.twimg.com\\/profile\_images\\/1354494203451961345\\/d8HkZl6p\_normal.jpg",<br />	"profile\_banner\_url": "https:\\/\\/pbs.twimg.com\\/profile\_banners\\/2244994945\\/1611792896",<br />	"profile\_link\_color": "0084B4",<br />	"profile\_sidebar\_border\_color": "FFFFFF",<br />	"profile\_sidebar\_fill\_color": "DDEEF6",<br />	"profile\_text\_color": "333333",<br />	"profile\_use\_background\_image": false,<br />	"has\_extended\_profile": true,<br />	"default\_profile": false,<br />	"default\_profile\_image": false,<br />	"following": null,<br />	"follow\_request\_sent": null,<br />	"notifications": null,<br />	"translator\_type": "regular"<br />} | \{<br />	"data": \[\{<br />		"author\_id": "2244994945",<br />		"id": "1362876655061073928",<br />		"text": "从我们的客厅到你的客厅 🐱‍💻🛋️ 我们的开发者倡导者已准备了精彩的 Twitch 直播和线上活动，帮助你上手全新的 #TwitterAPI。查看日程了解详情；如果想看更多，欢迎告诉我们！\n👇\nhttps://t.co/cixDY9qkvH"<br />	}],<br />	"includes": \{<br />		"users": \[\{<br />			"public\_metrics": \{<br />				"followers\_count": 517233,<br />				"following\_count": 2034,<br />				"tweet\_count": 3677,<br />				"listed\_count": 1727<br />			},<br />			"username": "TwitterDev",<br />			"entities": \{<br />				"url": \{<br />					"urls": \[\{<br />						"start": 0,<br />						"end": 23,<br />						"url": "https://t.co/3ZX3TNiZCY",<br />						"expanded\_url": "https://developer.x.com/en/community",<br />						"display\_url": "developer.x.com/en/community"<br />					}]<br />				},<br />				"description": \{<br />					"hashtags": \[\{<br />							"start": 17,<br />							"end": 28,<br />							"tag": "TwitterDev"<br />						},<br />						\{<br />							"start": 105,<br />							"end": 116,<br />							"tag": "TwitterAPI"<br />						}<br />					]<br />				}<br />			},<br />			"description": "来自 #TwitterDev 团队的声音；关于 #TwitterAPI 的更新、新闻和活动的官方信息来源。",<br />			"name": "Twitter Dev",<br />			"verified": true,<br />			"location": "127.0.0.1",<br />			"id": "2244994945",<br />			"protected": false,<br />			"url": "https://t.co/3ZX3TNiZCY",<br />			"profile\_image\_url": "https://pbs.twimg.com/profile\_images/1354494203451961345/d8HkZl6p\_normal.jpg",<br />			"created\_at": "2013-12-14T04:35:55.000Z"<br />		}]<br />	}<br />} |
+
+<div id="entities-and-expanded-entities-objects">
+  #### 实体与扩展实体对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Twitter 1.1 格式** | **Twitter v2 格式** | **v2 所需参数** | **v2 中的类型** |
+| entities | data.entities | tweet.fields=entities | object |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities | array of objects |
+| entities.hashtags.indices\[0] | data.entities.hashtags.start | tweet.fields=entities | number |
+| entities.hashtags.indices\[1] | data.entities.hashtags.end | tweet.fields=entities | number |
+| entities.hashtags.text | data.entities.hashtags.tag | tweet.fields=entities | string |
+| entities.urls | data.entities.urls | tweet.fields=entities | array of objects |
+| entities.urls.indices\[0] | data.entities.urls.start | tweet.fields=entities | number |
+| entities.urls.indices\[1] | data.entities.urls.end | tweet.fields=entities | number |
+| entities.urls.url | data.entities.urls.url | tweet.fields=entities | string |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities | array of objects |
+| entities.user\_mentions.indicies\[0] | data.entities.mentions.start | tweet.fields=entities | number |
+| entities.user\_mentions.indicies\[1] | data.entities.mentions.end | tweet.fields=entities | number |
+| entities.user\_mentions.screen\_name | data.entities.mentions.username | tweet.fields=entities | string |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities | array of objects |
+| entities.symbols.indices\[0] | data.entities.cashtags.start | tweet.fields=entities | number |
+| entities.symbols.indices\[1] | data.entities.cashtags.end | tweet.fields=entities | number |
+| entities.symbols.text | data.entities.cashtags.tag | tweet.fields=entities | string |
+| entities.media | includes.media | expansions=attachments.media\_keys | array of objects |
+| entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | string |
+| entities.media.type | includes.media.media.type | expansions=attachments.media\_keys | string |
+| entities.media.media\_url |     | 不适用，使用 includes.media.url | string |
+| entities.media.media\_url\_https | includes.media.url | expansions=attachments.media\_keys\&media.fields=url | string |
+| entities.media.url |     |     |     |
+| entities.media.display\_url |     |     |     |
+| entities.media.expanded\_url |     |     |     |
+| entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | string |
+| extended\_entities | data.attachments | tweet.fields=attachments | object |
+| extended\_entities | data.attachments.media\_keys | tweet.fields=attachments | array of objects |
+| extended\_entities.media | includes.media | expansions=attachments.media\_keys | array of objects |
+| extended\_entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | string |
+| extended\_entities.media.type | includes.media.media.type | expansions=attachments.media\_keys | string |
+| extended\_entities.media.sizes.thumb.w |     | 不可用 |     |
+| extended\_entities.media.sizes.thumb.h |     | 不可用 |     |
+| extended\_entities.media.sizes.thumb.resize |     | 不可用 |     |
+| extended\_entities.media.sizes.large.w | includes.media.height | expansions=attachments.media\_keys\&media.fields=height |     |
+| extended\_entities.media.sizes.large.h | includes.media.width | expansions=attachments.media\_keys\&media.fields=width |     |
+| extended\_entities.media.sizes.large.resize |     | 不可用 |     |
+| extended\_entities.media.sizes.small.w |     | 不可用 |     |
+| extended\_entities.media.sizes.small.h |     | 不可用 |     |
+| extended\_entities.media.sizes.small.resize |     | 不可用 |     |
+| extended\_entities.media.sizes.medium.w |     | 不可用 |     |
+| extended\_entities.media.sizes.medium.h |     | 不可用 |     |
+| extended\_entities.media.sizes.medium.resize |     | 不可用 |     |
+| extended\_entities.media.media\_url\_https | includes.media.url | expansions=attachments.media\_keys\&media.fields=url | string |
+| extended\_entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | string |
+| extended\_entities.media.video\_info.duration\_millis | includes.media.duration\_ms | expansions=attachments.media\_keys\&media.fields=duration\_ms | number |
+
+**示例**
+
+|     |     |
+| :--- | :--- |
+| **v1.1 中的实体与扩展实体（含视频）** | **v2 中的实体、附件与包含**<br /><br />https://api.x.com/2/tweets?ids=1370161532013735937\&expansions=attachments.media\_keys,entities.mentions.username\&tweet.fields=entities\&user.fields=created\_at,description,entities,location,name,profile\_image\_url,protected,public\_metrics,url,username,verified,withheld\&media.fields=duration\_ms,height,media\_key,preview\_image\_url,public\_metrics,type,url,width |"location": "127.0.0.1" |
+
+---
+
+<div id="place-object">
+  #### 地点对象
+</div>
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Twitter 1.1 格式** | **Twitter v2 格式** | **v2 必需参数** |
+| place | data.geo.place\_id | tweet.fields=geo |
+| place.id | includes.places.id | expansions=geo.place\_id |
+| place.id.place\_type | includes.places.place\_type | expansions=geo.place\_id\&place.fields=place\_type |
+| place.id.name | includes.places.name | expansions=geo.place\_id\&place.fields=name |
+| place.id.full\_name | includes.places.full\_name | expansions=geo.place\_id |
+| place.id.country\_code | includes.places.country\_code | expansions=geo.place\_id\&place.fields=country\_code |
+| place.id.country | includes.places.country | expansions=geo.place\_id\&place.fields=country |
+| place.id.contained\_within | includes.places.contained\_within | expansions=geo.place\_id\&place.fields=contained\_within |
+| place.id.bounding\_box.type | includes.places.geo.type | expansions=geo.place\_id\&place.fields=place\_type |
+| place.id.bounding\_box.coordinates | includes.places.geo.bbox | expansions=geo.place\_id\&place.fields=geo |
+| place.id.attributes | includes.places.properties | expansions=geo.place\_id\&place.fields=geo |
+
+**示例**
+
+|     |     |
+| :--- | :--- |
+| **v1.1 中的 Place 对象** | **v2 中的 Place 对象**<br /><br />https://api.x.com/2/tweets?ids=1370161532013735937\&expansions=geo.place\_id\&tweet.fields=geo\&place.fields=contained\_within,country,country\_code,full\_name,geo,id,name,place\_type |
+| "place": \{<br />    "id": "f7eb2fa2fea288b1",<br />    "url": "https:\\/\\/api.x.com\\/1.1\\/geo\\/id\\/f7eb2fa2fea288b1.json",<br />    "place\_type": "city",<br />    "name": "Lakewood",<br />    "full\_name": "Lakewood, CO",<br />    "country\_code": "US",<br />    "country": "United States",<br />    "contained\_within": \[],<br />    "bounding\_box": \{<br />      "type": "Polygon",<br />      "coordinates": \[<br />        \[<br />          \[<br />            -105.193475,<br />            39.60973<br />          ],<br />          \[<br />            -105.053164,<br />            39.60973<br />          ],<br />          \[<br />            -105.053164,<br />            39.761974<br />          ],<br />          \[<br />            -105.193475,<br />            39.761974<br />          ]<br />        ]<br />      ]<br />    },<br />    "attributes": {}<br />  } | \{<br />	"data": \[\{<br />		"id": "1370161532013735937",<br />		"text": "Another #test with a video and @TwitterDev mention. Excited for new format migration docs! https://t.co/XVLZ3uwikc https://t.co/dz4oByygWA",<br />		"geo": \{<br />			"place\_id": "f7eb2fa2fea288b1"<br />		}<br />	}],<br />	"includes": \{<br />		"places": \[\{<br />			"name": "Lakewood",<br />			"place\_type": "city",<br />			"full\_name": "Lakewood, CO",<br />			"id": "f7eb2fa2fea288b1",<br />			"geo": \{<br />				"type": "Feature",<br />				"bbox": \[<br />					-105.193475,<br />					39.60973,<br />					-105.053164,<br />					39.761974<br />				],<br />				"properties": {}<br />			},<br />			"country\_code": "US",<br />			"country": "United States"<br />		}]<br />	} |
+
+**下一步**
+
+- 详细了解[字段](/zh/x-api/fundamentals/fields)
+- 详细了解[扩展](/zh/x-api/fundamentals/expansions)
+- 了解如何[将字段与扩展配合使用](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)
+
+<div id="migrating-from-native-enriched-data-format-to-v2">
+  ### 从 Native Enriched 数据格式迁移到 v2
+</div>
+
+Native Enriched 数据格式用于我们的[企业级](/zh/x-api/enterprise-gnip-2.0/enterprise-gnip)产品。
+
+Native Enriched 数据格式已更新，以提供已编辑推文的元数据。要了解编辑推文元数据的更多信息，请参阅[编辑推文基础](/zh/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets)页面。
+
+如果您使用的是标准 v1.1 端点，请参阅[标准 v1.1 到 v2 迁移指南](/zh/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2)。如果您使用的是带有 Activity Streams 的企业产品，我们也提供了[Activity Streams 到 v2 迁移指南](/zh/x-api/migrate/data-format-migration#migrating-from-activity-streams-data-format-to-v2)。
+
+X API v2 为 [Tweet](/zh/x-api/fundamentals/data-dictionary#tweet) 和 [user](/zh/x-api/fundamentals/data-dictionary#user) 对象引入了新的 JSON 设计。
+
+- 在 JSON 根级别，Native Enriched 格式在 results 数组中返回 Tweet 对象，而 X API v2 在 data 数组中返回。
+- X API v2 统一使用术语 like，而不再分别在 Tweet 对象中使用 favorites、在 user 对象中使用 favourites。
+- X 采用约定：没有值的 JSON 字段（例如 null）不会写入到载荷中。仅当 Tweet 和 user 属性为非空时才会包含。
+- v2 中所有 id 字段均为字符串格式
+   
+
+除新的 JSON 格式变更外，我们还为 Tweet 对象引入了一组新字段，包括：
+
+- conversation\_id
+- reply\_settings
+- 媒体上的 alt\_text
+- 两个新的[annotations](/zh/x-api/fundamentals/post-annotations)字段：context 和 entities
+- 多个新的[metrics](/zh/x-api/fundamentals/metrics)字段
+- 多个新的[polls](/zh/x-api/fundamentals/data-dictionary#poll)字段
+   
+
+许多传统和已弃用字段将被移除：
+
+- contributors
+- 某些 entities.media 和 extended\_entities.media 字段
+- filter\_level
+- timestamp\_ms
+- truncated
+
+<div id="native-enriched-vs-v2-payload-structure">
+  #### 原生增强版与 v2 负载结构对比
+</div>
+
+下表展示了与原生增强版格式相比，v2 返回的高层对象及其格式。
+
+|     | **原生增强版结构** | **v2 结构** |
+| :--- | :--- | :--- |
+| **默认** | \{<br />  ~tweet object fields~,<br /><br />  "user": {},<br />  "place": {},<br />  "entities": \{<br />    "hashtags": \[],<br />    "urls": \[],<br />    "user\_mentions": \[],<br />    "symbols": \[],<br />    "annotations": \[],<br />    "media": \[]<br />  },<br />  "extended\_entities": {},<br />  "matching\_rules": \[]<br />} | \{<br />  "data": \[\{<br />    "id",<br />    "text",<br /><br />    "edit\_history\_tweet\_ids" <br />  }]<br />} |
+| **使用定义好的[字段与扩展](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)参数** |     | \{<br />  "data": \[\{<br />    ~tweet object fields~,<br />    "entities": \{<br />      "hashtags": \[],<br />      "cashtags": \[],<br />      "mentions": \[],<br />      "urls": \[],<br />    },<br />    "attachments": \{<br />      "media\_keys": \[],<br />      "poll\_ids": \[]<br />    }<br />  }],<br />  "includes": \[<br />    "tweets": \[~user objects~],<br />    "users": \[~user objects~],<br />    "media": \[~media objects~],<br />    "places": \[~place object~],<br />    "polls": \[~poll object~]<br />  ],<br />  "matching\_rules": \[]<br />} |
+
+**字段映射**
+
+以下部分说明原生增强版中的哪些字段映射到 v2 的字段，以及为接收这些新字段所需的 v2 参数。
+ 
+
+<div id="tweet-object">
+  #### 推文对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **原生增强格式** | **Twitter v2 格式** | **v2 必需参数** | **v2 中的类型** |
+| created\_at | data.created\_at | tweet.fields=created\_at | 字符串 |
+| id  |     | 不适用 - 参见 id |     |
+| id\_str | data.id | 默认 | 字符串 |
+| text | data.text | 默认 | 字符串 |
+| edit\_history | data.edit\_history\_tweet\_ids | 默认 | 数组 |
+| edit\_controls | data.edit\_controls | tweet.fields=edit\_controls | 对象 |
+| editable | data.edit\_controls.is\_edit\_eligible | tweet.fields=edit\_controls | 布尔值 |
+| display\_text\_range |     | 不适用 - text 包含完整文本 |     |
+| source | data.source | tweet.fields=source | 字符串 |
+| truncated |     | 不适用 - text 包含完整文本 |     |
+| Not available | data.conversation\_id | tweet.fields=conversation\_id | 字符串 |
+| Not available | data.reply\_settings | tweet.fields=reply\_settings | 字符串 |
+| in\_reply\_to\_status\_id |     | 不适用 - 参见 referenced\_tweets.id |     |
+| in\_reply\_to\_status\_id\_str | data.referenced\_tweets.id (if type=replied\_to) | expansions=referenced\_tweets.id | 字符串 |
+| in\_reply\_to\_user\_id |     | 不适用 - 参见 in\_reply\_to\_user\_id\_str |     |
+| in\_reply\_to\_user\_id\_str | data.in\_reply\_to\_user\_id | tweet.fields=in\_reply\_to\_user\_id | 字符串 |
+| in\_reply\_to\_screen\_name | includes.users..username | tweet.fields=in\_reply\_to\_user\_id\&expansions=entities.mentions.username | 字符串 |
+| user | includes.users | expansions=author\_id | 对象 |
+| user.id\_str | data.author\_id | tweet.fields=author\_id | 字符串 |
+| geo | data.geo.place\_id | tweet.fields=geo |     |
+| coordinates | data.geo.place\_id | tweet.fields=geo |     |
+| place | data.geo.place\_id | tweet.fields=geo |     |
+| is\_quoted\_status | data.referenced\_tweets.id (if type=quoted) | tweet.fields=referenced\_tweets | 字符串 |
+| extended\_tweet.full\_text |     | 不适用 - text 为完整文本 |     |
+| Not available | data.public\_metrics | tweet.fields=public\_metrics | 对象 |
+| quote\_count | data.public\_metrics.quote\_count | tweet.fields=public\_metrics | 整数 |
+| reply\_count | data.public\_metrics.reply\_count | tweet.fields=public\_metrics | 整数 |
+| retweet\_count | data.public\_metrics.retweet\_count | tweet.fields=public\_metrics | 整数 |
+| favorite\_count | data.public\_metrics.like\_count | tweet.fields=public\_metrics | 整数 |
+| Not available | data.non\_public\_metrics | tweet.fields=non\_public\_metrics | 对象 |
+| Not available | data.non\_public\_metrics.impression\_count | tweet.fields=non\_public\_metrics | 整数 |
+| Not available | data.non\_public\_metrics.url\_link\_count | tweet.fields=non\_public\_metrics | 整数 |
+| Not available | data.non\_public\_metrics.user\_profile\_count | tweet.fields=non\_public\_metrics | 整数 |
+| Not available | data.organic\_metrics | tweet.fields=organic\_metrics | 对象 |
+| Not available | data.organic\_metrics.like\_count | tweet.fields=organic\_metrics | 整数 |
+| Not available | data.organic\_metrics.retweet\_count | tweet.fields=organic\_metrics | 整数 |
+| Not available | data.organic\_metrics.reply\_count | tweet.fields=organic\_metrics | 整数 |
+| Not available | data.organic\_metrics.impression\_count | tweet.fields=organic\_metrics | 整数 |
+| 不可用 | data.organic\_metrics.url\_link\_count | tweet.fields=organic\_metrics | Int |
+| 不可用 | data.organic\_metrics.user\_profile\_count | tweet.fields=organic\_metrics | Int |
+| 不可用 | data.promoted\_metrics | tweet.fields=promoted\_metrics | Object |
+| 不可用 | data.promoted\_metrics.like\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.retweet\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.reply\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.impression\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.url\_link\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.user\_profile\_count | tweet.fields=promoted\_metrics | Int |
+| 贡献者 | 不可用 | 不可用 |     |
+| entities | data.entities | tweet.fields=entities | Object |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities | 对象数组 |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities | 对象数组 |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities | 对象数组 |
+| entities.urls | data.entities.urls | tweet.fields=entities | 对象数组 |
+| entities.media | includes.media | expansions=attachments.media\_keys | 对象数组 |
+| entities.annotations |     | tweet.fields=entities,context\_annotations | Object |
+| entities.annotations.context | data.context\_annotations | tweet.fields=entities,context\_annotations | 对象数组 |
+| 无对应项 | data.context\_annotations.domain | tweet.fields=context\_annotations | Object |
+| entities.annotations.context.context\_domain\_id\_str | data.context\_annotations.domain.id | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_domain\_id | 不可用 | 不可用 - 字符串格式请参见 data.context\_annotations.domain.id |     |
+| entities.annotations.context.context\_domain\_name | data.context\_annotations.domain.name | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_domain\_description | data.context\_annotations.domain.description | tweet.fields=context\_annotations | String |
+| 无对应项 | data.context\_annotations.entity | tweet.fields=context\_annotations | Object |
+| entities.annotations.context.context\_entity\_id\_str | data.context\_annotations.entity.id | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_entity\_id | 不可用 | 不可用 - 字符串格式请参见 data.context\_annotations.entity.id |     |
+| entities.annotations.context.context\_entity\_name | data.context\_annotations.entity.name | tweet.fields=context\_annotations | String |
+| entities.annotations.context.context\_entity\_description | data.context\_annotations.entity.description | tweet.fields=context\_annotations | String |
+| entities.annotations.entity | data.entities.annotations | tweet.fields=entities,context\_annotations | 对象数组 |
+| extended\_entities | data.attachments | tweet\_fields=attachments | Object |
+| 已点赞 | 不可用 | 不可用 |     |
+| 已转发 | 不可用 | 不可用 |     |
+| retweeted\_status |     |     |     |
+| 可能含敏感内容 | data.possibly\_sensitive | tweet.fields=possibly\_sensitive | Boolean |
+| 语言 | data.lang | tweet.fields=lang | String |
+| 过滤级别 | 不可用 | 不可用 |     |
+| 作用域 | 不可用 | 不可用 |     |
+| 时间戳（毫秒） | 不可用 | 不可用 |     |
+| 限制传播 | data.withheld | tweet.fields=withheld | 对象数组 |
+| 匹配规则 | matching\_rules |     | 对象数组 |
+| 匹配规则.id | 不可用 | 不可用 |     |
+| 匹配规则.id\_str | matching\_rules.id | 过滤流默认提供 | String |
+| 匹配规则.tag | matching\_rules.tag | 过滤流默认提供 | String |
+
+<div id="user-object">
+  #### 用户对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **原生增强格式** | **Twitter v2 格式** | **所需 v2 参数** | **v2 中的类型** |
+| user | includes.users | expansions=author\_id | 对象数组 |
+| user.id | 不可用 | 不适用 - 参见 includes.users.id | 字符串 |
+| user.id\_str | includes.users.id | expansions=author\_id | 字符串 |
+| user.name | includes.users.name | expansions=author\_id | 字符串 |
+| user.screen\_name | includes.user.username | expansions=author\_id | 字符串 |
+| user.location | includes.users.location | expansions=author\_id\&user.fields=location | 对象 |
+| user.description | includes.users.description | expansions=author\_id\&user.fields=description | 字符串 |
+| 不可用 | includes.users.url | expansions=author\_id\&user.fields=url | 字符串 |
+| user.followers\_count | includes.users.public\_metrics.followers\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.friends\_count | includes.users.public\_metrics.following\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.listed\_count | includes.users.public\_metrics.listed\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.created\_at | includes.users.created\_at | expansions=author\_id\&user.fields=created\_at | 字符串 |
+| user.favourites\_count |     | 尚不可用 |     |
+| user.verified | includes.users.verified | expansions=author\_id\&user.fields=verified | 布尔值 |
+| 不可用 | includes.users.pinned\_tweet\_id | expansions=author\_id\&user.fields=pinned\_tweet\_id | 字符串 |
+| user.statuses\_count | includes.users.public\_metrics.tweet\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| user.profile\_image\_url\_https | includes.users.profile\_image\_url | expansions=author\_id\&user.fields=profile\_image\_url | 字符串 |
+| user.translator\_type | 不可用 | 不可用 |     |
+| user.utc\_offset | 不可用 | 不可用 |     |
+| user.time\_zone | 不可用 | 不可用 |     |
+| user.geo\_enabled | 不可用 | 不可用 |     |
+| user.lang | 不可用 | 不可用 - 从推文语言推断 |     |
+| user.contributors\_enabled | 不可用 | 不可用 |     |
+| user.is\_translator | 不可用 | 不可用 |     |
+| user.profile\_background\_color | 不可用 | 不可用 |     |
+| user.profile\_background\_image\_url | 不可用 | 不可用 |     |
+| user.profile\_background\_image\_url\_https | 不可用 | 不可用 |     |
+| user.profile\_background\_title | 不可用 | 不可用 |     |
+| user.profile\_sidebar\_border\_color | 不可用 | 不可用 |     |
+| user.profile\_sidebar\_fill\_color | 不可用 | 不可用 |     |
+| user.profile\_text\_color | 不可用 | 不可用 |     |
+| user.profile\_user\_background\_image | 不可用 | 不可用 |     |
+| user.profile\_image\_url |     | 参见 includes.user.profile\_image\_url |     |
+| user.default\_profile | 不可用 | 不可用 |     |
+| user.default\_profile\_image | 不可用 | 不可用 |     |
+| user.following | 不可用 | 不可用 |     |
+| user.follow\_request\_sent | 不可用 | 不可用 |     |
+| user.notifications | 不可用 | 不可用 |     |
+| user.withheld\_in\_countries | includes.users.withheld | expansions=author\_id\&user.fields=withheld | 对象 |
+| user.protected | includes.users.protected | expansions=author\_id\&user.fields=protected | 布尔值 |
+| 不可用 | includes.users.entities | expansions=author\_id\&user.fields=entities | 对象 |
+| 不可用 | includes.users.entities.url | expansions=author\_id\&user.fields=entities | 对象 |
+| 不可用 | includes.users.entities.url.urls | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.url.urls.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.url.urls.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.url.urls.url | expansions=author\_id\&user.fields=entities | 字符串 |
+| user.url | includes.users.entities.url.urls.expanded\_url | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.url.urls.display\_url | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.descriptions | expansions=author\_id\&user.fields=entities | 对象 |
+| 不适用 | includes.users.entities.descriptions.hashtags | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.descriptions.hashtags.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.descriptions.hashtags.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 包含于 user.description | includes.users.entities.descriptions.hashtags.tag | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.descriptions.mentions | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.descriptions.mentions.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.descriptions.mentions.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 包含于 user.description | includes.users.entities.descriptions.mentions.username | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.descriptions.cashtags | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.descriptions.cashtags.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.descriptions.cashtags.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 包含于 user.description | includes.users.entities.descriptions.cashtags.tag | expansions=author\_id\&user.fields=entities | 字符串 |
+
+<div id="entities-and-expanded-entities-objects">
+  #### 实体与扩展实体对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **原生增强格式** | **Twitter v2 格式** | **v2 所需参数** | **v2 中的类型** |
+| entities | data.entities | tweet.fields=entities | 对象 |
+| entities.hashtags | data.entities.hashtags | tweet.fields=entities | 对象数组 |
+| entities.hashtags.indices\[0] | data.entities.hashtags.start | tweet.fields=entities | 整数 |
+| entities.hashtags.indices\[1] | data.entities.hashtags.end | tweet.fields=entities | 整数 |
+| entities.hashtags.text | data.entities.hashtags.tag | tweet.fields=entities | 字符串 |
+| entities.urls | data.entities.urls | tweet.fields=entities | 对象数组 |
+| entities.urls.indices\[0] | data.entities.urls.start | tweet.fields=entities | 整数 |
+| entities.urls.indices\[1] | data.entities.urls.end | tweet.fields=entities | 整数 |
+| entities.urls.url | data.entities.urls.url | tweet.fields=entities | 字符串 |
+| entities.urls.expanded\_url | data.entities.urls.expanded\_url | tweet.fields=entities | 字符串 |
+| entities.urls.display\_url | data.entities.urls.display\_url | tweet.fields=entities | 字符串 |
+| entities.urls.unwound.url | data.entities.urls.unwound\_url | tweet.fields=entities | 字符串 |
+| entities.urls.unwound.status | data.entities.urls.status | tweet.fields=entities | 字符串 |
+| entities.urls.unwound.title | data.entities.urls.title | tweet.fields=entities | 字符串 |
+| entities.urls.unwound.description | data.entities.urls.description | tweet.fields=entities | 字符串 |
+| 不可用 | data.entities.urls.images | tweet.fields=entities | 对象数组 |
+| 不可用 | data.entities.urls.images.url | tweet.fields=entities | 字符串 |
+| 不可用 | data.entities.urls.images.width | tweet.fields=entities | 整数 |
+| 不可用 | data.entities.urls.images.height | tweet.fields=entities | 整数 |
+| entities.user\_mentions | data.entities.mentions | tweet.fields=entities | 对象数组 |
+| entities.user\_mentions.indicies\[0] | data.entities.mentions.start | tweet.fields=entities | 整数 |
+| entities.user\_mentions.indicies\[1] | data.entities.mentions.end | tweet.fields=entities | 整数 |
+| entities.user\_mentions.screen\_name | data.entities.mentions.username | tweet.fields=entities | 字符串 |
+| entities.symbols | data.entities.cashtags | tweet.fields=entities | 对象数组 |
+| entities.symbols.indices\[0] | data.entities.cashtags.start | tweet.fields=entities | 整数 |
+| entities.symbols.indices\[1] | data.entities.cashtags.end | tweet.fields=entities | 整数 |
+| entities.symbols.text | data.entities.cashtags.tag | tweet.fields=entities | 字符串 |
+| entities.media 或 extended\_entities.media | includes.media | expansions=attachments.media\_keys | 对象数组 |
+| entities.media.id\_str 或 extended\_entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | 字符串 |
+| entities.media.id 或 extended\_entities.media.id |     | 不可用 - id 为字符串 |     |
+| entities.media.type 或 extended\_entities.media.type | includes.media.media.type | expansions=attachments.media\_keys | 字符串 |
+| entities.media.indices 或 extended\_entities.media.indices | 不可用 | 不可用 |     |
+| 不可用 | includes.media.alt\_text | expansions=attachments.media\_keys\&media.fields=alt\_text | 字符串 |
+| entities.media.additional\_media\_info 或 extended\_entities.media.additional\_media\_info | 不可用 | 不可用 |     |
+| entities.media.additional\_media\_info.monetizable 或 extended\_entities.media.additional\_media\_info.monetizable | 不可用 | 不可用 |     |
+| entities.media.media\_url 或 extended\_entities.media.media\_url |     | 不适用 - 参见 includes.media.url | 字符串 |
+| entities.media.media\_url\_https 或 extended\_entities.media.media\_url\_https | includes.media.url | expansions=attachments.media\_keys\&media.fields=url | 字符串 |
+| entities.media.url OR extended\_entities.media.url |     |     |     |
+| entities.media.display\_url OR extended\_entities.media.expanded\_url |     |     |     |
+| entities.media.expanded\_url |     |     |     |
+| entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | 字符串 |
+| extended\_entities | data.attachments | tweet\_fields=attachments | 对象 |
+| extended\_entities | data.attachments.media\_keys | tweet.fields=attachments | 对象数组 |
+| 不可用 | data.attachments.poll\_ids | tweet.fields=attachments | 对象数组 |
+| extended\_entities.media.sizes.thumb.w |     | 不可用 |     |
+| extended\_entities.media.sizes.thumb.h |     | 不可用 |     |
+| extended\_entities.media.sizes.thumb.resize |     | 不可用 |     |
+| extended\_entities.media.sizes.large.w | includes.media.height | expansions=attachments.media\_keys\&media.fields=height |     |
+| extended\_entities.media.sizes.large.h | includes.media.width | expansions=attachments.media\_keys\&media.fields=width |     |
+| extended\_entities.media.sizes.large.resize | 不可用 | 不可用 |     |
+| extended\_entities.media.sizes.small.w | 不可用 | 不可用 |     |
+| extended\_entities.media.sizes.small.h | 不可用 | 不可用 |     |
+| extended\_entities.media.sizes.small.resize | 不可用 | 不可用 |     |
+| extended\_entities.media.sizes.medium.w | 不可用 | 不可用 |     |
+| extended\_entities.media.sizes.medium.h | 不可用 | 不可用 |     |
+| extended\_entities.media.sizes.medium.resize | 不可用 | 不可用 |     |
+| extended\_entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | 字符串 |
+| extended\_entities.media.video\_info.aspect\_ratio | 不可用 | 不可用 |     |
+| extended\_entities.media.variants | 不可用 | 不可用 |     |
+| extended\_entities.media.variants.bitrate | 不可用 | 不可用 |     |
+| extended\_entities.media.variants.content\_type | 不可用 | 不可用 |     |
+| extended\_entities.media.variants.url | 不可用 | 不可用 |     |
+| extended\_entities.media.video\_info.duration\_millis | includes.media.duration\_ms | expansions=attachments.media\_keys\&media.fields=duration\_ms | 整数 |
+| 不可用 | includes.media.public\_metrics | expansions=attachments.media\_keys\&media.fields=public\_metrics | 对象 |
+| 不可用 | includes.media.public\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=public\_metrics | 整数 |
+| 不可用 | includes.media.non\_public\_metrics | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 对象 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整数 |
+| 不可用 | includes.media.organic\_metrics | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 对象 |
+| 不可用 | includes.media.organic\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 不可用 | includes.media.organic\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 不可用 | includes.media.organic\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 不可用 | includes.media.organic\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整数 |
+| 不可用 | includes.media.organic\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | Int |
+| 不可用 | includes.media.organic\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | Int |
+| 不可用 | includes.media.promoted\_metric | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Object |
+| 不可用 | includes.media.promoted\_metric.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metric.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metric.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metric.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metric.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+
+<div id="place-object">
+  #### Place 对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **原生富化格式** | **Twitter v2 格式** | **所需 v2 参数** | **v2 中的类型** |
+| place | includes.places | expansions=geo.place\_id | 对象数组 |
+| place.id | includes.places.id | expansions=geo.place\_id | 字符串 |
+| place.url | 不可用 | 不可用 |     |
+| place.id.place\_type | includes.places.place\_type | expansions=geo.place\_id\&place.fields=place\_type | 字符串 |
+| place.id.name | includes.places.name | expansions=geo.place\_id\&place.fields=name | 字符串 |
+| place.id.full\_name | includes.places.full\_name | expansions=geo.place\_id | 字符串 |
+| place.id.country\_code | includes.places.country\_code | expansions=geo.place\_id\&place.fields=country\_code | 字符串 |
+| place.id.country | includes.places.country | expansions=geo.place\_id\&place.fields=country | 字符串 |
+| place.id.contained\_within | includes.places.contained\_within | expansions=geo.place\_id\&place.fields=contained\_within | 数组 |
+| place.id.bounding\_box.type | includes.places.geo.type | expansions=geo.place\_id\&place.fields=place\_type | 字符串 |
+| place.id.bounding\_box.coordinates | includes.places.geo.bbox | expansions=geo.place\_id\&place.fields=geo | 数组 |
+| place.id.attributes | includes.places.properties | expansions=geo.place\_id\&place.fields=geo | 对象 |
+
+<div id="poll-object">
+  #### 投票对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **原生增强格式** | **Twitter v2 格式** | **v2 必需参数** | **v2 中的类型** |
+| entities.polls | includes.polls | expansions=attachments.poll\_ids | 对象数组 |
+| Not available | includes.polls.id | expansions=attachments.poll\_ids | 字符串 |
+| entities.poll.options | includes.polls.options | expansions=attachments.poll\_ids | 对象数组 |
+| entities.polls.options.position | includes.polls.options.position | expansions=attachments.poll\_ids | 整数 |
+| entities.polls.options.text | includes.polls.options.label | expansions=attachments.poll\_ids | 字符串 |
+| Not available | includes.polls.options.votes | expansions=attachments.poll\_ids | 整数 |
+| Not available | includes.polls.voting\_status | expansions=attachments.poll\_ids\&poll.fields=voting\_status | 字符串 |
+| entities.polls.duration\_minutes | includes.polls.duration\_minutes | expansions=attachments.poll\_ids\&poll.fields=duration\_minutes | 整数 |
+| entities.polls.end\_datetime | includes.polls.end\_datetime | expansions=attachments.poll\_ids\&poll.fields=end\_datetime | 日期（ISO 8601） |
+
+<div id="migrating-from-activity-streams-data-format-to-v2">
+  ### 从 Activity Streams 数据格式迁移到 v2
+</div>
+
+Activity Streams 数据格式适用于我们的[企业版](/zh/x-api/enterprise-gnip-2.0/enterprise-gnip)产品。
+
+Activity Streams 数据格式已更新，以提供“编辑推文”（Edit Tweet）元数据。要了解有关编辑推文元数据的更多信息，请参阅[编辑推文基础](/zh/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets)页面。
+
+如果你使用的是标准版 v1.1 端点，请参考[标准版 v1.1 迁移到 v2 指南](/zh/x-api/migrate/overview)。如果你使用的是高级版端点，或企业版的 Native Enriched 格式，请参考[Native Enriched 迁移到 v2 指南](/zh/x-api/migrate/data-format-migration#migrating-from-native-enriched-data-format-to-v2)。
+
+X API v2 为 [Post](/zh/x-api/fundamentals/data-dictionary#tweet) 和 [user](/zh/x-api/fundamentals/data-dictionary#user) 对象引入了全新的 JSON 设计。
+
+- 在 JSON 根级，Activity Streams 格式将 Tweet 对象返回在 results 数组中，而 X API v2 返回的是 data 数组。 
+- X API v2 的 JSON 不再称转推和引用为“活动（activities）”，而是直接称为转推和引用的推文。 
+- X API v2 不再在 Tweet 对象中使用 favorites、在 user 对象中使用 favourites，而统一采用 like 一词。 
+- Twitter 采用的约定是：没有取值的 JSON 字段（例如 null）不会写入载荷（payload）。仅当 Tweet 和 user 属性为非 null 时才会包含。 
+- v2 中所有 id 字段均为字符串格式。
+   
+
+除对 JSON 格式的变更外，我们还为 Tweet 对象引入了一组新字段，包括：
+
+- conversation\_id
+- reply\_settings
+- 媒体的 alt\_text
+- 两个新的[注解](/zh/x-api/fundamentals/post-annotations)字段，包括 context 和 entities
+- 多个新的[指标](/zh/x-api/fundamentals/metrics)字段
+- 多个新的[投票](/zh/x-api/fundamentals/data-dictionary#poll)字段
+   
+
+许多传统和已弃用字段将被移除或替换：
+
+- display\_text\_range
+- generator
+- gnip
+- link
+- objectType
+- provider
+- twitter\_entities.symbols 替换为 data.entities.cashtags
+- 部分 twitter\_extended\_entities.media 和 twitter\_entities.media 字段
+- twitter\_filter\_level
+- twitterTimeZone
+- verb
+
+<div id="tweet-object">
+  #### 推文对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 格式** | **Twitter v2 格式** | **v2 所需参数** | **v2 中的类型** |
+| postedTime | data.created\_at | tweet.fields=created\_at | 日期（ISO 8601） |
+| generator | Not Available | Not Available |     |
+| generator.link | Not Available | Not Available |     |
+| generator.displayName | data.source | tweet.fields=source | 字符串 |
+| twitter\_lang | data.lang | tweet.fields=lang | 字符串 |
+| Not Available | data.conversation\_id | tweet.fields=conversation\_id | 字符串 |
+| Not Available | data.reply\_settings | tweet.fields=reply\_settings | 字符串 |
+| Not Available | data.possibly\_sensitive | tweet.fields=possibly\_sensitive | 布尔值 |
+| Not Available | data.withheld | tweet.fields=withheld | 对象 |
+| objectType | Not Available | Not Available |     |
+| verb | Not Available | Not Available |     |
+| provider | Not Available | Not Available |     |
+| provider.objectType | Not Available | Not Available |     |
+| provider.displayName | Not Available | Not Available |     |
+| provider.link | Not Available | Not Available |     |
+| link | Not Available | Not Available |     |
+| display\_text\_range | Not Available | Not Available |     |
+| object | Not Available | Not Available |     |
+| object.objectType | Not Available | Not Available |     |
+| object.id | Not Available | Not Available |     |
+| object.summary | data.text | default | 字符串 |
+| object.edit\_history | data.edit\_history\_tweet\_ids | default | 数组 |
+| object.edit\_controls | data.edit\_controls | tweet.fields=edit\_controls | 对象 |
+| object.editable | data.edit\_controls.is\_edit\_eligible | tweet.fields=edit\_controls | 布尔值 |
+| object.link | Not Available | Not Available |     |
+| object.postedTime | data.created\_at | tweet.fields=created\_at | 日期（ISO 8601） |
+| Derived from actor.id | data.author\_id | tweet.fields=created\_at |     |
+| twitter\_filter\_level | Not Available | Not Available |     |
+| Derived from username in inReplyTo.link | data.in\_reply\_to\_user\_id | tweet.fields=in\_reply\_to\_user\_id | 字符串 |
+| Not Available | data.referenced\_tweets | tweet.fields=referenced\_tweets | 对象数组 |
+| Not Available | data.referenced\_tweets.type | tweet.fields=referenced\_tweets | 字符串 |
+| Derived from inReplyTo.link | data.referenced\_tweets.id | tweet.fields=referenced\_tweets | 字符串 |
+| Not Available | data.attachments | tweet.fields=attachments | 对象 |
+| Derived from twitter\_entities.media.id\_str | data.attachments.media\_keys | tweet.fields=attachments | 数组 |
+| Not Available | data.attachments.poll\_ids | tweet.fields=attachments | 数组 |
+| twitter\_entities | data.entities | tweet.fields=entities | 对象 |
+| Not Available | data.entities.annotations | tweet.fields=entities | 对象数组 |
+| Not Available | data.entities.annotations.start | tweet.fields=entities | 整数 |
+| Not Available | data.entities.annotations.end | tweet.fields=entities | 整数 |
+| Not Available | data.entities.annotations.probability | tweet.fields=entities | 浮点数 |
+| Not Available | data.entities.annotations.type | tweet.fields=entities | 字符串 |
+| Not Available | data.entities.annotations.normalized\_text | tweet.fields=entities | 字符串 |
+| twitter\_entities.urls | data.entities.urls | tweet.fields=entities | 对象数组 |
+| twitter\_entities.urls.indices\[0] | data.entities.urls.start | tweet.fields=entities | 整数 |
+| twitter\_entities.urls.indices\[1] | data.entities.urls.end | tweet.fields=entities | 整数 |
+| twitter\_entities.urls.url | data.entities.urls.url | tweet.fields=entities | 字符串 |
+| twitter\_entities.urls.expanded\_url | data.entities.urls.expanded\_url | tweet.fields=entities | 字符串 |
+| twitter\_entities.urls.display\_url | data.entities.urls.display\_url | tweet.fields=entities | 字符串 |
+| Not Available | data.entities.urls.images | tweet.fields=entities | 对象数组 |
+| Not Available | data.entities.urls.images.url | tweet.fields=entities | 字符串 |
+| Not Available | data.entities.urls.images.width | tweet.fields=entities | 整数 |
+| Not Available | data.entities.urls.images.height | tweet.fields=entities | 整数 |
+| gnip.urls.expanded\_status | data.entities.urls.status | tweet.fields=entities | Int |
+| gnip.urls.expanded\_url\_title | data.entities.urls.title | tweet.fields=entities | String |
+| gnip.urls.expanded\_url\_description | data.entities.urls.description | tweet.fields=entities | String |
+| gnip.urls.expanded\_url | data.entities.urls.unwound\_url | tweet.fields=entities | String |
+| twitter\_entities.symbols | data.entities.cashtags | tweet.fields=entities | 对象数组 |
+| twitter\_entities.symbols.indices\[0] | data.entities.cashtags.start | tweet.fields=entities | Int |
+| twitter\_entities.symbols.indices\[1] | data.entities.cashtags.end | tweet.fields=entities | Int |
+| twitter\_entities.symbols.text | data.entities.cashtags.tag | tweet.fields=entities | String |
+| twitter\_entities.hashtags | data.entities.hashtags | tweet.fields=entities | 对象数组 |
+| twitter\_entities.hashtags.indices\[0] | data.entities.hashtags.start | tweet.fields=entities | Int |
+| twitter\_entities.hashtags.indices\[1] | data.entities.hashtags.end | tweet.fields=entities | Int |
+| twitter\_entities.hashtags.text | data.entities.hashtags.tag | tweet.fields=entities | String |
+| twitter\_entities.user\_mentions | data.entities.mentions | tweet.fields=entities | 对象数组 |
+| twitter\_entities.user\_mentions.indices\[0] | data.entities.mentions.start | tweet.fields=entities | Int |
+| twitter\_entities.user\_mentions.indices\[1] | data.entities.mentions.end | tweet.fields=entities | Int |
+| twitter\_entities.user\_mentions.screen\_name | data.entities.mentions.tag | tweet.fields=entities | String |
+| twitter\_entities.user\_mentions.id\_str | data.entities.mentions.id | tweet.fields=entities | String |
+| twitter\_entities.user\_mentions.id | Not Available | Not Available |     |
+| 不适用 | data.context\_annotations | tweet.fields=context\_annotations | 对象数组 |
+| 不适用 | data.context\_annotations.domain | tweet.fields=context\_annotations | 对象 |
+| 不适用 | data.context\_annotations.domain.id | tweet.fields=context\_annotations | String |
+| 不适用 | data.context\_annotations.domain.name | tweet.fields=context\_annotations | String |
+| 不适用 | data.context\_annotations.domain.description | tweet.fields=context\_annotations | String |
+| 不适用 | data.context\_annotations.entity | tweet.fields=context\_annotations | 对象 |
+| 不适用 | data.context\_annotations.entity.id | tweet.fields=context\_annotations | String |
+| 不适用 | data.context\_annotations.entity.name | tweet.fields=context\_annotations | String |
+| 不适用 | data.context\_annotations.entity.description | tweet.fields=context\_annotations | String |
+| geo | data.geo | tweet.fields=geo | 对象 |
+| 源自 location.link | data.geo.place\_id | tweet.fields=geo | String |
+| 不适用 | data.public\_metrics | tweet.fields=public\_metrics | 对象 |
+| 点赞数 | data.public\_metrics.like\_count | tweet.fields=public\_metrics | Int |
+| 转发数 | data.public\_metrics.retweet\_count | tweet.fields=public\_metrics | Int |
+| 不适用 | data.public\_metrics.quote\_count | tweet.fields=public\_metrics | Int |
+| 不适用 | data.public\_metrics.reply\_count | tweet.fields=public\_metrics | Int |
+| 不适用 | data.non\_non\_public\_metrics | tweet.fields=non\_public\_metrics | 对象 |
+| 不适用 | data.non\_public\_metrics.impression\_count | tweet.fields=non\_public\_metrics | Int |
+| 不适用 | data.non\_public\_metrics.url\_link\_count | tweet.fields=non\_public\_metrics | Int |
+| 不适用 | data.non\_public\_metrics.user\_profile\_count | tweet.fields=non\_public\_metrics | Int |
+| 不适用 | data.organic\_metrics | tweet.fields=organic\_metrics | 对象 |
+| 不适用 | data.organic\_metrics.like\_count | tweet.fields=organic\_metrics | Int |
+| 不适用 | data.organic\_metrics.retweet\_count | tweet.fields=organic\_metrics | Int |
+| 不适用 | data.organic\_metrics.reply\_count | tweet.fields=organic\_metrics | Int |
+| 不可用 | data.organic\_metrics.impression\_count | tweet.fields=organic\_metrics | Int |
+| 不可用 | data.organic\_metrics.url\_link\_count | tweet.fields=organic\_metrics | Int |
+| 不可用 | data.organic\_metrics.user\_profile\_count | tweet.fields=organic\_metrics | Int |
+| 不可用 | data.promoted\_metrics | tweet.fields=promoted\_metrics | Object |
+| 不可用 | data.promoted\_metrics.like\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.retweet\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.reply\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.impression\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.url\_link\_count | tweet.fields=promoted\_metrics | Int |
+| 不可用 | data.promoted\_metrics.user\_profile\_count | tweet.fields=promoted\_metrics | Int |
+| gnip.profileLocations | 不可用 | 不可用 |     |
+| gnip.profileLocations.address | 不可用 | 不可用 |     |
+| gnip.profileLocations.address.country | 不可用 | 不可用 |     |
+| gnip.profileLocations.address.countryCode | 不可用 | 不可用 |     |
+| gnip.profileLocations.displayName | 不可用 | 不可用 |     |
+| gnip.profileLocations.geo | 不可用 | 不可用 |     |
+| gnip.profileLocations.geo.coordinates | 不可用 | 不可用 |     |
+| gnip.profileLocations.geo.type | 不可用 | 不可用 |     |
+| gnip.profileLocations.objectType | 不可用 | 不可用 |     |
+
+<div id="user-object">
+  #### 用户对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 格式** | **Twitter v2 格式** | **v2 必需参数** | **v2 中的类型** |
+| actor | includes.users | expansions=author\_id | 对象数组 |
+| 源自 actor.id | includes.users.id | expansions=author\_id | 字符串 |
+| actor.displayName | includes.users.name | expansions=author\_id | 字符串 |
+| actor.preferredUsername | includes.users.username | expansions=author\_id | 字符串 |
+| actor.postedTime | includes.users.created\_at | expansions=author\_id\&user.fields=created\_at | 日期（ISO 8601） |
+| actor.summary | includes.users.description | expansions=author\_id\&user.fields=description | 字符串 |
+| 不适用 | includes.users.pinned\_tweet\_id | expansions=author\_id\&user.fields=pinned\_tweet\_id | 字符串 |
+| 不适用 | includes.users.protected | expansions=author\_id\&user.fields=protected | 布尔值 |
+| actor.link | 不适用 | 不适用——可由 includes.users.username 构造 |     |
+| actor.twitterTimeZone | 不适用 | 不适用——可从推文的 created\_at 推断 |     |
+| actor.utcOffset | 不适用 | 不适用——可从推文的 created\_at 推断 |     |
+| actor.favoritesCount | 不适用 | 不适用 |     |
+| actor.followersCount | includes.users.public\_metrics.followers\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.friendsCount | includes.users.public\_metrics.following\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.listedCount | includes.users.public\_metrics.listed\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.statusesCount | includes.users.public\_metrics.tweet\_count | expansions=author\_id\&user.fields=public\_metrics | 整数 |
+| actor.languages\[] | 不适用 | 不适用——可从推文的 lang 推断 |     |
+| actor.location.displayName | includes.users.location | expansions=author\_id\&user.fields=location | 字符串 |
+| actor.image | includes.users.profile\_image\_url | expansions=author\_id\&user.fields=profile\_image\_url | 字符串 |
+| actor.links | includes.users.url | expansions=author\_id\&user.fields=url | 字符串 |
+| actor.verified | includes.users.verified | expansions=author\_id\&user.fields=verified | 布尔值 |
+| 不适用 | includes.users.withheld | expansions=author\_id\&user.fields=withheld | 对象 |
+| 不适用 | includes.users.entities | expansions=author\_id\&user.fields=entities | 对象 |
+| 不适用 | includes.users.entities.url | expansions=author\_id\&user.fields=entities | 对象 |
+| actor.links | includes.users.entities.url.urls | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.url.urls.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.url.urls.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.url.urls.url | expansions=author\_id\&user.fields=entities | 字符串 |
+| actor.links.href | includes.users.entities.url.urls.expanded\_url | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.url.urls.display\_url | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.description | expansions=author\_id\&user.fields=entities | 对象 |
+| 不适用 | includes.users.entities.description.hashtags | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.description.hashtags.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.description.hashtags.end | expansions=author\_id\&user.fields=entities | 整数 |
+| 不适用 | includes.users.entities.description.hashtags.tag | expansions=author\_id\&user.fields=entities | 字符串 |
+| 不适用 | includes.users.entities.description.mentions | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不适用 | includes.users.entities.description.mentions.start | expansions=author\_id\&user.fields=entities | 整数 |
+| 不可用 | includes.users.entities.description.mentions.end | expansions=author\_id\&user.fields=entities | Int |
+| 不可用 | includes.users.entities.description.mentions.username | expansions=author\_id\&user.fields=entities | String |
+| 不可用 | includes.users.entities.description.cashtags | expansions=author\_id\&user.fields=entities | 对象数组 |
+| 不可用 | includes.users.entities.description.cashtags.start | expansions=author\_id\&user.fields=entities | Int |
+| 不可用 | includes.users.entities.description.cashtags.end | expansions=author\_id\&user.fields=entities | Int |
+| 不可用 | includes.users.entities.description.cashtags.tag | expansions=author\_id\&user.fields=entities | String |
+
+<div id="poll-object">
+  #### 投票对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 格式** | **Twitter v2 格式** | **v2 必需参数** | **v2 中的类型** |
+| 不适用 | includes.polls | expansions=attachments.poll\_ids | 对象数组 |
+| 不适用 | includes.polls.id | expansions=attachments.poll\_ids | 字符串 |
+| 不适用 | includes.polls.options | expansions=attachments.poll\_ids | 对象数组 |
+| 不适用 | includes.polls.options.position | expansions=attachments.poll\_ids | 整数 |
+| 不适用 | includes.polls.options.label | expansions=attachments.poll\_ids | 字符串 |
+| 不适用 | includes.polls.options.votes | expansions=attachments.poll\_ids | 整数 |
+| 不适用 | includes.polls.voting\_status | expansions=attachments.poll\_ids\&poll.fields=voting\_status | 字符串 |
+| 不适用 | includes.polls.duration\_minutes | expansions=attachments.poll\_ids\&poll.fields=duration\_minutes | 整数 |
+| 不适用 | includes.polls.end\_datetime | expansions=attachments.poll\_ids\&poll.fields=end\_datetime | 日期（ISO 8601） |
+
+<div id="place-object">
+  #### Place 对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 格式** | **Twitter v2 格式** | **v2 必需参数** | **v2 类型** |
+| location | includes.places | expansions=geo.place\_id | 对象数组 |
+| location.displayName | includes.places.full\_name | expansions=geo.place\_id | 字符串 |
+| 解析自 location.link | includes.places.id | expansions=geo.place\_id | 字符串 |
+| location.name | includes.places.name | expansions=geo.place\_id\&place.fields=name | 字符串 |
+| location.country\_code | includes.places.country | expansions=geo.place\_id\&place.fields=country | 字符串 |
+| location.twitter\_place\_type | includes.places.place\_type | expansions=geo.place\_id\&place.fields=place\_type | 字符串 |
+| location.twitter\_country\_code | includes.places.country\_code | expansions=geo.place\_id\&place.fields=country\_code | 字符串 |
+| location.geo | includes.places.geo | expansions=geo.place\_id\&place.fields=geo | 对象 |
+| location.geo.type | includes.places.geo.type | expansions=geo.place\_id\&place.fields=geo | 字符串 |
+| location.geo.coordinates | includes.places.geo.bbox | expansions=geo.place\_id\&place.fields=geo | 数组 |
+| 不适用 | includes.places.geo.properties | expansions=geo.place\_id\&place.fields=geo | 对象 |
+
+<div id="media-object">
+  #### 媒体对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 格式** | **Twitter v2 格式** | **v2 必需参数** | **v2 中的类型** |
+| twitter\_entities.media OR twitter\_extended\_entities.media | includes.media | expansions=attachments.media\_keys | 对象数组 |
+| twitter\_entities.media.id\_str OR twitter\_extended\_entities.media.id\_str | includes.media.media\_key | expansions=attachments.media\_keys | 字符串 |
+| twitter\_entities.media.id OR twitter\_extended\_entities.media.id | 不可用 | 不可用 |     |
+| twitter\_entities.media.indices OR twitter\_extended\_entities.media.indices | 不可用 | 不可用 |     |
+| twitter\_entities.media.additional\_media\_info OR twitter\_extended\_entities.media.additional\_media\_info | 不可用 | 不可用 |     |
+| twitter\_entities.media.additional\_media\_info.monetizable OR twitter\_extended\_entities.media.additional\_media\_info.monetizable | 不可用 | 不可用 |     |
+| twitter\_entities.media.media\_url OR twitter\_extended\_entities.media.media\_url | 不可用 | 不可用 |     |
+| twitter\_entities.media.media\_url\_https OR twitter\_extended\_entities.media.media\_url\_https | includes.media.preview\_image\_url | expansions=attachments.media\_keys\&media.fields=preview\_image\_url | 字符串 |
+| twitter\_entities.media.url OR twitter\_extended\_entities.media.url | 不可用 | 不可用 |     |
+| twitter\_entities.media.display\_url OR twitter\_extended\_entities.media.display\_url | 不可用 | 不可用 |     |
+| twitter\_entities.media.expanded\_url OR twitter\_extended\_entities.media.expanded\_url | 不可用 | 不可用 |     |
+| twitter\_entities.media.type OR twitter\_extended\_entities.media.type | includes.media.type | expansions=attachments.media\_keys | 字符串 |
+| twitter\_entities.media.sizes OR twitter\_extended\_entities.media.sizes | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.thumb OR twitter\_extended\_entities.media.sizes.thumb | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.thumb.h OR twitter\_extended\_entities.media.sizes.thumb.h | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.thumb.w OR twitter\_extended\_entities.media.sizes.thumb.w | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.thumb.resize OR twitter\_extended\_entities.media.sizes.thumb.resize | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.small OR twitter\_extended\_entities.media.sizes.small | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.small.h OR twitter\_extended\_entities.media.sizes.small.h | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.small.w OR twitter\_extended\_entities.media.sizes.small.w | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.small.resize OR twitter\_extended\_entities.media.sizes.small.resize | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.medium OR twitter\_extended\_entities.media.sizes.medium | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.medium.h OR twitter\_extended\_entities.media.sizes.medium.h | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.medium.w OR twitter\_extended\_entities.media.sizes.medium.w | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.medium.resize OR twitter\_extended\_entities.media.sizes.medium.resize | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.large OR twitter\_extended\_entities.media.sizes.large | 不可用 | 不可用 |     |
+| twitter\_entities.media.sizes.large.h OR twitter\_extended\_entities.media.sizes.large.h | includes.media.height | expansions=attachments.media\_keys\&media.fields=height | 整数 |
+| twitter\_entities.media.sizes.large.w OR twitter\_extended\_entities.media.sizes.large.w | includes.media.width | expansions=attachments.media\_keys\&media.fields=width | 整数 |
+| twitter\_entities.media.sizes.large.resize OR twitter\_extended\_entities.media.sizes.large.resize | 不可用 | 不可用 |     |
+| twitter\_extended\_entities.media.video\_info | 不可用 | 不可用 |     |
+| twitter\_extended\_entities.media.video\_info.aspect\_ratio | 不可用 | 不可用 |     |
+| twitter\_extended\_entities.media.video\_info.duration\_millis | includes.media.duration\_ms | expansions=attachments.media\_keys\&media.fields=duration\_ms | 整型 |
+| twitter\_extended\_entities.media.video\_info.variants | 不可用 | 不可用 |     |
+| twitter\_extended\_entities.media.video\_info.variants.bitrate | 不可用 | 不可用 |     |
+| twitter\_extended\_entities.media.video\_info.variants.content\_type | 不可用 | 不可用 |     |
+| twitter\_extended\_entities.media.video\_info.variants.url | 不可用 | 不可用 |     |
+| 不可用 | includes.media.alt\_text | expansions=attachments.media\_keys\&media.fields=alt\_text | 字符串 |
+| 不可用 | includes.media.public\_metrics | expansions=attachments.media\_keys\&media.fields=public\_metrics | 对象 |
+| 不可用 | includes.media.public\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=public\_metrics | 整型 |
+| 不可用 | includes.media.non\_public\_metrics | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 对象 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整型 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整型 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整型 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整型 |
+| 不可用 | includes.media.non\_public\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=non\_public\_metrics | 整型 |
+| 不可用 | includes.media.organic\_metrics | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 对象 |
+| 不可用 | includes.media.organic\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整型 |
+| 不可用 | includes.media.organic\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整型 |
+| 不可用 | includes.media.organic\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整型 |
+| 不可用 | includes.media.organic\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整型 |
+| 不可用 | includes.media.organic\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整型 |
+| 不可用 | includes.media.organic\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=organic\_metrics | 整型 |
+| 不可用 | includes.media.promoted\_metrics | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 对象 |
+| 不可用 | includes.media.promoted\_metrics.playback\_0\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 整型 |
+| 不可用 | includes.media.promoted\_metrics.playback\_25\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 整型 |
+| 不可用 | includes.media.promoted\_metrics.playback\_50\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | 整型 |
+| 不可用 | includes.media.promoted\_metrics.playback\_75\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metrics.playback\_100\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+| 不可用 | includes.media.promoted\_metrics.view\_count | expansions=attachments.media\_keys\&media.fields=promoted\_metrics | Int |
+
+<div id="matching-rules-object">
+  #### 匹配规则对象
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Activity Streams 格式** | **Twitter v2 格式** | **v2 所需参数** | **v2 中的类型** |
+| gnip.matching\_rules | matching\_rules | 过滤流中的默认值 | 对象数组 |
+| gnip.matching\_rules.tag | matching\_rules.tag | 过滤流中的默认值 | 字符串 |
+| gnip.matching\_rules.tag.id | 不提供 | 不提供 |     |
+| gnip.matching\_rules.tag.id\_str | matching\_rules.id | 过滤流中的默认值 | 字符串 |
+
+<div id="visual-data-format-migration-tool">
+  ### 可视化数据格式迁移工具
+</div>
+
+可视化数据格式迁移工具是一款网页应用，用于展示从 [X API v1.1 数据格式](https://developer.x.com/en/docs/x-api/v1/data-dictionary/overview)到 [X API v2 格式](/zh/x-api/fundamentals/data-dictionary)的字段映射关系，适用于指定的推文或用户对象。您可以向该应用提供推文 ID 或用户 ID 来查看映射。
+
+请注意，您需要使用 Twitter 账号登录才能使用该应用。
+
+<br />
+
+<Button href="https://visual-data-format-migration-tool.glitch.me/">
+  试用可视化数据格式迁移工具
+</Button>

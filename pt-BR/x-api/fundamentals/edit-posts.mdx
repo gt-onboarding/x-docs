@@ -1,0 +1,144 @@
+---
+title: Editar posts
+---
+
+<div id="introduction">
+  # Introdução
+</div>
+
+Os endpoints da API do X v2 fornecem metadados de Posts editados. O recurso _Editar Posts_ foi introduzido inicialmente para testes entre funcionários do X em 1º de setembro de 2022. A partir dessa data, Posts elegíveis podem ser editados por 30 minutos e até 5 vezes. _Todos os objetos de Posts criados desde 29 de setembro de 2022_ incluem metadados de edição, mesmo que o Post nunca tenha sido editado. Cada vez que um Post é editado, um novo ID de Post é criado. O histórico de edições de um Post pode ser descrito encadeando esses IDs, começando pelo ID original. Além disso, se qualquer Post na cadeia de edições for excluído, todos os Posts nessa cadeia também serão excluídos.
+
+Usando a API do X v2, um desenvolvedor pode verificar:
+
+- Se um Post era elegível para edição no momento da criação. Alguns Posts, como aqueles com enquetes ou Posts agendados, não podem ser editados.
+- Que Posts podem ser editados por 30 minutos e até 5 vezes. Para Posts editáveis, é possível verificar se ainda há tempo para editar e quantas edições adicionais são possíveis.
+- Se você está visualizando uma versão editada de um Post (na maioria dos casos, a API retornará a versão mais recente de um Post, a menos que uma versão anterior específica seja solicitada pelo ID do Post).
+- Todo o histórico de edições do Post.
+- O engajamento atribuído a cada versão do Post.
+
+Há três componentes no histórico de edições de um Post:
+
+1. Por padrão, o payload do Post conterá um array de IDs de Post que fazem parte do histórico de edições. Essas informações são especificadas por `edit_history_tweet_ids`, que é um campo padrão no payload do Post. Esse array conterá pelo menos um ID, o ID do Post original, não editado. Quando houver apenas um ID, isso significa que o Post não tem histórico de edições.
+2. Você pode obter informações como se um Post era editável no momento em que foi criado, quanto tempo, se houver, resta para um Post ser editado e quantas edições restam, especificando `edit_controls` no parâmetro [tweet.fields](/pt-BR/x-api/fundamentals/fields).
+3. Por fim, você pode obter os objetos de Post para cada Post no histórico de edições, especificando `edit_history_tweet_ids` usando o parâmetro [expansion](/pt-BR/x-api/fundamentals/expansions)
+
+A maioria dos Posts é elegível para edição. No entanto, os seguintes tipos de Posts não são:
+
+- Post promovido
+- Post com enquete
+- Post que é resposta em thread de outro usuário (non-self-thread)
+- Retweet (observe que Posts com citação são elegíveis para edição)
+- Post em nullcast
+- Post de Comunidade
+- Post de Superfollow
+- Post colaborativo
+
+Exemplos
+
+---
+
+Os exemplos abaixo demonstram como um desenvolvedor pode solicitar metadados de Posts editados usando a API do X v2.
+
+**Observação:** Os exemplos abaixo usam o endpoint de User Post Timeline, mas você pode solicitar esses metadados usando os mesmos parâmetros (com fields e expansions) para todos os endpoints que retornam Posts (por exemplo, consulta de Posts, busca, fluxo filtrado, etc.)
+
+<div id="default-behavior">
+  ### Comportamento padrão
+</div>
+
+Por padrão, em uma solicitação de API para qualquer endpoint que retorna objetos de Post na API do X v2, você recebe:
+
+- O ID do Post
+- O texto do Post
+- Um array de IDs de Post que fazem parte do histórico de edições de um Post. Se apenas um ID for fornecido, isso significa que o Post não foi editado.
+
+**Solicitação:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**Resposta de exemplo:**
+
+```{
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"]
+    }
+  ]
+}
+```
+
+### Obtendo dados adicionais com edit\_controls
+
+Se você quiser metadados adicionais sobre Posts editados, como se um Post era elegível para edição quando foi criado e quanto tempo resta para que um Post possa ser editado, é possível solicitar essas informações usando o parâmetro tweet.fields e definindo-o como edit\_control.
+
+**Requisição:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**Resposta de exemplo:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ]
+}
+```
+
+<div id="getting-post-objects-for-all-posts-in-a-posts-edit-history">
+  ### Obtendo objetos Post para todos os Posts no histórico de edição de um Post
+</div>
+
+Os exemplos acima fornecem um array de IDs de Post do histórico de edição de um Post. Se você quiser o objeto Post correspondente a cada um desses IDs, use o parâmetro de expansão e defina-o como `edit_history_tweet_ids`. Os objetos Post que compõem o histórico de edição serão retornados no objeto "includes". 
+
+**Requisição:**
+
+```bash
+      curl --location --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control&expansions=edit_history_tweet_ids' --header 'Authorization: Bearer $BEARER_TOKEN'`
+```
+
+**Resposta de exemplo:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "id": "1514991667853602822",
+        "text": "we need an eidt button",
+        "edit_history_tweet_ids": [
+          "1514991667853602822",
+          "1514991667853602823"
+        ],
+        "edit_controls": {
+          "is_edit_eligible": true,
+          "editable_until": "2022-04-21 09:35:20.311",
+          "edits_remaining": 4
+        }
+      }
+    ]
+  }
+}
+```

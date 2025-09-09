@@ -1,0 +1,343 @@
+---
+title: ルールを作成
+sidebarTitle: ルールを作成
+---
+
+<div id="building-rules-for-filtered-stream">
+  ## フィルタードストリームのルール作成
+</div>
+
+フィルタードストリームのエンドポイントは、ストリームに適用された一連のルールに一致する投稿のみを配信します。ルールは、さまざまな投稿属性にマッチさせるためのオペレーターで構成されます。
+
+複数のルールは、[POST /tweets/search/stream/rules](/ja/x-api/posts/filtered-stream#post-2-tweets-search-stream-rules) エンドポイントを使用してストリームに適用できます。ルールを追加し、[GET /tweets/search/stream](/ja/x-api/posts/filtered-stream#get-2-tweets-search-stream) エンドポイントでストリームに接続すると、ルールに合致した投稿だけが永続的なストリーミング接続を通じて配信されます。ルールを追加または削除するために、ストリームから切断する必要はありません。 
+
+<div id="table-of-contents">
+  ### 目次
+</div>
+
+- [ルールの作成](#building-a-rule)
+  - [ルールの制限](#rule-limitations)
+  - [オペレーターの利用可否](#operator-availability)
+  - [オペレーターの種類：単独使用可／連結が必要](#operator-types-standalone-and-conjunction-required)
+  - [ブール演算子とグルーピング](#boolean-operators-and-grouping)
+  - [演算の優先順位](#order-of-operations)
+  - [句読点・発音区別記号・大文字小文字の区別](#punctuation-diacritics-and-case-sensitivity)
+  - [具体性と効率性](#specificity-and-efficiency)
+  - [ルールを反復的に構築する](#iteratively-building-a-rule)
+  - [ルールの追加と削除](#adding-and-removing-rules)
+  - [ルール例](#rule-examples)
+- [オペレーター一覧](#operators)
+
+<div id="building-a-rule">
+  ### ルールの構築
+</div>
+
+<div id="rule-limitations">
+  #### ルールの制限
+</div>
+
+ルール数の上限は、[プロジェクト](/ja/resources/fundamentals/projects)に適用されている[アクセスレベル](/ja/x-api/getting-started/about-x-api)によって異なります。
+
+これらの上限の適用方法は、[フィルタードストリームの紹介](/ja/x-api/posts/filtered-stream)ページで確認できます。
+
+<div id="operator-types-standalone-and-conjunction-required">
+  #### オペレーターの種類：単独使用可と連言必須
+</div>
+
+**単独使用可のオペレーター**は、単独でも、他の任意のオペレーター（連言が必要なものを含む）と組み合わせても使用できます。
+
+たとえば、次のルールは単独使用可の `#hashtag` オペレーターを使っているため機能します。
+
+`#xapiv2`
+
+**連言必須**のオペレーターは、ルール内でそれ単体では使用できません。少なくとも1つの単独使用可のオペレーターがルールに含まれている場合にのみ使用できます。これは、これらのオペレーターを単独で使用すると条件が広すぎ、極めて大量の投稿に一致してしまうためです。
+
+たとえば、次のルールは連言必須のオペレーターだけを含むためサポートされません。
+
+`has:media`
+
+`has:links OR is:retweet`
+
+フレーズ "X data" のような単独使用可のオペレーターを追加すれば、そのルールは正しく機能します。
+
+`"X data" has:mentions (has:media OR has:links)`
+
+<div id="boolean-operators-and-grouping">
+  #### ブール演算子とグルーピング
+</div>
+
+1 つのルール内で複数の演算子を組み合わせたい場合、次の方法を利用できます。
+
+|     |     |
+| :--- | :--- |
+| **AND ロジック** | 連続する演算子を**スペースで区切る**と、ブールの「AND」ロジックになります。これは、両方の条件が満たされた場合にのみ投稿が一致することを意味します。例：`snow day #NoSchool` は、語句 snow と day、そしてハッシュタグ #NoSchool を含む投稿に一致します。 |
+| **OR ロジック** | 連続する演算子の間に OR を入れると OR ロジックになります。これは、いずれかの条件が満たされれば投稿が一致することを意味します。例：`grumpy OR cat OR #meme` を指定すると、語句 grumpy または cat、もしくはハッシュタグ #meme のいずれかを含む投稿に一致します。 |
+| **NOT ロジック（否定）** | キーワード（または任意の演算子）の前にダッシュ（-）を付けると、それを否定（NOT）できます。例：`cat #meme -grumpy` は、ハッシュタグ #meme と語句 cat を含み、かつ語句 grumpy を含まない投稿に一致します。よく使われるルール句として `-is:retweet` があり、これはリツイートには一致せず、オリジナルの投稿、引用投稿、返信のみに一致します。すべての演算子は否定できますが、否定した演算子だけを単独で使用することはできません。 |
+| **グルーピング** | かっこを使用して演算子をグループ化できます。例：`(grumpy cat) OR (#meme has:images)` は、語句 grumpy と cat を含む投稿、または画像がありハッシュタグ #meme を含む投稿のいずれかを返します。AND が先に適用され、その後に OR が適用される点に注意してください。 |
+
+<Note>
+  **否定に関する注意**
+
+  `sample:` を除き、すべての演算子は否定できます。また、`-is:nullcast` は常に否定形でなければなりません。否定した演算子を単独で使用することはできません。
+
+  かっこでまとめた演算子の集合全体を否定しないでください。代わりに、各演算子を個別に否定してください。
+
+  例えば、`skiing -(snow OR day OR noschool)` の代わりに、`skiing -snow -day -noschool` を使用することを推奨します。
+</Note>
+
+<div id="order-of-operations">
+  #### 演算の優先順位
+</div>
+
+AND と OR を組み合わせる場合、次の演算の優先順位でルールが評価されます。
+
+1. AND ロジックで接続された演算子が先に結合される
+2. 次に、OR ロジックで接続された演算子が適用される
+
+例:
+
+- `apple OR iphone ipad` は `apple OR (iphone ipad)` と評価されます
+- `ipad iphone OR android` は `(iphone ipad) OR android` と評価されます
+
+あいまいさを避け、意図どおりに評価されるよう、必要に応じて括弧で用語をグループ化してください。 
+
+例:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### 句読点、ダイアクリティカルマーク、大小文字の区別
+</div>
+
+アクセントやダイアクリティカルマークを含むキーワードまたはハッシュタグのルールを指定した場合、そのアクセントやダイアクリティカルマークを正しく含む完全一致の語を含む投稿にマッチしますが、文字自体は同じでもアクセントやダイアクリティカルマークがない場合はマッチしません。
+
+たとえば、キーワード `diacrítica` またはハッシュタグ `#cumpleaños` を含むルールは、アクセントやダイアクリティカルマークを含む _diacrítica_ や _#cumpleaños_ を含む投稿にマッチします。しかし、これらのルールは、チルデ付きの í やエニェがない _Diacritica_ や _#cumpleanos_ を含む投稿にはマッチしません。
+
+アクセントやダイアクリティカルマーク付きの文字は通常の文字と同様に扱われ、単語境界とは見なされません。たとえば、キーワード _cumpleaños_ を含むルールは、_cumpleaños_ という語を含む投稿にのみマッチし、_cumplea_、_cumplean_、_os_ を含む投稿にはマッチしません。
+
+すべてのオペレーターは大文字小文字を区別せずに評価されます。たとえば、ルール cat は、_cat_、_CAT_、_Cat_ のすべてにマッチします。
+
+<Note>
+  [Search Posts](/ja/x-api/posts/search/introduction) のマッチング動作はフィルタードストリームとは異なります。[Search Posts クエリを作成する](/ja/x-api/posts/search/integrate/build-a-query)際は、アクセントやダイアクリティカルマークを含むキーワードやハッシュタグが、アクセントやダイアクリティカルマークを含む語と、通常の文字の語の両方にマッチする点に注意してください。
+
+  たとえば、キーワード `Diacrítica` やハッシュタグ `#cumpleaños` を含む Search Posts クエリは、_Diacrítica_ や _#cumpleaños_ に加え、チルデ付きの í やエニェがない _Diacritica_ や _#cumpleanos_ にもマッチします。
+</Note>
+
+<div id="specificity-and-efficiency">
+  #### 特異性と効率性
+</div>
+
+ルールを作成する際は、いくつかの点を念頭に置くことが重要です。
+
+- 単一のキーワードや #hashtag といった広範で単独のオペレーターをルールに使うことは、一般的に推奨されません。大量の投稿に一致してしまう可能性が高いためです。より堅牢なルールを設計すれば、マッチする投稿の集合がより特定的になり、ペイロード内のノイズが減って、有用なインサイトを見つけるために精査すべき量を抑えられます。 
+  - たとえば、ルールがキーワード `happy` だけの場合、1日に約200,000〜300,000件の投稿がヒットする可能性があります。
+  - 条件オペレーターを追加すると検索結果が絞り込まれます。例: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+- 効率的なルールを書くことは、ルールの文字数制限内に収めるうえでも有効です。文字数は、スペースやオペレーターを含むルール文字列全体がカウントされます。
+  - たとえば、次のルールは59文字です: `(happy OR happiness) place_country:GB -birthday -is:retweet`
+
+<div id="quote-tweet-matching-behavior">
+  #### 引用ポストのマッチング動作
+</div>
+
+フィルタードストリームのエンドポイントを使用する場合、オペレーターは引用された元のポストの内容と、引用ポスト内の内容の両方にマッチします。
+
+ただし、[Search Posts](/ja/x-api/posts/search/introduction) エンドポイントは、引用された元のポストの内容にはマッチせず、引用ポストの内容にはマッチする点にご注意ください。
+
+<div id="iteratively-building-a-rule">
+  #### 反復的にルールを作成する
+</div>
+
+<div id="test-your-rule-early-and-often">
+  ##### ルールは早めに、そして頻繁にテストする
+</div>
+
+最初の試行で「正しい」結果を返すルールを作れることは稀です。X には、初見では明らかでない事柄が非常に多く、上で説明したルール構文を目的の検索に合致させるのが難しい場合があります。ルールを作成する際は、ストリームエンドポイントで定期的にテストし、どのようなデータが返るかを確認することが重要です。使用している演算子がそのエンドポイントでも利用可能であれば、[Search Post](/ja/x-api/posts/search/introduction) エンドポイントでテストすることもできます。
+
+このセクションでは、次のルールから始め、テストで得られた結果に基づいて調整していきます。
+
+`happy OR happiness`
+
+<div id="use-results-to-narrow-the-rule">
+  ##### 結果を使ってルールを絞り込む
+</div>
+
+ルールをテストする際は、返ってきた投稿を確認し、期待どおりのデータが含まれているかを確かめてください。まずは広めのルールで、投稿マッチのスーパーセットから始めることで、結果を見たうえで不要なものを除外するようにルールを絞り込めます。  
+
+例のルールをテストしたところ、さまざまな言語の投稿が返ってくることに気づきました。この状況では英語の投稿だけを受け取りたいので、`lang:` オペレーターを追加します:
+
+`(happy OR happiness) lang:en`
+
+テストでは、人々に誕生日おめでとうと伝える投稿が多く返ってきたため、否定キーワードとして `-birthday` を追加します。さらに、オリジナルの投稿のみを受け取りたいので、否定の `-is:retweet` オペレーターも追加します:
+
+`(happy OR happiness) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-inclusion-where-needed">
+  ##### 必要に応じて含め漏れを調整する
+</div>
+
+期待するデータが取得できず、返ってくるはずの既存の投稿があると分かっている場合は、望ましいデータを除外している可能性のあるオペレーターを外して、ルールの範囲を広げる必要があるかもしれません。 
+
+この例では、求めている感情を表す他の投稿が自分のタイムラインにあるのに、テスト結果に含まれていないことに気付きました。カバレッジを高めるため、キーワード `excited` と `elated` を追加します。
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet`
+
+<div id="adjust-for-popular-trendsbursts-over-the-time-period">
+  ##### 期間内の人気トレンド／急増に合わせて調整する
+</div>
+
+X ではトレンドの移り変わりが早いものです。ルールの運用は常に見直しを行う前提で進めてください。単一のルールをしばらく使う予定であれば、定期的に受信データを確認し、調整が必要かどうかを点検することをおすすめします。
+
+この例では、「happy holidays」と人々に祝う投稿が届き始めたことに気づきました。これらの投稿を結果に含めたくないため、否定のキーワード `-holidays` を追加します。
+
+`(happy OR happiness OR excited OR elated) lang:en -birthday -is:retweet -holidays`
+
+<div id="adding-and-removing-rules">
+  #### ルールの追加と削除
+</div>
+
+ストリームにルールを追加・削除する際は、[POST /2/tweets/search/stream/rules](/ja/x-api/posts/filtered-stream#post-2-tweets-search-stream-rules) エンドポイントを使用します。
+
+ストリームに1つ以上のルールを追加するには、ルールを含む `value` パラメータと、任意の自由記述テキストを含む `tag` パラメータを配列に入れた `add` の JSON ボディを送信します。これにより、[返された投稿がどのルールに一致したかを識別](/ja/x-api/posts/filtered-stream#matching-returned-posts-to-their-associated-rule)できます。
+
+例えば、ストリームに一連のルールを追加する場合、cURL コマンドは次のようになります。
+
+```bash
+curl -X POST 'https://api.x.com/2/tweets/search/stream/rules' \
+-H "Content-type: application/json" \
+-H "Authorization: Bearer $ACCESS_TOKEN" -d \
+'{
+  "add": [
+    {"value": "cat has:media", "tag": "cats with media"},
+    {"value": "cat has:media -grumpy", "tag": "happy cats with media"},
+    {"value": "meme", "tag": "funny things"},
+    {"value": "meme has:images"}
+  ]
+}'
+```
+
+同様に、ストリームから1つ以上のルールを削除するには、削除したいルールのIDを含む `id` パラメータを配列に入れた `delete` の JSON ボディを送信します。
+
+例えば、ストリームから一連のルールを削除する場合、cURL コマンドは次のようになります。
+
+```bash
+curl -X POST 'https://api.x.com/2/tweets/search/stream/rules' \
+  -H "Content-type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" -d \
+  '{
+    "delete": {
+      "ids": [
+        "1165037377523306498",
+        "1165037377523306499"
+      ]
+    }
+  }'
+```
+
+さまざまな言語のサンプルコードは、[GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code/tree/master/Filtered-Stream) から入手できます。 
+
+<div id="rule-examples">
+  #### ルール例
+</div>
+
+<div id="tracking-a-natural-disaster">
+  ##### 自然災害の追跡
+</div>
+
+次のルールは、2017年にヒューストンを襲ったハリケーン・ハーヴィーについて言及する、気象機関や観測所からの投稿にマッチしました。 [matching rules](/ja/x-api/posts/filtered-stream#matching-returned-posts-to-their-associated-rule) タグの使用方法と、ルールを [POST /2/tweets/search/stream/rules endpoint](/ja/x-api/posts/filtered-stream#post-2-tweets-search-stream-rules) に送信する際に必要な JSON 形式に注目してください。
+
+```json
+{
+    "value": "-is:retweet has:geo (from:NWSNHC OR from:NHC_Atlantic OR from:NWSHouston OR from:NWSSanAntonio OR from:USGS_TexasRain OR from:USGS_TexasFlood OR from:JeffLindner1)",
+    "tag": "theme:info has:geo original from weather agencies and gauges"
+}
+```
+
+<div id="reviewing-the-sentiment-of-a-conversation">
+  ##### 会話の感情を見極める
+</div>
+
+次のルールは、ハッシュタグ _#nowplaying_ をめぐって展開する会話の感情をより的確に把握するために使用できます。ただし、北米で公開された投稿のみを対象とします。
+
+```json
+{
+    "value": "#nowplaying (happy OR exciting OR excited OR favorite OR fav OR amazing OR lovely OR incredible) (place_country:US OR place_country:MX OR place_country:CA) -horrible -worst -sucks -bad -disappointing",
+    "tag": "#nowplaying positive"
+},
+{
+    "value": "#nowplaying (horrible OR worst OR sucks OR bad OR disappointing) (place_country:US OR place_country:MX OR place_country:CA) -happy -exciting -excited -favorite -fav -amazing -lovely -incredible",
+    "tag": "#nowplaying negative"
+}
+```
+
+<div id="find-posts-that-relate-to-a-specific-post-annotation">
+  ##### 特定の投稿アノテーションに関連する投稿を見つける
+</div>
+
+このルールは、投稿の判定言語が日本語で、猫以外のペットの画像を含むオリジナル投稿を検索するために作成しました。これを行うために、`context:` オペレーターを用いて [Post annotation](/ja/x-api/fundamentals/post-annotations) の機能を活用しています。まず、[Post lookup](/ja/x-api/posts/lookup/introduction) エンドポイントと `tweet.fields=context_annotations` フィールドパラメータを使い、クエリで使用する必要がある domain.entity ID を特定しました。
+
+- 猫に関連する投稿は、`domain` 66（Interests and Hobbies カテゴリ）と `entity` 852262932607926273（Cats）を返します。
+- ペットに関連する投稿は、`domain` 65（Interests and Hobbies Vertical）と `entity` 852262932607926273（Pets）を返します。
+
+ルールは次のようになります。
+
+```json
+{
+    "value": "context:65.852262932607926273 -context:66.852262932607926273 -is:retweet has:images lang:ja",
+    "tag": "Japanese pets with images - no cats"
+}
+```
+
+<div id="operators">
+  ### 演算子
+</div>
+
+<Note>**注:** 一部の演算子には別名（エイリアス）が利用可能です。</Note>
+
+| **演算子**                   | **タイプ**         | **説明**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|:------------------------------|:-------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `keyword`                     | スタンドアロン     | 投稿本文内のキーワードに一致します。これはトークン化によるマッチで、指定したキーワード文字列は投稿本文のトークン化されたテキストと照合されます。トークン化では、句読点、記号、Unicode 基本多言語面の区切り文字に基づいて単語を分割します。<br />たとえば、「I like coca-cola」というテキストの投稿は、I、like、coca、cola というトークンに分割されます。これらのトークンが、ルールで使用するキーワード文字列と比較されます。句読点（例: coca-cola）、記号、または区切り文字を含む文字列にマッチさせるには、キーワードを二重引用符で囲む必要があります。<br /><br />例: `pepsi OR cola OR "coca cola"`                                                                                                                                                                                                                                                                  |
+| `emoji`                       | スタンドアロン     | 投稿本文内の絵文字に一致します。キーワードと同様に、絵文字もトークン化によるマッチで、指定した絵文字は投稿本文のトークン化されたテキストと照合されます。<br /><br />絵文字にバリアントがある場合は、ルールに追加する際に二重引用符で囲む必要がある点に注意してください。<br /><br />例: `(😃 OR 😡) 😬`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `"exact phrase match"`        | スタンドアロン     | 投稿本文内のフレーズに完全一致します。<br /><br />例: `("X API" OR #v2) -"filtered stream"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `#`                           | スタンドアロン     | 投稿内で認識されたハッシュタグを含む投稿に一致します（そのハッシュタグが投稿内で認識されたエンティティである場合）。<br /><br />この演算子はトークン化マッチではなく完全一致を行います。つまり、ルール `#thanku` はハッシュタグ #thanku を正確に含む投稿には一致しますが、#thankunext のハッシュタグを含む投稿には一致しません。<br /><br />例: `#thankunext #fanart OR @arianagrande`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `@`                           | スタンドアロン     | 指定したユーザー名（@ を含む）が認識されたエンティティである場合、そのユーザー名への言及を含む投稿に一致します。<br /><br />例: `(@XDevelopers OR @api) -@x`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `$`                           | スタンドアロン     | 指定した「キャッシュタグ」（トークンの先頭文字が $ のもの）を含む投稿に一致します。<br /><br />キャッシュタグ演算子は、本文からキャッシュタグを抽出するのではなく、X の「symbols」エンティティ抽出に基づいてキャッシュタグにマッチします。<br /><br />例: `$twtr OR @XDevelopers -$fb`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `from:`                       | スタンドアロン     | 特定のユーザーからの投稿に一致します。<br />値はユーザー名（@ は除く）またはユーザーの数値ユーザー ID を指定できます。<br /><br />`from:` 演算子には、ユーザー名／ID を 1 つだけ指定できます。<br /><br />例: `from:XDevelopers OR from:api -from:X`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `to:`                         | スタンドアロン     | 特定のユーザー宛ての返信である投稿に一致します。<br />値はユーザー名（@ は除く）またはユーザーの数値ユーザー ID を指定できます。<br /><br />`to:` 演算子ごとに指定できるユーザー名／ID は 1 つだけです。<br /><br />例: `to:XDevelopers OR to:api -to:x`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `url:`                        | スタンドアロン         | 投稿内の正しい形式の URL に対して、トークン化マッチを実行します。<br /><br />このオペレーターは、`url` と `expanded_url` の両方のフィールド内容にマッチできます。たとえば、「You should check out X Developer Labs: https://t.co/c0A36SWil4」（短縮 URL が https://developer.x.com にリダイレクト）の投稿は、次の両方のルールにマッチします。<br /><br />`from:XDevelopers url:"https://developer.x.com"`<br />(`entities.urls.expanded_url` の内容にマッチするため)<br /><br />`from:XDevelopers url:"https://t.co"`<br />(`entities.urls.url` の内容にマッチするため)<br /><br />句読点や特殊文字を含むトークンやフレーズは二重引用符で囲んでください（例: `url:"/developer"`）。同様に、特定のプロトコルでマッチさせる場合も二重引用符で囲みます（例: `url:"https://developer.x.com"`）。<br /><br />`url:` オペレーターごとに指定できる URL は 1 つのみです。                                                                                                                                                                                                                                                  |
+| `retweets_of:`                | スタンドアロン         | 使用可能なエイリアス: `retweets_of_user:`<br />指定したユーザーのリツイートである投稿にマッチします。値にはユーザー名（@ を除く）または数値のユーザー ID を指定できます。<br /><br />`retweets_of:` オペレーターごとに指定できるユーザー名／ID は 1 つのみです。<br /><br />例: `retweets_of:XDevelopers OR retweets_of:twitterapi`<br />数値の X アカウント ID を照会する方法は[こちら](/ja/x-api/users/lookup/introduction)を参照してください。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `context:`                    | スタンドアロン         | 特定のドメイン ID、またはドメイン ID とエンティティ ID のペアにマッチします。ここで \* はワイルドカードを表します。このオペレーターの詳細は、[投稿アノテーション](/ja/x-api/fundamentals/post-annotations)をご覧ください。<br /><br />`context:` オペレーターごとに指定できるドメイン／エンティティは 1 つのみです。<br /><br />`context:domain_id.entity_id`<br />`context:domain_id.*`<br />`context:*.entity_id`<br /><br />例:<br />`context:10.799022225751871488`<br />(`domain_id.entity_id` はその特定のドメインとエンティティのペアに一致する投稿を返します)<br /><br />`context:47.*`<br />(`domain_id.*` はそのドメイン ID に一致し、任意のドメイン—エンティティのペアを返します)<br /><br />`context:*.799022225751871488`<br />(`*.entity_id` はそのエンティティ ID に一致し、任意のドメイン—エンティティのペアを返します)                                                                                                                                                                                                                                                        |
+| `entity:`                     | スタンドアロン         | 特定のエンティティの文字列値にマッチする投稿を抽出します。このオペレーターの詳細は、[アノテーション](/ja/x-api/fundamentals/post-annotations)をご覧ください。<br /><br />`entity:` オペレーターごとに指定できるエンティティは 1 つのみです。<br /><br />`entity:"string declaration of entity/place"`<br /><br />例: `entity:"Michael Jordan" OR entity:"Barcelona"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `conversation_id:`            | スタンドアロン         | 共通の会話 ID を共有する投稿にマッチします。会話 ID は、会話を開始した投稿の投稿 ID に設定されます。ある投稿に返信が付くと（返信への返信も含む）、その JSON ペイロードに `conversation_id` が追加されます。<br /><br />`conversation_id:` オペレーターごとに指定できる会話 ID は 1 つのみです。<br /><br />例: `conversation_id:1334987486343299072 (from:XDevelopers OR from:api)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `bio:`                        | スタンドアロン         | 使用可能なエイリアス: `user_bio:`<br />投稿の発行者の自己紹介文内のキーワードまたはフレーズにマッチします。これは、[ユーザーオブジェクト](/ja/x-api/fundamentals/data-dictionary#user) の `description` フィールドの内容に対するトークン化マッチです。<br /><br />例: `bio:developer OR bio:"data engineer" OR bio:academic`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `bio_name:`                   | スタンドアロン         | 投稿の発行者のユーザー名（表示名）内のキーワードにマッチします。これは、[ユーザーオブジェクト](/ja/x-api/fundamentals/data-dictionary#user) の「name」フィールドの内容に対するトークン化マッチです。<br /><br />例: `bio_name:phd OR bio_name:md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `bio_location:`               | Standalone         | _利用可能なエイリアス:_ `user_bio_location:`<br />指定したキーワードまたはフレーズを含む場所をプロフィールに設定しているユーザーが公開した投稿に一致します。このオペレーターは、メッセージ本文に対する通常のキーワードルールと同様に、トークン化によるマッチングを行います。<br /><br />この場所は[ユーザーオブジェクト](/ja/x-api/fundamentals/data-dictionary#user)の一部で、'location' フィールドに対してマッチし、正規化されていないユーザー生成の自由形式文字列です。投稿の場所（`place:` を参照）とは異なります。<br /><br />例: `bio_location:"big apple" OR bio_location:nyc OR bio_location:manhattan`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `place:`                      | Standalone         | 指定した場所名または X のプレイス ID がタグ付けされた投稿に一致します。複数語からなる場所名（“New York City”、“Palo Alto”）は引用符で囲んでください。<br /><br />`place:` オペレーターごとに指定できる場所は 1 つだけです。<br /><br />注: X プレイス ID の取得方法は、標準 v1.1 の [GET geo/search](https://developer.x.com/content/developer-twitter/en/docs/geo/places-near-location/api-reference/get-geo-search) エンドポイントを参照してください。<br /><br />注: このオペレーターはリツイートにはマッチしません。リツイートの場所は元の投稿に紐づくためです。また、引用ツイートの元投稿に紐づく場所にもマッチしません。<br /><br />例: `place:"new york city" OR place:seattle OR place:fd70c22040963ac7`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `place_country:`              | Standalone         | タグ付けされた場所／ロケーションに関連付けられた国コードが、指定した ISO アルファ 2 文字コードと一致する投稿にマッチします。<br /><br />有効な ISO コードの一覧は [Wikipedia](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) を参照してください。<br /><br />`place_country:` オペレーターごとに指定できる ISO コードは 1 つだけです。<br /><br />注: このオペレーターはリツイートにはマッチしません。リツイートの場所は元の投稿に紐づくためです。また、引用ツイートの元投稿に紐づく場所にもマッチしません。<br /><br />例: `place_country:US OR place_country:MX OR place_country:CA`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `point_radius:`               | Standalone         | 投稿に `place.geo.coordinates` オブジェクトが存在する場合はそれに対して、また X ではプレイスのジオポリゴンに対してマッチし、プレイスのポリゴンが定義した領域内に完全に含まれる場合に一致します。<br /><br />`point_radius:[longitude latitude radius]`<br /><br />- サポートする半径の単位はマイル（mi）とキロメートル（km）<br />- 半径は 25mi 未満である必要があります<br />- 経度は ±180 の範囲<br />- 緯度は ±90 の範囲<br />- すべての座標は十進度<br />- ルール引数は角括弧内に記載し、スペース区切り<br /><br />`point_radius:` オペレーターごとに指定できるジオポリゴンは 1 つだけです。<br /><br />注: このオペレーターはリツイートにはマッチしません。リツイートの場所は元の投稿に紐づくためです。また、引用ツイートの元投稿に紐づく場所にもマッチしません。<br /><br />例: `point_radius:[2.355128 48.861118 16km] OR point_radius:[-41.287336 174.761070 20mi]`
+| `bounding_box:`               | スタンドアロン         | _利用可能なエイリアス:_ `geo_bounding_box:`<br />存在する場合は投稿の place.geo.coordinates オブジェクトに、X では場所のジオポリゴンに対してマッチします。場所ポリゴンが定義した領域内に完全に含まれている必要があります。<br /><br />`bounding_box:[west_long south_lat east_long north_lat]`<br /><br />- `west_long south_lat` はバウンディングボックスの南西隅を表し、`west_long` はその点の経度、`south_lat` は緯度です。<br />- `east_long north_lat` はバウンディングボックスの北東隅を表し、`east_long` はその点の経度、`north_lat` は緯度です。<br />- バウンディングボックスの幅と高さは 25mi 未満でなければなりません。<br />- 経度は ±180 の範囲です。<br />- 緯度は ±90 の範囲です。<br />- すべての座標は小数（度）です。<br />- ルール引数は角括弧内に記述し、スペース区切りにします。<br /><br />`bounding_box:` オペレーターごとに渡せるジオポリゴンは 1 つのみです。<br /><br />注: このオペレーターはリツイートにはマッチしません。リツイートの場所情報は元の投稿に紐づいているためです。引用投稿の元の投稿に紐づく場所にもマッチしません。<br /><br />例: `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]` |
+| `is:retweet`                  | 連言が必要 | 指定した他の条件にも一致するリツイートにマッチします。このオペレーターは真のリツイート（例: リツイートボタンで生成されたもの）のみを対象とします。引用投稿にはマッチしません。<br /><br />例: `data @XDevelopers -is:retweet` |
+| `is:reply`                    | 連言が必要 | ルールに一致する明示的な返信のみを配信します。否定して、ルールに一致する返信を配信から除外することもできます。<br /><br />フィルタードストリームで使用すると、このオペレーターは元の投稿への返信、引用投稿内の返信、リツイート内の返信にマッチします。<br /><br />例: `from:XDevelopers is:reply` |
+| `is:quote`                    | 連言が必要 | すべての引用投稿（コメント付きの投稿）を返します。<br /><br />例: `"sentiment analysis" is:quote` |
+| `is:verified`                 | 連言が必要 | 投稿者が X によって認証済みの投稿のみを配信します。<br /><br />例: `#nowplaying is:verified` |
+| `-is:nullcast`                | 連言が必要 | ads.twitter.com 上でプロモーション専用に作成され、`source:"Twitter for Advertisers (legacy)"` または `source:"Twitter for Advertisers"` を持つ投稿を除外します。<br />このオペレーターは必ず否定形で使用してください。<br /><br />Nullcast された投稿の詳細は、[投稿の提供状況](https://developer.x.com/content/developer-twitter/en/docs/twitter-api/v1/tweets/post-and-engage/guides/tweet-availability)をご覧ください。<br /><br />例: `"mobile games" -is:nullcast` |
+| `has:hashtags`                | 連言が必要 | 少なくとも 1 つのハッシュタグを含む投稿にマッチします。<br /><br />例: `from:XDevelopers -has:hashtags` |
+| `has:cashtags`                | 連言が必要 | 先頭に「$」が付いたキャッシュタグ（例: `$tag`）を含む投稿にマッチします。<br /><br />例: `#stonks has:cashtags` |
+| `has:links`                   | 連言が必要 | 本文にリンクやメディアを含む投稿にマッチします。<br /><br />例: `from:XDevelopers announcement has:links` |
+| `has:mentions`                | 連言が必要 | 他の X ユーザーへのメンションを含む投稿にマッチします。<br /><br />例: `#nowplaying has:mentions` |
+| `has:media`                   | 併用が必要 | _利用可能な別名:_ `has:media_link`<br />X によって判定された、写真、GIF、動画などのメディアオブジェクトを含む投稿に一致します。Periscope で作成されたメディアや、他のメディアホスティングサイトへのリンクを含む投稿には一致しません。<br /><br />例: `(kittens OR puppies) has:media`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `has:images`                  | 併用が必要 | 画像への既知の URL を含む投稿に一致します。<br /><br />例: `#meme has:images`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `has:video_link`              | 併用が必要 | _利用可能な別名:_ `has:videos`<br />X にネイティブに、X に直接アップロードされた動画を含む投稿に一致します。Periscope で作成された動画や、他の動画ホスティングサイトへのリンクを含む投稿には一致しません。<br /><br />例: `#icebucketchallenge has:video_link`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `has:geo`                     | 併用が必要 | X ユーザーが提供した、投稿固有の位置情報データを持つ投稿に一致します。これは、対応する表示名、ジオポリゴンなどのフィールドを持つ X のプレイスとしての位置、または稀に緯度・経度の座標のいずれかです。<br /><br />注: プレイス（投稿のジオ情報）にマッチするオペレーターは、元の投稿のみを対象とします。リポストにはプレイスデータは含まれません。<br /><br />例: `recommend #paris has:geo -bakery`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `sample:`                     | 併用が必要 | ルールに一致する投稿のうち、全件ではなくランダムな割合のサンプルを返します。割合は 1 から 100 の整数で指定する必要があります（例: `sample:10` はランダムな 10% のサンプルを返します）。<br /><br />このオペレーターはまず、指定した割合までストリームの対象範囲を縮小し、その後、その抽出サンプルに対してルール／フィルターを適用します。言い換えると、例えば `sample:10` を使用する場合、各投稿はサンプルに含まれる確率が 10% になります。<br /><br />このオペレーターはルール全体に適用され、OR で結合したすべての語句をグループ化する必要があります。<br /><br />例: `#nowplaying @spotify sample:15`
+| `lang:`                       | 接続詞が必要 | X によって特定の言語であると分類された投稿（投稿が分類されている場合に限る）に一致します。各投稿は現在 1 つの言語にのみ分類されるため、複数の言語を AND で組み合わせても結果は返りません。<br /><br />`lang:` 演算子では、指定できる BCP 47 言語識別子は 1 つのみです。<br /><br />注意: 言語分類ができない場合、返される値は「und」（未定義）です。<br /><br />例: `recommend #paris lang:en`<br /><br />以下は、現在サポートされている言語と対応する BCP 47 言語識別子の一覧です。<br /><br />| 言語         | BCP 47 |<br />|-|-|<br />| アムハラ語          | `am`   |<br />| アラビア語           | `ar`   |<br />| アルメニア語         | `hy`   |<br />| バスク語           | `eu`   |<br />| ベンガル語          | `bn`   |<br />| ボスニア語          | `bs`   |<br />| ブルガリア語        | `bg`   |<br />| ビルマ語          | `my`   |<br />| クロアチア語         | `hr`   |<br />| カタルーニャ語          | `ca`   |<br />| チェコ語            | `cs`   |<br />| デンマーク語           | `da`   |<br />| オランダ語            | `nl`   |<br />| 英語          | `en`   |<br />| エストニア語         | `et`   |<br />| フィンランド語          | `fi`   |<br />| フランス語           | `fr`   |<br />| ジョージア語         | `ka`   |<br />| ドイツ語           | `de`   |<br />| ギリシャ語           | `el`   |<br />| グジャラート語         | `gu`   |<br />| ハイチ・クレオール語   | `ht`   |<br />| ヘブライ語           | `iw`   |<br />| ヒンディー語            | `hi`   |<br />| ラテン文字表記のヒンディー語  | `hi-Latn` |<br />| ハンガリー語        | `hu`   |<br />| アイスランド語        | `is`   |<br />| インドネシア語       | `in`   |<br />| イタリア語          | `it`   |<br />| 日本語         | `ja`   |<br />| カンナダ語          | `kn`   |<br />| クメール語            | `km`   |<br />| 韓国語           | `ko`   |<br />| ラオス語              | `lo`   |<br />| ラトビア語           | `lv`   |<br />| リトアニア語       | `lt`   |<br />| マラヤーラム語        | `ml`   |<br />| ディベヒ語        | `dv`   |<br />| マラーティー語          | `mr`   |<br />| ネパール語           | `ne`   |<br />| ノルウェー語        | `no`   |<br />| オリヤー語            | `or`   |<br />| パンジャブ語          | `pa`   |<br />| パシュトー語           | `ps`   |<br />| ペルシャ語          | `fa`   |<br />| ポーランド語           | `pl`   |<br />| ポルトガル語       | `pt`   |<br />| ルーマニア語         | `ro`   |<br />| ロシア語          | `ru`   |<br />| セルビア語          | `sr`   |<br />| 簡体字中国語 | `zh-CN` |<br />| シンド語           | `sd`   |<br />| シンハラ語          | `si`   |<br />| スロバキア語           | `sk`   |<br />| スロベニア語        | `sl`   |<br />| ソラニー・クルド語   | `ckb`  |<br />| スペイン語          | `es`   |<br />| スウェーデン語          | `sv`   |<br />| タガログ語          | `tl`   |<br />| タミル語            | `ta`   |<br />| テルグ語           | `te`   |<br />| タイ語             | `th`   |<br />| チベット語          | `bo`   |<br />| 繁体字中国語 | `zh-TW` |<br />| トルコ語          | `tr`   |<br />| ウクライナ語        | `uk`   |<br />| ウルドゥー語             | `ur`   |<br />| ウイグル語           | `ug`   |<br />| ベトナム語       | `vi`   |<br />| ウェールズ語            | `cy`   | |
+| `followers_count:`            |                  | 著者のフォロワー数が指定した範囲内にある投稿に一致します。<br />単一の数値を指定した場合、その数値以上であれば一致します。<br /><br />例: `followers_count:500`<br /><br />また、範囲を指定して、その範囲内の任意の数値に一致させることもできます。<br /><br />例: `followers_count:1000..10000`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `tweets_count:`               |                  | _利用可能なエイリアス:_ `statuses_count:`<br />著者が投稿したポスト数が指定した範囲内にある場合、その投稿に一致します。<br />単一の数値を指定した場合、その数値以上であれば一致します。<br /><br />例: `tweets_count:1000`<br /><br />また、範囲を指定して、その範囲内の任意の数値に一致させることもできます。<br /><br />例: `tweets_count:1000..10000`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `following_count:`            |                  | _利用可能なエイリアス:_ `friends_count:`<br />著者のフォロー数（フォローしているユーザー数）が指定した範囲内にある場合、その投稿に一致します。<br />単一の数値を指定した場合、その数値以上であれば一致します。<br /><br />例: `following_count:500`<br /><br />また、範囲を指定して、その範囲内の任意の数値に一致させることもできます。<br /><br />例: `following_count:1000..10000`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `listed_count:`               |                  | _利用可能なエイリアス:_ `user_in_lists_count:`<br />著者が指定数のリストに含まれている場合、その投稿に一致します。<br />単一の数値を指定した場合、その数値以上であれば一致します。<br /><br />例: `listed_count:10`<br /><br />また、範囲を指定して、その範囲内の任意の数値に一致させることもできます。<br /><br />例: `listed_count:10..100`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `url_title:`                  |                  | _利用可能なエイリアス:_ `within_url_title:`<br />展開された URL の HTML タイトルのメタデータに対してキーワード／フレーズ一致を行います。<br /><br />例: `url_title:snow`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `url_description:`            |                  | _利用可能なエイリアス:_ `within_url_description:`<br />展開されたページの説明メタデータに対してキーワード／フレーズ一致を行います。<br /><br />例: `url_description:weather`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `url_contains:`               |                  | 指定した語句またはキーワードを文字通り含む URL を持つ投稿に一致します。句読点を含むパターン（例: "google.com"）を検索するには、検索語を引用符で囲みます。<br />注意: 展開後の URL に対しても一致します。<br /><br />例: `url_contains:photos`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `source:`                     |                  | 指定したソースアプリケーションによって生成されたポストに一致します。値はアプリケーション名またはアプリケーションの URL のいずれかである必要があります。単独では使用できません。<br /><br />例: `source:"X for iPhone"`<br /><br />注: X アプリ開発者の場合、あなたのアプリでプログラム的に作成されたポストには、[アプリ設定](/ja/resources/fundamentals/developer-apps#app-management)で設定したアプリケーション名とウェブサイト URL がソースとして設定されます。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `in_reply_to_tweet_id:`       |                  | _利用可能なエイリアス:_ `in_reply_to_status_id:`<br />指定したポストへの明示的な返信のみを配信します。<br /><br />例: `in_reply_to_tweet_id:1539382664746020864`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `retweets_of_tweet_id:`       |                  | _利用可能なエイリアス:_ `retweets_of_status_id:`<br />指定したポストの明示的（ネイティブ）リツイートのみを配信します。使用するステータス ID はリツイートではなく元のポストの ID である必要があります。<br /><br />例: `retweets_of_tweet_id:1539382664746020864`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |

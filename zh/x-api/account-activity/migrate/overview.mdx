@@ -1,0 +1,60 @@
+<div id="v2-account-activity-api-migration-guide">
+  # v2 Account Activity API 迁移指南
+</div>
+
+本指南旨在帮助您从旧版 Enterprise Account Activity API 迁移到 v2 Account Activity API。核心功能保持不变，但为与 X API v2 保持一致，端点结构和身份验证方式已作更新。
+
+<div id="summary-of-changes">
+  ### 变更摘要
+</div>
+
+* **API 格式**：端点改用 /2/account_activity/ 基础路径，替代 /1.1/account_activity/。  
+* **Webhook 管理**：Webhook 的创建、列表、验证（CRC）与删除由 [V2 Webhooks API](https://github.com/m-rosinsky/XWebhookTest/blob/main/app.py) 处理。  
+* **认证**：V2 端点需要以下其一：  
+  * **OAuthUser**（三方 OAuth）用于用户级操作（例如订阅某个用户）。  
+  * **OAuth2 App Only**（Bearer Token）用于应用级操作（例如列出/删除订阅）。  
+  * V1.1 的要求不一，通常为 OAuth 1.0a。  
+* **端点映射**：
+
+| V1.1 端点 | V2 对应项 / 操作 | 备注 |
+| ----- | ----- | ----- |
+| POST /1.1/account_activity/webhooks.json?url=\<URL\> | POST /2/webhooks | [文档](https://docs.x.com/x-api/webhooks/introduction)。需要 OAuth2AppOnly。 |
+| GET /1.1/account_activity/webhooks.json | GET /2/webhooks | [文档](https://docs.x.com/x-api/webhooks/introduction)。需要 OAuth2AppOnly。 |
+| PUT /1.1/account_activity/webhooks/:webhook_id.json | PUT /2/webhooks/:webhook_id | 触发 CRC。[文档](https://docs.x.com/x-api/webhooks/introduction)。需要 OAuth2AppOnly。 |
+| DELETE /1.1/account_activity/webhooks/:webhook_id.json | DELETE /2/webhooks/:webhook_id | [文档](https://docs.x.com/x-api/webhooks/introduction)。需要 OAuth2AppOnly。 |
+| POST /1.1/account_activity/webhooks/:webhook_id/subscriptions/all.json | POST /2/account_activity/webhooks/:webhook_id/subscriptions/all | 需要 OAuthUser。 |
+| GET /1.1/account_activity/subscriptions/count.json | GET /2/account_activity/subscriptions/count | 需要 OAuth2AppOnly。 |
+| GET /1.1/account_activity/webhooks/:webhook_id/subscriptions/all.json | GET /2/account_activity/webhooks/:webhook_id/subscriptions/all | 需要 OAuthUser。 |
+| GET /1.1/account_activity/webhooks/:webhook_id/subscriptions/all/list.json | GET /2/account_activity/webhooks/:webhook_id/subscriptions/all/list | 需要 OAuth2AppOnly。 |
+| DELETE /1.1/account_activity/webhooks/:webhook_id/subscriptions/:user_id/all | DELETE /2/account_activity/webhooks/:webhook_id/subscriptions/:user_id/all | 需要 OAuth2AppOnly。 |
+| DELETE /1.1/account_activity/webhooks/:webhook_id/subscriptions/all | 已弃用 / 无直接等价 | 使用逐个删除，或通过 DELETE /2/webhooks/:webhook_id 移除该 webhook。 |
+
+* **响应格式**：请查看 AAAPI 文档中的成功与错误响应结构。
+
+迁移时，请更新代码以使用新的基础路径，调整认证流程，并通过 [V2 Webhooks API](https://docs.x.com/x-api/webhooks/introduction) 管理 webhook。
+
+<div id="how-to-migrate">
+  ### 如何迁移
+</div>
+
+* **选择套餐**：  
+  * 为获得 Account Activity API 访问权限，请选择 Enterprise 或 Pro 套餐，并考虑：  
+    * 所需的 webhook 数量。  
+    * 当前/预估的订阅数或已授权用户数。  
+    * X 客户端应用数量。  
+    * 期望的支持级别（社区论坛 vs. 企业级一对一托管支持）。  
+    * 定价详情（Enterprise 请联系销售）。  
+* **将身份验证更新为 OAuth 2.0**：  
+  * 确保您的 X 应用具有“读取、写入和访问私信”权限。  
+  * 针对 V2 端点更新为 OAuth 2.0。如作用域（scope）有变更，请重新授权用户。  
+  * 使用开发者门户管理：  
+    * OAuth 2.0 访问令牌。  
+    * 客户端 ID（Client ID）和客户端密钥（Client Secret）。  
+* **验证或重新配置 Webhook**：  
+  * 使用现有的 webhook URL，或新建一个（例如：https://your_domain.com/webhook/twitter）。  
+  * 按照 [V2 Webhooks API 文档](https://docs.x.com/x-api/webhooks/introduction) 注册并管理您的 webhook。  
+* **示例应用：**  
+  * [简单的 webhook 服务器](https://github.com/m-rosinsky/XWebhookTest/blob/main/app.py)  
+    * 一个 Python 脚本，演示如何响应 CRC 校验并接收 POST 事件。  
+  * [Account Activity API 示例看板](https://github.com/xdevplatform/account-activity-dashboard-enterprise/tree/master)  
+    * 使用 [bun.sh](http://bun.sh) 编写的 Web 应用，可在应用内管理 webhooks、订阅，并直接接收实时事件。

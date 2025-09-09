@@ -1,0 +1,2704 @@
+---
+title: "X API v2 データディクショナリ"
+---
+
+<div id="object-model">
+  ## オブジェクトモデル
+</div>
+
+<div id="tweet">
+  ### Tweet
+</div>
+
+Tweet は、Twitter に関するあらゆる要素の基本的な構成単位です。Tweet オブジェクトには、`id`、`text`、`created_at` などの「ルートレベル」フィールドが多数あります。Tweet オブジェクトは、`user`、`media`、`poll`、`place` など複数の子オブジェクトの「親」オブジェクトでもあります。Tweet オブジェクトのこれらのルートレベルフィールドをリクエストする際は、フィールドパラメータ `tweet.fields` を使用してください。
+
+Tweet オブジェクトは user リソースで検索および展開できます。リクエストした Tweet に関連する追加の Tweet も、Tweet リソースで検索および展開できます。オブジェクトは、user リソースでは `?expansions=pinned_tweet_id`、Tweet リソースでは `?expansions=referenced_tweets.id` を指定して、デフォルトフィールドのみを持つオブジェクトとして展開可能です。オブジェクトを補完するために追加フィールドをリクエストする場合は、拡張に加えてフィールドパラメータ `tweet.fields` を使用してください。
+
+| フィールド値           | 型   | 説明                                                                                                                           | 使用方法                                                  |
+|:-----------------------|:--------|:---------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------|
+| **id (default)**      | string | リクエストされたツイートの一意の識別子。                                                                                        | これを使用して特定のツイートをプログラムで取得します。              |
+| **text (default)**    | string | ツイートの実際の UTF-8 テキスト。有効な文字の詳細は [twitter-text](https://github.com/twitter/twitter-text/) を参照してください。   | キーワード抽出および感情分析／分類。            |
+| **edit\_history\_tweet\_ids (default)** | object | ツイートのすべてのバージョンを示す一意の識別子。編集がないツイートには ID が 1 つ、編集履歴があるツイートには複数の ID があります。 | この情報を使用してツイートの編集履歴を取得します。            |
+| **attachments**       | object | このツイートに存在する添付（ある場合）の種類を指定します。                                                                    | リクエストしたエキスパンションで返されるオブジェクトの把握に使用。         |
+| **author\_id**         | string | このツイートを投稿したユーザーの一意の識別子。                                                                             | User オブジェクトのハイドレーション、ピアレビュー用のデータセット共有。              |
+| **context\_annotations** | array | ツイートのコンテキスト注釈を含みます。                                                                                          | エンティティ認識／抽出、トピック分析。                     |
+| **conversation\_id**   | string | 会話の元ツイート（直接の返信、返信への返信を含む）のツイート ID。                         | これを使用してツイートから会話を再構築します。               |
+| **created\_at**        | date (ISO 8601) | ツイートの作成時刻。                                                                                                      | 時系列分析やツイートが作成されたタイミングの把握に有用。 |
+| **edit\_controls**     | object | ツイートをあとどれくらい編集できるか、残りの編集回数を示します。                                                | ツイートが編集可能かどうかを判定するために使用します。            |
+| **entities**          | object | ツイートのテキストから抽出・解析されたエンティティ。Twitter Objects の entities を参照してください。                                       | ハッシュタグ、URL、メンションなどに関する追加情報を提供。 |
+| **in\_reply\_to\_user\_id** | string | 表示されているツイートが返信である場合、このフィールドには元のツイートの投稿者 ID が含まれます。                                       | ツイートが別のツイートへの返信であったかを判定。                  |
+| **lang**              | string | X により検出された場合のツイートの言語。                                                                                      | 使用言語ごとにツイートを分類。                                  |
+| **non\_public\_metrics** | object | リクエスト時点のツイートに関する非公開のエンゲージメント指標。ユーザーコンテキスト認証が必要です。                       | ツイートで生成された総インプレッション数を判定。                 |
+| **organic\_metrics**   | object | リクエスト時点のツイートに関するオーガニック文脈で追跡されたエンゲージメント指標。ユーザーコンテキスト認証が必要です。  | ツイートのオーガニックエンゲージメントを測定。                            |
+| **possibly\_sensitive** | boolean | コンテンツがセンシティブと認識される可能性があるかを示します。                                                                           | 特定タイプのコンテンツの流通を調査。                       |
+| **promoted\_metrics**  | object | リクエスト時点のツイートに関するプロモーション文脈で追跡されたエンゲージメント指標。ユーザーコンテキスト認証が必要です。 | プロモーション時のツイートのエンゲージメントを測定。               |
+| **public\_metrics**    | object | リクエスト時点のツイートに関する公開エンゲージメント指標。                                                                 | ツイートのエンゲージメントを測定。                                            |
+| **referenced\_tweets** | array  | このツイートが参照しているツイートの一覧（リツイート、引用ツイート、返信など）。                                                | リツイート等の会話的側面を把握。                  |
+| **reply\_settings**    | string | 指定されたツイートに誰が返信できるかを示します。オプションは「everyone」「mentioned\_users」「followers」です。                                  | ツイートの返信設定を判定。                 |
+| **withheld**          | object | [withheld content](https://help.x.com/en/rules-and-policies/tweet-withheld-by-country) に関する保留情報を含みます。     |                                                                     |
+| **media\_metadata**          | array | ツイートのメディア添付のメタデータを含みます。     | ツイートのメディア添付の `alt_text` などの追加メタデータを取得。 |
+
+**ツイートオブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、[Tweets lookup](/ja/resources/fundamentals/rate-limits) エンドポイントでツイートのフィールドをリクエストしています。必ず `$BEARER_TOKEN` を自身が生成した [Bearer Token](/ja/resources/fundamentals/authentication) に置き換えてください。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1212092628029698048&tweet.fields=attachments,author_id,context_annotations,created_at,entities,geo,id,in_reply_to_user_id,lang,possibly_sensitive,public_metrics,referenced_tweets,text,withheld&expansions=referenced_tweets.id' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**レスポンス例**
+
+```
+{
+  "data": [
+    {
+      "text": "私たちは、API の最良の未来形は皆さんと共に構築することで実現すると信じています。Twitter プラットフォームで開発してくださっている皆さまに、今年も素晴らしい一年を。新年も引き続きご一緒できるのが待ちきれません。 https://t.co/yvxdK6aOo2",
+      "edit_history_tweet_ids": [
+        "1212092628029698048"
+      ],
+      "lang": "en",
+      "in_reply_to_user_id": "2244994945",
+      "entities": {
+        "urls": [
+          {
+            "start": 222,
+            "end": 245,
+            "url": "https://t.co/yvxdK6aOo2",
+            "expanded_url": "https://x.com/LovesNandos/status/1211797914437259264/photo/1",
+            "display_url": "pic.x.com/yvxdK6aOo2",
+            "media_key": "16_1211797899316740096"
+          }
+        ],
+        "annotations": [
+          {
+            "start": 42,
+            "end": 44,
+            "probability": 0.5359,
+            "type": "Other",
+            "normalized_text": "API"
+          },
+          {
+            "start": 144,
+            "end": 150,
+            "probability": 0.9832,
+            "type": "Other",
+            "normalized_text": "Twitter"
+          }
+        ]
+      },
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1212092627178287104"
+        }
+      ],
+      "id": "1212092628029698048",
+      "public_metrics": {
+        "retweet_count": 7,
+        "reply_count": 3,
+        "like_count": 38,
+        "quote_count": 1
+      },
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "29",
+            "name": "イベント [エンティティサービス]",
+            "description": "現実世界のイベント。",
+          },
+          "entity": {
+            "id": "1186637514896920576",
+            "name": "大晦日",
+          }
+        },
+        {
+          "domain": {
+            "id": "29",
+            "name": "イベント [エンティティサービス]",
+            "description": "現実世界のイベント。",
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年あけましておめでとう：ついに 2020 年が世界中で到来！",
+            "description": "世界中の人々が新年を迎える中、花火やその他の祝賀をチェックしましょう。\n写真提供：@GettyImages",
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "祝日",
+            "description": "クリスマスやハロウィンのような祝日",
+          },
+          "entity": {
+            "id": "1186637514896920576",
+            "name": "大晦日",
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "祝日",
+            "description": "クリスマスやハロウィンのような祝日",
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年あけましておめでとう：ついに 2020 年が世界中で到来！",
+            "description": "世界中の人々が新年を迎える中、花火やその他の祝賀をチェックしましょう。\n写真提供：@GettyImages",
+          }
+        },
+        {
+          "domain": {
+            "id": "30",
+            "name": "エンティティ [エンティティサービス]",
+            "description": "エンティティサービスの最上位ドメイン。エンティティサービス内のすべての項目はこのドメインに属します",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "サービス",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "ブランド",
+            "description": "ブランドおよび企業",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "統合 Twitter タクソノミー",
+            "description": "ユーザーの関心の分類体系。",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "統合 Twitter タクソノミー",
+            "description": "ユーザーの関心の分類体系。"
+          },
+          "entity": {
+            "id": "847868745150119936",
+            "name": "家族と人間関係",
+            "description": "趣味・関心"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "統一 Twitter タクソノミー",
+            "description": "ユーザーの関心分野の分類体系。"
+          },
+          "entity": {
+            "id": "1196446161223028736",
+            "name": "ソーシャルメディア"
+          }
+        },
+        {
+          "domain": {
+            "id": "29",
+            "name": "イベント［エンティティサービス］",
+            "description": "現実世界の出来事。"
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年おめでとう：世界中でついに2020年に！",
+            "description": "世界中の人々が新年を迎える様子として、花火や各地の祝賀をチェックしましょう。\nPhoto via @GettyImages "
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "祝日",
+            "description": "クリスマスやハロウィンのような祝日"
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年おめでとう：世界中でついに2020年に！",
+            "description": "世界中の人々が新年を迎える様子として、花火や各地の祝賀をチェックしましょう。\nPhoto via @GettyImages "
+          }
+        }
+      ],
+      "created_at": "2019-12-31T19:26:16.000Z",
+      "attachments": {
+        "media_keys": [
+          "16_1211797899316740096"
+        ]
+      },
+      "possibly_sensitive": false
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "text": "これらのリリースは、道のりの中で皆さんからいただいたフィードバックがなければ実現しませんでした。貴重な時間とアイデアをお寄せくださった皆さん、本当にありがとうございます。さらにフィードバックはありますか？こちらからお知らせください ⬇️ https://t.co/Vxp4UKnuJ9",
+        "edit_history_tweet_ids": [
+          "1212092627178287104"
+        ],
+        "lang": "en",
+        "in_reply_to_user_id": "2244994945",
+        "entities": {
+          "urls": [
+            {
+              "start": 187,
+              "end": 210,
+              "url": "https://t.co/Vxp4UKnuJ9",
+              "expanded_url": "https://twitterdevfeedback.uservoice.com/forums/921790-twitter-developer-labs",
+              "display_url": "twitterdevfeedback.uservoice.com/forums/921790-…",
+              "status": 200,
+              "title": "フィードバックチャネルの最新情報",
+              "description": "私たちは皆さんの意見とフィードバックを取り入れ、オープンな形で開発者向けプラットフォームを構築しています。過去1年、皆さんやアプリのユーザーから直接お話を伺うことで、皆さんに特定いただいたユースケースに適した開発者向けプロダクトを構築できました。今後もこの方法でプロダクトを作っていきたいと考えており、今後はフィードバックチャネルを統合します。皆さんのいる場所でお会いします。本日をもって、UserVoice のフィードバックチャネルを終了し、より頻繁で直接的なコミュニケーションへ移行します。"
+              "unwound_url": "https://devcommunity.x.com/t/updates-on-our-feedback-channels/169706"
+            }
+          ]
+        },
+        "author_id": "2244994945",
+        "referenced_tweets": [
+          {
+            "type": "replied_to",
+            "id": "1212092626247110657"
+          }
+        ],
+        "id": "1212092627178287104",
+        "public_metrics": {
+          "retweet_count": 2,
+          "reply_count": 1,
+          "like_count": 19,
+          "quote_count": 0
+        },
+        "created_at": "2019-12-31T19:26:16.000Z",
+        "possibly_sensitive": false
+      }
+    ]
+  }
+```
+
+<div id="user">
+  ### User
+</div>
+
+user オブジェクトには、参照先ユーザーを記述する X のユーザーアカウントのメタデータが含まれます。user オブジェクトは、[users lookup](/ja/x-api/users/lookup/introduction) エンドポイントで返される主要なオブジェクトです。このエンドポイントで追加のユーザーフィールドを取得するには、フィールドパラメーター `user.fields` を使用します。
+
+user オブジェクトは、Tweet オブジェクト内の子オブジェクトとしても含まれ、展開できます。デフォルトフィールドのみを含む簡易オブジェクトを取得するには、`?expansions=author_id` または `?expansions=in_reply_to_user_id` による展開が利用可能です。オブジェクトを完全な形にするために追加フィールドを要求する場合は、フィールドパラメーター `user.fields` と併用して展開を行ってください。
+ 
+
+| フィールド値 | 型 | 説明 | 使用方法 |
+| :--- | :--- | :--- | :--- |
+| id（デフォルト） | string | このユーザーの一意の識別子。<br /><br />`"id": "2244994945"` | 特定のTwitterユーザーに関する情報をプログラムで取得するために使用します。 |
+| name（デフォルト） | string | プロフィールで定義されたユーザーの名前。必ずしも個人名とは限りません。通常は50文字に制限されていますが、変更される可能性があります。<br /><br />`"name": "Twitter Dev"` |     |
+| username（デフォルト） | string | このユーザーが自身を示すために使用するTwitterのスクリーンネーム、ハンドル、または別名。ユーザー名は一意ですが、変更される可能性があります。通常は最大15文字ですが、古いアカウントにはより長い名前が存在する場合があります。<br /><br />`"username": "TwitterDev"` |     |
+| confirmed\_email | string | 認証済みユーザーの確認済みメールアドレス。 | |
+| connection\_status | array | 認証ユーザーと参照対象ユーザーの関係（フォロー中、フォローされている、フォローリクエスト送信、フォローリクエスト受信、ブロック、ミュートなど）の一覧を返します。<br /><br />"connection\_status": \[  <br />           "follow\_request\_received",  <br />           "follow\_request\_sent",  <br />           "blocking",  <br />           "followed\_by",  <br />           "following",  <br />           "muting"  <br />] | 認証ユーザーと参照対象ユーザーの接続状況を判定するために使用できます。 |
+| created\_at | date (ISO 8601) | ユーザーアカウントがTwitter上で作成されたUTC日時。<br /><br />`"created_at": "2013-12-14T04:35:55.000Z"` | そのユーザーがTwitterをどれくらいの期間利用しているかを判断するために使用できます。 |
+| description | string | ユーザーが設定している場合、このユーザーのプロフィール説明（bio）のテキスト。<br /><br />`"description": "The voice of the X Dev team and your official source for updates, news, and events, related to the X API."` |     |
+| entities | object | ユーザーの説明文内で特別な意味を持つテキストに関する詳細を含みます。<br /><br />`"entities": {  <br/>       "url": {  <br/>           "urls": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 23,  <br/>                   "url": "https://t.co/3ZX3TNiZCY",  <br/>                   "expanded_url": "/content/developer-twitter/en/community",  <br/>                   "display_url": "developer.x.com/en/community"  <br/>               }  <br/>           ]  <br/>       },  <br/>       "description": {  <br/>           "urls": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 23,  <br/>                   "url": "https://t.co/3ZX3TNiZCY",  <br/>                   "expanded_url": "/content/developer-twitter/en/community",  <br/>                   "display_url": "developer.x.com/en/community"  <br/>               },  <br/>           "hashtags": [  <br/>               {  <br/>                   "start": 23,  <br/>                   "end": 30,  <br/>                   "tag": "DevRel"  <br/>               },  <br/>               {  <br/>                   "start": 113,  <br/>                   "end": 130,  <br/>                   "tag": "BlackLivesMatter"  <br/>               },  <br/>           "mentions": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 10,  <br/>                   "tag": "TwitterDev"  <br/>               },  <br/>           "cashtags": [  <br/>               {  <br/>                   "start": 12,  <br/>                   "end": 16,  <br/>                   "tag": "twtr"  <br/>               }  <br/>           ]  <br/>       }  <br/>   }` | entities は、説明文に関連するハッシュタグ、URL、ユーザーのメンション、キャッシュタグに関する追加情報を提供する JSON オブジェクトです。詳細は各エンティティを参照してください。<br /><br />すべてのユーザーの ******start****** インデックスは包含的で、すべてのユーザーの ******end****** インデックスは排他的です。 |
+| location | string | ユーザーが提供していれば、プロフィールで指定された場所。自由入力の値であるため、有効な場所を示さない場合がありますが、場所クエリでの検索時にあいまい評価されることがあります。<br /><br />`"location": "127.0.0.1"` |     |
+| pinned\_tweet\_id | string | このユーザーが固定しているツイートの一意の識別子。<br /><br />`"pinned_tweet_id": "1255542774432063488"` | ユーザーのプロフィール最上部に固定されているツイートを特定します。ユーザーの言語を推定する用途に使える可能性があります。 |
+| profile\_image\_url | string | ユーザーのプロフィールに表示される、このユーザーのプロフィール画像の URL。<br /><br />`"profile_image_url": "https://pbs.twimg.com/profile_images/1267175364003901441/tBZNFAgA_normal.jpg"` | このユーザーのプロフィール画像をダウンロードするために使用できます。 |
+| protected | boolean | このユーザーが自分のツイートを保護（言い換えると、非公開に）することを選択しているかどうかを示します。<br /><br />`"protected": false` |     |
+| public\_metrics | object | このユーザーのアクティビティに関する詳細を含みます。<br /><br />`"public_metrics": {             "followers_count": 507902,             "following_count": 1863,             "tweet_count": 3561,             "listed_count": 1550         }` | Twitter ユーザーのリーチや影響力の推定、関心領域の幅の定量化、Twitter 上でのエンゲージメントレベルの把握などに利用できる可能性があります。 |
+| url | string | ユーザーのプロフィールで指定されたURL（ある場合）。<br /><br />`"url": "https://t.co/3ZX3TNiZCY"` | ユーザーのプロフィールに記載されたURL。ホームページのこともありますが、必ずしもそうとは限りません。 |
+| verified | boolean | このユーザーが認証済みユーザーかどうかを示します。<br /><br />`"verified": true` | このユーザーのアカウントが認証済みかどうかを示します。認証済みバッジは、公共性の高いアカウントが真正であることを示します。 |
+| withheld | object | 該当する場合、[差し止められたコンテンツ](https://help.x.com/en/rules-and-policies/tweet-withheld-by-country)に関する差し止めの詳細を含みます。 |     |
+
+**ユーザーオブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、[users lookup](/ja/x-api/users/lookup/introduction) エンドポイントでユーザーのフィールドを取得しています。必ず `$BEARER_TOKEN` を自身で生成した [Bearer Token](/ja/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token) に置き換えてください。
+ 
+
+```{
+  curl --request GET 'https://api.x.com/2/users?
+  ids=2244994945&user.fields=created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld&expansions=pinned_tweet_id'
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+  }
+```
+
+**サンプルレスポンス**
+
+```{
+    "data": [
+        {
+            "id": "2244994945",
+            "name": "Twitter Dev",
+            "username": "TwitterDev",
+            "location": "127.0.0.1",
+            "entities": {
+                "url": {
+                    "urls": [
+                        {
+                            "start": 0,
+                            "end": 23,
+                            "url": "https://t.co/3ZX3TNiZCY",
+                            "expanded_url": "/content/developer-twitter/en/community",
+                            "display_url": "developer.x.com/en/community"
+                        }
+                    ]
+                },
+                "description": {
+                    "hashtags": [
+                        {
+                            "start": 23,
+                            "end": 30,
+                            "tag": "DevRel"
+                        },
+                        {
+                            "start": 113,
+                            "end": 130,
+                            "tag": "BlackLivesMatter"
+                        }
+                    ]
+                }
+            },
+            "verified": true,
+            "description": "The voice of Twitter's #DevRel team, and your official source for updates, news, & events about Twitter's API. \n\n#BlackLivesMatter",
+            "url": "https://t.co/3ZX3TNiZCY",
+            "profile_image_url": "https://pbs.twimg.com/profile_images/1267175364003901441/tBZNFAgA_normal.jpg",
+            "protected": false,
+            "pinned_tweet_id": "1255542774432063488",
+            "created_at": "2013-12-14T04:35:55.000Z"
+        }
+    ],
+    "includes": {
+        "tweets": [
+            {
+                "id": "1255542774432063488",
+                "text": "During these unprecedented times, what’s happening on Twitter can help the world better understand &amp; respond to the pandemic. \n\nWe're launching a free COVID-19 stream endpoint so qualified devs &amp; researchers can study the public conversation in real-time. https://t.co/BPqMcQzhId"
+            }
+        ]
+    }
+}
+```
+
+<div id="space">
+  ### スペース
+</div>
+
+Spacesは、ライブ音声での会話を通じて表現と交流を可能にします。Spaceのデータディクショナリには、そのSpaceに関する関連メタデータが含まれており、すべての詳細はリアルタイムで更新されます。
+
+ユーザーオブジェクトは user リソースで参照および展開できます。これらのオブジェクトは、`expansions` クエリパラメータに `host_ids`、`creator_id`、`speaker_ids`、`mentioned_user_ids` のうち少なくとも1つを追加することで展開できます。
+
+ツイートとは異なり、Spaces はエフェメラル（短命）であり、終了後や作成者によりキャンセルされた場合は利用できなくなります。アプリで Spaces のデータを扱う際は、常に最新の情報を返す責任があり、プラットフォーム上で利用できなくなったデータは削除する必要があります。[Spaces ルックアップエンドポイント](/ja/x-api/spaces/lookup/introduction)を利用すれば、ユーザーの期待や意図を適切に尊重できます。
+
+| フィールド値          | 型              | 説明                                                                                                         | 使用方法                                                 |
+| :-------------------- | :--------------- | :----------------------------------------------------------------------------------------------------------- | :------------------------------------------------------- |
+| id (デフォルト)       | string          | リクエストしたSpaceの一意の識別子。<br />`"id": "1zqKVXPQhvZJB"`                                              | レスポンスで返されたSpaceを一意に識別します。           |
+| state (デフォルト)    | string          | Spaceが開始済みか、開始予定か、終了済みかを示します。<br />`"state": "live"`                                  | ライブまたは予約済みのSpaceをフィルタリングします。      |
+| created\_at           | date (ISO 8601) | このSpaceの作成時刻。<br />`"created_at": "2021-07-04T23:12:08.000Z"`                                          | Spaceの作成時点を把握し、時刻でソートします。           |
+| ended\_at             | date (ISO 8601) | 該当する場合、Spaceが終了した時刻。<br />`"ended_at": "2021-07-04T00:11:44.000Z"`                             | ライブSpaceの終了時刻から実行時間を算出します。         |
+| host\_ids             | array           | Spaceのホストの一意の識別子。<br />`"host_ids": ["2244994945", "6253282"]`                                     | Userオブジェクトを展開し、エンゲージメントを把握します。 |
+| lang                 | string          | 検出された場合のSpaceの言語。<br />`"lang": "en"`                                                              | 言語別にSpaceを分類します。                              |
+| is\_ticketed          | boolean         | チケット制のSpaceかどうかを示します。<br />`"is_ticketed": false`                                              | 関心の高いコンテンツを強調します。                       |
+| invited\_user\_ids     | array           | スピーカーとして招待されたユーザーIDの一覧。<br />`"invited_user_ids": ["2244994945", "6253282"]`              | Userオブジェクトを展開し、エンゲージメントを把握します。 |
+| participant\_count    | integer         | ホストとスピーカーを含む、Space内のユーザー数。<br />`"participant_count": 420`                               | エンゲージメントを把握し、レポートを作成します。         |
+| subscriber\_count     | integer         | Spaceにリマインダーを設定した人数。<br />`"subscriber_count": 36`                                              | イベントへの関心度を把握します。                         |
+| scheduled\_start      | date (ISO 8601) | Spaceの予定開始時刻。<br />`"scheduled_start": "2021-07-14T08:00:00.000Z"`                                    | カレンダー通知と連携します。                             |
+| speaker\_ids          | array           | いずれかの時点で発言したユーザーの一覧。<br />`"speaker_ids": ["2244994945", "6253282"]`                       | Userオブジェクトを展開し、エンゲージメントを把握します。 |
+| started\_at           | date (ISO 8601) | Spaceの実際の開始時刻。<br />`"started_at": "2021-07-14T08:00:12.000Z"`                                       | Spaceの開始時刻を特定します。                           |
+| title                | string          | Spaceのタイトル。<br />`"title": "Say hello to the Space data object!"`                                       | キーワード、ハッシュタグ、メンションを把握します。       |
+| topic\_ids            | array           | Spaceの作成者が選択したトピックのID。<br />`"topic_ids": ["2244994945", "6253282"]`                            | キーワード、ハッシュタグ、メンションを把握します。       |
+| updated\_at           | date (ISO 8601) | Spaceのメタデータの最終更新時刻。<br />`"updated_at": "2021-07-11T14:44:44.000Z"`                              | 情報を最新の状態に保ちます。                             |
+
+\*\*Space オブジェクトの取得\*\*
+
+**サンプルのリクエスト**
+
+次のリクエストでは、[Spaces ルックアップエンドポイント](/ja/x-api/spaces/lookup/introduction)で Space のフィールドを取得します。必ず `$BEARER_TOKEN` を、ご自身で生成した [Bearer トークン](/ja/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)に置き換えてください。
+
+```bash
+curl "https://api.x.com/2/spaces/1DXxyRYNejbKM?space.fields=created_at,creator_id,created_athost_ids,lang,is_ticketed,invited_user_ids,participant_count,scheduled_start,speaker_ids,started_at,state,title,updated_at&expansions=creator_id,host_ids,invited_user_ids,speaker_ids" --header "Authorization: Bearer $BEARER_TOKEN"
+```
+
+**サンプルレスポンス**
+
+```
+{
+  "data": {
+    "id": "1zqKVXPQhvZJB",
+    "state": "live",
+    "created_at": "2021-07-04T23:12:08.000Z",
+    "host_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "lang": "en",
+    "is_ticketed": false,
+    "invited_user_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "participant_count": 420,
+    "scheduled_start": "2021-07-14T08:00:00.000Z",
+    "speaker_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "started_at": "2021-07-14T08:00:12.000Z",
+    "title": "Say hello to the Space data object!",
+    "updated_at": "2021-07-11T14:44:44.000Z"
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "Twitter Dev",
+        "username": "TwitterDev"
+      },
+      {
+        "id": "6253282",
+        "name": "Twitter API",
+        "username": "TwitterAPI"
+      }
+    ]
+  }
+}
+```
+
+<div id="list">
+  ### リスト
+</div>
+
+List オブジェクトには、参照されているリストを説明する [Twitter Lists](https://help.x.com/en/using-twitter/twitter-lists) のメタデータが含まれます。List オブジェクトは、List ルックアップエンドポイントで返される主要なオブジェクトです。このエンドポイントで追加の List フィールドを要求する場合は、フィールドパラメータ `list.fields` を使用します。
+
+List オブジェクトは、他のデータオブジェクトの子要素としては返されません。ただし、ユーザーオブジェクトはユーザーリソースで取得・展開できます。これらのオブジェクトは、`expansions` クエリパラメータに `owner_id` を追加することで展開可能です。主要な List オブジェクトを補完するために追加フィールドを要求する際は、この展開を `list.fields` フィールドパラメータと併用し、展開オブジェクトを補完するために `user.fields` を使用します。
+
+| フィールド値   | 型              | 説明                                                                                                                                                             | 利用方法                                                               |
+|:---------------|:-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------|
+| id (default)  | string          | このリストの一意の識別子。<br />`"id": "2244994945"`                                                                                                              | 特定のリストに関する情報をプログラムで取得するために使用します。        |
+| name (default)| string          | 作成時に定義されたリスト名。<br />`"name": "Twitter Lists"`                                                                                                        |                                                                         |
+| created\_at    | date (ISO 8601) | リストが作成された UTC の日時。<br />`"created_at": "2013-12-14T04:35:55.000Z"`                                                                                     | リストが X 上でどれくらい存在しているかを判断します。                   |
+| description   | string          | リストについてユーザーに伝えるための簡潔な説明。<br />`"description": "People that are active members of the Bay area cycling community on Twitter."`             |                                                                         |
+| follower\_count| integer         | このリストをフォローしているユーザー数。<br />`"follower_count": 198`                                                                                               |                                                                         |
+| member\_count  | integer         | このリストのメンバー数。<br />`"member_count": 60`                                                                                                                  |                                                                         |
+| private       | boolean         | リストが非公開かどうか。<br />`"private": false`                                                                                                                    |                                                                         |
+| owner\_id      | string          | このリストの所有者の一意の識別子。<br />`"owner_id": "1255542774432063488"`                                                                                        | このユーザーが他のリストを所有しているかの確認や、User オブジェクトの展開に使用できます。 |
+
+**User オブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、[List lookup by ID](/ja/x-api/lists/list-lookup/introduction) エンドポイントでユーザーのフィールドを要求しています。`$BEARER_TOKEN` は、生成した [Bearer Token](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) に置き換えてください。
+
+```bash
+curl --request GET 'https://api.x.com/2/lists/1355797419175383040?list.fields=created_at,description,private,follower_count,member_count,owner_id&expansions=owner_id' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**サンプルレスポンス**
+
+```
+{
+  "data": {
+    "name": "Twitter Comms",
+    "member_count": 60,
+    "id": "1355797419175383040",
+    "private": false,
+    "description": "",
+    "follower_count": 198,
+    "owner_id": "257366942",
+    "created_at": "2021-01-31T08:37:48.000Z"
+  },
+  "includes": {
+    "users": [
+      {
+        "created_at": "2011-02-25T07:51:26.000Z",
+        "name": "Ashleigh Hay 🤸🏼‍♀️",
+        "id": "257366942",
+        "username": "shleighhay",
+        "verified": false
+      }
+    ]
+  }
+}
+```
+
+<div id="media">
+  ### メディア
+</div>
+
+メディアとは、ツイートに添付された画像、GIF、または動画を指します。メディアオブジェクトはどのエンドポイントでも主要オブジェクトではありませんが、ツイートオブジェクト内で見つけて展開できます。`?expansions=attachments.media_keys` を指定すると、デフォルトフィールドのみを含む簡略オブジェクトとして展開できます。オブジェクトを完全な形で取得するために追加フィールドが必要な場合は、フィールドパラメータ `media.fields` と併用してください。
+
+| フィールド値                | 型      | 説明                                                                                                                | 使用方法                                                  |
+|:----------------------------|:---------|:--------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------|
+| media\_key (default)       | string  | 展開されたメディアコンテンツの一意の識別子。<br /> ` "media_key": "13_1263145212760805376"`                 | メディアをプログラムで取得する際に使用可能                |
+| type (default)             | string  | コンテンツの種類（animated\_gif、photo、video）。<br /> ` "type": "video"`                                        | メディアを写真、GIF、または動画として分類                 |
+| url                        | string  | X 上のメディアファイルへの直接 URL。                                                                                | 写真の場合に URL フィールドを持つ Media オブジェクトを返す |
+| duration\_ms                | integer | type が video の場合に利用可能。動画の長さ（ミリ秒）。<br /> ` "duration_ms": 46947`               |                                                          |
+| height                     | integer | このコンテンツの高さ（ピクセル）。<br /> ` "height": 1080`                                                        |                                                          |
+| non\_public\_metrics         | object  | リクエスト時点のメディアコンテンツに対する非公開エンゲージメントメトリクス。ユーザーコンテキスト認証が必要。<br /> ` "non_public_metrics": { "playback_0_count": 1561, "playback_100_count": 116, "playback_25_count": 559, "playback_50_count": 305, "playback_75_count": 183,}` | 動画エンゲージメントの把握（動画の各四分位まで再生したユーザー数の確認）。 |
+| organic\_metrics            | object  | リクエスト時点の、オーガニックコンテキストで計測されたメディアコンテンツのエンゲージメントメトリクス。ユーザーコンテキスト認証が必要。<br /> ` "organic_metrics": { "playback_0_count": 1561, "playback_100_count": 116, "playback_25_count": 559, "playback_50_count": 305, "playback_75_count": 183, "view_count": 629}` | オーガニックなメディアエンゲージメントを把握。            |
+| preview\_image\_url          | string  | このコンテンツの静的なプレビュー用プレースホルダーの URL。<br /> ` "preview_image_url": "https://pbs.twimg.com/media/EYeX7akWsAIP1_1.jpg"` |                                                          |
+| promoted\_metrics           | object  | リクエスト時点の、プロモーションコンテキストで計測されたメディアコンテンツのエンゲージメントメトリクス。ユーザーコンテキスト認証が必要。<br /> ` "promoted_metrics": { "playback_0_count": 259, "playback_100_count": 15, "playback_25_count": 113, "playback_50_count": 57, "playback_75_count": 25, "view_count": 124}` | ツイートがプロモーションされた際のメディアエンゲージメントを把握。  |
+| public\_metrics             | object  | リクエスト時点のメディアコンテンツに対する公開エンゲージメントメトリクス。<br /> ` "public_metrics": { "view_count": 6865141}` | ツイートに添付された動画の総再生回数を把握。              |
+| width                      | integer | このコンテンツの幅（ピクセル）。<br /> ` "width": 1920`                                                          |                                                          |
+| alt\_text                   | string  | アクセシビリティのための画像の説明。最大 1000 文字。現時点では Alt テキストは画像にのみ追加可能。<br /> ` "alt_text": "Rugged hills along the Na Pali coast on the island of Kauai"` | 視覚障害のあるユーザー向けに画像の文章説明を提供する目的で使用可能。 |
+| variants                   | array   | 各メディアオブジェクトには、解像度やフォーマットが異なる複数の表示または再生バリアントが存在する場合があります。<br /> ` "variants": [{ "bit_rate": 632000, "content_type": "video/mp4", "url": "https://video.twimg.com/ext_tw_video/1527322141724532740/pu/vid/320x568/lnBaR2hCqE-R_90a.mp4?tag=12"}]` |                                                          |
+
+**メディアオブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、[Tweet lookup](/ja/x-api/posts/lookup/introduction) エンドポイントで、ツイートに添付されたメディアオブジェクトのフィールドをリクエストしています。メディアはツイートの子オブジェクトであるため、`attachments.media_keys` のエクスパンションが必要です。必ず `$BEARER_TOKEN` を自身で生成した [Bearer Token](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) に置き換えてください。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1263145271946551300&expansions=attachments.media_keys&media.fields=duration_ms,height,media_key,preview_image_url,public_metrics,type,url,width,alt_text' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+```
+{
+  "data": [
+    {
+      "text": "Testing, testing...\n\nA new way to have a convo with exactly who you want. We’re starting with a small % globally, so keep your 👀 out to see it in action. https://t.co/pV53mvjAVT",
+      "id": "1263145271946551300",
+      "attachments": {
+        "media_keys": [
+          "13_1263145212760805376"
+        ]
+      }
+    }
+  ],
+  "includes": {
+    "media": [
+      {
+        "duration_ms": 46947,
+        "type": "video",
+        "height": 1080,
+        "media_key": "13_1263145212760805376",
+        "public_metrics": {
+          "view_count": 6909260
+        },
+        "preview_image_url": "https://pbs.twimg.com/media/EYeX7akWsAIP1_1.jpg",
+        "width": 1920
+      }
+    ]
+  }
+}
+```
+
+<div id="poll">
+  ### Poll
+</div>
+
+Tweet に含まれる投票は、どのエンドポイントでもプライマリオブジェクトではありませんが、Tweet オブジェクト内で取得・展開できます。既定フィールドのみの簡略オブジェクトを取得するには、`?expansions=attachments.poll_ids` を利用します。オブジェクトを補完するために追加フィールドを要求する場合は、フィールドパラメータ `poll.fields` と併用してください。
+
+| Field value       | Type                 | Description                                                                                                 |
+|:-------------------|:----------------------|:-------------------------------------------------------------------------------------------------------------|
+| id (default)      | string               | 展開された投票の一意の識別子。                                                                     |
+|                   |                      | `{"id": "1199786642791452673"}`                                                                           |
+| options (default) | array                | 参照される投票内の各選択肢を表すオブジェクトを含みます。                                            |
+|                   |                      | `{"options": [ { "position": 1, "label": "“C Sharp”", "votes": 795 }, { "position": 2, "label": "“C Hashtag”", "votes": 156 } ]}` |
+| duration\_minutes   | integer              | この投票の総実施時間を指定します。                                                                  |
+|                   |                      | `{"duration_minutes": 1440}`                                                                                |
+| end\_datetime       | date (ISO 8601)     | この投票の終了日時を指定します。                                                             |
+|                   |                      | `{"end_datetime": "2019-11-28T20:26:41.000Z"}`                                                            |
+| voting\_status      | string               | この投票がまだ有効で投票可能か、すでに投票受付が終了しているかを示します。              |
+|                   |                      | `{"voting_status": "closed"}`                                                                               |
+
+**投票オブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、[Tweets lookup](/ja/x-api/posts/lookup/introduction) エンドポイント上の Tweet に添付された投票オブジェクトのフィールドを要求しています。投票は Tweet の子オブジェクトであるため、`attachments.poll_ids` の展開が必要です。`$BEARER_TOKEN` は、生成した自身の [Bearer Token](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) に必ず置き換えてください。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1199786642791452673&expansions=attachments.poll_ids&poll.fields=duration_minutes,end_datetime,id,options,voting_status' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**サンプルレスポンス**
+
+```
+{
+  "data": [
+    {
+      "text": "C#",
+      "id": "1199786642791452673",
+      "attachments": {
+        "poll_ids": [
+          "1199786642468413448"
+        ]
+      }
+    }
+  ],
+  "includes": {
+    "polls": [
+      {
+        "id": "1199786642468413448",
+        "voting_status": "closed",
+        "duration_minutes": 1440,
+        "options": [
+          {
+            "position": 1,
+            "label": "“C Sharp”",
+            "votes": 795
+          },
+          {
+            "position": 2,
+            "label": "“C Hashtag”",
+            "votes": 156
+          }
+        ],
+        "end_datetime": "2019-11-28T20:26:41.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="place">
+  ### Place
+</div>
+
+Tweet にタグ付けされた place は、どのエンドポイントでもプライマリオブジェクトではありませんが、Tweet リソース内で参照して展開できます。デフォルトフィールドのみを含む簡略オブジェクトを取得するには、`?expansions=geo.place_id` を使用して展開します。オブジェクトを完全な形で取得するために追加フィールドが必要な場合は、フィールドパラメータ `place.fields` と併用してください。
+
+| Field value         | Type   | Description                                                                                  | How it can be used                             |
+|:---------------------|:--------|:----------------------------------------------------------------------------------------------|:------------------------------------------------|
+| full\_name (default) | string | 詳細な正式名称の地名。                                                          | 特定の地名で Tweet を分類する     |
+|                     |        | `"full_name": "Manhattan, NY"`                                                             |                                                |
+| id (default)       | string | Tweet にタグ付けされた注目地点である場合に、展開された place の一意の識別子。 | これを使ってプログラム的に place を取得する  |
+|                     |        | `"id": "01a9a39529b27f36"`                                                                  |                                                |
+| contained\_within    | array  | 参照される place を内包する既知の place の識別子を返します。                  |                                                |
+| country             | string | この place が属する国の正式名称。                                  | 国名で Tweet を分類する              |
+|                     |        | `"country": "United States"`                                                                  |                                                |
+| country\_code        | string | この place が属する国の ISO Alpha-2 コード。                                         | 国コードで Tweet を分類する              |
+|                     |        | `"country_code": "US"`                                                                       |                                                |
+| geo                 | object | GeoJSON 形式の place の詳細を含みます。                                                   |                                                |
+|                     |        | `json                                                                                      |
+|                     |        | "geo":                                                                                     |
+|                     |        |     "type": "Feature",                                                                       |
+|                     |        |     "bbox": [                                                                                |
+|                     |        |         -74.026675,                                                                         |
+|                     |        |         40.683935,                                                                          |
+|                     |        |         -73.910408,                                                                         |
+|                     |        |         40.877483                                                                           |
+|                     |        |     ],                                                                                       |
+|                     |        |     "properties": {}                                                                        |
+|                     |        | }                                                                                             |
+|                     |        | `                                                                                          |                                                |
+| name                | string | この place の短い名称。                                                               | 特定の地名で Tweet を分類する     |
+|                     |        | `"name": "Manhattan"`                                                                       |                                                |
+| place\_type          | string | この place 情報が示す情報の種類（例: 都市名、注目地点）。 | 特定の種類の place で Tweet を分類する   |
+|                     |        | `"place_type": "city"`                                                                       |                                                |
+
+**place オブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、[Tweets lookup](/ja/x-api/posts/lookup/introduction) エンドポイント上の Tweet に付随する place オブジェクトのフィールドを要求しています。place は Tweet の子オブジェクトであるため、`geo.place_id` の展開が必要です。必ず `$BEARER_TOKEN` を自身で生成した [Bearer Token](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) に置き換えてください。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1136048014974423040&expansions=geo.place_id&place.fields=contained_within,country,country_code,full_name,geo,id,name,place_type' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**サンプルレスポンス**
+
+```
+{
+  "data": [
+    {
+      "text": "We’re sharing a live demo of the new Twitter Developer Labs program, led by a member of our DevRel team, @jessicagarson #TapIntoTwitter https://t.co/ghv7f4dW5M",
+      "id": "1136048014974423040",
+      "geo": {
+        "place_id": "01a9a39529b27f36"
+      }
+    }
+  ],
+  "includes": {
+    "places": [
+      {
+        "geo": {
+          "type": "Feature",
+          "bbox": [
+            -74.026675,
+            40.683935,
+            -73.910408,
+            40.877483
+          ],
+          "properties": {}
+        },
+        "country_code": "US",
+        "name": "Manhattan",
+        "id": "01a9a39529b27f36",
+        "place_type": "city",
+        "country": "United States",
+        "full_name": "Manhattan, NY"
+      }
+    ]
+  }
+}
+```
+
+<div id="direct-message-events">
+  ### ダイレクトメッセージイベント
+</div>
+
+ダイレクトメッセージ（DM）の会話はイベントで構成されます。X API v2 は現在、MessageCreate、ParticipantsJoin、ParticipantsLeave の3種類のイベントタイプをサポートしています。
+
+DM イベントオブジェクトは [ダイレクトメッセージのルックアップ](/ja/x-api/direct-messages/lookup/introduction) エンドポイントで返され、[ダイレクトメッセージの管理](/ja/x-api/direct-messages/lookup/introduction) エンドポイントでダイレクトメッセージが正常に作成されると、MessageCreate イベントが作成されます。
+
+DM イベントをリクエストする場合、デフォルトで含まれるイベントオブジェクトの属性（フィールド）は id、event\_type、text の3つです。追加のイベントフィールドを受け取るには、[fields](/ja/x-api/fundamentals/fields) パラメータ dm\_event.fields を使用して選択してください。選択可能なその他のイベントフィールドには、dm\_conversation\_id、created\_at、sender\_id、attachments、participant\_ids、referenced\_tweets などがあります。
+
+これらのフィールドのいくつかは、ダイレクトメッセージイベントに関連する他の X オブジェクトの ID を示します。
+
+- sender\_id - メッセージを送信した、またはグループ会話に参加者を招待したアカウントの ID
+- participant\_ids - アカウント ID の配列。ParticipantsJoin と ParticipantsLeave イベントでは、この配列にはイベントを作成したアカウントの単一の ID が含まれます
+- attachments - 送信者が X にアップロードしたコンテンツのメディア ID を提供します
+- referenced\_tweets - text フィールド内でツイートの URL が見つかった場合、そのツイートの ID がレスポンスに含まれます
+
+sender\_id、participant\_ids、referenced\_tweets.id、attachments.media\_keys の [expansions](/ja/x-api/fundamentals/expansions) を使用して、これらの X オブジェクト ID を展開できます。
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **フィールド値** | **型** | **説明** | **使用方法** |
+| id (default) | string | イベントの一意の識別子。<br /><br />"id": "1050118621198921728" | これを使用して、特定の会話イベントをプログラムで取得します（v1.1 エンドポイントで利用可能）。 |
+| event\_type (default) | string | イベントの種類を示します。現在サポートされているのは次の3種類です：<br /><br />\* MessageCreate<br />    <br />\* ParticipantsJoin<br />    <br />\* ParticipantsLeave<br />    <br /><br />"event\_type": "MessageCreate" | 会話履歴を取得する際に、メッセージが作成された時点、グループ会話では参加者が参加・退出した時点を把握できます。すべての GET メソッドは、event\_type= クエリパラメータで特定のイベントタイプによるフィルタリングをサポートします。 |
+| text (default) | string | ダイレクトメッセージの UTF-8 テキスト本体。<br /><br />"text": "Hello, just you!" | チャットボットでは、メッセージ内容の分析や自動応答の決定に利用できます。会話検索機能の構築にも使えます。 |
+| sender\_id | string | イベントを作成したユーザーの ID。レスポンスでこのオブジェクトを展開するには、sender\_id を expansions に含め、user.fields クエリパラメータで関心のある User オブジェクト属性を指定します。<br /><br />"sender\_id": "906948460078698496" | MessageCreate または ParticipantsJoin イベントを作成したユーザーの User オブジェクトを取得します。 |
+| participant\_ids | array (of strings) | グループ会話に参加・退出する参加者の ID。新しいグループ会話の作成時にも使用されます。レスポンスでこのオブジェクトを展開するには、participant\_ids を expansions に含め、user.fields クエリパラメータで関心のある User オブジェクト属性を指定します。<br /><br />"participant\_ids": \[<br /><br />     "906948460078698496"<br /><br />] | グループ会話に参加・退出する参加者の User オブジェクトを取得するために使用します。 |
+| dm\_conversation\_id | string | イベントが属する会話の一意の識別子。<br /><br />"dm\_conversation\_id": "1584988213961031680" | これを使用して、会話からイベントをプログラムで取得したり、ダイレクトメッセージを追加したりできます。 |
+| created\_at | date (ISO 8601) | ツイートの作成時刻（UTC）。<br /><br />"created\_at": "2019-06-04T23:12:08.000Z" | ダイレクトメッセージが作成された時点や、会話の参加者が参加・退出した時点を把握するのに使用できます。 |
+| referenced\_tweets | array | ダイレクトメッセージ文中で言及されたツイートの ID。レスポンスでこのオブジェクトを展開するには、referenced\_tweets.id を expansions に含め、tweet.fields クエリパラメータで関心のある Tweet オブジェクト属性を指定します。<br /><br />"referenced\_tweets": \[<br /><br />    <br /><br />"id": "1578868150510456833"<br /><br />    <br /><br />] | ダイレクトメッセージがツイートを参照している場合、これらの ID を使用してツイートの詳細を取得できます。 |
+| attachments | object | メディアが添付されたダイレクトメッセージについて、アップロード済みコンテンツ（写真、動画、GIF）のメディアキーを提供します。レスポンスでこのオブジェクトを展開するには、attachments.media\_keys を expansions に含め、media.fields クエリパラメータで関心のある media オブジェクト属性を指定します。現在、添付は 1 件のみサポートされています。<br /><br />"attachments": <br /><br />    "media\_keys": \[<br /><br />        "3\_1136048009270239232"<br /><br />    ]<br /><br /> | ダイレクトメッセージに添付されたメディアオブジェクトの把握。 |
+
+**ダイレクトメッセージのイベントオブジェクトを取得する**
+
+**サンプルリクエスト**
+
+この例では、1 対 1 の会話に関連するイベントを取得するリクエストを作成します。このリクエストは、基本的なダイレクトメッセージのイベントフィールドに加え、参照されたツイートとその作者に関する追加フィールドを返します。次の内容を要求するクエリを作成します:
+
+- 作成時刻やどの会話の一部か（dm\_conversation）などの基本的なイベント属性
+- ダイレクトメッセージ送信者のアカウント ID と説明
+- 参照されたツイートのテキストと、その投稿時刻
+- 参照されたツイートの作者のアカウント ID と説明
+
+これらの属性を返すには、リクエストクエリに次を含めます:
+
+`?dm_event.fields=id,sender_id,text,created_at,dm_conversation_id&expansions=sender_id,referenced_tweets.id&tweet.fields=created_at,text,author_id&user.fields=description`
+
+```bash
+      curl --request GET 'https://api.x.com/2/dm_conversations/with/:participant_id/dm_events?tweet.fields=created_at,text,author_id&user.fields=description&expansions=sender_id,participant_ids,referenced_tweets.id&dm_event.fields=id,sender_id,text,participant_ids,created_at,'
+    --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+$BEARER\_TOKEN を、ご自身で生成した[ベアラートークン](/ja/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)に必ず置き換えてください。
+
+**サンプルレスポンス**
+
+```
+      {
+	"data": [{
+			"id": "1585047616894574596",
+			"sender_id": "944480690",
+			"text": "Hello, just you!",
+			"created_at": "2022-10-25T23:16:15.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		},
+		{
+			"id": "1581048670673260549",
+			"sender_id": "944480690",
+			"text": "Simple Tweet link: https://t.co/IYFbRIdXHg",
+			"referenced_tweets": [{
+				"id": "1578900353814519810"
+			}],
+			"created_at": "2022-10-14T22:25:52.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		},
+		{
+			"id": "1580705121553420292",
+			"sender_id": "944480690",
+			"text": "Adding a new 1-to-1 Direct Message.",
+			"created_at": "2022-10-13T23:40:43.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		}
+	],
+	"includes": {
+		"users": [{
+				"name": "API Demos",
+				"description": "Hosting TwitterDev integrations... @TwitterDev #DevRel",
+				"id": "944480690",
+				"username": "FloodSocial"
+			},
+			{
+				"name": "the SnowBot",
+				"description": "Home of the @TwitterDev SnowBot... Serving snow reports, snow photos, and snow research links... Chatbot is currently being remodeled for Twitter APIv2.",
+				"id": "906948460078698496",
+				"username": "SnowBotDev"
+			}
+		],
+		"tweets": [{
+				"text": "Feeling kind of bad that I didn’t wish everybody a happy new Colorado Water Year…\n\nHappy Water Year to all my Colorado friends and colleagues, new and old… \n\nMay this be a generous water year, although not too generous…",
+				"id": "1578900353814519810",
+				"created_at": "2022-10-09T00:09:13.000Z",
+				"author_id": "944480690",
+				"edit_history_tweet_ids": [
+					"1578900353814519810"
+				]
+			}
+		]
+	},
+	"meta": {
+		"result_count": 3,
+		"next_token": "18LAA581J5II7LA00C00ZZZZ",
+		"previous_token": "1BLC45G1H8CAL5DG0G00ZZZZ"
+	}
+}
+```
+
+<div id="community">
+  ### コミュニティ
+</div>
+
+コミュニティは、X のユーザーがつながり、情報を共有し、自分が最も関心を寄せる議論により深く関与できる専用の場です。
+
+コミュニティ内の投稿は X 上の誰でも閲覧できますが、ディスカッションへの参加ややり取りができるのはそのコミュニティ内のメンバーのみです。
+
+Community オブジェクトには、コミュニティに関する関連メタデータが含まれます。
+
+| フィールド値          | 型                 | 説明                                                                                              |                |
+|:----------------------|:--------------------|:--------------------------------------------------------------------------------------------------|:----------------|
+| created\_at           | date (ISO 8601)    | コミュニティの作成時刻。                                                                          |                |
+| id                   | string             | コミュニティの一意の識別子。                                                                      |                |
+| name                 | string             | コミュニティの名称。                                                                              |                |
+| description          | string             | 記載されている場合、コミュニティの説明文。                                                        |                |
+| access               | string             | コミュニティのアクセスレベル。<br /><br /> 次のいずれか:                                            |                |
+|                      |                    | - `Public`                                                                                        |                |
+|                      |                    | - `Closed`                                                                                        |                |
+| join\_policy          | string             | コミュニティの参加ポリシー。<br /><br /> 次のいずれか:                                              |                |
+|                      |                    | - `Open`                                                                                          |                |
+|                      |                    | - `RestrictedJoinRequestsDisabled`                                                                |                |
+|                      |                    | - `RestrictedJoinRequestsRequireAdminApproval`                                                   |                |
+|                      |                    | - `RestrictedJoinRequestsRequireModeratorApproval`                                               |                |
+|                      |                    | - `SuperFollowRequired`                                                                           |                |
+| member\_count         | integer            | コミュニティに参加しているメンバー数。                                                            |                |
+
+**Community オブジェクトの取得**
+
+**サンプルリクエスト**
+
+次のリクエストでは、指定したキーワードに基づいてコミュニティの一覧を検索しつつ、特定のフィールドを要求しています。必ず `$BEARER_TOKEN` を自身で生成した [Bearer Token](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) に置き換えてください。
+
+```bash
+curl --location 'https://api.x.com/2/communities/search?query=anime&amp;community.fields=access,created_at,description,id,join_policy,member_count,name' --header 'Authorization: $BEARER_TOKEN'
+```
+
+**サンプルレスポンス**
+
+```
+{
+  "data": [
+    {
+      "id": "Q29tbXVuaXR5OjE3NTg3NDc4MTc2NDI3MDA5MjI=",
+      "description": "Welcome to the Anime Community! Where anime fans gather to share their favorite shows and discuss everything anime-related.",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 39915,
+      "name": "Anime Community",
+      "created_at": "2024-02-17T06:58:50.000Z"
+    },
+    {
+      "id": "Q29tbXVuaXR5OjE1MDY3OTM5NTMxMDYwNDI4OTE=",
+      "description": "Join and text about anime 🥰",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 26019,
+      "name": "Anime World 🌸",
+      "created_at": "2022-03-24T00:44:07.000Z"
+    },
+    {
+      "id": "Q29tbXVuaXR5OjE0OTY3NzYyMTU5Mzk1MzQ4NDk=",
+      "description": "For all anime lovers and creators!",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 5612,
+      "name": "Anime",
+      "created_at": "2022-02-24T09:17:13.000Z"
+    }
+  ],
+  "meta": {
+    "next_token": "7140dibdnow9c7btw481s8m561gat797rboud5r80xvzm"
+  }
+}
+```
+
+<div id="how-to-use-fields-and-expansions">
+  ## フィールドとエクスパンションの使い方
+</div>
+
+デフォルトでは、[fields](/ja/x-api/fundamentals/fields) や [expansions](/ja/x-api/fundamentals/expansions) パラメータを指定せずにリクエストすると、X API v2 のデータオブジェクトには一部のデフォルトフィールドのみが含まれます。本ガイドでは、レスポンスで追加のオブジェクトやフィールドを受け取るために、リクエストで `fields` および `expansions` クエリパラメータを使う方法を説明します。
+
+本ガイドでは、以下のポストのスクリーンショットに対して複数のフィールドを要求します。
+ 
+
+![この画像には、@X が投稿したポストのスクリーンショットが含まれています。本文、ユーザー名、公開日時、ソース、公開メトリクスが確認できます。動画も含まれています。](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/ScreenShotDataDictionaryGuide.png.twimg.1920.png)
+
+スクリーンショットのとおり、ポストには投稿者、ポストのメトリクス、作成タイムスタンプ、動画、動画の再生回数など、画面上で確認できる情報がいくつもあります。スクリーンショットには表示されていないものの、リクエスト可能なデータも複数存在します。 
+
+API にリクエストする場合、デフォルトのレスポンスはシンプルで、デフォルトのポストフィールド（id と text）のみが含まれます。また、利用しているエンドポイントが返す主要オブジェクトのみが取得され、主要オブジェクトに関連するデータオブジェクトは含まれません。
+
+このシンプルさと fields および expansions パラメータを組み合わせることで、ユースケースに応じて必要なフィールドだけをリクエストできます。 
+ 
+
+<div id="requesting-additional-fields-and-objects">
+  #### 追加のフィールドやオブジェクトのリクエスト
+</div>
+
+まず、ツイート ID と [GET /tweets エンドポイント](/ja/x-api/posts/lookup/introduction) を使用して、[ツイートオブジェクト](/ja/x-api/fundamentals/data-dictionary#tweet) を取得します。
+
+リクエスト:
+
+```bash
+curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+レスポンス：
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "あなたの投稿に関する投稿を見逃さないで。\n\niOSで、コメント付きリポストを1か所でまとめて確認できるようになりました。 https://t.co/oanjZfzC6y"
+        }
+    ]
+}
+```
+
+以下のステップバイステップガイドでは、スクリーンショットで確認できる追加データの取得方法を説明します。
+
+1. [オブジェクトモデル](/ja/x-api/fundamentals/data-dictionary#tweet)を参照するか、各エンドポイントの API リファレンスページに記載されたフィールド一覧を確認して、リクエストしたい追加フィールドを特定してください。
+
+   この場合、次の追加フィールドを要求します：
+   attachments、author\_id、created\_at、public\_metrics。
+
+2. 上記のフィールドを値として、カンマ区切りのリストで `tweet.fields` クエリパラメータを構築します：
+   `?tweet.fields=attachments,author_id,created_at,public_metrics`
+
+3. 先ほど実行した GET /tweets リクエストにクエリパラメータを追加してください。
+
+リクエスト：
+
+`curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics' \   --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+レスポンス：
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "あなたの投稿についての投稿を見逃さないで。\n\niOS で、コメント付きリポストを1か所で見られるようになりました。 https://t.co/oanjZfzC6y"
+            "author_id": "783214",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            },
+            "created_at": "2020-05-12T19:44:51.000Z"
+        }
+    ]
+}
+```
+
+4. 次に、ツイートに含まれている動画に関連するフィールドをリクエストします。そのために、`expansions` パラメータに `attachments.media_keys` を指定し、これをリクエストに追加します。
+
+?expansions=attachments.media\_keys
+
+リクエスト：
+
+```bash
+curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+includes オブジェクト内でメディアオブジェクトが表現されたレスポンス：
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "自分の投稿への反応を見逃さないで。\n\niOSでは、引用リポストを1か所でまとめて見られます。 https://t.co/oanjZfzC6y",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "created_at": "2020-05-12T19:44:51.000Z",
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            },
+            "author_id": "783214"
+        }
+    ],
+    "includes": {
+        "media": [
+            {
+                "media_key": "13_1260294804770041858",
+                "type": "video"
+            }
+        ]
+    }
+}
+```
+
+5. 最後に、動画の再生数と再生時間を取得します。これらはデフォルトのフィールドではないため、明示的に指定する必要があります。リクエストでは、`media.fields` パラメータに、カンマ区切りで `public_metrics` と `duration_ms` を指定してください。
+
+?media.fields=public\_metrics,duration\_ms
+
+リクエスト：
+ 
+
+`curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys&media.fields=duration_ms,public_metrics' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+レスポンス。ツイートのスクリーンショットに表示されているすべてのデータが含まれています。
+ 
+
+```
+  {
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "Don’t miss the Tweets about your Tweet. \n\nNow on iOS, you can see Retweets with comments all in one place. https://t.co/oanjZfzC6y",
+            "author_id": "783214",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "created_at": "2020-05-12T19:44:51.000Z",
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            }
+        }
+    ],
+    "includes": {
+        "media": [
+            {
+                "duration_ms": 36503,
+                "media_key": "13_1260294804770041858",
+                "public_metrics": {
+                    "view_count": 1534703
+                },
+                "type": "video"
+            }
+        ]
+    }
+}
+```
+
+この例では、合計で次のパラメータを含めています。
+
+- ids=1260294888811347969
+- tweet.fields=attachments,author\_id,created\_at,public\_metrics
+- expansions=attachments.media\_keys
+- media.fields=public\_metrics,duration\_ms
+   
+
+これらを組み合わせると、完全なクエリ文字列は次のとおりです。
+
+```
+?ids=1260294888811347969&tweet.fields=attachments,author\_id,created\_at,public\_metrics&expansions=attachments.media\_keys&media.fields=public\_metrics,duration\_ms
+```
+
+<div id="x-api-v2-example-payloads">
+  ## X API v2 のペイロード例
+</div>
+
+<div id="tweet">
+  ### ポスト
+</div>
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1304102743196356610",
+      "id": "1307025659294674945",
+      "possibly_sensitive": false,
+      "public_metrics": {
+        "retweet_count": 11,
+        "reply_count": 2,
+        "like_count": 70,
+        "quote_count": 1
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 74,
+            "end": 97,
+            "url": "https://t.co/oeF3ZHeKQQ",
+            "expanded_url": "https://dev.to/twitterdev/understanding-the-new-tweet-payload-in-the-twitter-api-v2-1fg5",
+            "display_url": "dev.to/twitterdev/und…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1317156296982867969/2uLfv-Bh?format=jpg&name=orig",
+                "width": 1128,
+                "height": 600
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1317156296982867969/2uLfv-Bh?format=jpg&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "X API v2 における新しいツイートペイロードの理解"
+            "description": "X は最近、ゼロから再構築された新しい X API v2 を発表し、新機能を提供しています…"
+            "unwound_url": "https://dev.to/twitterdev/understanding-the-new-tweet-payload-in-the-twitter-api-v2-1fg5"
+          }
+        ]
+      },
+      "text": "新しいツイートペイロード v2 の更新点を紹介する記事です https://t.co/oeF3ZHeKQQ"
+      "in_reply_to_user_id": "2244994945",
+      "created_at": "2020-09-18T18:36:15.000Z",
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1304102743196356610"
+        }
+      ],
+      "lang": "en",
+      "source": "Twitter Web App"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "verified": true,
+        "location": "127.0.0.1",
+        "description": "#TwitterDev チームの公式アカウント。#TwitterAPI に関する最新情報、ニュース、イベントをお届けします。"
+        "pinned_tweet_id": "1293593516040269825",
+        "username": "TwitterDev",
+        "public_metrics": {
+          "followers_count": 513961,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "name": "Twitter Dev",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "protected": false
+      }
+    ],
+    "tweets": [
+      {
+        "conversation_id": "1304102743196356610",
+        "id": "1304102743196356610",
+        "possibly_sensitive": false,
+        "public_metrics": {
+          "retweet_count": 31,
+          "reply_count": 12,
+          "like_count": 104,
+          "quote_count": 4
+        },
+        "entities": {
+          "mentions": [
+            {
+              "start": 146,
+              "end": 158,
+              "username": "suhemparack"
+            }
+          ],
+          "urls": [
+            {
+              "start": 237,
+              "end": 260,
+              "url": "https://t.co/CjneyMpgCq",
+              "expanded_url": "https://x.com/TwitterDev/status/1304102743196356610/video/1",
+              "display_url": "pic.x.com/CjneyMpgCq"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 8,
+              "end": 19,
+              "tag": "TwitterAPI"
+            }
+          ]
+        },
+        "attachments": {
+          "media_keys": [
+            "13_1303848070984024065"
+          ]
+        },
+        "text": "新しい #TwitterAPI では、ツイートのペイロードがいくつか改善されています。きっと気になりますよね——主な違いは何でしょう？ 🧐\n\nこの動画では、@SuhemParack が v1.1 のツイートペイロードと、v2 のエンドポイントで得られる内容を比較しています。 https://t.co/CjneyMpgCq",
+        "created_at": "2020-09-10T17:01:37.000Z",
+        "author_id": "2244994945",
+        "lang": "en",
+        "source": "Twitter Media Studio"
+      }
+    ]
+  }
+}
+```
+
+<div id="tweet-reply">
+  ### 投稿の返信
+</div>
+
+```json
+{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1296887091901718529",
+      "text": "@PennMedCDH が Twitter データを活用して COVID-19 の健康危機をどのように理解しているかをご覧ください 📊\n\nhttps://t.co/1tdA8uDWes",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1296887091901718529"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 30,
+            "end": 36,
+            "probability": 0.6318,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 8,
+            "end": 19,
+            "username": "PennMedCDH"
+          }
+        ],
+        "urls": [
+          {
+            "start": 87,
+            "end": 110,
+            "url": "https://t.co/1tdA8uDWes",
+            "expanded_url": "https://developer.x.com/en/use-cases/success-stories/penn",
+            "display_url": "developer.x.com/en/use-cases/s…",
+            "status": 200,
+            "title": "Penn Medicine Center for Digital Health",
+            "description": "Penn Med Center for Digital Health は、感情、報告された症状、州別のデータ切り出し、COVID-19 の流行に関する国境データを示すチャートを含む、COVID-19 の Twitter マップを作成しました。さらに、Penn Med With You という取り組みでは、Twitter から得た地域の集計情報を用いてウェブサイトとテキストメッセージングサービスに反映しています。このサービスは、この情報を活用して、関連性が高くタイムリーなリソースを提供します。",
+            "unwound_url": "https://developer.x.com/en/use-cases/success-stories/penn"
+          }
+        ]
+      },
+      "id": "1296887316556980230",
+      "public_metrics": {
+        "retweet_count": 9,
+        "reply_count": 3,
+        "like_count": 26,
+        "quote_count": 2
+      },
+      "author_id": "2244994945",
+      "in_reply_to_user_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "ブランドカテゴリ",
+            "description": "ブランドの垂直領域内のカテゴリで、ブランドの範囲を絞り込みます",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "サービス",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "ブランド",
+            "description": "ブランドおよび企業",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "123",
+            "name": "進行中のニュースストーリー",
+            "description": "「Brexit」のような進行中のニュースストーリー",
+          },
+          "entity": {
+            "id": "1220701888179359745",
+            "name": "COVID-19"
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "created_at": "2020-08-21T19:10:05.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev チームの声であり、#TwitterAPI に関する最新情報、ニュース、イベントの公式情報源です。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      },
+      {
+        "created_at": "2013-07-23T16:58:03.000Z",
+        "id": "1615654896",
+        "protected": false,
+        "username": "PennMedCDH",
+        "verified": false,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/7eS9RuwIb9",
+                "expanded_url": "http://centerfordigitalhealth.upenn.edu/",
+                "display_url": "centerfordigitalhealth.upenn.edu"
+              }
+            ]
+          },
+          "description": {
+            "mentions": [
+              {
+                "start": 0,
+                "end": 13,
+                "username": "PennMedicine"
+              }
+            ]
+          }
+        },
+        "description": "@PennMedicine の Center for Digital Health は、医療におけるデジタルヘルステクノロジーの進展がもたらす影響を研究し、科学の発展に寄与しています。",
+        "public_metrics": {
+          "followers_count": 1348,
+          "following_count": 455,
+          "tweet_count": 1288,
+          "listed_count": 92
+        },
+        "location": "Philadelphia, PA",
+        "name": "Penn Med CDH",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1067488849725726723/MoO3FQ44_normal.jpg",
+        "url": "https://t.co/7eS9RuwIb9"
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1296887091901718529",
+        "text": "Dr. @RainaMerchant と Penn Medicine CDH のチームは、ヘルスケアの未来づくりに貢献しています。\n\nこのチームは、ソーシャルデータから得られるインサイトを、リスク要因の解明から世論の可視化まで、多面的に活用しています。🔎",
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 39,
+              "end": 55,
+              "probability": 0.8274,
+              "type": "Organization",
+              "normalized_text": "Penn Medicine CDH"
+            }
+          ],
+          "mentions": [
+            {
+              "start": 4,
+              "end": 18,
+              "username": "RainaMerchant"
+            }
+          ]
+        },
+        "id": "1296887091901718529",
+        "public_metrics": {
+          "retweet_count": 9,
+          "reply_count": 7,
+          "like_count": 32,
+          "quote_count": 0
+        },
+        "author_id": "2244994945",
+        "source": "Twitter Web App",
+        "created_at": "2020-08-21T19:09:12.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="extended-tweet">
+  ### Extended Tweet（拡張ツイート）
+</div>
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1296121314218897408",
+      "id": "1296121314218897408",
+      "possibly_sensitive": false,
+      "public_metrics": {
+        "retweet_count": 54,
+        "reply_count": 9,
+        "like_count": 172,
+        "quote_count": 23
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 192,
+            "end": 215,
+            "url": "https://t.co/khXhTurm9x",
+            "expanded_url": "https://devcommunity.x.com/t/hide-replies-now-available-in-the-new-twitter-api/140996",
+            "display_url": "devcommunity.com/t/hide-replies…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1296121315514957825/3CI24hSI?format=png&name=orig",
+                "width": 400,
+                "height": 400
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1296121315514957825/3CI24hSI?format=png&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "新しい Twitter API で「返信を非表示」が利用可能に"
+            "description": "本日、新しい Twitter API において、返信を非表示にするエンドポイントの一般提供を開始したことをお知らせします。このエンドポイントにより、ユーザーが自分のツイートへの返信を非表示／再表示できるよう支援するツールを構築できます。ユーザーが返信を管理する理由はさまざまで、攻撃的・気をそらす・誤解を招くコメントへの注目を減らす、あるいは会話をより活発にするためなどがあります。このエンドポイントを通じて、Twitter 上の人々が返信をより迅速に非表示または再表示できるよう支援するツールを構築できます。"
+            "unwound_url": "https://devcommunity.x.com/t/hide-replies-now-available-in-the-new-twitter-api/140996"
+          }
+        ],
+        "hashtags": [
+          {
+            "start": 178,
+            "end": 189,
+            "tag": "TwitterAPI"
+          }
+        ]
+      },
+      "text": "返信を非表示にするエンドポイントが本日リリースされました！\n\n開発者はツイートへの返信を非表示にできます。これは、#TwitterAPI を使って公開の会話の健全性を高めるうえで重要な手段です。\n\nhttps://t.co/khXhTurm9x"
+      "created_at": "2020-08-19T16:26:16.000Z",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "65",
+            "name": "関心・趣味の大分類"
+            "description": "食べ物や旅行など、最上位の関心・趣味の分類"
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "Technology",
+            "description": "テクノロジーおよびコンピューティング"
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "関心・趣味のカテゴリ"
+            "description": "ご当地グルメや旅行先など、関心・趣味エンティティの分類"
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "Computer programming",
+            "description": "コンピュータプログラミング"
+          }
+        }
+      ],
+      "author_id": "2244994945",
+      "lang": "en",
+      "source": "Twitter Web App"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "verified": true,
+        "location": "127.0.0.1",
+        "description": "#TwitterDev チームの公式アカウント。#TwitterAPI に関する最新情報、ニュース、イベントの正式な情報源です。",
+        "pinned_tweet_id": "1293593516040269825",
+        "username": "TwitterDev",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "name": "Twitter Dev"
+        "url": "https://t.co/3ZX3TNiZCY",
+        "protected": false
+      }
+    ]
+  }
+}
+```
+
+<div id="tweet-with-media">
+  ### メディア付き投稿
+</div>
+
+```json
+{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1293593516040269825",
+      "text": "ついに公開です！ 🥁 新しい #TwitterAPI にご注目ください。\n\n私たちは開発者コミュニティによりよく貢献できるよう、X API v2 を一から再構築しています。本日のリリースはその第一歩にすぎません。\n\nhttps://t.co/32VrwpGaJw https://t.co/KaFSbjWUA8",
+      "attachments": {
+        "media_keys": [
+          "7_1293565706408038401"
+        ]
+      },
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 78,
+            "end": 88,
+            "probability": 0.4381,
+            "type": "Product",
+            "normalized_text": "Twitter API"
+          }
+        ],
+        "hashtags": [
+          {
+            "start": 42,
+            "end": 53,
+            "tag": "TwitterAPI"
+          }
+        ],
+        "urls": [
+          {
+            "start": 195,
+            "end": 218,
+            "url": "https://t.co/32VrwpGaJw",
+            "expanded_url": "https://blog.x.com/developer/en_us/topics/tools/2020/introducing_new_twitter_api.html",
+            "display_url": "blog.x.com/developer/en_u…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1336475659279818754/_cmRh7QE?format=jpg&name=orig",
+                "width": 1200,
+                "height": 627
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1336475659279818754/_cmRh7QE?format=jpg&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "新しく進化した X API のご紹介",
+            "description": "新しい X API のご紹介 — 一から再構築し、新機能をより迅速に提供することで、開発者が Twitter 上の公開された会話に世界をつなげられるよう支援します。",
+            "unwound_url": "https://blog.x.com/developer/en_us/topics/tools/2020/introducing_new_twitter_api.html"
+          },
+          {
+            "start": 219,
+            "end": 242,
+            "url": "https://t.co/KaFSbjWUA8",
+            "expanded_url": "https://x.com/TwitterDev/status/1293593516040269825/video/1",
+            "display_url": "pic.x.com/KaFSbjWUA8"
+          }
+        ]
+      },
+      "id": "1293593516040269825",
+      "public_metrics": {
+        "retweet_count": 958,
+        "reply_count": 171,
+        "like_count": 2848,
+        "quote_count": 333
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "ブランドカテゴリ",
+            "description": "ブランドのバーティカル内で、ブランドの範囲を絞り込むカテゴリ",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "サービス",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "name": "ブランド",
+            "description": "ブランドおよび企業",
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "Interests and Hobbies Vertical",
+            "description": "フードやトラベルなどの最上位レベルの興味・関心のグループ",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "テクノロジー",
+            "description": "テクノロジーおよびコンピューティング",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "Interests and Hobbies Category",
+            "description": "珍味や旅行先など、興味・関心エンティティのグループ",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "コンピューター・プログラミング",
+            "description": "コンピューター・プログラミング",
+          }
+        }
+      ],
+      "source": "Twitter Web App"
+      "created_at": "2020-08-12T17:01:42.000Z"
+    }
+  ],
+  "includes": {
+    "media": [
+      {
+        "height": 720,
+        "duration_ms": 34875,
+        "media_key": "7_1293565706408038401",
+        "type": "video",
+        "preview_image_url": "https://pbs.twimg.com/ext_tw_video_thumb/1293565706408038401/pu/img/66P2dvbU4a02jYbV.jpg",
+        "public_metrics": {
+          "view_count": 279438
+        },
+        "width": 1280
+      }
+    ],
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev チームの声であり、#TwitterAPI に関する最新情報・ニュース・イベントをお届けする公式情報源です。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev"
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      }
+    ]
+  }
+}`
+
+
+### リポスト
+
+      `{
+  "data": [
+    {
+      "public_metrics": {
+        "retweet_count": 19,
+        "reply_count": 0,
+        "like_count": 0,
+        "quote_count": 0
+      },
+      "conversation_id": "1229851574555508737",
+      "id": "1229851574555508737",
+      "entities": {
+        "annotations": [
+          {
+            "start": 28,
+            "end": 38,
+            "probability": 0.261,
+            "type": "Product",
+            "normalized_text": "Alexa Skill"
+          },
+          {
+            "start": 44,
+            "end": 50,
+            "probability": 0.7332,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 3,
+            "end": 15,
+            "username": "suhemparack"
+          }
+        ]
+      },
+      "text": "RT @suhemparack: I built an Alexa Skill for Twitter using APL that allows you to view Tweets and Trends on the echo show!\n\nCheck it out her…",
+      "created_at": "2020-02-18T19:33:59.000Z",
+      "possibly_sensitive": false,
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "retweeted",
+          "id": "1229843515603144704"
+        }
+      ],
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "47",
+            "name": "ブランド",
+            "description": "ブランドや企業",
+          },
+          "entity": {
+            "id": "10026792024",
+            "name": "Amazon"
+          }
+        },
+        {
+          "domain": {
+            "id": "48",
+            "name": "Product",
+            "description": "ブランドが提供する製品。例：Ford Explorer、Apple iPhone。",
+          },
+          "entity": {
+            "id": "968221983803494400",
+            "name": "Amazon - Alexa",
+            "description": "Alexa"
+          }
+        },
+        {
+          "domain": {
+            "id": "46",
+            "name": "Brand Category",
+            "name": "ブランドカテゴリ",
+            "description": "ブランドの業種内で、対象となるブランドの範囲を絞り込むカテゴリ",
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services"
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "description": "Brands and Companies"
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "lang": "en"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "username": "TwitterDev",
+        "name": "Twitter Dev",
+        "location": "127.0.0.1",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "description": "#TwitterDev チームの公式アカウントです。#TwitterAPI に関する最新情報、ニュース、イベントをお届けします。",
+        "verified": true,
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "pinned_tweet_id": "1293593516040269825",
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "protected": false
+      },
+      {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1230703695051935747/TbQKe91L_normal.jpg",
+        "username": "suhemparack",
+        "name": "Suhem Parack",
+        "location": "Seattle, WA",
+        "url": "https://t.co/8IkCzClPCz",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/8IkCzClPCz",
+                "expanded_url": "https://developer.x.com",
+                "display_url": "developer.x.com"
+              }
+            ]
+          },
+          "description": {
+            "mentions": [
+              {
+                "start": 42,
+                "end": 50,
+                "username": "Twitter"
+              }
+            ]
+          }
+        },
+        "id": "857699969263964161",
+        "description": "Academic Research 向けの Developer Relations（@Twitter）。Twitter データを用いた研究についてお気軽にご相談ください。以前：Amazon Alexa。見解は私個人のものです。",
+        "verified": false,
+        "public_metrics": {
+          "followers_count": 738,
+          "following_count": 512,
+          "tweet_count": 460,
+          "listed_count": 12
+        },
+        "pinned_tweet_id": "1296498078233571329",
+        "created_at": "2017-04-27T20:56:22.000Z",
+        "protected": false
+      }
+    ],
+    "tweets": [
+      {
+        "public_metrics": {
+          "retweet_count": 19,
+          "reply_count": 1,
+          "like_count": 71,
+          "quote_count": 6
+        },
+        "conversation_id": "1229843515603144704",
+        "id": "1229843515603144704",
+        "entities": {
+          "annotations": [
+            {
+              "start": 11,
+              "end": 21,
+              "probability": 0.3342,
+              "type": "Product",
+              "normalized_text": "Alexa Skill"
+            },
+            {
+              "start": 27,
+              "end": 33,
+              "probability": 0.6727,
+              "type": "Product",
+              "normalized_text": "Twitter"
+            }
+          ],
+          "urls": [
+            {
+              "start": 127,
+              "end": 150,
+              "url": "https://t.co/l5J8wq748G",
+              "expanded_url": "https://dev.to/twitterdev/building-an-alexa-skill-for-twitter-using-alexa-presentation-language-1aj0",
+              "display_url": "dev.to/twitterdev/bui…",
+              "status": 200,
+              "unwound_url": "https://dev.to/twitterdev/building-an-alexa-skill-for-twitter-using-alexa-presentation-language-1aj0"
+            }
+          ]
+        },
+        "text": "I built an Alexa Skill for Twitter using APL that allows you to view Tweets and Trends on the echo show!\n\nCheck it out here 👇\n\nhttps://t.co/l5J8wq748G",
+        "created_at": "2020-02-18T19:01:58.000Z",
+        "possibly_sensitive": false,
+        "author_id": "857699969263964161",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "47",
+              "name": "ブランド",
+              "description": "ブランドや企業",
+            },
+            "entity": {
+              "id": "10026792024",
+              "name": "Amazon"
+            }
+          },
+          {
+            "domain": {
+              "id": "48",
+              "name": "Product",
+              "description": "ブランドが提供する製品。例：Ford Explorer、Apple iPhone。",
+            },
+            "entity": {
+              "id": "968221983803494400",
+              "name": "Amazon - Alexa",
+              "description": "Alexa"
+            }
+          },
+          {
+            "domain": {
+              "id": "46",
+              "name": "Brand Category",
+              "name": "ブランドカテゴリ",
+              "description": "ブランドの業種内で、対象となるブランドの範囲を絞り込むカテゴリ",
+            "entity": {
+              "id": "781974596752842752",
+              "name": "Services"
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "Brand",
+              "description": "Brands and Companies"
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            }
+          }
+        ],
+        "source": "Twitter Web App"
+        "lang": "en"
+      }
+    ]
+  }
+}`
+
+
+### 引用ポスト      `{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1328399838128467969",
+      "text": "予定どおり、以下に記載の Labs v2 エンドポイントは廃止されました。ご質問や X API v2 の利用支援が必要な場合は、フォーラムでお知らせください。 https://t.co/JaxttUMmjX",
+      "referenced_tweets": [
+        {
+          "type": "quoted",
+          "id": "1327011423252144128"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 151,
+            "end": 157,
+            "probability": 0.8115,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "urls": [
+          {
+            "start": 167,
+            "end": 190,
+            "url": "https://t.co/JaxttUMmjX",
+            "expanded_url": "https://x.com/TwitterDev/status/1327011423252144128",
+            "display_url": "twitter.com/TwitterDev/sta…"
+          }
+        ]
+      },
+      "id": "1328399838128467969",
+      "public_metrics": {
+        "retweet_count": 7,
+        "reply_count": 4,
+        "like_count": 29,
+        "quote_count": 1
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "ブランドカテゴリ",
+            "description": "ブランドの業種内で、ブランドの範囲を絞り込むカテゴリ",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "サービス",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "ブランド",
+            "description": "ブランドと企業",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter",
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "関心・趣味（上位）",
+            "description": "フードやトラベルのような最上位の関心・趣味のグループ",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "テクノロジー",
+            "description": "テクノロジーとコンピューティング",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "関心・趣味カテゴリ",
+            "description": "珍味や旅行先のような関心・趣味エンティティのグループ",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "コンピュータプログラミング",
+            "description": "コンピュータプログラミング",
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "created_at": "2020-11-16T18:09:36.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community",
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev チームの公式アカウント。#TwitterAPI に関する最新情報、ニュース、イベントの公式情報源です。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1327011423252144128",
+        "text": "👋 お知らせです。Twitter Developer Labs v2 の返信非表示と最近の検索は、来週の月曜日、11 月 16 日に廃止されます。v2 の #TwitterAPI で利用可能な新しい返信非表示・最近の検索エンドポイントへ、今すぐの移行をおすすめします。詳細: https://t.co/r6z6CI7kEy",
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 26,
+              "end": 50,
+              "probability": 0.4387,
+              "type": "Product",
+              "normalized_text": "Twitter Developer Labs v2"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 228,
+              "end": 239,
+              "tag": "TwitterAPI"
+            }
+          ],
+          "urls": [
+            {
+              "start": 250,
+              "end": 273,
+              "url": "https://t.co/r6z6CI7kEy",
+              "expanded_url": "https://devcommunity.x.com/t/retiring-labs-v2-recent-search-and-hide-replies/145795",
+              "display_url": "devcommunity.com/t/retiring-lab…",
+              "images": [
+                {
+                  "url": "https://pbs.twimg.com/news_img/1327011425240313856/PkurOyu1?format=jpg&name=orig",
+                  "width": 1200,
+                  "height": 630
+                },
+                {
+                  "url": "https://pbs.twimg.com/news_img/1327011425240313856/PkurOyu1?format=jpg&name=150x150",
+                  "width": 150,
+                  "height": 150
+                }
+              ],
+              "status": 200,
+              "title": "Labs v2 の最近の検索と返信非表示の廃止",
+              "description": "Early Access と返信非表示の発表でお伝えしたとおり、以下の Twitter Developer Labs v2 のエンドポイントは 11 月 16 日に廃止されます。Labs v2 最近の検索 Labs v2 返信非表示 これらのエンドポイントが呼び出された場合、HTTP 410 ステータスで応答し、データは返されません。Labs での皆さまからのフィードバックに基づき、対応する機能を X API v2 に組み込みました。関連ドキュメントは以下のリンクからご覧いただけます。まだの場合は、こちらをクリックして v2 アクセスに登録してください…",
+              "unwound_url": "https://devcommunity.x.com/t/retiring-labs-v2-recent-search-and-hide-replies/145795"
+            }
+          ]
+        },
+        "id": "1327011423252144128",
+        "public_metrics": {
+          "retweet_count": 8,
+          "reply_count": 2,
+          "like_count": 33,
+          "quote_count": 4
+        },
+        "author_id": "2244994945",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "46",
+              "name": "ブランドカテゴリ",
+              "description": "ブランドの業種内で、ブランドの範囲を絞り込むカテゴリ",
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "サービス",
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "ブランド",
+              "description": "ブランドと企業",
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter",
+            }
+          },
+          {
+            "domain": {
+              "id": "65",
+              "name": "関心・趣味（上位）",
+              "description": "フードやトラベルのような最上位の関心・趣味のグループ",
+            },
+            "entity": {
+              "id": "848920371311001600",
+              "name": "テクノロジー",
+              "description": "テクノロジーとコンピューティング",
+            }
+          },
+          {
+            "domain": {
+              "id": "66",
+              "name": "関心・趣味カテゴリ",
+              "description": "珍味や旅行先のような関心・趣味エンティティのグループ",
+            },
+            "entity": {
+              "id": "848921413196984320",
+              "name": "コンピュータプログラミング",
+              "description": "コンピュータプログラミング",
+            }
+          }
+        ],
+        "source": "Twitter Web App"
+        "created_at": "2020-11-12T22:12:32.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="retweeted-quote-tweet">
+  ### リポストされた引用投稿
+</div>
+
+```
+{
+    "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1225470895902412800",
+      "text": "RT @AureliaSpecker: 📣 昨年11月に執筆したロンドン通勤チュートリアルを気に入ってくれた方は、…を使ったリファクタ版もぜひチェックしてみてください",
+      "referenced_tweets": [
+        {
+          "type": "retweeted",
+          "id": "1224709550214873090"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 42,
+            "end": 47,
+            "probability": 0.6999,
+            "type": "Place",
+            "normalized_text": "London"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 3,
+            "end": 18,
+            "username": "AureliaSpecker"
+          }
+        ]
+      },
+      "id": "1225470895902412800",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 0,
+        "like_count": 0,
+        "quote_count": 0
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "Brand Category",
+            "description": "ブランドのバーティカル内でブランドの範囲を絞り込むカテゴリ",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "サービス",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "description": "ブランドおよび企業",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "関心・趣味のバーティカル",
+            "description": "フードや旅行など、最上位の関心・趣味のグルーピング",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "テクノロジー",
+            "description": "テクノロジーとコンピューティング",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "関心・趣味のカテゴリ",
+            "description": "珍味や旅行先など、関心・趣味のエンティティのグルーピング",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "コンピュータープログラミング",
+            "description": "コンピュータープログラミング",
+          }
+        }
+      ],
+      "source": "Twitter for iPhone",
+      "created_at": "2020-02-06T17:26:44.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community",
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev チームの声であり、#TwitterAPI に関する最新情報、ニュース、イベントの公式情報源です。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev"
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      },
+      {
+        "created_at": "2013-01-18T23:45:43.000Z",
+        "id": "1102321381",
+        "protected": false,
+        "username": "AureliaSpecker",
+        "verified": false,
+        "entities": {
+          "description": {
+            "mentions": [
+              {
+                "start": 7,
+                "end": 17,
+                "username": "TwitterUK"
+              },
+              {
+                "start": 86,
+                "end": 95,
+                "username": "_dormrod"
+              }
+            ]
+          }
+        },
+        "description": "devrel @TwitterUK • ロンドン在住のスイス人 • 観葉植物を愛でる母 • @_dormrod の専属ヘアスタイリスト",
+        "pinned_tweet_id": "1253069421322567681",
+        "public_metrics": {
+          "followers_count": 1036,
+          "following_count": 1330,
+          "tweet_count": 855,
+          "listed_count": 26
+        },
+        "location": "英国・ロンドン",
+        "name": "Aurelia Specker",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1137517534104772608/8FBYgc6G_normal.jpg",
+        "url": ""
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1224709550214873090",
+        "text": "📣 昨年11月に執筆したロンドン通勤チュートリアルを気に入っていただけた方は、Twitter の新しい検索エンドポイントを使うようにリファクタリングした改訂版もぜひご覧ください 🚇 https://t.co/87XIPZmZBJ\n\n#DEVcommunity #Pythontutorial @TwitterDev @TwitterAPI https://t.co/dXrJYvn3hY",
+        "referenced_tweets": [
+          {
+            "type": "quoted",
+            "id": "1195000047089389573"
+          }
+        ],
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 22,
+              "end": 27,
+              "probability": 0.7075,
+              "type": "Place",
+              "normalized_text": "London"
+            },
+            {
+              "start": 120,
+              "end": 126,
+              "probability": 0.7355,
+              "type": "Product",
+              "normalized_text": "Twitter"
+            }
+          ],
+          "mentions": [
+            {
+              "start": 206,
+              "end": 217,
+              "username": "TwitterDev"
+            },
+            {
+              "start": 218,
+              "end": 229,
+              "username": "TwitterAPI"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 176,
+              "end": 189,
+              "tag": "DEVcommunity"
+            },
+            {
+              "start": 190,
+              "end": 205,
+              "tag": "Pythontutorial"
+            }
+          ],
+          "urls": [
+            {
+              "start": 151,
+              "end": 174,
+              "url": "https://t.co/87XIPZmZBJ",
+              "expanded_url": "https://bit.ly/2OrnrCC",
+              "display_url": "bit.ly/2OrnrCC",
+              "status": 200,
+              "unwound_url": "https://dev.to/twitterdev/migrate-to-twitter-s-newly-released-labs-recent-search-endpoint-3npe"
+            },
+            {
+              "start": 230,
+              "end": 253,
+              "url": "https://t.co/dXrJYvn3hY",
+              "expanded_url": "https://x.com/AureliaSpecker/status/1195000047089389573",
+              "display_url": "twitter.com/AureliaSpecker…"
+            }
+          ]
+        },
+        "id": "1224709550214873090",
+        "public_metrics": {
+          "retweet_count": 12,
+          "reply_count": 0,
+          "like_count": 43,
+          "quote_count": 2
+        },
+        "author_id": "1102321381",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "46",
+              "name": "ブランドカテゴリ",
+              "description": "ブランドのバーティカル内のカテゴリで、ブランドの範囲を絞り込みます",
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "サービス",
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "ブランド",
+              "description": "ブランドおよび企業"
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            }
+          },
+          {
+            "domain": {
+              "id": "65",
+              "name": "興味関心・趣味のバーティカル",
+              "description": "フードや旅行などの最上位の興味関心・趣味のグループ",
+            },
+            "entity": {
+              "id": "848920371311001600",
+              "name": "テクノロジー",
+              "description": "テクノロジーとコンピューティング",
+            }
+          },
+          {
+            "domain": {
+              "id": "66",
+              "name": "興味関心・趣味のカテゴリ",
+              "description": "珍味や旅行先などの、興味関心・趣味エンティティのグループ",
+            },
+            "entity": {
+              "id": "848921413196984320",
+              "name": "コンピュータープログラミング",
+              "description": "コンピュータープログラミング",
+            }
+          }
+        ],
+        "source": "Twitter Web App",
+        "created_at": "2020-02-04T15:01:25.000Z"
+      }
+    ]
+  }
+}
+```

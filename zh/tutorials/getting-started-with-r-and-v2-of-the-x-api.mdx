@@ -1,0 +1,157 @@
+---
+title: X API v2 与 R 入门
+mode: wide
+---
+
+<div id="introduction">
+  ## 介绍
+</div>
+
+本教程将带您了解使用 R 编程语言与 X API v2 入门所需的内容。通过使用 R 连接
+[user lookup](/zh/x-api/users/lookup/introduction) 端点，我将演示如何处理
+X API 返回的 JSON。user lookup 是一个 GET 方法，会返回由用户 ID 或
+用户名指定的单个用户或一组用户的信息。
+
+如果您还不熟悉，R 是处理常见数据科学任务（如时间序列分析、建模、可视化及其他数据
+分析）最受欢迎的语言之一，并且常与 X API 搭配使用。借助 user
+lookup 端点，您可以使用
+[user object](/zh/x-api/fundamentals/data-dictionary#user)
+来分析一个人的粉丝数量与其个人简介情绪分数之间的相关性。user object 也可用于基于账户
+在其资料中公开列出的位置信息对一组账户进行映射。
+
+<div id="getting-started-with-the-x-api">
+  ### X API 入门
+</div>
+
+在使用 X API v2 之前，您需要先
+[注册](https://developer.x.com/en/portal/petition/essential/basic-info)
+开发者账户。
+
+在您的开发者账户获批后，首先需要创建一个
+[项目](/zh/resources/fundamentals/projects)。项目可让您根据计划如何使用 X API 来组织工作，从而高效管理您对 API 的访问并监控使用情况。
+
+每个项目都包含一个[应用](/zh/resources/fundamentals/developer-apps)，您可以用它生成使用 X API 所需的凭据。您可以在我们文档的
+[入门](/zh/x-api/getting-started/about-x-api)部分了解如何开始使用 X API 的更多信息。
+
+<div id="getting-your-r-environment-set-up">
+  ### 设置 R 开发环境
+</div>
+
+首先，你需要[下载 R](https://cloud.r-project.org/)，可在 [CRAN 网站](https://cran.r-project.org/)完成。
+
+之后，要配置用于 R 的开发环境，你可以使用
+[RStudio](https://www.rstudio.com/)、适用于
+[Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Ikuyadeu.r-pack) 的 R 扩展包，
+或
+[Jupyter Notebook](https://docs.anaconda.com/anaconda/navigator/tutorials/r-lang/)，
+如果你熟悉 Python 生态的话。
+
+<div id="setting-up-your-environment-variable">
+  ### 设置环境变量
+</div>
+
+在今天要展示的代码示例中，你需要为 Bearer Token 创建一个环境变量。Bearer Token 用于对 X API 进行身份验证并开始发起请求。首先，将“your-bearer-token”替换为你自己的 Bearer Token，你可以在开发者门户中你的 App 的 Keys and Tokens 部分获取。开始编写脚本前，你需要在控制台先运行以下代码行。
+
+```r
+Sys.setenv(BEARER_TOKEN = "your-bearer-token")
+```
+
+<div id="making-your-request">
+  ### 发起请求
+</div>
+
+你可以使用
+[httr](https://cran.r-project.org/web/packages/httr/index.html) 包向 X API 发起 HTTP 请求。若尚未安装，请在控制台中安装该包。你还需要安装
+[jsonlite](https://cran.r-project.org/web/packages/jsonlite/index.html) 以处理 JSON 对象，以及用于数据处理的 [dplyr](https://dplyr.tidyverse.org/)。
+
+```r
+install.packages("httr")
+install.packages("jsonlite")
+install.packages("dplyr")
+```
+
+现在可以开始编写连接到 API 的 R 脚本。在文件顶部加载 httr、jsonlite 和 dplyr 包。
+
+```r
+require(httr)
+require(jsonlite)
+require(dplyr)
+```
+
+代码示例的第一步是配置对 X API 的身份验证。获取你在应用中生成的
+[Bearer Token](/zh/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)，
+并将其作为认证信息传入请求头。下面的示例中，用你的令牌替换 $BEARER\_TOKEN。
+
+```r
+bearer_token <- Sys.getenv("$BEARER_TOKEN")
+headers <- c(`Authorization` = sprintf('Bearer %s', bearer_token))
+```
+
+完成身份验证后，定义请求的参数。
+默认情况下，响应会返回每个用户的 id、name 和 username。
+你可以通过添加额外的
+[fields](/zh/x-api/fundamentals/fields) 和
+[expansions](/zh/x-api/fundamentals/expansions) 来调整负载。对于本示例，需要用户的个人简介（通过 user.fields=description 请求），以及包含该用户置顶帖子的扩展。
+
+```r
+params <- list(`user.fields` = 'description', `expansions` = 'pinned_tweet_id')
+```
+
+接下来，使用你要查询的 X handle（也称账号）来构造 URL。使用 readline 方法以便示例可复用。输入目标 handle 后，通过将 $USERNAME 替换为该 handle 来生成包含它的 URL。
+
+```r
+handle <- readline('$USERNAME')
+url_handle <- sprintf('https://api.x.com/2/users/by?usernames=%s', handle)
+```
+
+此时，使用 httr 包对刚创建的 URL 发起 GET 请求，在请求头中传入身份验证信息，并附上已定义的参数。你可以将响应作为文本对象保存到变量 obj 中，并打印查看请求结果。
+
+```r
+response <-
+  httr::GET(url = url_handle,
+    httr::add_headers(.headers = headers),
+    query = params)
+obj <- httr::content(response, as = "text")
+print(obj)
+```
+
+<div id="working-with-our-json-payload">
+  ### 处理我们的 JSON 负载
+</div>
+
+我最常用的处理 JSON 的方法之一是使用数据框（data frame），这样可以轻松访问复杂的嵌套数据。为此，使用 jsonlite 包的 fromJSON 方法将文件扁平化，使各字段位于同一对象中。然后，将该对象传入数据框。现在你就可以查看这个数据框了。
+
+```
+json_data <- fromJSON(obj, flatten = TRUE) %>% as.data.frame
+View(json_data)
+```
+
+你可以从数据框中访问各字段，并将它们传入一个包含账号（handle）、用户名和个人简介（bio）的字符串中。
+
+```r
+final <-
+  sprintf(
+    "Handle: %s\nBio: %s\nPinned Post: %s",
+    json_data$data.username,
+    json_data$data.description,
+    json_data$includes.tweets.text
+  )
+```
+
+使用 cat 而不是 print 来查看对象，以便在每个字段之间显示换行。
+
+```r
+cat(final)
+```
+
+如果你对多个账号（handle）发起了请求，可以轻松使用循环来访问每个数据框元素。
+
+<div id="conclusion">
+  ### 结语
+</div>
+
+希望本教程能成为使用 R 与 X
+API 的起点。接下来，您可以查看我们在
+[v2 示例代码](https://github.com/xdevplatform) 中提供的 R 示例，涵盖近期搜索、
+帖子查找和用户查找。如果您在此过程中遇到任何问题，请在
+[论坛](https://devcommunity.x.com/) 告诉我们；如果本教程激发了您的创作灵感，也欢迎在 [@XDevelopers](https://x.com/XDevelopers) 上发帖与我们交流。

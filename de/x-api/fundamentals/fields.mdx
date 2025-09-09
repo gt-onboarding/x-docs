@@ -1,0 +1,92 @@
+---
+title: "Felder"
+---
+
+Die Endpunkte der X-API v2 verfügen über eine Reihe von Parametern, die als _Felder_ bezeichnet werden. Damit können Sie aus jedem Objekt in der Endpunktantwort genau die Daten auswählen, die Sie benötigen.
+
+Standardmäßig gibt das Post-Objekt nur die Felder `id` und `text` zurück sowie für Posts, die seit dem 29. September 2022 erstellt wurden, das Feld `edit_history_tweet_ids`. Wenn Sie das Erstellungsdatum des Posts oder öffentliche Metriken benötigen, müssen Sie die Parameter `tweet.fields` verwenden, um diese anzufordern. So können Sie gezielt nur die für Ihren Anwendungsfall erforderlichen Felder abfragen. Beispielsweise würden Sie diesen Query-String in Ihre Anfrage aufnehmen:
+
+`?tweet.fields=created_at,public_metrics`
+
+Jedes Objekt hat einen eigenen Parameter, mit dem Sie gezielt die zu diesem Objekt gehörigen Felder anfordern. Die derzeit verfügbaren Feld-Parameter sind:
+
+- [Post](/de/x-api/fundamentals/data-dictionary#tweet) → `tweet.fields`
+- [User](/de/x-api/fundamentals/data-dictionary#user) → `user.fields`
+- [Media](/de/x-api/fundamentals/data-dictionary#media) → `media.fields`
+- [Poll](/de/x-api/fundamentals/data-dictionary#poll) → `poll.fields`
+- [Place](/de/x-api/fundamentals/data-dictionary#place) → `place.fields`
+
+Wenn Sie einen Endpunkt verwenden, der hauptsächlich ein bestimmtes Objekt zurückgibt, verwenden Sie den passenden Feld-Parameter und geben Sie die gewünschten Felder in einer durch Kommata getrennten Liste als Wert dieses Parameters an, um diese Felder in der Antwort zu erhalten.
+
+<div id="example">
+  ### Beispiel
+</div>
+
+Wenn Sie den Endpunkt [GET /tweets/search/recent](/de/x-api/posts/recent-search) verwenden, erhalten Sie in der Antwort hauptsächlich [Tweet-Objekte](/de/x-api/fundamentals/data-dictionary#tweet). Ohne Angabe von Feldparametern erhalten Sie nur die Standardwerte `id` und `text`. Wenn Sie die öffentlichen Metriken der in der Antwort zurückgegebenen Posts abrufen möchten, sollten Sie den Parameter `tweet.fields` in Ihre Anfrage aufnehmen und `public_metrics` als Wert setzen.
+
+Diese Anfrage sieht wie folgt aus. Wenn Sie sie verwenden möchten, ersetzen Sie `$BEARER_TOKEN` durch Ihr [Bearer Token](/de/resources/fundamentals/authentication) und senden Sie die Anfrage mit Ihrem Kommandozeilentool.
+
+```bash
+curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Wenn Sie diese Anfrage in Ihrem Terminal senden, enthält jeder der zurückgegebenen Posts die folgenden Felder:
+
+```
+{
+   "data": {
+       "id": "1263150595717730305",
+       "public_metrics": {
+           "retweet_count": 12,
+           "reply_count": 14,
+           "like_count": 49,
+           "quote_count": 7
+       },
+       "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER"
+   }
+}
+```
+
+Wenn Sie eine Reihe von Feldern aus einem sekundären Objekt abrufen möchten, das mit dem von einem Endpunkt zurückgegebenen primären Objekt verknüpft ist, müssen Sie einen zusätzlichen Parameter für Expansions angeben. Wenn Sie beispielsweise denselben Endpunkt GET search/tweets/recent wie zuvor verwenden und die Profilbeschreibung des Autors abrufen möchten, müssen Sie `expansions=author_id` und `user.fields=description` in Ihrer Anfrage übergeben. Hier ist ein Beispiel, wie das aussehen könnte. Wenn Sie diese Anfrage ausprobieren möchten, ersetzen Sie `$BEARER_TOKEN` durch Ihr [Bearer Token](/de/resources/fundamentals/authentication), bevor Sie sie in Ihr Kommandozeilentool einfügen.
+
+```bash
+  curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics&expansions=author_id&user.fields=description' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Wenn Sie dies in der Anfrage angeben, enthält jeder der zurückgegebenen Posts die folgenden Felder, und die Standard- sowie die angegebenen Felder des zugehörigen [User-Objekts](/de/x-api/fundamentals/data-dictionary#user) werden innerhalb von `includes` zurückgegeben. Das User-Objekt kann den entsprechenden Post(s) zugeordnet werden, indem `tweet.author_id` und die Felder `users.id` abgeglichen werden.
+
+```
+{
+  "data": [
+    {
+      "id": "1263150595717730305",
+      "author_id": "2244994945",
+      "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 13,
+        "like_count": 51,
+        "quote_count": 7
+      }
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "username": "TwitterDev",
+        "description": "The voice of the #TwitterDev team and your official source for updates, news, and events, related to the #TwitterAPI.",
+        "name": "Twitter Dev"
+      }
+    ]
+  }
+}
+```
+
+Beachten Sie, dass Sie keine spezifischen Unterfelder anfordern können (zum Beispiel `public_metrics.retweet_count`). Alle Unterfelder werden zurückgegeben, wenn das Top-Level-Feld (`public_metrics`) angegeben ist. Wir haben alle möglichen Felder, die Sie anfordern können, in der Parametertabelle auf der API-Referenzseite der jeweiligen Endpunkte aufgelistet. 
+
+Eine vollständige Liste der Felder finden Sie im [Objektmodell](/de/x-api/fundamentals/data-dictionary#tweet). Um Felder für ein Objekt anzufordern, das nicht die primäre Ressource des Endpunkts ist, verwenden Sie den Parameter [expansions](/de/x-api/fundamentals/expansions) zusammen mit den entsprechenden Feldern.
