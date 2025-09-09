@@ -1,0 +1,238 @@
+---
+title: Authentification applicative seule et jeton Bearer OAuth 2.0
+sidebarTitle: OAuth 2.0 applicatif seul (jeton Bearer)
+---
+
+<div id="app-only-authentication-and-oauth-20-bearer-token">
+  ### Authentification applicative et jeton porteur OAuth 2.0
+</div>
+
+X permet aux applications d’émettre des requêtes authentifiées en leur propre nom, et non au nom d’un utilisateur spécifique. L’implémentation de X repose sur le flux [Client Credentials Grant](http://tools.ietf.org/html/rfc6749#section-4.4) de la [spécification OAuth 2](http://tools.ietf.org/html/rfc6749).
+
+L’authentification applicative n’inclut aucun contexte utilisateur : l’application effectue des requêtes à l’API pour son propre compte. Cette méthode s’adresse aux développeurs qui n’ont besoin que d’un accès en lecture aux informations publiques.
+
+Vous pouvez réaliser une authentification applicative à l’aide des clés API consommateur de votre application, ou en utilisant un jeton d’accès applicatif (jeton porteur). Cela signifie que les requêtes adressées à une API X ne doivent pas nécessiter d’utilisateur authentifié.
+
+Avec l’authentification applicative, vous pouvez notamment :
+
+- Récupérer des chronologies d’utilisateurs
+- Accéder aux abonnements et abonnés de n’importe quel compte
+- Accéder aux ressources de listes
+- Rechercher des Tweets
+
+Veuillez noter que seuls [OAuth 1.0a](/fr/resources/fundamentals/authentication/oauth-1-0a/api-key-and-secret) ou le [flux d’autorisation OAuth 2.0](/fr/resources/fundamentals/authentication/oauth-2-0/authorization-code) avec PKCE sont requis pour émettre des requêtes au nom d’utilisateurs. La page [référence de l’API](/fr/resources/fundamentals/authentication/api-reference) décrit la méthode d’authentification nécessaire pour utiliser une API. Vous aurez besoin d’une authentification et d’un contexte utilisateur, avec un [jeton d’accès](/fr/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens), pour effectuer les actions suivantes :
+
+- Publier des Tweets ou d’autres ressources
+- Rechercher des utilisateurs
+- Utiliser tout endpoint de géolocalisation
+- Accéder aux Messages privés ou aux informations d’identification du compte
+- Récupérer les adresses e‑mail des utilisateurs
+
+<div id="auth-flow">
+  #### Flux d’authentification
+</div>
+
+Pour utiliser cette méthode, vous devez utiliser un [jeton d’accès « App only »](/fr/resources/fundamentals/authentication/oauth-2-0/application-only) (également appelé [jeton Bearer](/fr/resources/fundamentals/authentication/oauth-2-0/bearer-tokens)). Vous pouvez générer un jeton d’accès « App only » (jeton Bearer) en transmettant votre consumer key et votre secret au point de terminaison [POST oauth2/token](/fr/resources/fundamentals/authentication/api-reference#post-oauth2-token).
+
+Le flux d’authentification « application-only » suit ces étapes :
+
+- Une application encode sa consumer key et son secret dans un ensemble d’identifiants spécialement encodés.
+- Une application envoie une requête au point de terminaison [POST oauth2/token](/fr/resources/fundamentals/authentication/api-reference#post-oauth2-token) pour échanger ces identifiants contre un [jeton d’accès « App only »](/fr/resources/fundamentals/authentication/oauth-2-0/application-only).
+- Lors de l’accès à l’API REST, l’application utilise le jeton d’accès « App only » pour s’authentifier.
+
+Comme il n’est pas nécessaire de signer une requête, cette approche est bien plus simple que le modèle OAuth 1.0a standard.
+
+<Frame>
+  <img src="/images/auth-5.png.twimg.1920.png" alt="" />
+</Frame>
+
+<div id="about-application-only-auth">
+  #### À propos de l’authentification « application-only »
+</div>
+
+**Les jetons sont des mots de passe**
+
+Gardez à l’esprit que la consumer key, le consumer secret et l’App-only Access Token (Bearer Token) permettent d’effectuer des requêtes au nom d’une application. Traitez ces valeurs avec le même niveau de sensibilité que des mots de passe et ne les partagez ni ne les diffusez à des tiers non approuvés.
+
+**SSL requis**
+
+Toutes les requêtes (pour l’obtention comme pour l’utilisation des jetons) _doivent_ passer par des points de terminaison HTTPS. Suivez les bonnes pratiques décrites dans [Connexion à l’API X via TLS](/fr/resources/fundamentals/authentication/guides/tls) — les pairs doivent **toujours** être vérifiés.
+
+**Pas de contexte utilisateur**
+
+Avec l’authentification « application-only », il n’existe pas de notion d’« utilisateur courant ». Par conséquent, des points de terminaison tels que [POST statuses/update](/fr/x-api/posts/creation-of-a-post) ne fonctionneront pas avec l’authentification « application-only ». Consultez [utilisation d’OAuth](/fr/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) pour plus d’informations sur l’émission de requêtes au nom d’un utilisateur.
+
+**Limitation de débit**
+
+Les applications disposent de deux types de pools de limitation de débit.
+
+Les requêtes effectuées au nom d’utilisateurs avec des jetons d’accès, également appelées « contexte utilisateur », sont décomptées d’un pool de limitation distinct de celui utilisé par l’authentification « application-only ». En d’autres termes, les requêtes effectuées au nom d’utilisateurs n’affecteront pas les limites disponibles via l’authentification « application-only », et les requêtes effectuées via l’authentification « application-only » n’affecteront pas les limites utilisées dans l’authentification basée sur l’utilisateur.
+
+En savoir plus sur [la limitation de débit de l’API](/fr/x-api/fundamentals/rate-limits) et [consulter les limites](https://developer.x.com/en/portal/products).
+
+<div id="issuing-application-only-requests">
+  #### Émission de requêtes en mode application uniquement
+</div>
+
+**Étape 1 : Encoder la clé et le secret consommateur**
+
+Voici comment encoder la clé et le secret consommateur d’une application en un jeu d’identifiants pour obtenir un jeton Bearer :
+
+1. Encoder la clé et le secret consommateurs en URL conformément à la [RFC 1738](http://www.ietf.org/rfc/rfc1738.txt). Notez qu’au moment de la rédaction, cela ne modifiera pas effectivement la clé et le secret, mais cette étape doit tout de même être effectuée au cas où le format de ces valeurs évoluerait.
+2. Concaténer la clé consommateur encodée, un caractère deux-points « : », et le secret consommateur encodé en une seule chaîne.
+3. [Encoder en Base64](http://en.wikipedia.org/wiki/Base64) la chaîne issue de l’étape précédente.
+
+Ci-dessous figurent des valeurs d’exemple montrant le résultat de cet algorithme. Notez que le secret consommateur utilisé sur cette page est destiné aux tests et ne fonctionnera pas pour de vraies requêtes.
+
+|     |     |
+| :--- | :--- |
+| Clé consommateur | xvz1evFS4wEEPTGEFPHBog |
+| Secret consommateur | L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Clé consommateur<br /><br />encodée RFC 1738 (inchangée) | xvz1evFS4wEEPTGEFPHBog |
+| Secret consommateur<br /><br />encodé RFC 1738 (inchangé) | L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Identifiants du jeton Bearer | xvz1evFS4wEEPTGEFPHBog:L8qq9PZyRg6ieKGEKhZolGC0vJWLw8iEJ88DRdyOg |
+| Identifiants du jeton Bearer encodés en Base64 | :: eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJnNmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw== |
+
+**Étape 2 : Obtenir un jeton d’accès « App only » (jeton Bearer)**
+
+La valeur calculée à l’étape 1 doit être échangée contre un jeton d’accès « App only » en envoyant une requête à [POST oauth2/token](/fr/resources/fundamentals/authentication/api-reference#post-oauth2-token) :
+
+- La requête doit être une requête HTTP POST.
+- La requête doit inclure un en-tête `Authorization` avec la valeur `Basic <valeur encodée en base64 de l’étape 1>.`
+- La requête doit inclure un en-tête `Content-Type` avec la valeur `application/x-www-form-urlencoded;charset=UTF-8.`
+- Le corps de la requête doit être `grant_type=client_credentials`.
+
+**Exemple de requête (l’en-tête Authorization a été replié) :**
+
+```json
+POST /oauth2/token HTTP/1.1
+Host: api.x.com
+User-Agent: My X App v1.0.23
+Authorization: Basic eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJn
+                     NmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw==
+Content-Type: application/x-www-form-urlencoded;charset=UTF-8
+Content-Length: 29
+Accept-Encoding: gzip
+
+grant\_type=client\_credentials
+```
+
+Si la requête est correctement formatée, le serveur répondra avec une charge utile encodée en JSON :
+
+**Exemple de réponse :**
+
+```json
+HTTP/1.1 200 OK
+Status: 200 OK
+Content-Type: application/json; charset=utf-8
+...
+Content-Encoding: gzip
+Content-Length: 140
+
+{"token\_type":"bearer","access\_token":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+```
+
+Les applications doivent vérifier que la valeur associée à la clé `token_type` de l’objet retourné est `bearer`. La valeur associée à la clé `access_token` est le jeton d’accès « App only » (jeton Bearer).
+
+Notez qu’un seul jeton d’accès « App only » est valide pour une application à un instant donné. Envoyer une autre requête avec les mêmes identifiants vers `/oauth2/token` renverra le même jeton jusqu’à son invalidation.
+
+**Étape 3 : Authentifier les requêtes d’API avec le jeton d’accès « App only » (jeton Bearer)**
+
+Le jeton d’accès « App only » (jeton Bearer) peut être utilisé pour envoyer des requêtes vers des endpoints d’API qui prennent en charge l’authentification en mode application uniquement. Pour utiliser le jeton d’accès de l’application, construisez une requête HTTPS normale et incluez un en-tête `Authorization` avec la valeur `Bearer <valeur du jeton Bearer en base64 de l’étape 2>. La signature n’est pas requise.`
+
+**Exemple de requête (l’en-tête Authorization a été replié) :**
+
+```
+GET /1.1/statuses/user\_timeline.json?count=100&screen\_name=twitterapi HTTP/1.1
+Host: api.x.com
+User-Agent: My X App v1.0.23
+Authorization: Bearer AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAA
+                      AAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Accept-Encoding: gzip
+```
+
+**Invalidation d’un jeton d’accès « App only » (jeton Bearer)**
+
+Si un jeton d’accès « App only » est compromis ou doit être invalidé pour quelque raison que ce soit, envoyez un appel à [POST oauth2/invalidate\_token](/fr/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token).
+
+**Exemple de requête (l’en-tête Authorization a été replié) :**
+
+```bash
+POST /oauth2/invalidate_token HTTP/1.1
+Authorization: Basic eHZ6MWV2RlM0d0VFUFRHRUZQSEJvZzpMOHFxOVBaeVJn
+                     NmllS0dFS2hab2xHQzB2SldMdzhpRUo4OERSZHlPZw==
+User-Agent: My X App v1.0.23
+Host: api.x.com
+Accept: */*
+Content-Length: 119
+Content-Type: application/x-www-form-urlencoded
+
+access_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+**Exemple de réponse :**
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 127
+...
+
+{"access_token":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA%2FAAAAAAAAAAAAAAAAAAAA%3DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+```
+
+<div id="common-error-cases">
+  #### Cas d’erreur courants
+</div>
+
+Cette section décrit quelques erreurs fréquentes lors de la négociation et de l’utilisation des Bearer Tokens. Notez que toutes les réponses d’erreur possibles ne sont pas couvertes ici — soyez attentif aux codes et réponses d’erreur non gérés.
+
+**Requêtes invalides pour obtenir ou révoquer un App only Access Token**
+
+Tentatives de :
+
+- Obtenir un App only Access Token (Bearer Token) avec une requête invalide (par exemple, en omettant `grant_type=client_credentials`).
+- Obtenir ou révoquer un App only Access Token (Bearer Token) avec des identifiants d’application incorrects ou expirés.
+- Invalider un App only Access Token (Bearer Token) incorrect ou déjà révoqué.
+- Obtenir un App only Access Token (Bearer Token) trop fréquemment sur une courte période.
+
+Aboutiront à :
+
+```json
+HTTP/1.1 403 Forbidden
+Content-Length: 105
+Content-Type: application/json; charset=utf-8
+...
+
+{"errors":\[{"code":99,"label":"authenticity\_token\_error","message":"Unable to verify your credentials"}\]}
+```
+
+<div id="api-request-contains-invalid-app-only-access-token-bearer-token">
+  #### La requête API contient un jeton d’accès « App only » invalide (Bearer Token)
+</div>
+
+L’utilisation d’un jeton d’accès incorrect ou révoqué pour effectuer des requêtes API entraînera :
+
+```json
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+Content-Length: 61
+...
+
+{"errors":\[{"message":"Invalid or expired token","code":89}\]}
+```
+
+<div id="app-only-access-token-bearer-token-used-on-endpoint-which-doesnt-support-application-only-auth">
+  #### Jeton d’accès applicatif seul (jeton Bearer) utilisé sur un endpoint qui ne prend pas en charge l’authentification applicative seule
+</div>
+
+Envoyer une requête à un endpoint qui nécessite un contexte utilisateur (par exemple `statuses/home_timeline`) avec un jeton d’accès applicatif seul (jeton Bearer) entraînera :
+
+```json
+HTTP/1.1 403 Forbidden
+Content-Type: application/json; charset=utf-8
+Content-Length: 91
+...
+
+{"errors":\[{"message":"Your credentials do not allow access to this resource","code":220}\]}
+```

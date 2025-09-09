@@ -1,0 +1,357 @@
+---
+title: "Reglas y filtrado: Enterprise"
+---
+
+<div id="getting-started-with-enterprise-rules-and-queries">
+  ## Introducción a las reglas y consultas para empresas
+</div>
+
+Los productos que utilizan operadores para empresas te proporcionan datos sociales según las reglas de filtrado que configures. Las reglas se componen de una o más «cláusulas», donde una cláusula puede ser una palabra clave, una frase exacta o uno de los muchos operadores para empresas. Antes de empezar a crear reglas con operadores para empresas, asegúrate de revisar la sintaxis descrita a continuación, consultar la lista de operadores disponibles y comprender las restricciones para crear reglas. También debes entender los matices de cómo se evalúan lógicamente las reglas, en la "[Orden de operaciones](#orderofoperations)" sección.
+
+Se pueden combinar varias cláusulas con lógica «y» y «o».
+
+Ten en cuenta: la lógica «y» se especifica con un espacio entre cláusulas, mientras que la lógica «o» se especifica con un `OR` en mayúsculas.
+
+Cada regla puede tener hasta 2.048 caracteres, sin límites en el número de cláusulas positivas (elementos que deseas hacer coincidir o filtrar) y cláusulas negativas (elementos que deseas excluir y no hacer coincidir).
+ 
+
+### Creación de reglas y consultas 
+
+**Coincidencia de palabras clave**
+
+Las coincidencias de palabras clave son similares a las consultas en una interfaz de búsqueda. Por ejemplo, la siguiente regla de nivel enterprise coincidiría con actividades que tengan el término "social" en el cuerpo del texto.
+
+`social`
+
+**Uso de AND entre términos con espacios en blanco**
+
+Agregar otra palabra clave equivale a añadir otro requisito para encontrar coincidencias. Por ejemplo, esta regla solo coincidiría con actividades donde tanto "social" como "media" estén presentes en el texto, en cualquier orden: _dejar un espacio entre los términos actúa como una lógica booleana AND_. Si incluye un AND explícito en su regla, será rechazado por el endpoint de reglas.
+
+`social media`
+
+**Uso de OR entre términos con OR en mayúsculas**
+
+Sin embargo, en muchas situaciones se requiere lógica booleana OR. Esto también se logra fácilmente. _Tenga en cuenta que el operador OR debe estar en mayúsculas y un ‘or’ en minúsculas se tratará como una palabra clave normal._
+
+`social OR data`
+
+**Negación de términos**
+
+Otros escenarios pueden requerir excluir resultados con ciertas palabras clave (lógica booleana NOT). Por ejemplo, actividades con ‘happy’, pero excluyendo cualquiera con ‘birthday’ en el texto.
+
+`social -personality`
+
+**Agrupación con paréntesis**
+
+Este tipo de lógica puede combinarse usando paréntesis y ampliarse a consultas mucho más complejas.
+
+`(social OR data) (academic OR research) -personality -information -university`
+
+Esto es solo el comienzo: aunque los ejemplos anteriores se basan simplemente en coincidencias tokenizadas de palabras clave, los productos enterprise también ofrecen operadores para realizar diferentes tipos de coincidencias en el texto.
+
+**Coincidencia exacta**
+
+`"social media research"`
+
+**Coincidencia de subcadena**
+
+`contains:info`
+
+**Coincidencia por proximidad**
+
+`"social media research"~3`
+
+Además, otros operadores permiten filtrar por aspectos únicos de los datos sociales, además del texto. 
+
+**El usuario que está publicando una publicación**
+
+`from:XDeveloeprs`
+
+**Tweets con etiqueta geográfica a menos de 10 millas de Pearl St. en Boulder, CO, United States**
+
+`point_radius:[-105.27346517 40.01924738 10.0mi]`
+
+**Uniéndolo todo**
+
+Estos pueden combinarse con filtros de texto usando los mismos tipos de lógica descritos anteriormente.
+
+`(social OR data) (academic OR research OR "social media research") point_radius:[-105.27346517 40.01924738 10.0mi] lang:en -personality -information -university`
+
+<div id="boolean-syntax">
+  ### Sintaxis booleana
+</div>
+
+Los ejemplos de la sección anterior utilizaron varios tipos de lógica booleana y de agrupación. Consulta la tabla siguiente para obtener más detalles sobre la sintaxis y los requisitos de cada una.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Tipo de lógica** | **Sintaxis del operador** | Descripción |
+| AND | social data | Un espacio en blanco entre dos operadores produce una lógica AND entre ellos.  <br />  <br />Coincide con actividades que contienen ambas palabras clave ("social", "data").  <br />  <br />**No uses AND explícitamente en tu regla. Usa solo espacios en blanco. Un AND explícito se tratará como una palabra clave normal.** |
+| OR  | social OR data | Para aplicar OR entre dos operadores, inserta un OR en mayúsculas, separado por espacios en blanco entre ellos.  <br />  <br />Coincide con actividades con CUALQUIERA de las palabras clave ("social" OR "data").  <br />  <br />Ten en cuenta que si combinas la funcionalidad OR y AND en una sola regla, debes comprender el orden de operaciones descrito en nuestra sección "[Order of operations](#OrderOfOperations)", y considerar agrupar los operadores no negados usando paréntesis, como se describe a continuación, para garantizar que tu regla se comporte como esperas.  <br />  <br />Debes usar "OR" en mayúsculas en tu regla. 'or' en minúsculas se tratará como una palabra clave normal. |
+| NOT | social data  <br />-apple -android -phone | Inserta un carácter `-` inmediatamente delante del operador o del grupo de operadores.  <br />  <br />La regla de ejemplo mostrada coincide con actividades que contienen la palabra clave "social", pero excluye aquellas que contienen la palabra clave "data".  <br />  <br />No se permiten OR negados cuando la regla solicitaría "todo en el firehose excepto la negación". Por ejemplo, `apple OR -ipad` es inválido porque coincidiría con todas las actividades excepto aquellas que mencionen "ipad". |
+| Agrupación | (social OR data) -XDevelopers -api | Los paréntesis alrededor de varios operadores crean un "grupo" funcional.<br /><br />Los grupos pueden conectarse a cláusulas de la misma manera que una cláusula individual mediante espacios en blanco (AND) u OR. Sin embargo, es una buena práctica no agrupar negaciones aplicando el signo de negación - a todo el grupo. En su lugar, debes negar cada operador individual, encadenándolos mediante espacios en blanco (AND). <br /><br />Por ejemplo, en lugar de usar -(iphone OR imac OR macbook), usa lo siguiente: -iphone -imac -macbook.  <br />  <br />La agrupación es especialmente importante cuando una sola regla combina la funcionalidad AND y OR, debido al orden de operaciones utilizado para evaluar la regla. Consulta a continuación para obtener más detalles. |
+
+**Ten en cuenta** que los operadores pueden ser positivos o negativos.
+
+Los **operadores positivos** definen lo que quieres **incluir** en los resultados. Por ejemplo, el operador `has:hashtags` dice “Quiero actividades que contengan hashtags”.
+
+Los **operadores negativos** definen lo que quieres **excluir** de los resultados y se crean usando la lógica booleana NOT descrita arriba. Por ejemplo, `-has:hashtags` dice “Excluye cualquier actividad que contenga hashtags, incluso si por lo demás coincide con mi regla”.
+
+Los productos de operadores Premium no tienen restricciones sobre la cantidad de cláusulas positivas y negativas, sujeto a una longitud máxima de 2,048 caracteres.
+ 
+
+<div id="order-of-operations">
+  #### Orden de operaciones
+</div>
+
+Al combinar las funciones AND y OR en una sola regla, el siguiente orden de operaciones determinará cómo se evalúa la regla.
+
+1. Primero se combinan los operadores conectados con lógica AND
+2. Luego se aplican los operadores conectados con lógica OR
+
+**Ejemplo:**
+
+- `apple OR iphone ipad` se evaluará como `apple OR (iphone ipad)`
+- `ipad iphone OR android` se evaluará como `(iphone ipad) OR android`
+
+Para eliminar la incertidumbre y asegurarse de que las reglas se evalúen como se pretende, agrupe los términos con paréntesis cuando corresponda. Por ejemplo:
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### Puntuación, diacríticos y sensibilidad a mayúsculas y minúsculas
+</div>
+
+Si especifica una regla de palabra clave o hashtag con acentos o diacríticos para operadores empresariales, hará coincidir el texto de la Publicación respetando esos diacríticos (en hashtags o palabras clave). Una regla con la palabra clave `Diacr**í**tica` o el hashtag `#cumplea**ñ**os` hará coincidir "Diacr**í**tica" o "#cumplea**ñ**os", pero no "Diacritica" ni "#cumpleanos" sin la tilde en la **í** o la **eñe**.
+
+Los caracteres con acentos o diacríticos se tratan igual que los caracteres normales y no se consideran límites de palabra. Por ejemplo, una regla de cumplea**ñ**os solo haría coincidir actividades que contengan la palabra cumpleaños y no coincidiría con actividades que contengan cumplea, cumplean u os.
+
+Todos los operadores se evalúan sin distinción de mayúsculas y minúsculas. Por ejemplo, la regla `Cat` coincidirá con lo siguiente: "cat", "CAT", "Cat".
+
+<div id="powertrack-rule-tags">
+  #### Etiquetas de reglas de PowerTrack
+</div>
+
+Como se describe en nuestra página "[Matching rules](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#matching-rules)", cada regla puede crearse con una etiqueta. Estas etiquetas no afectan el filtrado, pero pueden usarse para crear agrupaciones lógicas de reglas dentro de tu app. Cada regla puede tener solo una etiqueta, con un máximo de 255 caracteres. Las etiquetas se incluyen en la regla con formato JSON en el momento de su creación a través de la API, como se describe en nuestra página "Matching rules".
+
+<div id="putting-rules-in-json-format">
+  #### Colocar reglas en formato JSON
+</div>
+
+Para agregar o eliminar una regla de un flujo mediante la API, las reglas deben utilizar el formato JSON. En esencia, esto requiere colocar cada regla en la siguiente estructura:
+
+`{"value":"insert_rule_here"}`
+
+**Reglas con comillas dobles**
+
+Si la regla contiene caracteres de comillas dobles ("), asociados con coincidencia exacta u otros operadores, deben escaparse utilizando una barra invertida para distinguirlos de la estructura del formato JSON.
+
+`"social data" @XDevelopers`
+
+La regla con formato JSON sería:
+
+`{"value":"\"social data\" @XDevelopers"}`
+
+**Reglas con literales de comillas dobles**
+
+Para incluir un carácter de comillas dobles como literal de cadena dentro de una coincidencia exacta, debe escaparse dos veces. Por ejemplo, para una regla que coincida con la frase exacta "Toys "R" Us", incluyendo las comillas dobles alrededor de "R", la representación en texto plano se vería así:
+
+`"Toys \"R\" Us"`
+
+Al traducir esto al formato JSON, debes usar la siguiente estructura:
+
+`{"value":"\"Toys \\\"R\\\" Us\""}`
+
+**Reglas con etiquetas**
+
+Para incluir una etiqueta opcional con tu regla, como se describió anteriormente, simplemente incluye un campo adicional `tag` con el valor de la regla.
+
+`{"value":"\"social data\" @XDevelopers","tag":"RULE-TAG-01"}`
+
+**Formato para solicitudes a la API**
+
+Al agregar o eliminar reglas del flujo mediante la API, varias reglas en formato JSON deben separarse por comas y colocarse dentro de un arreglo JSON "rules", como se muestra a continuación:
+
+`{"rules":[{"value":"from:XDevelopers"},{"value":"\"social data\" @XDevelopers","tag":"RULE-TAG-01"}]}`
+
+<div id="operators-that-match-quote-tweets">
+  #### Operadores que coinciden con Tweets citados
+</div>
+
+Al usar la [PowerTrack API](/es/x-api/enterprise-gnip-2.0/powertrack-api) y la Historical PowerTrack API, los siguientes operadores harán coincidencia tanto con el contenido de la Publicación original citada como con el nuevo Tweet citado.
+
+Sin embargo, si usa la [Search API](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api), estos operadores solo harán coincidencia con el contenido del Tweet citado y no con ningún contenido de la Publicación original citada.
+
+- `Keywords`
+- `Phrases`
+- `Proximity`
+- `#hashtags`
+- `@mentions`
+- `$cashtags`
+- `url:`
+- `url_contains:`
+- `has:links`
+- `has:mentions`
+- `has:hashtags`
+- `has:media`
+- `has:symbols`
+- `is:quote`
+- `is:reply`
+
+<div id="enterprise-operators">
+  ## Operadores para empresas
+</div>
+
+A continuación se muestran los operadores disponibles con PowerTrack y Historical PowerTrack. Un subconjunto de estos está disponible con las API de Búsqueda de 30 días y de Búsqueda de archivo completo. Consulte [esta tabla](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product) para ver una lista de operadores disponibles por producto. 
+
+| Operator                  | Descripción                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|:---------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| keyword                   | Coincide con una palabra clave en el cuerpo de texto o la URL de una Publicación. Las palabras clave deben comenzar con un dígito (0-9) o con cualquier carácter que no sea de puntuación.<br />La coincidencia de palabras clave está tokenizada, es decir, la palabra clave se compara con el texto tokenizado del cuerpo de la Publicación.<br />Para cadenas con puntuación (p. ej., "coca-cola"), use una "coincidencia de frase exacta" entre comillas.<br />_Ejemplo_: `(social OR pizza OR wildfire) -planet`                                                                                                                                                       |
+| emoji                     | Coincide con un emoji en el cuerpo de una Publicación, usando coincidencia tokenizada basada en puntuación, símbolos/emoji y caracteres separadores.<br />Si un emoji tiene una variante, use comillas para coincidencias exactas.<br />_Ejemplo_: `(🍕 OR 💜 OR 🐢) -🤖`                                                                                                                                                                                                                                                                                                                                                               |
+| "exact phrase match"      | Coincide con una frase exacta en el cuerpo de una Publicación. La puntuación se trata como espacio en blanco.<br />_Ejemplo_: `("social media" OR "developer.x.com" OR "wildfire911" OR "coca-cola") -"planet earth"`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| #                         | Coincide con cualquier Publicación con el hashtag especificado. Es una coincidencia exacta; por ejemplo, `#2016` coincidirá con publicaciones con `#2016` pero no con `#2016election`.<br />_Ejemplo_: `(#social OR #pizza OR #2016election) -#planet`                                                                                                                                                                                                                                                                                                                                                                                           |
+| @                         | Coincide con cualquier Publicación que mencione el nombre de usuario especificado.<br />_Ejemplo_: `(@XDevelopers OR @api OR @twittereng) -@jack`                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| "keyword1 keyword2"~N     | Operador de proximidad que coincide con una Publicación donde las palabras clave están a N tokens de distancia entre sí.<br />Las palabras clave en orden inverso no pueden estar separadas por más de N-2 tokens. N no puede ser mayor que 6.<br />_Ejemplo_: `"social media"~5 OR "API"~3`                                                                                                                                                                                                                                                                                                                                                               |
+| contains:                 | Coincidencia de subcadenas para Publicaciones con la subcadena especificada en el cuerpo, independientemente de la tokenización.<br />Use comillas dobles para subcadenas con espacios en blanco o puntuación.<br />_Ejemplo_: `(contains:social OR contains:"wikipedia.com") -contains:"buy now"`                                                                                                                                                                                                                                                                                                                                         |
+| from:                     | Coincide con cualquier Publicación de un usuario específico por ID numérico de cuenta de X o nombre de usuario (sin `@`).<br />_Ejemplo_: `(from:2244994945 OR from:api OR from:twittereng) -from:jack`                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| to:                       | Coincide con cualquier Publicación en respuesta a un usuario específico por ID numérico de cuenta de X o nombre de usuario (sin `@`).<br />_Ejemplo_: `(to:2244994945 OR to:api OR to:twittereng) -to:jack`                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| url:                      | Realiza una coincidencia tokenizada (palabra clave/frase) en las URL expandidas de una Publicación.<br />_Ejemplo_: `@XDevelopers url:"developer.x.com"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| url\_title:                | Realiza una coincidencia de palabra clave/frase en los metadatos del título HTML de la URL expandida.<br />_Disponible solo con PowerTrack y Historical PowerTrack._                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| url\_description:          | Realiza una coincidencia de palabra clave/frase en los metadatos de la descripción de la página expandida.<br />_Disponible solo con PowerTrack y Historical PowerTrack._                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| url\_contains:             | Coincide con Publicaciones con URL que contienen la frase o palabra clave especificada.<br />Use comillas para términos de búsqueda con puntuación.<br />_Ejemplo_: `(url_contains:"developer.x.com" OR url_contains:wildfire) -url_contains:reddit`                                                                                                                                                                                                                                                                                                                                                                         |
+| bio:                      | Coincide con una palabra clave o frase en la biografía del usuario de una Publicación. Es una coincidencia tokenizada dentro del campo "description" en el [Objeto de usuario](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object).<br />_Ejemplo_: `(bio:engineer OR bio:"wordpress.com" OR bio:🚀) -bio:troll`<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                            |
+| bio\_name:                 | Coincide con una palabra clave en el nombre del perfil del usuario de una Publicación. Es una coincidencia tokenizada dentro del campo "name" de un usuario en el [Objeto de usuario](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object).<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                                                                                                                                                       |
+| bio\_location:             | Coincide con publicaciones donde la ubicación del objeto de usuario contiene la palabra clave o frase especificada.<br />Este operador realiza una coincidencia tokenizada, similar a las reglas normales de palabras clave en el cuerpo del mensaje.<br />Esta ubicación forma parte del [objeto de usuario](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object) y corresponde a la ubicación principal de la cuenta.<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                |
+| statuses\_count:           | Coincide con publicaciones cuando el autor ha publicado una cantidad de estados dentro del rango indicado.<br />Si se especifica un único número, coincidirá cualquier valor igual o superior.<br />Se puede especificar un rango para que coincida cualquier número dentro de ese intervalo (p. ej., `statuses_count:1000..10000`).<br />_Ejemplo:_ `to:api statuses_count:10`<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                           |
+| followers\_count:          | Coincide con publicaciones cuando el autor tiene una cantidad de seguidores dentro del rango indicado.<br />Si se especifica un único número, coincidirá cualquier valor igual o superior.<br />Se puede especificar un rango para que coincida cualquier número dentro de ese intervalo (p. ej., `followers_count:1000..10000`).<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                                                                          |
+| friends\_count:            | Coincide con publicaciones cuando el autor tiene una cantidad de seguidos (el número de usuarios a los que sigue) dentro del rango indicado.<br />Si se especifica un único número, coincidirá cualquier valor igual o superior.<br />Se puede especificar un rango para que coincida cualquier número dentro de ese intervalo (p. ej., `friends_count:1000..10000`).<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                                              |
+| listed\_count:             | Coincide con publicaciones cuando el autor ha sido incluido en listas de X un cierto número de veces dentro del rango indicado.<br />Si se especifica un único número, coincidirá cualquier valor igual o superior.<br />Se puede especificar un rango para que coincida cualquier número dentro de ese intervalo (p. ej., `listed_count:10..100`).<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                                                    |
+| $                         | Coincide con cualquier publicación que contenga la entidad “cashtag” especificada.<br />_Ejemplo_: `($TWTR OR $TSLA OR $BRK.A) -$F`<br />_Nota:_ El operador de cashtag se basa en la extracción de la entidad “symbols” de X para identificar cashtags, en lugar de extraerlos del cuerpo del mensaje.                                                                                                                                                                                                                                                          |
+| retweets\_of:              | Coincide con publicaciones que son retuits de un usuario especificado.<br />Acepta tanto nombres de usuario como IDs numéricos de cuentas de X (NO IDs de estado de publicaciones).<br />_Ejemplo_: `(retweets_of:2244994945 OR retweets_of:api OR retweets_of:twittereng) -retweets_of:jack`                                                                                                                                                                                                                                                                                                               |
+| retweets\_of\_status\_id:    | Entrega solo retuits explícitos de la publicación especificada. Use el ID de una publicación original y no el de un retuit.<br />_Ejemplo_: `retweets_of_status_id:1293593516040269825`<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                                                                                                                                                                                                               |
+| in\_reply\_to\_status\_id:    | Entrega solo respuestas explícitas a la publicación especificada.<br />_Ejemplo_: `in_reply_to_status_id:1293593516040269825`<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                                                                                                                                                                                                                             |
+| sample:                   | Devuelve una muestra aleatoria de publicaciones que coinciden con una regla. El porcentaje de muestra debe ser un entero entre 1 y 100.<br />El operador reduce el alcance al X% y luego se aplica la regla/filtro a ese subconjunto muestreado.<br />_Ejemplo:_ `#happybirthday sample:5`<br />`"happy birthday"~5 sample:80`<br />_Nota:_ Disponible solo con PowerTrack y Historical PowerTrack.                                                                                                                            |
+| source:                   | Coincide con cualquier publicación generada por la aplicación de origen especificada. El valor puede ser el nombre de la aplicación o su URL.<br />_Ejemplo:_ `#happybirthday source:"X for iPhone"`<br />`"This is a test X from my TestingApp" source:MyTestAppName`<br />_Nota:_ El operador source busca en el atributo de origen de la publicación y no puede usarse por sí solo.                                                                                                                 |
+| lang:                     | Coincide con publicaciones que X clasifica como de un idioma en particular. Actualmente las publicaciones se clasifican en un solo idioma, por lo que intentar coincidir varios idiomas no arrojará resultados. _No se recomienda usarlo por sí solo._                                                                                                                                                                                                                                                                                                                                                     |
+
+La lista a continuación muestra los idiomas actualmente compatibles y su identificador de idioma BCP 47 correspondiente:
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Amhárico: am | Alemán: de | Malabar: ml | Eslovaco: sk |
+| Árabe: ar | Griego: el | Maldivo: dv | Esloveno: sl |
+| Armenio: hy | Guyaratí: gu | Maratí: mr | Kurdo soraní: ckb |
+| Vasco: eu | Criollo haitiano: ht | Nepalí: ne | Español: es |
+| Bengalí: bn | Hebreo: iw | Noruego: no | Sueco: sv |
+| Bosnio: bs | Hindi: hi | Oriya: or | Tagalo: tl |
+| Búlgaro: bg | Hindi latinizado: hi-Latn | Panyabí: pa | Tamil: ta |
+| Birmano: my | Húngaro: hu | Pastún: ps | Telugu: te |
+| Croata: hr | Islandés: is | Persa: fa | Tailandés: th |
+| Catalán: ca | Indonesio: in | Polaco: pl | Tibetano: bo |
+| Checo: cs | Italiano: it | Portugués: pt | Chino tradicional: zh-TW |
+| Danés: da | Japonés: ja | Rumano: ro | Turco: tr |
+| Neerlandés: nl | Kannada: kn | Ruso: ru | Ucraniano: uk |
+| Inglés: en | Jemer: km | Serbio: sr | Urdu: ur |
+| Estonio: et | Coreano: ko | Chino simplificado: zh-CN | Uigur: ug |
+| Finés: fi | Lao: lo | Sindhi: sd | Vietnamita: vi |
+| Francés: fr | Letón: lv | Cingalés: si | Galés: cy |
+| Georgiano: ka | Lituano: lt |     |
+
+Ejemplo:
+
+(@XDevelopers OR to:XDevelopers) lang:es
+
+Nota: El operador de idioma coincide con el idioma específico de la publicación determinado por X y establecido como el atributo lang de la publicación. Consulte [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) para obtener más información sobre los atributos JSON de X Entities. Si no se puede clasificar el idioma de una publicación, el valor de lang se establecerá como ‘und’ (indefinido).
+
+| Operador                 | Descripción                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|:--------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| place                    | Coincide con publicaciones etiquetadas con la ubicación especificada o con el ID de lugar de X.<br />Los nombres de lugares con varias palabras deben ir entre comillas.<br />_Ejemplo:_ `(place:London OR place:"Great Britain") -place:USA`<br />`place:fd70c22040963ac7`<br />**Nota:** Consulte el endpoint público [GET geo/search](https://developer.x.com/en/docs/x-api/v1/geo/places-near-location/api-reference/get-geo-search) para saber cómo obtener IDs de lugares de X.<br />**Nota:** No coincide con retuits ni publicaciones citadas, ya que los lugares de los retuits están asociados a la publicación original. |
+| place\_country            | Coincide con publicaciones donde el código de país asociado a un lugar/ubicación etiquetado coincide con el código ISO alfa-2 indicado.<br />_Ejemplo:_ `place_country:GB OR place_country:AU OR place_country:CA`<br />**Nota:** No coincide con retuits ni publicaciones citadas, ya que los lugares de los retuits están asociados a la publicación original.<br />Códigos ISO válidos: [ISO 3166-1 alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).                                                                                                                                      |
+| point\_radius:\[lon lat radius] | Coincide con la ubicación exacta (x,y) de la publicación o con un polígono geográfico “Place” dentro del radio definido.<br />\* Radio: \< 25mi<br />\* Unidades admitidas: mi, km<br />\* Longitud: ±180<br />\* Latitud: ±90<br />Las coordenadas están en grados decimales.<br />Los argumentos van entre corchetes, separados por espacios.<br />_Ejemplo:_ `point_radius:[-105.27346517 40.01924738 0.5mi]`<br />_Ejemplo:_ `point_radius:[2.355128 48.861118 16km]`<br />**Nota:** No coincide con retuits ni publicaciones citadas.                             |
+| bounding\_box:\[west\_long south\_lat east\_long north\_lat] | Coincide con la ubicación exacta o un polígono geográfico “Place” completamente contenido en un cuadro delimitador.<br />Los argumentos van entre corchetes, separados por espacios.<br />Coordenadas: grados decimales (long ±180, lat ±90).<br />El ancho y la altura deben ser \< 25mi.<br />_Ejemplo:_ `bounding_box:[-105.301758 39.964069 -105.178505 40.09455]`<br />**Nota:** No coincide con retuits ni publicaciones citadas.                                                                                                                                                    |
+| profile\_country          | Coincide con publicaciones donde el código de país de la geolocalización del perfil del autor coincide con un código de dos letras ISO 3166-1 alfa-2.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| profile\_region           | Coincide con el campo “region” del enriquecimiento de geolocalización del perfil del autor; se requiere coincidencia exacta de la cadena completa.<br />Use comillas dobles para subcadenas con espacios o signos de puntuación.<br />_Ejemplo:_ `profile_region:"New York"`                                                                                                                                                                                                                                                                                |
+| profile\_locality         | Coincide con el campo “locality” del enriquecimiento de geolocalización del perfil del autor; se requiere coincidencia exacta de la cadena completa.<br />Use comillas dobles para subcadenas con espacios o signos de puntuación.<br />_Ejemplo:_ `profile_locality:"San Francisco"`                                                                                                                                                                                                                                                                             |
+| profile\_subregion        | Coincide con el campo “subRegion” del enriquecimiento de geolocalización del perfil del autor, incluidas comarcas o áreas metropolitanas específicas.<br />Se requiere coincidencia exacta de la cadena completa.<br />_Ejemplo:_ `profile_subregion:"Santa Clara County"`                                                                                                                                                                                                                                                                                               |
+| has:geo                  | Coincide con publicaciones con datos de geolocalización específicos de la publicación de X, incluidos datos “geo” de latitud-longitud o datos de ubicación “Place” con un nombre visible y polígono geográfico.<br />**Nota:** Con la API de búsqueda, debe combinarse con operadores distintos de `is:` o `has:`.                                                                                                                                                                                                                                                                           |
+| has:profile\_geo          | Coincide con publicaciones con cualquier metadato de geolocalización de perfil, independientemente del valor.<br />Alias disponible: `has:derived_user_geo`.<br />**Nota:** Con la API de búsqueda, debe combinarse con operadores distintos de `is:` o `has:`.                                                                                                                                                                                                                                                                                                            |
+| has:links                | Coincide con publicaciones que incluyen un enlace o medios referenciados en el objeto "text" del payload, incluidos los medios y las publicaciones citadas.<br />**Nota:** Con la API de búsqueda, debe combinarse con operadores distintos de `is:` o `has:`.                                                                                                                                                                                                                                                                                                      |
+| is:retweet               | Devuelve solo retuits explícitos. Puede negarse para excluir retuits y devolver solo contenido original.<br />Este operador busca únicamente retuits verdaderos y no publicaciones citadas.<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+| is:reply                 | Devuelve solo respuestas explícitas. Puede negarse para excluir respuestas.<br />PowerTrack coincide con respuestas a publicaciones originales, respuestas en publicaciones citadas y respuestas en retuits.<br />La Search API coincide solo con respuestas a publicaciones originales.<br />_Ejemplo:_ `@XDevelopers -is:reply`
+| is:quote                 | Devuelve solo Tweets citados o publicaciones que hacen referencia a otra publicación.<br />Puede negarse para excluir Tweets citados.<br />_Ejemplo:_ `@XDevelopers is:quote`
+| is:verified              | Devuelve solo publicaciones de autores “verificados”. Puede negarse para excluir publicaciones de autores verificados.<br />_Ejemplo:_ `@XDevelopers is:verified`
+| has:mentions             | Coincide con publicaciones que mencionan a otro usuario de X.<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+| has:hashtags             | Coincide con publicaciones que contienen un hashtag.<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+| has:media                | Coincide con publicaciones que contienen una URL de medios clasificada por X (p. ej., pic.x.com).<br />Alias disponible: `has:media_link`.<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+| has:images               | Coincide con publicaciones que contienen una URL de medios (p. ej., pic.x.com).<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+| has:videos               | Coincide con publicaciones que contienen videos nativos de X subidos a X.<br />Alias disponible: `has:video_link`.<br />Este operador no coincide con videos de YouTube, Periscope u otros sitios de hospedaje de video.<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+| has:symbols              | Coincide con publicaciones que contienen un símbolo de cashtag (p. ej., $TWTR).<br />**Nota:** Con la Search API, debe combinarse con operadores distintos de `is:` o `has:`.
+
+<div id="operators-by-product">
+  ## Operadores por producto
+</div>
+
+<div id="rules-and-filtering-enterprise">
+  ### Reglas y filtrado: Enterprise
+</div>
+
+Todos los operadores de Enterprise están disponibles con las API PowerTrack e Historical PowerTrack. Sin embargo, solo un subconjunto de operadores está disponible para las API de búsqueda de Enterprise, como se indica en esta página.
+
+Las etiquetas azul oscuro indican qué operadores están disponibles para distintos productos de Enterprise:
+
+PowerTrack Search
+
+| Operador | Producto | Descripción | Coincide con el elemento del payload |
+| :--- | :--- | :--- | :--- |
+| "coincidencia de frase exacta" | PowerTrack<br /><br />Búsqueda | Coincide con una frase exacta dentro del cuerpo de una publicación.<br /><br />Los componentes que puedan convertirse en operadores de búsqueda se tratarán como palabras. En otras palabras:<br /><br />\* `"#hashtag"` coincidirá con `hashtag` pero no con `#hashtag` (use el [operador de hashtag](#hashtag-operator) sin comillas para coincidir con hashtags reales) <br />\* `"$TWTR"` coincidirá con la palabra `TWTR` pero no con el cashtag `$TWTR` (use el [operador de cashtag](#cashtag-operator) sin comillas para coincidir con cashtags reales)<br /><br />**Nota:** en Búsqueda de 30 días y Búsqueda de archivo completo (Enterprise y Premium), la puntuación no se tokeniza y se trata como espacio en blanco. | `text` |
+| @   | PowerTrack<br /><br />Búsqueda | Coincide con cualquier publicación que mencione el nombre de usuario indicado. El valor puede ser el nombre de usuario (excluyendo el carácter `@`) o el ID numérico del usuario (obtenido, por ejemplo, mediante el endpoint [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup)). | `entities.user_mentions` |
+| #   | PowerTrack<br /><br />Búsqueda | Coincide con cualquier publicación que tenga el hashtag indicado.<br /><br />Este operador realiza una coincidencia exacta. Por ejemplo, la regla `#1989` coincidirá con publicaciones que contengan el hashtag exacto `#1989`, pero no con aquellas con el hashtag `#TaylorSwift1989`.<br /><br />**Nota:** este operador se basa en la extracción de entidades de X para hacer coincidir hashtags, en lugar de extraer el hashtag del cuerpo en sí. Para más detalles sobre los atributos JSON de entidades, consulte [Entidades de X](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary). | `entities.hashtags` |
+| $   | PowerTrack<br /><br />Búsqueda | Coincide con cualquier publicación que contenga el cashtag especificado (donde el primer carácter del token es `$`).<br /><br />**Nota:** este operador se basa en la extracción de entidades de X para hacer coincidir cashtags, en lugar de extraerlos del cuerpo en sí. Para más detalles sobre los atributos JSON de entidades, consulte [Entidades de X](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary). | `entities.symbols` |
+| bio: | PowerTrack | _Alias disponible_: user\_bio:<br /><br />Coincide con una palabra clave (usando coincidencia tokenizada) o una frase dentro de la biografía del usuario de una publicación. Use comillas dobles para hacer coincidir una frase. En otras palabras:<br /><br />\* `bio:software engineer` coincidirá con publicaciones con la palabra clave `engineer` de usuarios que tengan la palabra `software` en su biografía<br />\* `bio:"software engineer"` coincidirá con cualquier publicación de usuarios que tengan la frase `software engineer` en su biografía | `user.description` |
+| bio\_location: | PowerTrack | _Alias disponible_: user\_bio\_location:<br /><br />Coincide con publicaciones donde la ubicación del [objeto de usuario](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object) contiene la palabra clave especificada (usando coincidencia tokenizada) o la frase.<br /><br />Esta ubicación es una cadena no normalizada, generada por el usuario y de formato libre, y es diferente de la ubicación de una publicación (cuando esté disponible). | `user.location` |
+| bio\_name: | PowerTrack | Coincide con publicaciones donde el nombre del [objeto de usuario](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object) contiene la palabra clave especificada (usando coincidencia tokenizada) o la frase. | `user.name` |
+| bounding\_box: | PowerTrack<br /><br />Search | _Alias disponible_: geo\_bounding\_box:<br /><br />Coincide con la ubicación exacta (long, lat) de la publicación (cuando esté presente) y con un polígono geográfico (cuando el Place esté completamente contenido dentro de la región definida).<br /><br />\* west\_long y south\_lat representan la esquina suroeste del cuadro delimitador, donde west\_long es la longitud de ese punto y south\_lat es la latitud.<br />\* east\_long y north\_lat representan la esquina noreste del cuadro delimitador, donde east\_long es la longitud de ese punto y north\_lat es la latitud.<br />\* El ancho y la altura del cuadro delimitador deben ser menores que 25 mi<br />\* La longitud está en el rango de ±180<br />\* La latitud está en el rango de ±90<br />\* Todas las coordenadas están en grados decimales.<br />\* Los argumentos de la regla se incluyen entre corchetes, separados por espacios.<br /><br />**Nota:** los operadores que coinciden con place (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retweets no contienen datos de place. | `place` (solo publicaciones originales) |
+| contains: | PowerTrack | Coincidencia de subcadena para publicaciones que tienen la subcadena indicada en el cuerpo, independientemente de la tokenización. En otras palabras, realiza una coincidencia de subcadena pura y no considera los límites de palabra.<br /><br />Use comillas dobles para hacer coincidir subcadenas que contengan espacios en blanco o puntuación. | `text` |
+| \<emoji> | PowerTrack<br /><br />Search | Coincide con un emoji dentro del cuerpo de una publicación.<br /><br />Esta es una coincidencia tokenizada, por lo que su emoji se comparará con el texto tokenizado del cuerpo de la publicación. La tokenización se basa en caracteres del plano básico Unicode de puntuación, símbolos/emoji y separadores. Por ejemplo, una publicación con el texto “I like 🍕” se dividiría en los siguientes tokens: I, like, 🍕. Estos tokens se compararían con el emoji usado en su regla.<br /><br />**Nota:** si un emoji tiene una variante, debe usar comillas dobles para agregarlo a una regla. | `text` |
+| followers\_count: | PowerTrack | Coincide con publicaciones cuando el autor tiene una cantidad de seguidores dentro del rango dado.<br /><br />\* Un solo número (p. ej., `followers_count:42`) coincidirá con cualquier número igual o mayor que el valor especificado.<br />\* Un rango (p. ej., `followers_count:42..1337`) coincidirá con cualquier número dentro del rango dado. | `user.followers_count` |
+| friends\_count: | PowerTrack | _Alias disponible_: following\_count:<br /><br />Coincide con publicaciones cuando el autor tiene una cantidad de amigos (la cantidad de usuarios a los que sigue) que cae dentro del rango dado.<br /><br />\* Un solo número (p. ej., `followers_count:42`) coincidirá con cualquier número igual o mayor que el valor especificado.<br />\* Un rango (p. ej., `followers_count:42..1337`) coincidirá con cualquier número dentro del rango dado. | `user.friends_count` |
+| from: | PowerTrack<br /><br />Search | Coincide con cualquier publicación de un usuario específico. El valor puede ser el nombre de usuario (excluyendo el carácter `@`) o el ID numérico del usuario (obtenido, por ejemplo, mediante el endpoint [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup)). | `user.id`, `user.id_str` (si usa ID de usuario)<br /><br />`user.screen_name` (si usa nombre de usuario) |
+| has:geo | PowerTrack<br /><br />Search | Coincide con publicaciones que tienen datos de geolocalización específicos de la publicación proporcionados por X. Esto puede ser una coordenada “geo” lat-long o una “ubicación” en forma de un [Place](https://dev.x.com/overview/api/places) de X, con el nombre para mostrar correspondiente, polígono geográfico y otros campos.<br /><br />No puede usarse como operador independiente.<br /><br />**Nota:** los operadores que coinciden con place (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retweets no contienen datos de place. | `place` (solo publicaciones originales) |
+| has:hashtags | PowerTrack<br /><br />Search | Coincide con publicaciones que contienen al menos un hashtag.<br /><br />No puede usarse como operador independiente. | `entities.hashtags` |
+| has:images | PowerTrack<br /><br />Search | Coincide con publicaciones que contienen al menos una URL de imagen clasificada.<br /><br />No puede usarse como operador independiente. | `entities.media` |
+| has:lang | PowerTrack | Coincide con publicaciones que X ha clasificado como de un idioma en particular.<br /><br />Si una publicación no ha sido clasificada, el operador no coincidirá. Actualmente, cada publicación solo se clasifica en un idioma, por lo que combinar varios idiomas con AND no arrojará resultados.<br /><br />No se puede usar como operador independiente. | `lang` cuando el valor no es `und` |
+| has:links | PowerTrack<br /><br />Search | Este operador coincide con publicaciones que contienen enlaces en el cuerpo de la publicación.<br /><br />No se puede usar como operador independiente.<br /><br />**Nota:** este operador depende de la extracción de entidades de X para detectar enlaces, en lugar de extraer el enlace del propio cuerpo. Para más detalles sobre los atributos JSON de las entidades, consulta [X Entities](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary). | `entities.urls` |
+| has:media | PowerTrack<br /><br />Search | _Alias disponible_: has:media\_link<br /><br />Coincide con publicaciones que contienen al menos una URL de medios clasificada.<br /><br />No se puede usar como operador independiente. | `entities.media` |
+| has:mentions | PowerTrack<br /><br />Search | Coincide con publicaciones que mencionan a otro usuario de X.<br /><br />No se puede usar como operador independiente. | `entities.user_mentions` |
+| has:profile\_geo | PowerTrack<br /><br />Search | _Alias disponible_: has:derived\_user\_geo<br /><br />Coincide con publicaciones que tienen cualquier metadato de [Profile Geo](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#profile-geo), independientemente del valor real.<br /><br />No se puede usar como operador independiente. | `user.location` |
+| has:symbols | PowerTrack<br /><br />Enterprise | Coincide con publicaciones que contienen un cashtag (p. ej., `$TWTR`).<br /><br />No se puede usar como operador independiente. | `entities.symbols` |
+| has:videos | PowerTrack<br /><br />Search | _Alias disponible_: has:video\_link<br /><br />Coincide con publicaciones que contienen al menos una URL de medios clasificada.<br /><br />No se puede usar como operador independiente. | `entities.media` |
+| in\_reply\_to\_status\_id: | PowerTrack | _Alias disponible_: in\_reply\_to\_tweet\_id:<br /><br />Entrega solo respuestas explícitas a la publicación especificada. | `id`, `id_str` de la publicación de destino |
+| is:quote | PowerTrack | Entrega Tweets citados explícitos que cumplan una regla.<br /><br />También se puede negar (`-is:quote`) para excluir de la entrega los Tweets citados que cumplan una regla.<br /><br />No se puede usar como operador independiente. | `is_quote_status` (si `true`) |
+| is:reply | PowerTrack<br /><br />Search | Entrega solo respuestas que cumplan una regla.<br /><br />También se puede negar (`-is:reply`) para excluir la entrega de respuestas que cumplan la regla especificada.<br /><br />Con PowerTrack, este operador coincide con:<br /><br />\* Respuestas a una publicación original<br />\* Respuestas en publicaciones citadas<br />\* Respuestas en retuits<br /><br />  <br />Cuando se utiliza con la API de búsqueda, este operador coincide con respuestas a una publicación original, pero excluye respuestas en Tweets citados y respuestas en retuits.<br /><br />Puedes usar este operador junto con `is:retweet` e `is:quote` para entregar solo respuestas a publicaciones originales.<br /><br />No se puede usar como operador independiente con la API de búsqueda.<br /><br />**Nota**: con Premium, este operador no está disponible en entornos de desarrollo Sandbox. | Elementos de respuesta, p. ej., `in_reply_to_status_id` |
+| is:retweet | PowerTrack<br /><br />Search | Entrega solo retuits explícitos que cumplan una regla.<br /><br />También se puede negar (`-is:retweet`) para excluir de la entrega los retuits que cumplan una regla y entregar solo contenido original.<br /><br />Este operador busca solo retuits verdaderos (es decir, retuits publicados usando el botón de Retuit). Los Tweets citados y las publicaciones modificadas que no usan la funcionalidad de Retuit de X no coincidirán con este operador.<br /><br />No se puede usar como operador independiente. | Elementos de retuit, p. ej., `retweeted_status` |
+| is:verified | PowerTrack<br /><br />Search | Entrega solo publicaciones cuyo autor esté verificado por X.<br /><br />También se puede negar para excluir publicaciones cuyo autor esté verificado.<br /><br />No se puede usar como operador independiente. | `user.verified` |
+| keyword | PowerTrack<br /><br />Search | Coincide con una palabra clave dentro del cuerpo de una publicación.<br /><br />Se trata de una coincidencia tokenizada, lo que significa que tu cadena de palabra clave se comparará con el texto tokenizado del cuerpo de la publicación. La tokenización se basa en caracteres de puntuación, símbolos/emoji y separadores del plano básico de Unicode. Por ejemplo, una publicación con el texto “I like coca-cola” se dividiría en los siguientes tokens: `I`, `like`, `coca`, `cola`. Estos tokens se compararían con la cadena de palabra clave utilizada en tu regla. Para hacer coincidir cadenas que contengan puntuación (p. ej., coca-cola), símbolos o caracteres separadores, debes usar un operador de [coincidencia exacta de frase](#exact-match). | `text` |
+| lang: | PowerTrack<br /><br />Search | Coincide con publicaciones que X haya clasificado como de un idioma en particular (solo si la publicación ha sido clasificada). Cada publicación se clasificará con un único idioma, por lo que usar AND con varios idiomas no arrojará resultados.<br /><br />**Nota:** si no se puede realizar una clasificación de idioma, el resultado es `und` (indefinido).<br /><br />Este operador solo coincidirá con idiomas compatibles. Proporcionar cualquier otro valor (incluido `und`) hará que se ignore el operador (es decir, no se filtrarán las publicaciones por este operador). La siguiente lista representa los idiomas actualmente compatibles y su identificador de idioma BCP 47 correspondiente:<br /><br />`am` Amhárico<br /><br />`hu` Húngaro<br /><br />`pt` Portugués<br /><br />`ar` Árabe<br /><br />`is` Islandés<br /><br />`ro` Rumano<br /><br />`hy` Armenio<br /><br />`in` Indonesio<br /><br />`ru` Ruso<br /><br />`bn` Bengalí<br /><br />`it` Italiano<br /><br />`sr` Serbio<br /><br />`bg` Búlgaro<br /><br />`ja` Japonés<br /><br />`sd` Sindhi<br /><br />`my` Birmano<br /><br />`kn` Canarés<br /><br />`si` Cingalés<br /><br />`zh` Chino<br /><br />`km` Jemer<br /><br />`sk` Eslovaco<br /><br />`cs` Checo<br /><br />`ko` Coreano<br /><br />`sl` Esloveno<br /><br />`da` Danés<br /><br />`lo` Lao<br /><br />`ckb` Kurdo soraní<br /><br />`nl` Neerlandés<br /><br />`lv` Letón<br /><br />`es` Español<br /><br />`en` Inglés<br /><br />`lt` Lituano<br /><br />`sv` Sueco<br /><br />`et` Estonio<br /><br />`ml` Malayalam<br /><br />`tl` Tagalo<br /><br />`fi` Finés<br /><br />`dv` Maldivo<br /><br />`ta` Tamil<br /><br />`fr` Francés<br /><br />`mr` Maratí<br /><br />`te` Telugu<br /><br />`ka` Georgiano<br /><br />`ne` Nepalí<br /><br />`th` Tailandés<br /><br />`de` Alemán<br /><br />`no` Noruego<br /><br />`bo` Tibetano<br /><br />`el` Griego<br /><br />`or` Oriya<br /><br />`tr` Turco<br /><br />`gu` Guyaratí<br /><br />`pa` Panyabí<br /><br />`uk` Ucraniano<br /><br />`ht` Haitiano<br /><br />`ps` Pastún<br /><br />`ur` Urdu<br /><br />`iw` Hebreo<br /><br />`fa` Persa<br /><br />`ug` Uigur<br /><br />`hi` Hindi<br /><br />`pl` Polaco<br /><br />`vi` Vietnamita<br /><br />`cy` Galés | `lang` cuando el valor no es `und` |
+| listed\_count: | PowerTrack | _Alias disponible_: user\_in\_lists\_count:<br /><br />Coincide con publicaciones cuando la cantidad de veces que el autor ha sido incluido en listas en X cae dentro del rango indicado.<br /><br />\* Un solo número (p. ej., `listed_count:42`) coincidirá con cualquier número igual o mayor que el valor especificado.<br />\* Un rango (p. ej., `listed_count:42..1337`) coincidirá con cualquier número dentro del rango indicado. | `user.listed_count` |
+| place\_country: | PowerTrack<br /><br />Search | Coincide con publicaciones donde el código de país asociado con un [lugar/ubicación](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-geo-objects) etiquetado coincide con el [código ISO alfabético de 2 caracteres](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2) proporcionado.<br /><br />**Nota:** los operadores que coinciden por lugar (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retuits no contienen datos de lugar. | `place` (original Posts only) |
+| place: | PowerTrack<br /><br />Search | Coincide con publicaciones etiquetadas con la ubicación especificada o con el [ID de lugar de X](https://developer.x.com/en/docs/x-api/v1/geo/places-near-location/api-reference/get-geo-search). Los nombres de lugares con varias palabras deben ir entre comillas (p. ej., `place:"San Francisco"`).<br /><br />**Nota:** los operadores que coinciden por lugar (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retuits no contienen datos de lugar. | `place` (original Posts only) |
+| point\_radius: | PowerTrack<br /><br />Search | **Nota:** los operadores que coinciden por lugar (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retuits no contienen datos de lugar. | `place` (original posts only) |
+| profile\_bounding\_box:\[west\_long south\_lat east\_long north\_lat] | PowerTrack | Coincide con la ubicación exacta del usuario (long, lat) en el [enriquecimiento de Perfil Geo](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) donde el lugar está completamente contenido dentro de la región definida.<br /><br />\* west\_long y south\_lat representan la esquina suroeste del cuadro delimitador, donde west\_long es la longitud de ese punto y south\_lat es la latitud.<br />\* east\_long y north\_lat representan la esquina noreste del cuadro delimitador, donde east\_long es la longitud de ese punto y north\_lat es la latitud.<br />\* El ancho y la altura del cuadro delimitador deben ser menores de 25 mi<br />\* La longitud está en el rango de ±180<br />\* La latitud está en el rango de ±90<br />\* Todas las coordenadas están en grados decimales.<br />\* Los argumentos de la regla se incluyen entre corchetes y se separan por espacios.<br /><br />**Nota:** los operadores que coinciden por lugar (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retuits no contienen datos de lugar. | `user.derived.locations.geo.coordinates` |
+| profile\_country: | PowerTrack<br /><br />Search | Coincidencia exacta con el código de país del [enriquecimiento de Perfil Geo](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments).<br /><br />Usa un conjunto normalizado de códigos de país de dos letras, basado en la [especificación ISO-3166-1-alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2).<br /><br />Para ser concisos, este operador se proporciona en lugar de un operador para el campo de país del objeto de dirección.<br /><br />**Nota:** los operadores que coinciden por lugar (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retuits no contienen datos de lugar. | `user.derived.locations.country_code` |
+| profile\_locality: | PowerTrack<br /><br />Search | Coincidencia exacta con el campo Localidad del [enriquecimiento de Perfil Geo](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments).<br /><br />Se trata de una coincidencia exacta de cadena completa.<br /><br />No es necesario escapar caracteres con una barra invertida. Por ejemplo, si se busca algo con una barra, use `one/two`.<br /><br />Use comillas dobles para hacer coincidir subcadenas que contengan espacios o signos de puntuación, p. ej., `profile_locality:"Lower East Side"`. | `user.derived.locations.locality` |
+| profile\_point\_radius:\[lon lat radius] | PowerTrack | Coincide con la ubicación exacta (x,y) del [enriquecimiento de perfil geográfico](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) del usuario.<br /><br />\* Las unidades de radio admitidas son millas (mi) y kilómetros (km).<br />\* El radio debe ser menor que 25 mi.<br />\* La longitud está en el rango de ±180.<br />\* La latitud está en el rango de ±90.<br />\* Todas las coordenadas están en grados decimales.<br />\* Los argumentos de la regla van entre corchetes y se separan por espacios.<br /><br />**Nota:** los operadores que coinciden en place (geo de la publicación) solo incluirán coincidencias de publicaciones originales. Los retuits no contienen datos de place. | `user.derived.locations.geo` |
+| profile\_region: | PowerTrack<br /><br />Search | Coincidencia exacta con el campo Región del [enriquecimiento de perfil geográfico](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments).<br /><br />Es una coincidencia exacta de la cadena completa.<br /><br />No es necesario escapar caracteres con una barra invertida. Por ejemplo, si coincide con algo que incluye una barra, use `one/two`.<br /><br />Use comillas dobles para coincidir con subcadenas que contengan espacios en blanco o signos de puntuación, p. ej., `profile_locality:"New York"`. | `user.derived.locations.region` |
+| profile\_subregion: | PowerTrack | Coincidencia exacta con el campo Subregión del [enriquecimiento de perfil geográfico](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments).<br /><br />Es una coincidencia exacta de la cadena completa.<br /><br />No es necesario escapar caracteres con una barra invertida. Por ejemplo, si coincide con algo que incluye una barra, use `one/two`.<br /><br />Use comillas dobles para coincidir con subcadenas que contengan espacios en blanco o signos de puntuación, p. ej., `profile_locality:"Kings County"`. | `user.derived.locations.sub_region` |
+| "keyword1 keyword2"~N | PowerTrack<br /><br />Search | Comúnmente denominado operador de proximidad, coincide con una publicación donde las palabras clave estén a no más de N tokens entre sí.<br /><br />Si las palabras clave están en el orden inverso, no pueden estar a más de N-2 tokens entre sí.<br /><br />Puede incluir cualquier número de palabras clave entre comillas.<br /><br />N no puede ser mayor que 6. | `text` |
+| retweets\_of\_status\_id: | PowerTrack | _Alias disponible_: retweets\_of\_tweet\_id:<br /><br />Entrega solo retuits explícitos de la publicación original especificada. | `retweeted_status.id`, `retweeted_status.id_str` |
+| retweets\_of: | PowerTrack<br /><br />Search | _Alias disponible_: retweets\_of\_user:<br /><br />Coincide con cualquier publicación que sea un retuit del usuario indicado. El valor puede ser el nombre de usuario (sin el carácter `@`) o el ID numérico del usuario (obtenido, por ejemplo, mediante el endpoint [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup)). | `retweeted_status.id` (si está presente) |
+| sample: | PowerTrack | Devuelve un porcentaje aleatorio de publicaciones que coinciden con una regla en lugar del conjunto completo de publicaciones. El valor del porcentaje debe ser un entero entre 1 y 100.<br /><br />Este operador se aplica a toda la regla y requiere que todos los términos con OR estén agrupados.<br /><br />**Nota:** el operador sample primero reduce el alcance del firehose a X% y luego se aplica la regla/filtro a ese subconjunto muestreado. Si usa, por ejemplo, `sample:10`, cada publicación tiene un 10% de probabilidad de estar en la muestra. <br /><br />**Nota:** el muestreo es determinista y obtendrá la misma muestra de datos en tiempo real que si extrajera los datos de forma histórica. |     |
+| source: | PowerTrack | Coincide con cualquier publicación generada por la aplicación de origen indicada. El valor debe ser el nombre de la aplicación o la URL de la aplicación.<br /><br />No se puede usar como operador independiente. | `source` |
+| statuses\_count: | PowerTrack | _Alias disponible_: tweets\_count:<br /><br />Coincide con publicaciones cuando el autor ha realizado un número de publicaciones que se encuentre dentro del rango indicado.<br /><br />\* Un único número (p. ej., `statuses_count:42`) coincidirá con cualquier número igual o mayor que el valor especificado.<br />\* Un rango (p. ej., `statuses_count:42..1337`) coincidirá con cualquier número dentro del rango indicado. | `user``.statuses_count` |
+| to: | PowerTrack<br /><br />Search | Coincide con cualquier publicación que sea respuesta a un usuario en particular. El valor puede ser el nombre de usuario (sin el carácter `@`) o el ID numérico del usuario (obtenido, por ejemplo, mediante el endpoint [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup)). | `text` |
+| url: | PowerTrack<br /><br />Search | Realiza una coincidencia tokenizada en las URL expandidas de una publicación. Los tokens y las frases que contengan signos de puntuación o caracteres especiales deben ir entre comillas dobles (p. ej., `url:"/developer"`).<br /><br />Aunque en general no se recomienda, el operador también puede coincidir con un protocolo específico, entre comillas dobles (p. ej., `url:"https://developer.x.com"`). | `entities.urls.expanded_url` |
+| url\_contains: | PowerTrack | Realiza una coincidencia por palabra clave o frase en el (nuevo) [enriquecimiento de metadatos del título de la URL expandida](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments). | `entities.urls.expanded_url` |
+| url\_description: | PowerTrack | _Alias disponible_: within\_url\_description:<br /><br />Realiza una coincidencia por palabra clave o frase en el (nuevo) [enriquecimiento de metadatos de la descripción de la página expandida](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments). | `entities.urls.unwound.description` |
+| url\_title: | PowerTrack | _Alias disponible_: within\_url\_title:<br /><br />Realiza una coincidencia por palabra clave o frase en el (nuevo) [enriquecimiento de metadatos del título de la URL expandida](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments). | `entities.urls.title` |

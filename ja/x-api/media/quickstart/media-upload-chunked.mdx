@@ -1,0 +1,231 @@
+---
+title: クイックスタート
+sidebarTitle: クイックスタート
+---
+
+このガイドでは、X API v2 のメディアアップロードエンドポイントを使って、メディアを最初にアップロードするリクエストの送り方を説明します。
+
+本ガイドでは、分割アップロード用の `POST /2/media/upload` エンドポイントを使って動画をアップロードします。これは、単一画像のアップロードとは異なるワークフローが必要です。
+
+動画や分割アップロードを行う場合は、次の手順が必要です。
+
+1. `INIT` コマンドでアップロードを初期化する
+2. `APPEND` コマンドで各チャンクのバイト列をアップロードする
+3. `FINALIZE` コマンドでアップロードを完了する
+
+<Note>
+  **注:** Python で書かれた例は[こちらのサンプルコード](https://github.com/xdevplatform/large-video-upload-python)を参照してください。
+</Note>
+
+<div id="authentication">
+  ## 認証
+</div>
+
+このガイドのサンプルを実行するには、[OAuth 2](/ja/resources/fundamentals/authentication/oauth-2-0/overview) 認証が必要です。
+
+`CONSUMER_KEY`、`CONSUMER_SECRET`、`ACCESS_KEY`、`ACCESS_TOKEN` は、[Developer Portal のダッシュボード](https://developer.x.com/en/portal/projects-and-apps)で、プロジェクト内のアプリから確認できます。
+
+<div id="step-1-post-mediaupload-init">
+  ## ステップ 1 : POST media/upload (INIT)
+</div>
+
+`INIT` コマンドリクエストは、ファイルアップロードセッションを開始するために使用します。`media_id` が返され、以降のすべてのリクエストで使用します。`INIT` コマンドが成功した後の次のステップは `APPEND` コマンドです。
+
+メディアファイルに関する制約と要件は [ベストプラクティス](/ja/x-api/media/quickstart/best-practices) を参照してください。
+
+**リクエスト例**
+
+```bash
+curl --location 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=INIT' \
+    --form 'media_type=video/mp4' \
+    --form 'total_bytes=1024' \
+    --form 'media_category=amplify_video'
+```
+
+<Note>
+  **Note:** 生の HTTP リクエストを行う場合、リクエストは `multipart/form-data` または `application/x-www-form-urlencoded` の POST 形式である必要があります。
+</Note>
+
+**レスポンス例**
+
+```json
+{
+    "data":
+    {
+        "id":"1880028106020515840",
+        "media_key":"13_1880028106020515840",
+        "expires_after_secs":1295999
+    }
+}
+```
+
+レスポンスにはメディア識別子 `id`（文字列）と `media_key`（文字列）が含まれます。`expires_after_secs` 秒以内にファイル全体をアップロードする必要があります。
+
+<div id="step-2-post-mediaupload-append">
+  ## ステップ 2 : POST media/upload (APPEND)
+</div>
+
+`APPEND` コマンドは、メディアファイルのチャンク（連続したバイト範囲）をアップロードするために使用します。たとえば、3 MB のファイルを 1 MB の 3 つのチャンクに分割し、3 回の `APPEND` コマンドリクエストでアップロードできます。ファイル全体のアップロードが完了したら、次のステップとして `FINALIZE` コマンドを呼び出します。
+
+<Info>
+  メディアファイルを小さなチャンクでアップロードすることには、次の利点があります：
+
+  - 低帯域のネットワーク環境でも信頼性と成功率が向上
+  - アップロードを一時停止・再開できる
+  - 各チャンク単位で個別にリトライできる
+  - セルラークライアントなど変化するネットワーク状況に合わせてチャンクサイズを調整可能
+</Info>
+
+**リクエスト例**
+
+```bash
+curl --location 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=APPEND' \
+    --form 'media_id=1880028106020515840' \
+    --form 'segment_index=0' \
+    --form 'media=@/path/to/your/media/file.mp4'
+```
+
+`segment_index` はファイルチャンクの順序インデックスです。0〜999（両端を含む）の範囲で指定します。最初のセグメントは 0、2 番目は 1、というように続きます。すべてのチャンクをアップロードし終えるまで継続してください。
+
+<Note>
+  **注:** 生の HTTP リクエストを行う場合、リクエストは `multipart/form-data` の POST 形式である必要があります。
+</Note>
+
+<Note>
+  **注:** アップロードが成功すると、HTTP 2XX が空のレスポンスボディで返されます。
+</Note>
+
+<div id="step-3-post-mediaupload-finalize">
+  ## ステップ 3 : POST media/upload (FINALIZE)
+</div>
+
+`APPEND` コマンドでメディアファイル全体のアップロードが完了した後に、`FINALIZE` コマンドを呼び出す必要があります。`FINALIZE` のレスポンスに `processing_info` フィールドが含まれている場合に限り、`STATUS` コマンドでステータスを確認し、成功が返るまで待機してから投稿の作成に進む必要があります。
+
+**リクエスト例**
+
+```bash
+curl --location --request POST 'https://api.x.com/2/media/upload' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+    --header 'Content-Type: multipart/form-data' \
+    --form 'command=FINALIZE' \
+    --form 'media_id=1880028106020515840'
+```
+
+<Note>
+  **注:** 生の HTTP リクエストを送る場合、リクエストは `multipart/form-data` もしくは `application/x-www-form-urlencoded` の POST 形式である必要があります。
+</Note>
+
+**レスポンス例**
+
+```json
+{
+    "data": {
+        "id": "1880028106020515840",
+        "media_key": "13_1880028106020515840",
+        "size": 1024,
+        "expires_after_secs": 86400,
+        "processing_info": {
+            "state": "pending",
+            "check_after_secs": 1
+        }
+    }
+}
+```
+
+レスポンスには、`media_id`（64ビット整数）と `media_id_string`（文字列）フィールドでメディア識別子が返されます。JavaScript など長整数を正確に表現できない言語からは、API レスポンスで提供される `media_id_string` を使用してください。
+
+返された `media_id` は `expires_after_secs` 秒間のみ有効です。この期間を過ぎてから他の API 呼び出しで mediaId を使用しようとすると、Bad Request（HTTP 4xx）が返されます。
+
+レスポンスに `processing_info` フィールドが含まれている場合は、`STATUS` コマンドで `FINALIZE` 処理のステータスをポーリングしてください。非同期 finalize は、メディア処理に時間を要するケースで使用されます。今後、動画およびアニメーション GIF の処理は非同期 finalize のみがサポートされます。この動作は、アップロードセッションを `media_category` パラメータ付きで[初期化](###INIT)し、メディアタイプが動画またはアニメーション GIF の場合に有効になります。
+
+<Note>
+  **注:**
+  レスポンスに `processing_info` フィールドが含まれていない場合、`media_id` は他の API エンドポイントでそのまま使用できます。
+</Note>
+
+<div id="step-4-get-mediaupload-status">
+  ## **ステップ 4 : GET media/upload（STATUS）**
+</div>
+
+`STATUS` コマンドは、メディア処理の進行状況を定期的にポーリングして更新を取得するために使用します。`STATUS` コマンドのレスポンスが `succeeded` になったら、通常は `media_id` を使用して投稿を作成する次のステップに進みます。
+
+<Note>
+  **注意:**
+  `FINALIZE` コマンドのレスポンス、または前回の `STATUS` コマンドのレスポンスに `processing_info` フィールドが含まれている場合に **のみ** `STATUS` コマンドを使用してください。
+</Note>
+
+<div id="example-request">
+  ## **リクエストの例**
+</div>
+
+```bash
+curl --location --request GET 'https://api.x.com/2/media/upload?command=STATUS&media_id=1880028106020515840' \
+    --header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+```
+
+<div id="example-response">
+  ## **レスポンス例**
+</div>
+
+```json
+{
+    "data":{
+        "id":"1880028106020515840",
+        "media_key":"13_1880028106020515840",
+        "processing_info":{
+            "state":"uploading" // 状態遷移は pending -> in_progress -> [failed|succeeded]
+        }
+    }
+}
+```
+
+レスポンスボディには、メディア処理の現在の状態を示す `processing_info` フィールドが含まれます。これには `state` フィールドがあり、遷移は `pending` -> `in_progress` -> \[`failed` | `succeeded`] の順です。`state` が `succeeded` になるまで、`media_id` を使用して投稿や他のエンティティを作成することはできません。
+
+<div id="step-5-post-tweet-with-media">
+  ## ステップ 5 : メディア付きで投稿する
+</div>
+
+認証済みユーザーを代表して `media_id` を含め、`POST /2/tweets` エンドポイントを使用して投稿を作成します。
+
+**リクエスト例**
+
+```bash
+curl --location 'https://api.x.com/2/tweets' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <YOUR_ACCESS_TOKEN>'
+--data '{
+    "text": "I made a post with media!",
+     "media": {
+       "media_ids": [
+            "1880028106020515840"
+        ]
+    }
+}'
+
+```
+
+**レスポンス例**
+
+```bash
+{
+    "data": {
+        "edit_history_tweet_ids": [
+            "1880028106020515840"
+        ],
+        "id": "1880028106020515840",
+        "text": "I made a post with media! https://t.co/DqNyXX"
+    }
+}
+```
+
+<div id="troubleshooting">
+  ## トラブルシューティング
+</div>
+
+Media API に関する問題は、開発者フォーラムの [Media API カテゴリ](https://devcommunity.x.com/c/x-api/media-apis) を参照して解決策をご確認ください。

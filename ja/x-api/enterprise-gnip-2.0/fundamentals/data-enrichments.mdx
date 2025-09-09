@@ -1,0 +1,305 @@
+---
+title: "データエンリッチメント：エンタープライズ"
+---
+
+<div id="introduction">
+  ## はじめに
+</div>
+
+`Enterprise`
+
+Enterprise エンリッチメントは、一部のデータ API のレスポンスペイロードに含まれる追加のメタデータです。これらは有料サブスクリプションプランでのみ利用できます。
+
+以下の表では、各エンリッチメントの概要を説明します。
+
+| エンリッチメント: | 説明: |
+| :--- | :--- |
+| Expanded and Enhanced URLs | 投稿本文に含まれる短縮 URL（例: bitly）を自動的に展開し、遷移先ページの HTML のタイトルとディスクリプションのメタデータを提供します。 |
+| Matching rules object | 受信した投稿にどのルールが一致したかを示します。レスポンスオブジェクトでルールタグとルール ID を返します。 |
+| Poll metadata | 投稿に投票が含まれていることを示し、投票の選択肢一覧に加え、投票の期間と終了時刻の両方を含みます。 |
+| Profile geo | ユーザープロフィールの位置情報から導出されたデータで、可能な場合は \[経度、緯度] の座標および関連する場所メタデータを含みます。 |
+
+<div id="expanded-and-enhanced-urls">
+  ### 拡張および強化された URL
+</div>
+
+拡張および強化された URL エンリッチメントは、ポスト本文に含まれる短縮 URL を自動的に展開し、得られた URL をペイロード内のメタデータとして含めます。さらに、このエンリッチメントは遷移先ページの `title` と `description` から HTML ページのメタデータも提供します。
+
+**重要な詳細:**
+
+- 短縮リンクを解決するために、当システムは提供された URL に対して HTTP HEAD リクエストを送信し、最終的な URL に到達するまでリダイレクトを追跡します。この最終的な URL（ページのコンテンツ自体ではありません）がレスポンスのペイロードに含まれます。
+
+- URL エンリッチメントにより、リアルタイムストリームに 5～10 秒のレイテンシが追加されます
+
+- 全アーカイブ検索 API へのリクエストでは、展開済み URL のエンリッチメントデータは、13 か月以内のポストに対してのみ利用可能です。
+
+- URL エンリッチメントは、ポスト内に含まれるポストへのリンク（引用ポストを含む）、Moments へのリンク、プロフィールへのリンクには提供されません。 
+   
+
+<div id="post-payload">
+  #### 投稿ペイロード
+</div>
+
+Expanded および Enhanced URL のエンリッチメントは、投稿ペイロードの `entities` オブジェクト内、具体的には `entitites.urls.unwound` オブジェクトにあります。以下のメタデータフィールドが提供されます:
+
+- 展開後の URL - `unwound.url`
+- 展開後の HTTP ステータス - `unwound.status`
+- 展開後 URL の HTML タイトル（300 文字上限）- `unwound.title`
+- 展開後 URL の HTML 説明（1000 文字上限）- `unwound.description`
+
+**こちらは、URL エンリッチメントを含む [entities オブジェクト](/ja/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#x-entities) の例です。**
+
+```
+"entities": {
+    "hashtags": [
+
+    ],
+    "urls": [
+      {
+        "url": "https:\/\/t.co\/HkTkwFq8UT",
+        "expanded_url": "http:\/\/bit.ly\/2wYTb9y",
+        "display_url": "bit.ly\/2wYTb9y",
+        "unwound": {
+          "url": "https:\/\/www.forbes.com\/sites\/laurencebradford\/2016\/12\/08\/11-websites-to-learn-to-code-for-free-in-2017\/",
+          "status": 200,
+          "title": "11 Websites To Learn To Code For Free In 2017",
+          "description": "It\u2019s totally possible to learn to code for free...but what are the best resources to achieve that? Here are 11 websites where you can get started."
+        },
+        "indices": [
+          10,
+          33
+        ]
+      }
+    ],
+    "user_mentions": [
+
+    ],
+    "symbols": [
+
+    ]
+  },
+```
+
+**こちらは、エンリッチメントのない投稿リンクを含む entities オブジェクトの例です:**
+
+```
+"entities": {
+  "urls": [{
+    "url": "https://t.co/SywNbZdDmb",
+    "expanded_url": "https://x.com/XDevelopers/status/1050118621198921728",
+    "display_url": "x.com/XDevelopers/s…",
+     "indices": [
+        142,
+        165
+     ]
+   }
+  ]
+}
+```
+
+<div id="filtering-operators">
+  #### フィルタリング演算子
+</div>
+
+以下の演算子は、URL メタデータの関連フィールドを対象にフィルターを適用し、トークン化ベースの一致を提供します。
+
+**url:**
+
+- 例: “url:tennis”
+- 単語 tennis を含むあらゆる Expanded URL に対するトークン化ベースの一致
+- “url:npr.org” のように、特定のウェブサイトのリンクを含める／除外するためのフィルターとしても使用できます
+
+**url\_title:**
+
+- 例: “url\_title:tennis”
+- 単語 tennis を含むあらゆる Expanded URL の HTML タイトルに対するトークン化ベースの一致
+- ペイロードに含まれる HTML タイトルデータに対して照合します（最大 300 文字に制限）。
+
+**url\_description:**
+
+- 例: “url\_description:tennis”
+- 単語 tennis を含むあらゆる Expanded URL の HTML 説明に対するトークン化ベースの一致
+- ペイロードに含まれる HTML 説明データに対して照合します（最大 1000 文字に制限）。
+   
+
+<div id="http-status-codes">
+  #### HTTP ステータスコード
+</div>
+
+展開済み URL のエンリッチメントでは、展開しようとしている最終 URL の HTTP ステータスコードも提供します。通常は 200 になります。その他の 400 番台の値は、URL の解決に問題があることを示します。
+
+URL の展開を試みる際には、さまざまなステータスコードが返される可能性があります。URL の展開処理中にリダイレクトが発生した場合は、次のいずれかに至るまで無制限に追従します。
+
+- 200 番台のコードに到達（成功）
+- リダイレクト以外の系列のコードに到達（失敗）
+- 最終 URL が妥当な時間内に解決できずタイムアウト（408 - Timeout を返す）
+- 何らかの例外が発生
+   
+
+例外が発生した場合は、理由と返されるステータスコードの間で次のマッピングを使用します。
+
+| 理由 | 返されるステータスコード |
+| :--- | :--- |
+| SSL 例外 | 403 (Forbidden) |
+| URL により展開が許可されていない | 405 |
+| ソケットタイムアウト | 408 (Timeout) |
+| Unknown Host 例外 | 404 (Not Found) |
+| サポートされていない操作 | 404 (Not Found) |
+| Connect 例外 | 404 (Not Found) |
+| 不正な引数 | 400 (Bad Request) |
+| その他すべて | 400 (Bad Request) |
+
+<div id="matching-rules">
+  ### マッチングルール
+</div>
+
+マッチングルールのエンリッチメントは、受信した投稿にどのルールが一致したかを示すメタデータオブジェクトです。これは主に PowerTrack ストリームで使用されます。
+
+マッチングは、ルールに含まれる語句に対する厳密一致で行われ、アクティビティのコンテンツを句読点の有無の両方で走査します。大文字小文字は区別されません。コンテンツがルールで定義されたすべての語句を含むと判定された場合、ルートレベルに一致を導いたルールを示す matching\_rules オブジェクトが設置されます。
+
+**PowerTrack**
+
+PowerTrack（リアルタイム、Replay、Historical）で配信される投稿には、以下のように matching\_rules オブジェクトが含まれます：
+
+```
+"matching_rules": [{
+        "tag": null,
+        "id": 907728589029646336,
+        "id_str": "907728589029646336"
+    }]
+```
+
+PowerTrack では、`matching_rules` オブジェクトはその結果に一致したすべてのルールを反映します。つまり、特定の投稿に複数のルールが一致しても、配信は一度だけ行われますが、`matching_rules` 要素には一致したルールがすべて含まれます。
+
+<div id="poll-metadata">
+  ### 投票メタデータ
+</div>
+
+投票メタデータは、拡張済みのネイティブ形式ペイロードで提供される、すべてのプロダクト（リアルタイムおよび履歴 API）共通の無償エンリッチメントです。メタデータには、投稿内に投票が存在するかどうか、投票の選択肢一覧、投票の実施期間および有効期限が含まれます。このエンリッチメントにより、投票の有無を容易に判別でき、表示時に投票を含む投稿を正しくレンダリングできます。
+
+<div id="important-details">
+  ##### 重要な詳細:
+</div>
+
+- すべてのエンタープライズ API（PowerTrack、Replay、Search、Historical PowerTrack）で利用可能
+  - _注:_ Replay と Historical PowerTrack では、このメタデータは 2017/02/22 に初めて提供されました。
+- 投票に関する情報や結果は含まれません
+- 現時点ではフィルター／オペレーターはサポートしていません
+- **拡張ネイティブ形式**でのみ提供
+  - 拡張ネイティブ形式はユーザーが管理する設定で、Console からいつでも変更できます: _Select a Product (PowerTrack, Replay, Search) > Settings tab > Output Format (Leave data in its original format)_
+
+<div id="post-payload">
+  #### 投稿ペイロード
+</div>
+
+投票付き投稿には、ペイロード内の「entities.polls」オブジェクトに次のメタデータが含まれます。
+
+- 最大4つの選択肢を持つ「options」配列（位置（1〜4）と選択肢テキストを含む）
+- 投票の終了日時
+- 投票の実施期間
+
+参考として、以下のサンプルペイロードをご確認ください。
+
+<div id="sample-payload">
+  #### サンプルペイロード
+</div>
+
+以下は、投票メタデータの追加点を示した拡張済みネイティブ形式ペイロードのスニペットです：
+
+```json
+"entities":{
+          "hashtags":[],
+          "urls":[],
+          "user_mentions":[],
+          "symbols":[],
+          "polls":[
+             {
+                "options":[
+                   {
+                      "position":1,
+                      "text":"The better answer"
+                   },
+                   {
+                      "position":2,
+                      "text":"The best answer"
+                   }
+                ],
+                "end_datetime":"Sat Feb 04 15:33:11 +0000 2017",
+                "duration_minutes":1440
+             }
+          ]
+       },
+```
+
+<div id="profile-geo">
+  ### プロフィールの位置情報
+</div>
+
+<div id="introduction">
+  #### はじめに
+</div>
+
+多くの X のユーザープロフィールには、ユーザーが公開した位置情報が含まれています。このデータは user.location に通常の文字列として返されます（[User object data dictionary](/ja/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object) を参照）。Profile Geo Enrichment は、可能な場合に位置文字列をジオコーディングして正規化し、user.location の値に関連する構造化ジオデータを付与します。緯度・経度の座標および関連する場所メタデータは、エンタープライズ API 製品での投稿ペイロードに含まれる場合にのみ、user.derived.locations に追加されます。このデータは [enriched native format](/ja/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) を使用する際に利用でき、[PowerTrack rules](/ja/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators) を組み合わせてフィルタリングできます。
+
+<Note>
+  **Note:** Profile Geo Enrichment の作成に使用される一部の補助ジオデータは GeoNames.org に由来し、[Creative Commons Attribution 3.0 License](https://creativecommons.org/licenses/by/3.0/us/legalcode) の下で X により使用されています。
+</Note>
+
+Profile Geo のデータは、X の PowerTrack、Replay、Volume Stream、Search、Historical PowerTrack の各 API に含まれます。
+
+<div id="profile-geo-data">
+  #### プロフィールのジオデータ
+</div>
+
+| 付加情報付きネイティブフィールド名 | 例 | 説明 |
+| :--- | :--- | :--- |
+| user.derived.locations.country | United States | 投稿を作成したユーザーの出身国。 |
+| user.derived.locations.country\_code | US  | 投稿を作成したユーザーの出身国に対応する2文字のISO 3166国コード。 |
+| user.derived.locations.locality | Birmingham | 投稿を作成したユーザーの出身地のローカリティ（一般的に市）。 |
+| user.derived.locations.region | Alabama | 投稿を作成したユーザーの出身地のリージョン（一般的に州／都道府県）。 |
+| user.derived.locations.sub\_region | Jefferson County | 投稿を作成したユーザーの出身地のサブリージョン（一般的に郡）。 |
+| user.derived.locations.full\_name | Birmingham, Alabama, United States | 投稿を作成したユーザーの出身地のフルネーム（サブリージョンを除く）。 |
+| user.derived.locations.geo | See Below | 投稿を作成したユーザーの出身地のうち最も低い粒度の所在地に対応する座標（緯度／経度）を含む配列。 |
+
+Historical PowerTrack、Search、および PowerTrack API は、プロフィールのジオデータに基づくフィルタリングをサポートします。プロフィールのジオデータでのフィルタリングに利用できるオペレーターの詳細は、該当する製品ドキュメントを参照してください。
+
+<div id="sample-payload">
+  #### サンプルペイロード
+</div>
+
+```
+{
+    "user": {
+        "derived": {
+            "locations": \[
+                {
+                    "country": "United States",
+                    "country_code": "US",
+                    "locality": "Birmingham",
+                    "region": "Alabama",
+                    "sub_region": "Jefferson County",
+                    "full_name": "Birmingham, Alabama, United States",
+                    "geo": {
+                        "coordinates": \[
+                            -86.80249,
+                            33.52066
+                        \],
+                        "type": "point"
+                    }
+                }
+            \]
+        }
+    }
+}
+```
+
+<div id="limitations">
+  #### 制限事項
+</div>
+
+- Profile Geo エンリッチメントは、プロフィールの location 文字列で記述された地理的な場所について、最適な候補の特定を試みます。同名の場所が複数存在する、名称が曖昧であるなどの要因により、結果が常に正確とは限りません。
+- ユーザーのプロフィールの location フィールド（actor.location）に値が設定されていない場合、分類は行いません。
+- 精度レベル: Profile Geo エンリッチメントが国または地域レベルでしか十分な確度で特定できない場合、subRegion や locality など下位の地理情報はペイロードから省略されます。
+- Profile Geo エンリッチメントは、エンリッチメント結果の精度レベルに対応する緯度・経度（単一点）を提供します。これらの座標は、エンリッチメントで特定された場所の地理的中心を表します。例えば、精度レベルが国レベルであれば、その座標は当該国の地理的中心に設定されます。
+- 住所プロパティ（locality/region/country/country code）向けに提供される PowerTrack 演算子は、多様なルールの組み合わせを可能にするため、意図的に細かな粒度で設計されています。同名の別の場所と名称を共有する特定の場所を対象にする場合は、住所ルールを組み合わせることを検討してください。例えば、次のようにすると「San Francisco, Philippines」とのマッチを回避できます: profile\_locality:"San Francisco" profile\_region:California 個々の Profile Geo フィールドを対象にしたルールを作成する際は、粒度を上げるほど取得できる結果が限定される点に留意してください。都市レベルのデータを見たい場合でも、地域が都市と大きく重なるケースでは地域ルールのみに依拠する方が適切な場合があります。例: スイスのチューリッヒ市は、周辺地域も含めて profile\_region:"Zurich" で効果的にターゲティングできます。
+- ネイティブ Geo を持つ投稿との併用: Profile Geo エンリッチメントは、ペイロード内のネイティブ geo 値とは異なる、投稿に対する別種の地理情報を提供します。これら2種類の地理情報は（利用可能な地理データに基づき）特定の地域に関連する可能性のある投稿を網羅するために組み合わせて使用できますが、概念的に同等ではありません。

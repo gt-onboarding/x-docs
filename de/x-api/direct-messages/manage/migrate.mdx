@@ -1,0 +1,79 @@
+---
+title: Migrationsleitfaden
+sidebarTitle: Migrationsleitfaden
+---
+
+import { Button } from '/snippets/de/button.mdx';
+
+<div id="comparing-v11-and-v2-manage-direct-message-endpoints">
+  ## Vergleich der v1.1- und v2-Endpunkte zum Verwalten von Direct Messages
+</div>
+
+Sowohl die Versionen v1.1 als auch v2 der Direct-Message-Endpunkte bieten Methoden zum Erstellen von Direct Messages. Dieser Leitfaden soll helfen, die Unterschiede zu verstehen und Informationen für die Migration auf v2 bereitzustellen. 
+
+Ein wesentlicher Unterschied zwischen den beiden Versionen besteht darin, dass v1.1 nur Eins-zu-eins-Unterhaltungen unterstützt, während v2 Gruppenkonversationen einführt. Ein Ergebnis davon ist, dass v1.1 nur Ereignisse vom Typ „message\_create“ unterstützt, während v2 auch Ereignisse unterstützt, die mit dem Beitritt und dem Verlassen von Teilnehmern in Unterhaltungen verbunden sind. Eine grundlegende Neuerung in v2 ist die Etablierung von dm\_conversations als zentrales API-Objekt.   
+
+Mit v1.1 gibt es zwei Endpunkte zum Verwalten von Direct Messages:
+
+- POST direct\_messages/events/new - Erstellt eine Eins-zu-eins-Direct Message. Dieser v1.1-Endpunkt kann nur Eins-zu-eins-Nachrichten erstellen und unterstützt keine Gruppennachrichten.  
+
+- DELETE direct\_messages/events/destroy - Löscht eine Eins-zu-eins-Nachricht aus der Ansicht des authentifizierten Nutzers. 
+
+Mit dieser v2-Version gibt es drei POST-Methoden zum Erstellen von Direct Messages: 
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - Erstellt eine Eins-zu-eins-Direct Message. Diese Methode fügt die Nachricht entweder einer bestehenden Eins-zu-eins-Unterhaltung hinzu oder erstellt eine neue. Der Pfadparameter :participant\_id ist die User-ID des Kontos, das die Nachricht erhält. 
+
+- **POST /2/dm\_conversations** - Erstellt eine neue Gruppenkonversation und fügt ihr eine Direct Message hinzu. Diese Anfragen erfordern eine Liste der Teilnehmer der Unterhaltung. Beachten Sie, dass Sie mehrere Unterhaltungen mit derselben Teilnehmerliste erstellen können. Diese Anfragen geben immer eine neue Unterhaltungs-ID zurück. 
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - Erstellt eine Direct Message und fügt sie einer bestehenden Unterhaltung hinzu. Der Pfadparameter :dm\_conversation\_id ist die ID der Unterhaltung, zu der die Nachricht hinzugefügt wird. 
+
+Ein wichtiges Detail ist, dass Unterhaltungs- und Ereignis-IDs in den Versionen v1.1 und v2 der X-Plattform gemeinsam verwendet werden. Das bedeutet, dass beide Versionen zusammen genutzt werden können. Beispielsweise bieten die v1.1-Endpunkte für Direct Messages Methoden zum Abrufen eines einzelnen Ereignisses und zum Löschen von Ereignissen – Methoden, die in v2 noch nicht verfügbar sind. Da IDs in v1.1 und v2 identisch sind, können Sie v1.1-Anfragen auf Basis von IDs stellen, die von v2 bereitgestellt werden, oder indem Sie auf Unterhaltungs-IDs verweisen, die in Unterhaltungs-URLs in der X-Anwendung angezeigt werden.
+
+Die folgende Tabelle vergleicht grundlegende Aspekte der v1.1- und v2-Endpunkte zum Verwalten von Direct Messages. Die hier aufgeführten Merkmale der X-API v2 sind für alle Direct-Message-Lookup-Endpunkte gleich.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Host-Domain | https://api.x.com | https://api.x.com |
+| Root-Pfad des Endpunkts | [/1.1/direct\_messages](https://api.x.com/1.1/direct_messages) | [/2/dm\_conversations](https://api.x.com/2/users/:id/dm_conversations)<br /><br />Direct-Message-Unterhaltungen werden als grundlegendes API-Objekt eingeführt.   <br /><br />Diese Endpunkte rufen die Ereignisse MessageCreate, ParticipantsJoin und ParticipantsLeave ab. |
+| Unterstützte HTTP-Methoden | POST | POST |
+| Unterstützt Gruppen-Direct Messages |     | ✔   |
+| Unterstützte Ereignistypen | message\_create | MessageCreate, ParticipantsJoin, ParticipantsLeave |
+| [Authentifizierung](/de/resources/fundamentals/authentication) | OAuth 1.0a User Context | OAuth 1.0a User Context<br /><br />OAuth 2 User Context (Scopes: dm.read, dm.write) |
+| Erfordert die Verwendung von Anmeldedaten aus einer [developer App](/de/resources/fundamentals/authentication), die mit einem X-API v2-[Project](/de/resources/fundamentals/projects) verknüpft ist |     | ✔   |
+| Standard-[Rate Limits](/de/x-api/fundamentals/rate-limits) für Anfragen\*  <br />\*Alle Anfragen erfordern User-Tokens | 1000 Anfragen pro Nutzer pro 24 Stunden  <br />15000 Anfragen pro App pro 24 Stunden | 200 Anfragen pro 15 Minuten pro Nutzer<br /><br />1000 Anfragen pro Nutzer pro 24 Stunden<br /><br />15000 Anfragen pro App pro 24 Stunden<br /><br />Diese Rate Limits werden über alle dm\_conversations-POST-Endpunkte hinweg geteilt. |
+
+Die folgenden Tabellen vergleichen die v2-POST-Methoden mit Version v1.1. Beachten Sie, dass diese v2-Optionen die verfügbaren Funktionen durch die Unterstützung von Gruppenkonversationen erweitern. 
+
+**Neue Eins-zu-eins-Direct Message erstellen**
+
+Pfad: POST /2/dm\_conversations/with/:participant\_id/messages
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Endpoint-Pfad | POST direct\_messages/events/new (message\_create) | POST /2/dm\_conversations/with/:participant\_id/messages |
+| Standard-[Rate Limits](/de/x-api/fundamentals/rate-limits) für Anfragen | 1000 Anfragen pro Nutzer in 24 Stunden  <br />15000 Anfragen pro App in 24 Stunden | 200 Anfragen pro 15 Minuten pro Nutzer<br /><br />1000 Anfragen pro Nutzer in 24 Stunden<br /><br />15000 Anfragen pro App in 24 Stunden<br /><br />Diese Rate Limits gelten für alle dm\_conversations-POST-Endpunkte. |
+| Unterstützt Gruppen-Direct Messages |     | ✔   |
+
+**Neue Gruppen-Direct-Message-Unterhaltung erstellen und eine Nachricht hinzufügen**
+
+Pfad: POST /2/dm\_conversations
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Endpoint-Pfad | Nicht unterstützt | POST /2/dm\_conversations |
+| Standard-[Rate Limits](/de/x-api/fundamentals/rate-limits) für Anfragen |     | 200 Anfragen pro 15 Minuten pro Nutzer<br /><br />1000 Anfragen pro Nutzer in 24 Stunden<br /><br />15000 Anfragen pro App in 24 Stunden<br /><br />Diese Rate Limits gelten für alle dm\_conversations-POST-Endpunkte. |
+| Unterstützt Gruppen-Direct Messages |     | ✔   |
+
+**Einer bestehenden Unterhaltung per ID eine Direct Message hinzufügen**
+
+Pfad: POST /2/dm\_conversations/:dm\_conversation\_id/messages
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Beschreibung** | **Standard v1.1** | **X-API v2** |
+| Endpoint-Pfad | Nicht unterstützt | POST /2/dm\_conversations/:dm\_conversation\_id/messages |
+| Standard-[Rate Limits](/de/x-api/fundamentals/rate-limits) für Anfragen |     | 200 Anfragen pro 15 Minuten pro Nutzer<br /><br />1000 Anfragen pro Nutzer in 24 Stunden<br /><br />15000 Anfragen pro App in 24 Stunden<br /><br />Diese Rate Limits gelten für alle dm\_conversations-POST-Endpunkte. |
+| Unterstützt Gruppen-Direct Messages |     | ✔   |

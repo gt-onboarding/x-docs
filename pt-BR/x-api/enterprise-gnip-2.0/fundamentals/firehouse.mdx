@@ -1,0 +1,450 @@
+---
+title: API Firehose de Conformidade
+---
+
+> **Atenção**
+>
+> Lançamos uma nova ferramenta de conformidade na API do X v2 chamada [conformidade em lote](/pt-BR/x-api/compliance/batch-compliance). Essa ferramenta permite enviar grandes conjuntos de IDs de Post ou de usuário para obter seu status de conformidade e determinar quais dados requerem ação para trazer seus conjuntos em conformidade.
+
+> Além disso, tanto a conformidade em lote quanto o firehose de conformidade foram atualizados para oferecer suporte a edições de Post. No firehose de conformidade, foi adicionado um novo evento "tweet\_edit". Consulte a documentação de [Objetos de dados de conformidade](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects) para mais detalhes. Saiba mais sobre como funcionam os metadados de edição de Post na página [Fundamentos de edição de Posts](/pt-BR/x-api/fundamentals/edit-posts).
+
+<div id="overview">
+  ## Visão geral
+</div>
+
+`Enterprise`
+
+Um dos valores fundamentais do X é defender e respeitar a voz do usuário. Isso inclui respeitar suas expectativas e intenções quando eles excluem, modificam ou editam o conteúdo que escolhem compartilhar no X. Acreditamos que isso é essencial para a saúde de longo prazo de uma das maiores plataformas públicas de informações em tempo real do mundo. O X coloca o controle nas mãos dos usuários, dando às pessoas a capacidade de gerenciar sua própria experiência no X. Acreditamos que empresas que recebem dados do X têm a responsabilidade de honrar as expectativas e as intenções dos usuários finais.
+
+Para obter mais informações sobre os tipos de eventos de conformidade possíveis na plataforma X, consulte nosso artigo [Honrando a intenção do usuário no X](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/firehouse#honoring-user-intent-on-twitter).
+
+Qualquer desenvolvedor ou empresa que consuma dados do X por meio de uma API tem a obrigação de envidar todos os esforços razoáveis para honrar alterações no conteúdo do usuário. Essa obrigação se estende a eventos do usuário, como exclusões, modificações e alterações nas opções de compartilhamento (por exemplo, conteúdo que se torna protegido ou retido). Isso também inclui quando os usuários editam seus posts. Consulte a redação específica na [Política do Desenvolvedor](https://developer.x.com/en/developer-terms/policy) e/ou no seu Contrato de Dados do X para entender como essa obrigação afeta seu uso dos dados do X.
+
+O X oferece as seguintes soluções que fornecem informações sobre esses eventos de conformidade do usuário e se um post ou usuário específico está publicamente disponível ou não. Uma breve visão geral das soluções e de seus padrões gerais de integração é apresentada abaixo:
+
+<div id="get-statuseslookup-and-get-userslookup">
+  #### GET statuses/lookup e GET users/lookup
+</div>
+
+- Formato: APIs REST. Consulte: [GET statuses/lookup](https://developer.x.com/en/docs/x-api/v1/tweets/post-and-engage/api-reference/get-statuses-lookup) e [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup).
+
+- Esses endpoints sempre retornam a versão mais recente de qualquer edição de Post. Todos os objetos de Post que descrevem Posts criados após a introdução do recurso de edição incluirão metadados de edição de Post, mesmo para Posts que não foram editados.
+
+- Para todos os Posts, solicitações feitas mais de 30 minutos após a criação refletirão o estado final desses Posts.
+
+- Fornecem informações de disponibilidade para Posts ou Usuários específicos, conforme definido pelo solicitante na requisição à API.
+
+- Podem ser usados para verificações pontuais ad hoc do estado atual de disponibilidade de um grupo específico de Posts/Usuários.
+
+- Ideais para clientes que precisam verificar o estado atual de um Post ou Usuário específico em um dado momento.
+
+- Essas APIs fornecem um mecanismo útil para clientes que precisam verificar a disponibilidade de um conteúdo, por exemplo, quando:
+  1. Exibindo Posts
+  2. Interagindo com um Post ou Usuário de forma 1:1
+  3. Distribuindo Conteúdo do X a um terceiro por meio de um download de arquivo permitido
+  4. Armazenando Posts por períodos prolongados
+
+<div id="compliance-firehose-enterprise-only">
+  #### Firehose de Conformidade (somente para enterprise)
+</div>
+
+- Formato: API de streaming. Veja: [Compliance Firehose](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/firehouse#api-reference).
+- Fornece um fluxo em tempo real de [atividades de conformidade](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects) no X. Essas atividades incluem edições de Posts.
+- Pode ser usado para manter o estado de conformidade de um conjunto de dados armazenados conforme novos eventos de conformidade ocorrem na plataforma.
+- Ideal para clientes que consomem e armazenam grandes volumes de dados do X por longos períodos.
+
+<div id="guides">
+  ## Guias
+</div>
+
+<div id="compliance-best-practices">
+  ### **Práticas recomendadas de conformidade**
+</div>
+
+<div id="recommendations-best-practices">
+  #### **Recomendações e Melhores Práticas**
+</div>
+
+- **Crie esquemas de armazenamento de dados que guardem o ID numérico do Post e o ID do Usuário**: Mensagens de usuários exigem ação em todos os Posts daquele usuário. Portanto, como todas as mensagens de conformidade são entregues apenas por ID numérico, é importante projetar esquemas de armazenamento que mantenham o relacionamento entre Post e Usuário com base em IDs numéricos. Consumidores de dados precisarão monitorar eventos de conformidade tanto por ID do Post quanto por ID do Usuário e ser capazes de atualizar o repositório de dados local adequadamente.
+
+- **Crie esquemas que contemplem todos os status de conformidade**: Dependendo de como as atividades de conformidade serão tratadas em diferentes aplicações, pode ser necessário adicionar outros metadados ao repositório de dados. Por exemplo, consumidores de dados podem decidir adicionar metadados a um banco de dados existente para facilitar a restrição da exibição de conteúdo em países afetados por uma mensagem status\_withheld.
+
+- **Tratamento de exclusões de Retweet**: Retweets são um tipo especial de Post em que a mensagem original fica aninhada em um objeto dentro do Retweet. Nesse caso, há dois IDs de Post referenciados em um Retweet — o ID do Retweet e o ID da mensagem original (incluída no objeto aninhado). Quando uma mensagem original é excluída, é emitida uma mensagem de exclusão de Post para o ID original. Eventos de exclusão de Post normalmente disparam eventos de exclusão para todos os Retweets. No entanto, em alguns casos, nem todos são enviados e os sistemas cliente devem ser tolerantes a exclusões de Retweet incompletas. A exclusão do ID original deve ser suficiente para excluir todos os Retweets subsequentes. É uma prática recomendada referenciar o ID do Post original ao armazenar Retweets e excluir todos os Retweets referenciados ao receber eventos de exclusão de Post.
+
+<div id="compliance-data-objects">
+  ### Objetos de dados de conformidade
+</div>
+
+<div id="compliance-firehose-api">
+  #### **API Firehose de Conformidade**
+</div>
+
+Os possíveis tipos de eventos de conformidade incluem eventos de Post (ou “status”) e eventos de Usuário, para os quais há vários tipos descritos abaixo.  
+
+Observações:
+
+- Leia mais sobre os status de Usuário [aqui](https://support.x.com/articles/14016) e nossa política para desenvolvedores sobre Posts excluídos [aqui](https://dev.x.com/overview/terms/policy#3.Update_Respect_Users_Control_and_Privacy).
+- O Compliance Firehose foi atualizado para fornecer eventos 'tweet\_edit'.
+- Vários eventos de exclusão, proteção e suspensão de Usuário não são necessariamente permanentes e podem alternar entre estados indefinidamente. Isso inclui: user\_delete, user\_undelete, user\_protect, user\_unprotect e user\_suspend, user\_unsuspend.
+- user\_deletes são seguidos por status\_deletes 30 dias depois apenas se o usuário não tiver escolhido fazer user\_undelete na conta. É possível que um user\_delete seja revertido pelo usuário e que, 30 dias depois, as exclusões de todos os seus Posts não ocorram.
+- user\_suspend é uma ação que permanece válida a menos que o usuário seja submetido a um evento user\_unsuspend. Esses eventos não estão sujeitos a quaisquer mudanças em um período de 30 dias.
+
+Consulte a coluna ‘Ação recomendada’ para entender como processar cada tipo de evento a fim de respeitar a privacidade e a intenção do usuário final.
+
+| Tipo de mensagem original | Objeto | Permanente (Sim/Não) | Ação recomendada |
+| :--- | :--- | :--- | :--- |
+| delete | Status | Sim | Excluir o Post associado. |
+| status\_withheld | Status | Sim | Suprimir o Post associado nos países específicos listados na mensagem status\_withheld. |
+| drop | Status | Não  | Remover o Post da exibição pública. |
+| undrop | Status | Não  | O status pode ser exibido novamente e tratado como público. |
+| tweet\_edit | Status | Sim | Honrar e, quando relevante, exibir a nova edição. |
+| user\_delete | User | Não  | Suprimir ou excluir todos os Posts do usuário associado. |
+| user\_undelete | User | Não  | Todos os Posts do usuário associado podem ser exibidos novamente e tratados como públicos. |
+| user\_protect | User | Não  | Suprimir ou excluir todos os Posts do usuário associado. |
+| user\_unprotect | User | Não  | Todos os Posts do usuário associado podem ser exibidos novamente e tratados como públicos. |
+| user\_suspend | User | Não  | Suprimir ou excluir todos os Posts do usuário associado. |
+| user\_unsuspend | User | Não  | Todos os Posts do usuário associado podem ser exibidos novamente e tratados como públicos. |
+| scrub\_geo | User | Sim | Excluir todos os dados geográficos fornecidos pelo X para todos os Posts do usuário anteriores ao Post especificado na mensagem scrub\_geo. Observe que Posts subsequentes de um usuário podem conter dados geográficos que podem ser usados. |
+| user\_withheld | User | Sim | Suprimir Posts do usuário associado nos países específicos listados na mensagem user\_withheld. |
+| delete | Favorite | Sim | Excluir o like/favorito associado. |
+
+<div id="payload-examples">
+  #### **Exemplos de payload**
+</div>
+
+Veja abaixo exemplos de payload para cada evento de conformidade descrito na tabela acima.
+
+**Edição de post**
+
+```json
+{"tweet_edit":
+   {
+     "id": "1557445923210514432"
+     "initial_tweet_id": "1557433858676740098",
+     "edit_tweet_ids": ["1557433858676740098", "1557445923210514432"],
+     "timestamp_ms": "1660155761384"
+   }
+ }
+```
+
+<div id="post-delete">
+  ##### Exclusão de post
+</div>
+
+```json
+{
+  "delete": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220608",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="post-withheld">
+  ##### Post retido
+</div>
+
+```json
+{
+  "status_withheld": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220608",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "withheld_in_countries": [
+      "XY"
+    ],
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="drop">
+  ##### Drop
+</div>
+
+```json
+{
+  "drop": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220600",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="undrop">
+  ##### Reverter remoção
+</div>
+
+```json
+{
+  "undrop": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220600",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="scrub-geo">
+  #### Remover geolocalização
+</div>
+
+```json
+{
+  "scrub_geo": {
+    "user_id": 519761961,
+    "up_to_status_id": 411552403083628540,
+    "up_to_status_id_str": "411552403083628544",
+    "user_id_str": "519761961",
+    "timestamp_ms": "1432228180345"
+  }
+}
+```
+
+<div id="user-delete">
+  ##### Exclusão de usuário
+</div>
+
+```json
+{
+  "user_delete": {
+    "id": 771136850,
+    "timestamp_ms": "1432228153548"
+  }
+}
+```
+
+<div id="user-undelete">
+  ##### Restauração de usuário
+</div>
+
+```json
+{
+  "user_undelete": {
+    "id": 796250066,
+    "timestamp_ms": "1432228149062"
+  }
+}
+```
+
+<div id="user-withheld">
+  ##### Usuário retido
+</div>
+
+```json
+{
+  "user_withheld": {
+    "user": {
+      "id": 1375036644,
+      "id_str": "1375036644"
+    },
+    "withheld_in_countries": [
+      "XY"
+    ],
+    "timestampMs": "2014-08-27T23:49:41.839+00:00"
+  }
+}
+```
+
+<div id="user-protect">
+  ##### Proteção do usuário
+</div>
+
+```json
+{
+  "user_protect": {
+    "id": 3182003550,
+    "timestamp_ms": "1432228177137"
+  }
+}
+```
+
+<div id="user-unprotect">
+  ##### Remover proteção do usuário
+</div>
+
+```json
+{
+  "user_unprotect": {
+    "id": 2911076065,
+    "timestamp_ms": "1432228180113"
+  }
+}
+```
+
+<div id="user-suspend">
+  ##### Suspensão de usuário
+</div>
+
+```json
+{
+  "user_suspend": {
+    "id": 3120539094,
+    "timestamp_ms": "1432228194217"
+  }
+}
+```
+
+<div id="user-unsuspend">
+  ##### Reativação de usuário
+</div>
+
+```json
+{
+  "user_unsuspend": {
+    "id": 3293130873,
+    "timestamp_ms": "1432228193828"
+  }
+}
+```
+
+<div id="integrating-compliance-firehose">
+  ### integrando o Compliance Firehose
+</div>
+
+O Compliance Firehose é uma API de streaming em tempo real que entrega eventos de conformidade que ocorrem na plataforma X. Para entender os eventos de conformidade e como eles são gerados no X, consulte nosso artigo [Honrando a intenção do usuário no X](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/firehouse#honoring-user-intent-on-twitter).
+
+É importante observar que eventos de Post e de Usuário são entregues de forma independente e que cada um deve ser processado de forma independente (ou seja, a exclusão de um Post não implica um evento de Usuário e vice-versa). Vários eventos de Usuário não são necessariamente permanentes e podem alternar entre estados indefinidamente. Estes incluem: user\_delete, user\_undelete, user\_protect, user\_unprotect e user\_suspend, user\_unsuspend.
+
+User\_deletes são seguidos por status\_deletes 30 dias depois somente se o usuário não tiver optado por user\_undelete na conta. É possível que um user\_delete seja revertido pelo usuário e que as exclusões de todos os seus Posts 30 dias depois não ocorram.
+
+User\_suspend é uma ação que permanece válida a menos que o usuário esteja sujeito a um evento user\_unsuspend. Esses não estão sujeitos a alterações em um período de 30 dias.
+
+Nunca é apropriado exibir eventos de conformidade diretamente aos usuários do seu software ou incorporá-los de outra forma aos seus produtos ou experiências do cliente. Eles se destinam exclusivamente à manutenção da conformidade e ao respeito às ações dos usuários do X.
+
+<div id="integrating-with-the-compliance-firehose">
+  #### **Integração com o Compliance Firehose**
+</div>
+
+Para integrar o Compliance Firehose ao seu sistema, você precisará criar uma integração que seja capaz de:
+
+1. Estabelecer uma conexão de streaming com cada partição da API de streaming do Compliance Firehose
+2. Lidar com altos volumes de dados — desacoplar a ingestão do fluxo do processamento adicional usando processos assíncronos
+3. Reconectar-se automaticamente às partições do fluxo quando houver desconexão por qualquer motivo
+4. Processar eventos de conformidade relevantes aos dados de Post e Usuário que você armazenou, de acordo com as orientações apresentadas acima
+
+<div id="honoring-user-intent-on-twitter">
+  ### Honrando a intenção do usuário no X
+</div>
+
+Acreditamos que respeitar a privacidade e a intenção dos usuários do X é fundamental para a saúde de longo prazo de uma das maiores plataformas públicas de informação em tempo real do mundo. O X coloca os controles de privacidade nas mãos de seus usuários, dando às pessoas a capacidade de controlar sua própria experiência no X. Como consumidores empresariais de dados do X, temos a responsabilidade coletiva de honrar a privacidade e as ações dos usuários finais para manter esse ambiente de confiança e respeito.
+
+Há uma variedade de situações que podem ocorrer com Posts e contas de usuário que afetam como eles são exibidos na plataforma. As ações que afetam a privacidade e a intenção são definidas tanto nos níveis de Status (Post) quanto de usuário. Essas ações incluem:
+
+<div id="user">
+  #### Usuário
+</div>
+
+| Ação | Descrição |
+| :--- | :--- |
+| Proteger conta | Um usuário do X pode proteger ou desproteger sua conta a qualquer momento. Contas protegidas exigem aprovação manual do usuário para cada pessoa autorizada a ver os Posts da conta.   <br />Para mais informações, consulte [Sobre Posts públicos e protegidos](https://support.x.com/articles/14016-about-public-and-protected-tweets). |
+| Excluir conta | Um usuário do X pode decidir excluir sua conta e todas as mensagens de status associadas a qualquer momento. O X mantém as informações da conta por 30 dias após a exclusão, caso o usuário decida desfazer a exclusão e, assim, reativar a conta. |
+| Remover dados de localização | Um usuário do X pode remover todos os dados de localização de Posts anteriores a qualquer momento. Isso é conhecido como “scrub geo”. |
+| Suspender conta | O X reserva-se o direito de suspender contas que violem as Regras do X ou se houver suspeita de que uma conta tenha sido invadida ou comprometida. Suspensões de conta só podem ser revertidas (remoção de suspensão) pelo X. |
+| Reter conta | O X reserva-se o direito de reter reativamente o acesso a determinado conteúdo em um país específico de tempos em tempos. Uma conta retida só pode ter a retenção removida pelo X.   <br />Para mais informações, consulte [Conteúdo retido por país](https://support.x.com/articles/20169222-country-withheld-content). |
+
+<div id="status">
+  #### Status
+</div>
+
+| Ação | Descrição |
+| :--- | :--- |
+| Excluir status | Um usuário do X pode excluir um status a qualquer momento. Status excluídos não podem ser revertidos e são permanentemente removidos. |
+| Reter status | O X reserva-se o direito de reter, de forma reativa, o acesso a determinado conteúdo em um país específico, de tempos em tempos. Um status retido só pode ser liberado pelo X.   <br />Para mais informações, consulte [Conteúdo retido por país](https://support.x.com/articles/20169222-country-withheld-content). |
+
+<div id="keeping-track-of-user-and-status-changes">
+  #### Acompanhando alterações de Usuário e Status
+</div>
+
+O estado de um Usuário ou de um Status pode mudar a qualquer momento devido a uma das ações acima, o que afeta como os consumidores de dados do X devem tratar a disponibilidade e a privacidade de todo o conteúdo associado. Quando essas ações ocorrem, é enviada uma mensagem de conformidade correspondente indicando que o estado de um Status ou Usuário foi alterado.
+
+<div id="api-reference">
+  ## Referência da API
+</div>
+
+<div id="get-compliancefirehose">
+  ### **GET compliance/firehose**
+</div>
+
+<div id="methods">
+  #### Métodos
+</div>
+
+| Método | Descrição |
+| :--- | :--- |
+| [GET /compliance/:stream](#Connect) | Conectar ao fluxo de dados |
+
+<div id="authentication">
+  #### Autenticação
+</div>
+
+Todas as solicitações para a API Compliance Firehose devem usar autenticação HTTP Basic, construída a partir de uma combinação válida de endereço de e‑mail e senha usada para acessar sua conta em console.gnip.com. As credenciais devem ser enviadas no cabeçalho Authorization em cada solicitação.
+
+<div id="get-compliancestream">
+  #### GET /compliance/:stream
+</div>
+
+Estabelece uma conexão persistente com o firehose de Conformidade, por meio do qual os eventos de conformidade serão entregues.
+
+|     |     |
+| :--- | :--- |
+| **Request Method** | HTTP GET |
+| **Connection Type** | Keep-Alive |
+| **URL** | Disponível na página de Ajuda da API do fluxo no seu painel e com a seguinte estrutura:  <br />  <br /><br />[https://gnip-stream.x.com/stream/compliance/accounts/:account\_name/publishers/twitter/:stream\_label.json?partition=1](https://gnip-stream.x.com/stream/compliance/accounts/:account_name/publishers/twitter/:stream_label.json?partition=1)<br /><br />**Observação:** o parâmetro "partition" é obrigatório. Você precisará se conectar às 8 partições, cada uma contendo 12,5% do volume total, para consumir o fluxo completo. |
+| **Compression** | Gzip. Para se conectar ao fluxo usando compactação Gzip, basta enviar um cabeçalho Accept-Encoding na solicitação de conexão. O cabeçalho deve ser:  <br />  <br />Accept-Encoding: gzip |
+| **Character Encoding** | UTF-8 |
+| **Response Format** | JSON. O cabeçalho da sua solicitação deve especificar o formato JSON para a resposta. |
+| **Rate Limit** | 10 solicitações a cada 60 segundos. |
+| **Read Timeout** | Defina um tempo limite de leitura no seu cliente e garanta que ele esteja configurado para um valor superior a 30 segundos. |
+| **Support for Tweet edits** | Todas as edições de Tweet acionam um evento de Conformidade "tweet\_edit". Consulte a documentação de [Compliance Data Objects](/pt-BR/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects) para mais detalhes. |
+
+**Example Curl Request**
+
+A solicitação de exemplo a seguir é executada usando cURL na linha de comando:
+
+```bash
+curl --compressed -v -uexample@customer.com "https://gnip-stream.x.com/stream/compliance/accounts/:account_name/publishers/twitter/:stream_label.json?partition=1"
+```
+
+_Observação:_ a solicitação acima está se conectando apenas à `partition=1` do firehose de Conformidade — você precisará se conectar às 8 partições para consumir a totalidade deste fluxo.
+
+<div id="response-codes">
+  #### Códigos de resposta
+</div>
+
+As respostas a seguir podem ser retornadas pela API para essas solicitações. A maioria dos códigos de erro vem acompanhada de uma string com detalhes adicionais no corpo. Para respostas diferentes de 200, os clientes devem tentar se reconectar.
+
+| Status | Texto | Definição |
+| :--- | :--- | :--- |
+| 200 | Sucesso | A conexão foi aberta com sucesso e novas atividades serão enviadas conforme chegarem. |
+| 401 | Não autorizado | A autenticação HTTP falhou devido a credenciais inválidas. Faça login em console.gnip.com com suas credenciais para garantir que você as está usando corretamente na solicitação. |
+| 406 | Não aceitável | Geralmente, isso ocorre quando o cliente não inclui corretamente os cabeçalhos para aceitar compactação gzip do fluxo, mas também pode ocorrer em outras circunstâncias. Conterá uma mensagem JSON semelhante a: "Esta conexão requer compactação. Para habilitar a compactação, envie um cabeçalho 'Accept-Encoding: gzip' na solicitação e esteja preparado para descompactar o fluxo conforme ele é lido no lado do cliente." |
+| 429 | Limite de taxa excedido | Seu app excedeu o limite de solicitações de conexão. |
+| 503 | Serviço indisponível | Problema no servidor do X. Reconecte usando um padrão de backoff exponencial. Se nenhum aviso sobre esse problema tiver sido publicado na [Página de Status da API do X](https://api.twitterstat.us/), entre em contato com o suporte. |
+
+<div id="other-recommendations-best-practices">
+  #### Outras recomendações e melhores práticas
+</div>
+
+- **Crie esquemas de armazenamento de dados que guardem o ID numérico do Tweet e o ID do Usuário**: Mensagens de usuário exigem ação em todos os Tweets daquele usuário. Portanto, como todas as mensagens de conformidade são entregues apenas por ID numérico, é importante projetar esquemas de armazenamento que mantenham a relação entre Tweet e Usuário com base em IDs numéricos. Os consumidores de dados precisarão monitorar eventos de conformidade tanto pelo ID do Tweet quanto pelo ID do Usuário e conseguir atualizar o repositório de dados local de forma apropriada.
+
+- **Crie esquemas que cubram todos os status de conformidade**: Dependendo de como as atividades de conformidade serão tratadas em diferentes aplicações, pode ser necessário adicionar outros metadados ao repositório de dados. Por exemplo, os consumidores de dados podem decidir adicionar metadados a um banco de dados existente para facilitar a restrição de exibição de conteúdo em países afetados por uma mensagem status\_withheld.
+
+- **Como lidar com exclusões de Retweet**: Retweets são um tipo especial de Tweet em que a mensagem original está aninhada em um objeto dentro do Retweet. Nesse caso, há dois IDs de Tweet referenciados em um Retweet — o ID do Retweet e o ID da mensagem original (incluída no objeto aninhado). Quando a mensagem original é excluída, é emitida uma mensagem de exclusão de Tweet para o ID original. Mensagens de exclusão subsequentes NÃO são emitidas para todos os Retweets. A exclusão do ID original deve ser suficiente para remover todos os Retweets subsequentes.

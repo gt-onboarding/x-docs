@@ -1,0 +1,947 @@
+<div id="v2-account-activity-api">
+  # V2 Account Activity API
+</div>
+
+<Note>
+  Account Activity API v2 が [**Pro**](https://developer.x.com/en/portal/products) で利用可能になりました。
+</Note>
+
+<div id="overview">
+  ## 概要
+</div>
+
+Account Activity API（AAA）は、Webhook を介して X ユーザーアカウントに関連するリアルタイムのイベントを受け取る手段を提供します。事前に設定した Webhook に特定のユーザーアカウントを購読すると、単一の接続で、あなたが所有または購読している複数のアカウントから、投稿、ダイレクトメッセージ、いいね、フォロー、ブロックなどの各種アクティビティをアプリケーションに通知できます。\
+この API は、ユーザーの操作に即時に反応する必要があるアプリケーションや、ユーザーのアクティビティに基づいて最新状態を維持するアプリケーションの構築によく利用されます。Webhook 登録での各ユーザー購読ごとに、以下の関連アクティビティをすべて受信します。
+
+<div id="activity-types">
+  ## アクティビティの種類
+</div>
+
+- **投稿**（ユーザーによる）
+- **投稿の削除**（ユーザーによる）
+- **@メンション**（ユーザー宛て）
+- **返信**（ユーザーから／ユーザーへの）
+- **リポスト**（ユーザーによる／ユーザーに対する）
+- **引用投稿**（ユーザーによる／ユーザーに対する）
+- **引用投稿のリポスト**（ユーザーによる／ユーザーに対する）
+- **いいね**（ユーザーによる／ユーザーに対する）
+- **フォロー**（ユーザーによる／ユーザーに対する）
+- **フォロー解除**（ユーザーによる／ユーザーに対する）
+- **ブロック**（ユーザーによる／ユーザーに対する）
+- **ブロック解除**（ユーザーによる／ユーザーに対する）
+- **ミュート**（ユーザーによる／ユーザーに対する）
+- **ミュート解除**（ユーザーによる／ユーザーに対する）
+- **ダイレクトメッセージ送信**（ユーザーによる）
+- **ダイレクトメッセージ受信**（ユーザーによる）
+- **入力中インジケーター**（ユーザー宛て）
+- **既読通知**（ユーザー宛て）
+- **サブスクリプションの取り消し**（ユーザーによる）
+
+**注記**: Account Activity API ではホームタイムラインのデータは提供していません。このデータを取得するには、User ID 指定の User Posts タイムラインのエンドポイントを使用してください。
+
+Account Activity API から返される投稿は、月次の[投稿上限](https://docs.x.com/x-api/fundamentals/post-cap)にカウントされます。
+
+<div id="feature-summary">
+  ## 機能概要
+</div>
+
+| ティア | 価格 | ユニークサブスクリプション数 | Webhook 数 |
+| :----- | :----- | :----- | :----- |
+| Pro | 月額 $5,000 | 3 | 1 |
+| Enterprise | [営業担当にお問い合わせ](/ja/enterprise/forms/enterprise-api-interest) | 5000+ | 5+ |
+
+このドキュメントでは、v2 Account Activity API のエンドポイントを使用して、Webhook に紐づくユーザーサブスクリプションの管理方法に焦点を当てます。
+
+<div id="manage-subscriptions">
+  ## サブスクリプションの管理
+</div>
+
+Account Activity API は、あなたのサービスにサブスクライブしている X アカウントでイベントが発生するたびに、Webhook ベースの JSON メッセージを送信します。X は、それらのアクティビティを登録済みの Webhook に配信します。以下の手順では、ユーザーアカウントのサブスクリプションを設定・管理する方法を説明します。
+
+<div id="1-create-an-x-app">
+  ### 1. X アプリを作成する
+</div>
+
+承認済みの開発者アカウントで [developer portal](https://developer.x.com/en/portal/products/enterprise) から X アプリを作成します。会社を代表してアプリを作成する場合は、企業の X アカウントを使用してください。
+
+- アプリページの「Permissions」タブで「Read, Write, and Access direct messages」を有効にします。
+- 「Keys and Access Tokens」タブで、アプリの **Consumer Key (API Key)**、**Consumer Secret (API Secret)**、および **Bearer Token** を控えておきます。
+- アプリの **Access Token** と **Access Token Secret** を生成します。これはユーザーアカウントをサブスクライブする際に必要です。
+- X のサインインとユーザーコンテキストに不慣れな場合は、[Obtaining Access Tokens](https://developer.x.com/en/docs/authentication) を確認してください。
+- 開発者ポータルの「Apps」ページで、アプリの数値 ID を控えておきます。これは Account Activity API のアクセス申請時に必要です。
+
+<div id="2-get-account-activity-api-access">
+  ### 2. Account Activity API へのアクセスを取得する
+</div>
+
+Account Activity API は Enterprise ティアでのみ利用可能です。[developer portal](https://developer.x.com/en/portal/products/enterprise) から Enterprise アクセスの申請を行ってください。
+
+<div id="3-register-a-webhook">
+  ### 3. Webhook を登録する
+</div>
+
+Account Activity イベントを受信するには、外部からアクセス可能な HTTPS URL を持つ webhook を登録する必要があります。webhook コンシューマーアプリの開発、webhook の登録、セキュリティ対策、Challenge-Response Checks（CRC）への対応方法については、V2 Webhooks API のドキュメントを参照してください。
+
+- webhook が、JSON でエンコードされたイベントペイロードを含む POST リクエストを処理できるように構成されていることを確認してください。
+- サブスクリプションの管理に必要となるため、webhook 登録のレスポンスから **webhook\_id** を取得してください。
+
+<div id="4-validate-setup">
+  ### 4. セットアップの検証
+</div>
+
+アプリと webhook が正しく構成されていることを検証するには:
+
+- ユーザーアカウントを webhook に購読させます（下記「Adding a Subscription」を参照）。
+- アプリが購読している X アカウントのいずれかが投稿したポストを「お気に入り」にします。
+- webhook の URL へ送信される POST リクエストで、favorite\_events のペイロードを受信するはずです。
+- **注記**: 購読を追加してからイベントの配信が開始されるまで、最大 10 秒かかる場合があります。
+
+<div id="important-notes">
+  ### 重要な注意事項
+</div>
+
+- **認証**: ユーザーをサブスクライブする際は、そのユーザーのアカウントの consumer key、consumer secret、access token、access token secret を使用してください。
+- **ダイレクトメッセージ**: すべての受信および送信ダイレクトメッセージ（POST /2/dm\_conversations/with/:participant\_id/messages で送信） は、DM アクティビティをアプリで把握できるように、webhook 経由で配信されます。
+- **イベントの重複**:
+  - 2 人のサブスクライブ済みユーザーが同じ DM 会話にいる場合、webhook は重複イベント（ユーザーごとに 1 回）を受信します。for\_user\_id フィールドで区別してください。
+  - 複数のアプリが同じ webhook URL とユーザーを共有している場合、イベントは複数回（アプリごとに 1 回）送信されます。
+  - 稀に発生する重複に対処するため、アプリは event ID を用いてイベントの重複排除を行ってください。
+- **サンプルコード**: webhook イベントを表示する Web アプリについては、[Account Activity API Setup](https://github.com/xdevplatform/account-activity-dashboard-enterprise/tree/master) を参照してください。
+
+<div id="managing-subscribed-users-v2-api">
+  ## 購読ユーザーの管理（v2 API）
+</div>
+
+有効な webhook\_id を持つ登録済みの webhook がある場合、対象ユーザーのアカウントアクティビティを受信するための購読を管理できます。購読の追加、表示、削除には次のエンドポイントを使用します。
+
+<div id="adding-a-subscription">
+  ### [サブスクリプションの追加](https://docs.x.com/x-api/account-activity/subscribes-the-provided-application-to-all-events-for-the-provided-user-context-for-all-message-types)
+</div>
+
+**エンドポイント**: POST /2/account\_activity/webhooks/:webhook\_id/subscriptions/all\
+**説明**: 指定した webhook を通じてイベントを受け取れるよう、認証中のユーザーを登録します。\
+**認証**: OAuthUser（対象ユーザーを表す 3 足 OAuth フローが必要）。
+
+- **Consumer Key**: 例: xvz1evFS...
+- **Access Token**: 例: 370773112-GmHxMAgYyLbN...
+
+**パスパラメータ**:
+
+| パラメータ | 説明 |
+| :----- | :----- |
+| webhook\_id | サブスクリプションを関連付ける webhook の ID。 |
+
+**リクエスト**:\
+bash
+
+```
+curl --request POST --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all' \
+--header 'authorization: OAuth oauth_consumer_key="<CONSUMER_KEY>", oauth_nonce="GENERATED", oauth_signature="GENERATED", oauth_signature_method="HMAC-SHA1", oauth_timestamp="GENERATED", oauth_token="<ACCESS_TOKEN>", oauth_version="1.0"'
+```
+
+**レスポンス**:
+
+- **成功 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": true
+  }
+}
+```
+
+- **失敗 (400 Bad Request)**:
+
+| 理由 | 説明 |
+| :---- | :---- |
+| WebhookIdInvalid | 指定された webhook\_id が見つからない、またはアプリに関連付けられていません。 |
+| DuplicateSubscriptionFailed | このユーザーのサブスクリプションは、指定された webhook\_id ですでに存在します。 |
+| SubscriptionLimitExceeded | アプリケーションは、すべての webhook を通じたサブスクリプション上限に達しています。 |
+
+###
+
+<div id="checking-a-subscription">
+  ### [サブスクリプションの確認](https://docs.x.com/x-api/account-activity/check-if-a-subscription-exists-for-a-given-webhook-and-user)
+</div>
+
+**エンドポイント**: GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all\
+**説明**: 認証済みユーザーが指定の webhook にサブスクライブしているかを確認します。\
+**認証**: OAuthUser（3-legged OAuth フローが必要）\
+**パスパラメータ**:
+
+| パラメータ | 説明 |
+| :----- | :----- |
+| webhook\_id | 確認対象の webhook の ID。 |
+
+**リクエスト**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all' \
+--header 'authorization: OAuth oauth_consumer_key="<CONSUMER_KEY>", oauth_nonce="GENERATED", oauth_signature="GENERATED", oauth_signature_method="HMAC-SHA1", oauth_timestamp="GENERATED", oauth_token="<ACCESS_TOKEN>", oauth_version="1.0"'
+```
+
+**レスポンス**:
+
+- **成功（200 OK）**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": true // または false
+  }
+}
+```
+
+- **失敗（400 Bad Request）**:
+
+| 理由 | 説明 |
+| :---- | :---- |
+| WebhookIdInvalid | 指定の webhook\_id が見つからない、またはアプリに関連付けられていません。 |
+
+###
+
+<div id="removing-subscriptions">
+  ### [サブスクリプションの削除](https://docs.x.com/x-api/account-activity/deactivates-a-subscription-for-the-specified-webhook-and-user-id)
+</div>
+
+**エンドポイント**: DELETE /2/account\_activity/webhooks/:webhook\_id/subscriptions/:user\_id/all\
+**説明**: 指定したユーザー ID のサブスクリプションを無効化し、webhook へのイベント配信を停止します。\
+**認証**: OAuth 2.0（アプリ専用）ベアラートークン。
+
+- **ベアラートークン**: 例: AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...
+
+**パスパラメータ**:
+
+| パラメータ | 説明 |
+| :----- | :----- |
+| webhook\_id | サブスクリプションを含む webhook の ID。 |
+| user\_id | 解除する対象ユーザーの数値 ID。 |
+
+**リクエスト**:\
+bash
+
+```
+curl --request DELETE --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/:USER_ID/all' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**レスポンス**:
+
+- **成功 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": false
+  }
+}
+```
+
+- **失敗 (400 Bad Request)**:
+
+| 理由 | 説明 |
+| :---- | :---- |
+| SubscriptionNotFound | 指定の webhook\_id に、該当 user\_id のサブスクリプションは存在しません。 |
+| WebhookIdInvalid | 指定の webhook\_id が見つからない、またはアプリに関連付けられていません。 |
+
+<div id="viewing-all-subscriptions">
+  ### [すべてのサブスクリプションの表示](https://docs.x.com/x-api/account-activity/get-a-list-of-the-current-all-activity-type-subscriptions-for-the-specified-webhook)
+</div>
+
+**エンドポイント**: GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all/list\
+**説明**: 指定した webhook に現在登録されているすべてのユーザーIDの一覧を取得します。\
+**認証**: OAuth2 アプリ専用ベアラートークン\
+**パスパラメータ**:
+
+| パラメータ | 説明 |
+| :----- | :----- |
+| webhook\_id | サブスクリプションを一覧表示する対象の webhook のID。 |
+
+**リクエスト**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all/list' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**レスポンス**:
+
+- **成功 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "application_id": "<your app id>",
+    "webhook_id": "<webhook id>",
+    "webhook_url": "<the webhook's callback url>",
+    "subscriptions": [
+      { "user_id": "<user_id_1>" },
+      { "user_id": "<user_id_2>" }
+    ]
+  }
+}
+```
+
+- **失敗 (400 Bad Request)**:
+
+| 理由 | 説明 |
+| :---- | :---- |
+| WebhookIdInvalid | 指定された webhook\_id が見つからない、またはアプリに関連付けられていません。 |
+
+###
+
+<div id="subscriptions-count">
+  ### [サブスクリプション数](https://docs.x.com/x-api/account-activity/get-a-count-of-subscriptions-that-are-currently-active-on-your-account)
+</div>
+
+**エンドポイント**: GET /2/account\_activity/subscriptions/count\
+**説明**: 認証アプリケーションに対して、アクティブなサブスクリプションの総数と割り当て上限を返します。\
+**認証**: OAuth2 アプリのみ（ベアラートークン）。\
+**リクエスト**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/subscriptions/count' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**レスポンス**:
+
+- **成功 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "account_name": "<your application name>",
+    "provisioned_count": "<subscription limit allocated>",
+    "subscriptions_count_all": "<current active subscription count>",
+    "subscriptions_count_direct_messages": "0" // DMのみのサブスクリプションはサポートされなくなりました
+  }
+}
+```
+
+<div id="replay">
+  ## [リプレイ](https://docs.x.com/x-api/account-activity/request-activity-replay)
+</div>
+
+AAAv2 には、指定した時間範囲の過去イベントを取得し、webhook に再配信できるリプレイ機能があります。ダウンタイムによって取り逃したイベントの復旧に役立ちます。
+
+**エンドポイント**: POST /2/account\_activity/replay/webhooks/:webhook\_id/subscriptions/all
+
+**説明**: リプレイジョブの開始
+
+**認可**: OAuth2 アプリ専用ベアラートークン
+
+**パスパラメータ**:
+
+| Parameter | Description |
+| :----- | :----- |
+| webhook\_id | リプレイを開始する webhook の ID |
+
+**クエリパラメータ**:
+
+| Parameter | Description |
+| :----- | :----- |
+| from\_date | イベントが提供される最古（開始）の UTC タイムスタンプ。‘yyyymmddhhmm’ 形式で指定します。タイムスタンプは分単位の粒度で、包含的です（例: 12:00 は 00 分を含む）。有効な時刻は UTC で過去 24 時間以内、かつ現在時刻の 31 分以上前である必要があります。from\_date と to\_date は概ね 2 時間以内に収めることを推奨します。 |
+| to\_date | イベントが提供される最新（終了）の UTC タイムスタンプ。‘yyyymmddhhmm’ 形式で指定します。タイムスタンプは分単位の粒度で、排他的です（例: 12:30 はその時間の 30 分を含まない）。有効な時刻は UTC で過去 24 時間以内、かつ現在時刻の 10 分以上前である必要があります。 |
+
+**レスポンス**:
+
+成功:
+
+```
+200
+
+{
+  "for_user_id": "<USER_ID>"
+  "replay_event": {
+    "job_id": "<REPLAY_JOB_ID>",
+    "created_at": "yyyy-mm-ddThh:mm:ss.000Z"
+  }
+}
+```
+
+失敗:
+
+| Reason | Description |
+| :---- | :---- |
+| QueryParamInvalid | from\_date が現在時刻から 24 時間よりも前。 |
+| QueryParamInvalid | from\_date が to\_date より新しい。 |
+| QueryParamInvalid | from\_date が未来の時刻。 |
+| QueryParamInvalid | to\_date が未来の時刻。 |
+| QueryParamInvalid | from\_date または to\_date の形式が正しくない。 |
+| CrcValidationFailed | CRC 検証中に webhook URL から不正なレスポンスを受信。 |
+| ReplayConflictError | 指定の webhook に対するリプレイジョブが既に進行中。 |
+| WebhookIdInvalid | 指定された webhook\_id が無効、またはアプリに関連付けられていない。  |
+
+<div id="job-completed-messages">
+  ### ジョブ完了メッセージ
+</div>
+
+リプレイジョブが正常に完了すると、X は次のジョブ完了イベントを送信します。このイベントを受信した時点で、ジョブの実行は終了しており、別のジョブを提出できます。
+
+```
+{
+  "replay_job_status": {
+    "webhook_id": "<WEBHOOK_ID>",
+    "job_state": "Complete",
+    "job_state_description": "Job completed successfully",
+    "job_id": "<JOB_ID>"
+  }
+}
+```
+
+ジョブが正常に完了しなかった場合は、リプレイジョブの再試行を促す次のメッセージを返します。このイベントを受信した時点で、ジョブの実行は終了しており、別のジョブを提出できます。
+
+```
+{
+  "replay_job_status": {
+    "webhook_id": "<WEBHOOK_ID>",
+    "job_state": "Incomplete",
+    "job_state_description": "Job failed to deliver all events, please retry your replay job",
+    "job_id": "<JOB_ID>"
+  }
+}
+```
+
+<div id="account-activity-data-object-structure">
+  ## アカウントアクティビティのデータオブジェクト構造
+</div>
+
+| オブジェクト | 詳細 |
+| :----- | :----- |
+| for\_user\_id | イベントが関連するユーザー向けサブスクリプションを識別します。 |
+| is\_blocked\_by | （条件付き）メンションしたユーザーが購読ユーザーにブロックされている場合に限り、投稿のメンションイベントで表示されます。 |
+| source | アクティビティを行うユーザー（例：フォロー、ブロック、ミュートを行う側のユーザー）。 |
+| target | アクティビティの対象となるユーザー（例：フォロー、ブロック、ミュートされる側のユーザー）。 |
+
+<div id="available-activities">
+  ### 利用可能なアクティビティ
+</div>
+
+| メッセージタイプ | 詳細 |
+| :----- | :----- |
+| tweet\_create\_events | 投稿、リポスト、返信、@メンション、引用投稿、または引用投稿のリポストに関する投稿ステータス。 |
+| favorite\_events | ユーザーと対象を含む「いいね」イベント。 |
+| follow\_events | ユーザーと対象を含むフォローイベント。 |
+| unfollow\_events | ユーザーと対象を含むフォロー解除イベント。 |
+| block\_events | ユーザーと対象を含むブロックイベント。 |
+| unblock\_events | ユーザーと対象を含むブロック解除イベント。 |
+| mute\_events | ユーザーと対象を含むミュートイベント。 |
+| unmute\_events | ユーザーと対象を含むミュート解除イベント。 |
+| user\_event | ユーザーがアプリの認可を取り消した際のリボークイベント（サブスクリプションは自動削除）。 |
+| direct\_message\_events | 送受信メッセージのDMステータス。 |
+| direct\_message\_indicate\_typing\_events | ユーザーと対象を含むDMの入力中イベント。 |
+| direct\_message\_mark\_read\_events | ユーザーと対象を含むDMの既読イベント。 |
+| tweet\_delete\_events | コンプライアンスのための削除済み投稿の通知。 |
+| spaces\_events | 現在は未対応。近日対応予定。 |
+
+<div id="payload-examples">
+  ## ペイロード例
+</div>
+
+以下は、各 Account Activity イベントのペイロードの例です。
+
+### tweet\_create\_events（投稿、リポスト、返信、引用投稿）
+
+```json
+{
+  "for_user_id": "2244994945",
+  "tweet_create_events": [
+    {
+      <Tweet Object>
+    }
+  ]
+}
+```
+
+###
+
+### tweet\_create\_events（@メンション）
+
+```json
+{
+  "for_user_id": "2244994945",
+  "user_has_blocked": "false",
+  "tweet_create_events": [
+    {
+      <Tweet Object>
+    }
+  ]
+}
+```
+
+### favorite\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "favorite_events": [{
+    "id": "a7ba59eab0bfcba386f7acedac279542",
+    "created_at": "Mon Mar 26 16:33:26 +0000 2018",
+    "timestamp_ms": 1522082006140,
+    "favorited_status": {
+      <Tweet Object>
+    },
+    "user": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### follow\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "follow_events": [{
+    "type": "follow",
+    "created_timestamp": "1517588749178",
+    "target": {
+      <User Object>
+    },
+    "source": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### unfollow\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "follow_events": [{
+    "type": "unfollow",
+    "created_timestamp": "1517588749178",
+    "target": {
+      <User Object>
+    },
+    "source": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### block\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "block_events": [{
+    "type": "block",
+    "created_timestamp": "1518127020304",
+    "source": {
+      <User Object>
+    },
+    "target": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### unblock\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "block_events": [{
+    "type": "unblock",
+    "created_timestamp": "1518127020304",
+    "source": {
+      <User Object>
+    },
+    "target": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### mute\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "mute_events": [
+    {
+      "type": "mute",
+      "created_timestamp": "1518127020304",
+      "source": {
+        <User Object>
+      },
+      "target": {
+        <User Object>
+      }
+    }
+  ]
+}
+```
+
+### unmute\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "mute_events": [
+    {
+      "type": "unmute",
+      "created_timestamp": "1518127020304",
+      "source": {
+        <User Object>
+      },
+      "target": {
+        <User Object>
+      }
+    }
+  ]
+}
+```
+
+### user\_event
+
+```json
+{
+  "user_event": {
+    "revoke": {
+      "date_time": "2018-05-24T09:48:12+00:00",
+      "target": {
+        "app_id": "13090192"
+      },
+      "source": {
+        "user_id": "63046977"
+      }
+    }
+  }
+}
+```
+
+### direct\_message\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_events": [{
+    "type": "message_create",
+    "id": "954491830116155396",
+    "created_timestamp": "1516403560557",
+    "message_create": {
+      "target": {
+        "recipient_id": "4337869213"
+      },
+      "sender_id": "3001969357",
+      "source_app_id": "13090192",
+      "message_data": {
+        "text": "Hello World!",
+        "entities": {
+          "hashtags": [],
+          "symbols": [],
+          "user_mentions": [],
+          "urls": []
+        }
+      }
+    }
+  }],
+  "apps": {
+    "13090192": {
+      "id": "13090192",
+      "name": "FuriousCamperTestApp1",
+      "url": "https://x.com/furiouscamper"
+    }
+  },
+  "users": {
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter Ego - X PE opinions-are-my-own",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 22,
+      "friends_count": 45,
+      "statuses_count": 494,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    },
+    "4337869213": {
+      "id": "4337869213",
+      "created_timestamp": "1448312972328",
+      "name": "Harrison Test",
+      "screen_name": "Harris_0ff",
+      "location": "Burlington, MA",
+      "protected": false,
+      "verified": false,
+      "followers_count": 8,
+      "friends_count": 8,
+      "statuses_count": 240,
+      "profile_image_url_https": "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"
+    }
+  }
+}
+```
+
+### direct\_message\_indicate\_typing\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_indicate_typing_events": [{
+    "created_timestamp": "1518127183443",
+    "sender_id": "3284025577",
+    "target": {
+      "recipient_id": "3001969357"
+    }
+  }],
+  "users": {
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter Ego - X PE opinions-are-my-own",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 23,
+      "friends_count": 47,
+      "statuses_count": 509,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    },
+    "3284025577": {
+      "id": "3284025577",
+      "created_timestamp": "1437281176085",
+      "name": "Bogus Bogart",
+      "screen_name": "bogusbogart",
+      "protected": true,
+      "verified": false,
+      "followers_count": 1,
+      "friends_count": 4,
+      "statuses_count": 35,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/763383202857779200/ndvZ96mE_normal.jpg"
+    }
+  }
+}
+```
+
+### direct\_message\_mark\_read\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_mark_read_events": [{
+    "created_timestamp": "1518452444662",
+    "sender_id": "199566737",
+    "target": {
+      "recipient_id": "3001969357"
+    },
+    "last_read_event_id": "963085315333238788"
+  }],
+  "users": {
+    "199566737": {
+      "id": "199566737",
+      "created_timestamp": "1286429788000",
+      "name": "Le Braat",
+      "screen_name": "LeBraat",
+      "location": "Denver, CO",
+      "description": "day はデータ、dusk はデザイン @X",
+      "protected": false,
+      "verified": false,
+      "followers_count": 299,
+      "friends_count": 336,
+      "statuses_count": 752,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/936652894371119105/YHEozVAg_normal.jpg"
+    },
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "オルターエゴ - X PE（見解は私個人のもの）",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 23,
+      "friends_count": 48,
+      "statuses_count": 510,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    }
+  }
+}
+```
+
+### tweet\_delete\_events
+
+```json
+{
+  "for_user_id": "930524282358325248",
+  "tweet_delete_events": [
+    {
+      "status": {
+        "id": "1045405559317569537",
+        "user_id": "930524282358325248"
+      },
+      "timestamp_ms": "1432228155593"
+    }
+  ]
+}
+```
+
+<div id="support-for-longform-posts">
+  ## 長文投稿のサポート
+</div>
+
+V2 Account Activity API は、280文字を超える**長文**投稿をサポートするようになりました。長文投稿が tweet\_create\_events のペイロードに含まれる場合、text フィールドには先頭の140文字（またはそれ以下）が入り、truncated フィールドは true に設定されます。投稿の全文は extended\_tweet オブジェクトで配信され、以下を含みます:
+
+- full\_text: 280文字の上限を超える部分も含めた、投稿の全文。
+- entities: フルテキスト内に出現するエンティティ（例: ハッシュタグ、URL、ユーザーのメンション、シンボル）。280文字目以降のものも含む。
+- display\_text\_range: フルテキストを考慮した表示対象の文字範囲。
+
+これにより、テキスト後半に現れるメンションやその他のエンティティも含め、アプリケーションは長文投稿の内容全体を処理できます。以下は、長文投稿に対する tweet\_create\_events のペイロード例です:
+
+```json
+{
+  "for_user_id": "1603419180975409153",
+  "tweet_create_events": [
+    {
+      "created_at": "Mon May 19 14:01:46 +0000 2025",
+      "id": 1924465506158879000,
+      "id_str": "1924465506158878979",
+      "text": "アンティキティラの機械：古代の英知への窓 1901年、ギリシャのアンティキティラ島沖で沈没したローマ船の残骸から発見された「アンティキティラの機械」は、しばしば世界初のアナログコンピューターと称される。この精巧な青銅製の装置は紀元前100年ごろに遡り、その高度な設計と謎めいた用途によって歴史家、考古学者、科学者を魅了してきた。機構は複雑な歯車系で構成され、当時として驚くほど進んだ計算を行えるよう緻密に作られている。この発見は、古代世界の技術的能力に関する長年の通念に挑戦した。アンティキティラの機械の主な機能は天文学的なものだったと見られる。太陽や月、そしておそらくは惑星の位置を予測し、日食・月食を追跡し、オリンピックの開催日まで計算できた。装置のダイヤルと指針、そして古代ギリシャ語の銘文は、これが科学的探求と文化的行事の双方に用いられた道具であったことを示唆している。その精度は19世紀の時計製造に匹敵し、ヘレニズム世界に由来すると考えられる作り手たちの卓越した創意工夫を物語る。数十年にわたる研究にもかかわらず、多くの疑問が残っている。誰が、誰のために作ったのか。これは唯一の傑作だったのか、それとも歴史に埋もれた機械装置の広い伝統の一端なのか。X線撮影と現代の計算技術によって内部構造の多くが明らかになった一方、その能力の全容は今なお議論の的だ。占星術的な予測に使われたとする説もあれば、天文学者の教育用ツールとみなす説もある。アンティキティラの機械は人間の好奇心と革新の証であり、古代と現代を橋渡しする存在である。古代においてさえ、人々が現代技術に匹敵する複雑さの道具で宇宙を理解しようとしたことを思い起こさせる。その尽きない謎は今も畏敬と探究心を呼び起こし、出土品の中でも屈指の驚異であり続けている。\n@xai\n@HistoryInPics",
+      "display_text_range": [
+        0,
+        140
+      ],
+      ...
+      "user": {
+        ...
+      },
+      ...
+      "extended_tweet": {
+        "full_text": "アンティキティラの機械：古代の英知への窓 1901年、ギリシャのアンティキティラ島沖で沈没したローマ船の残骸から発見された「アンティキティラの機械」は、しばしば世界初のアナログコンピューターと称される。この精巧な青銅製の装置は紀元前100年ごろに遡り、その高度な設計と謎めいた用途によって歴史家、考古学者、科学者を魅了してきた。機構は複雑な歯車系で構成され、当時として驚くほど進んだ計算を行えるよう緻密に作られている。この発見は、古代世界の技術的能力に関する長年の通念に挑戦した。アンティキティラの機械の主な機能は天文学的なものだったと見られる。太陽や月、そしておそらくは惑星の位置を予測し、日食・月食を追跡し、さらにはオリンピックの開催日まで計算できた。装置のダイヤルと指針、そして古代ギリシャ語の銘文は、これが科学的探求と文化的行事の双方に用いられた道具であったことを示唆している。その精度は19世紀の時計製造に匹敵し、ヘレニズム世界に由来すると考えられる作り手たちの卓越した創意工夫を物語る。数十年にわたる研究にもかかわらず、多くの疑問が残っている。誰が、誰のために作ったのか。これは唯一の傑作だったのか、それとも歴史に埋もれた機械装置の広い伝統の一端なのか。X線撮影と現代の計算技術によって内部構造の多くが明らかになった一方、その能力の全容は今なお議論の的だ。占星術的な予測に使われたとする説もあれば、天文学者の教育用ツールとみなす説もある。アンティキティラの機械は人間の好奇心と革新の証であり、古代と現代を橋渡しする存在である。古代においてさえ、人々が現代技術に匹敵する複雑さの道具で宇宙を理解しようとしたことを思い起こさせる。その尽きない謎は今も畏敬と探究心を呼び起こし、発見された遺物の中でも最も注目すべき存在であり続けている。\n@xai\n@HistoryInPics",
+        "display_text_range": [
+          0,
+          2051
+        ],
+        "entities": {
+          "hashtags": [],
+          "urls": [],
+          "user_mentions": [
+            {
+              "screen_name": "xai",
+              "name": "xAI",
+              "id": 1661523610111193000,
+              "id_str": "1661523610111193088",
+              "indices": [
+                2032,
+                2036
+              ]
+            },
+            {
+              "screen_name": "HistoryInPics",
+              "name": "History Photographed",
+              "id": 1582853809,
+              "id_str": "1582853809",
+              "indices": [
+                2037,
+                2051
+              ]
+            }
+          ],
+          "symbols": []
+        }
+      },
+      ...
+      "entities": {
+        "hashtags": [],
+        "urls": [
+          {
+            "url": "https://t.co/bzbEKj8cd8",
+            "expanded_url": "https://twitter.com/i/web/status/1924465506158878979",
+            "display_url": "twitter.com/i/web/status/1…",
+            "indices": [
+              117,
+              140
+            ]
+          }
+        ],
+        "user_mentions": [],
+        "symbols": []
+      },
+      ...
+    }
+  ]
+}
+```
+
+<div id="account-activity-api-migrating-from-legacy-enterprise-to-v2">
+  ## Account Activity API：レガシー Enterprise から v2 への移行
+</div>
+
+[移行ガイド](https://docs.x.com/x-api/account-activity/migrate/overview)をご覧ください。
+
+<div id="frequently-asked-questions">
+  ## よくある質問
+</div>
+
+**Account Activity API を使用する利点は何ですか？**
+
+Account Activity API は webhook を使用し、ストリーミング API のように常時接続を必要とせず、REST API のように頻繁なポーリングも不要で、リアルタイムにデータを配信します。主な利点は以下のとおりです。
+
+- **速度**: X のスピードでデータを配信します。
+- **シンプルさ**: 単一の webhook 接続で、Posts、@mentions、Replies、Reposts、Quote Tweets、Likes、DMs、Follows、Blocks、Mutes を含むすべてのアカウントイベントを受け取れます。
+- **スケール**: 管理対象アカウントについて、レート制限やイベント上限なしであらゆるアクティビティをサポートします（Enterprise ティア）。
+
+**Account Activity API 用に開発・ステージング・本番環境が必要です。これは可能ですか？**
+
+はい！ 複数の webhook URL を登録し、[V2 Webhooks API](https://docs.x.com/x-api/webhooks/introduction) を通じてサブスクリプションを個別に管理できます。
+
+**Account Activity API のセットアップ方法に関するステップバイステップのガイドはありますか？**
+
+はい！ [Getting Started with Webhooks ガイド](https://docs.x.com/x-api/webhooks/introduction) と [Account Activity API Sample Application](https://github.com/m-rosinsky/XWebhookTest/blob/main/app.py) を参照してください。
+
+**Account Activity API ではどの認証を使用する必要がありますか？**
+
+エンドポイントごとに認証要件が定義されています。詳細は [Authentication セクション](https://developer.x.com/en/docs/authentication) を確認してください。
+
+**相互にやり取りしているユーザーをサブスクライブしている場合、重複したアクティビティを受け取りますか？**
+
+はい。アプリがユーザー A とユーザー B をサブスクライブしていて、ユーザー A が Post でユーザー B に言及した場合、webhook は 2 件のイベント（ユーザーごとに 1 件）を受け取ります。サブスクリプションの識別には for\_user\_id フィールドを使用してください。
+
+**webhook へのサブスクリプションを作成する際、配信されるアクティビティを制限するために、エンドポイントの** /all/ **部分を他のアカウントアクティビティのデータオブジェクトに置き換えることはできますか？**
+
+いいえ。/all/ 製品のみが利用可能で、サポートされているすべてのイベントタイプを配信します。
+
+**3 つの webhook へのアクセス権がある場合、エンタープライズ用途で登録した各アプリに 3 つの webhook を使用できますか？**
+
+webhook の上限はアプリ単位ではなくアカウント単位で設定されています。たとえば、3 つの webhook と 2 つのアプリがある場合、一方のアプリに 2 つ、もう一方に 1 つを割り当てることはできますが、各アプリで 3 つずつ使用することはできません。
+
+<div id="account-activity-api-reference-index">
+  ## Account Activity API リファレンス索引
+</div>
+
+| 目的 | V2 エンドポイント |
+| :----- | :----- |
+| アプリケーションをアカウントのイベントに購読登録する | POST /2/account\_activity/webhooks/:webhook\_id/subscriptions/all |
+| 現在アクティブな購読の件数を返す | GET /2/account\_activity/subscriptions/count |
+| Webhook がアカウントを購読中か確認する | GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all |
+| 現在アクティブな購読の一覧を返す | GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all/list |
+| アプリ専用 OAuth を使用して購読を無効化する | DELETE /2/account\_activity/webhooks/:webhook\_id/subscriptions/:user\_id/all |
+| リプレイジョブを作成する | POST /2/account\_activity/replay/webhooks/:webhook\_id/subscriptions/all |
+
+Webhook 管理エンドポイント（登録、表示、検証、削除）については、[V2 Webhooks API ドキュメント](https://docs.x.com/x-api/webhooks/introduction)を参照してください

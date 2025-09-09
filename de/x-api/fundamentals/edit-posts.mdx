@@ -1,0 +1,144 @@
+---
+title: Beiträge bearbeiten
+---
+
+<div id="introduction">
+  # Einführung
+</div>
+
+Die Endpunkte der X-API v2 stellen Metadaten zu bearbeiteten Posts bereit. Die Funktion _Posts bearbeiten_ wurde erstmals am 1. September 2022 intern bei X getestet. Seit diesem Datum sind berechtigte Posts 30 Minuten lang und bis zu 5 Mal bearbeitbar. _Alle Objekte für Posts, die seit dem 29. September 2022 erstellt wurden,_ enthalten Metadaten zur Bearbeitung, selbst wenn der Post nie bearbeitet wurde. Jedes Mal, wenn ein Post bearbeitet wird, wird eine neue Post-ID erstellt. Die Bearbeitungshistorie eines Posts lässt sich darstellen, indem diese IDs beginnend mit der ursprünglichen ID miteinander verknüpft werden. Zudem gilt: Wenn ein beliebiger Post in der Bearbeitungskette gelöscht wird, werden alle Posts in dieser Kette ebenfalls gelöscht.
+
+Mit der X-API v2 kann ein Entwickler Folgendes feststellen:
+
+- Ob ein Post zum Zeitpunkt der Erstellung bearbeitbar war. Einige Posts, wie solche mit Umfragen oder geplante Posts, können nicht bearbeitet werden.
+- Posts sind 30 Minuten lang bearbeitbar und können bis zu 5 Mal bearbeitet werden. Bei bearbeitbaren Posts können Sie sehen, ob noch Bearbeitungszeit verbleibt und wie viele weitere Bearbeitungen möglich sind.
+- Ob Sie eine bearbeitete Version eines Posts anzeigen (in den meisten Fällen gibt die API die neueste Version eines Posts zurück, es sei denn, eine bestimmte frühere Version wird per Post-ID angefordert).
+- Die gesamte Bearbeitungshistorie des Posts.
+- Das Engagement, das jeder Version des Posts zugeordnet wird.
+
+Es gibt drei Komponenten der Bearbeitungshistorie eines Posts:
+
+1. Standardmäßig enthält die Post-Payload ein Array von Post-IDs, die Teil der Bearbeitungshistorie eines Posts sind. Diese Information wird durch `edit_history_tweet_ids` angegeben, ein Standardfeld in der Post-Payload. Dieses Array enthält mindestens eine ID, die ID des ursprünglichen, unbearbeiteten Posts. Wenn es nur eine ID gibt, bedeutet das, dass der Post keine Bearbeitungshistorie hat. 
+2. Sie können Informationen abrufen, etwa ob ein Post zum Zeitpunkt der Erstellung bearbeitbar war, wie viel Zeit – falls vorhanden – für die Bearbeitung eines Posts verbleibt und wie viele Bearbeitungen verbleiben, indem Sie `edit_controls` in Ihrem Parameter [tweet.fields](/de/x-api/fundamentals/fields) angeben.
+3. Schließlich können Sie die Post-Objekte für jeden Post in der Bearbeitungshistorie eines Posts erhalten, indem Sie die `edit_history_tweet_ids` über den Parameter [expansion](/de/x-api/fundamentals/expansions) angeben.
+
+Die meisten Posts sind bearbeitbar. Die folgenden Arten von Posts sind jedoch ausgeschlossen: 
+
+- Post ist beworben
+- Post enthält eine Umfrage
+- Post ist eine Antwort in einem Thread, der nicht vom Autor selbst stammt
+- Post ist ein Retweet (beachten Sie, dass Zitat-Posts bearbeitet werden können)
+- Post ist nullcast
+- Community-Post
+- Superfollow-Post
+- Kollaborativer Post
+
+Beispiele
+
+---
+
+Die folgenden Beispiele zeigen, wie ein Entwickler mithilfe der X-API v2 Metadaten zu bearbeiteten Posts anfordern kann. 
+
+Hinweis: Die folgenden Beispiele verwenden den Endpunkt User Post Timeline, aber Sie können diese Metadaten mit denselben Parametern (mit Feldern und Expansions) für alle Endpunkte anfordern, die Posts zurückgeben (z. B. Posts-Lookup, Suche, Gefilterter Stream usw.).
+
+<div id="default-behavior">
+  ### Standardverhalten
+</div>
+
+Standardmäßig erhältst du bei einer API-Anfrage an jeden Endpoint, der Post-Objekte in der X-API v2 zurückgibt:
+
+- Die Post-ID
+- Den Post-Text
+- Ein Array von Post-IDs, die Teil der Bearbeitungshistorie eines Posts sind. Wenn nur eine ID angegeben ist, bedeutet das, dass der Post nicht bearbeitet wurde.
+
+**Anfrage:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**Beispielantwort:**
+
+```{
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"]
+    }
+  ]
+}
+```
+
+### Zusätzliche Daten mit edit\_controls abrufen
+
+Wenn Sie zusätzliche Metadaten zu bearbeiteten Posts benötigen – etwa ob ein Post bei seiner Erstellung bearbeitbar war und wie viel Zeit für die Bearbeitung noch verbleibt –, können Sie diese Informationen über den Parameter tweet.fields anfordern, indem Sie ihn auf edit\_control setzen.
+
+**Anfrage:**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**Beispielantwort:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ]
+}
+```
+
+<div id="getting-post-objects-for-all-posts-in-a-posts-edit-history">
+  ### Abrufen von Post-Objekten für alle Posts in der Bearbeitungshistorie eines Posts
+</div>
+
+Die obigen Beispiele liefern ein Array von Post-IDs aus der Bearbeitungshistorie eines Posts. Wenn Sie das eigentliche Post-Objekt für jede dieser Post-IDs benötigen, können Sie den Expansionsparameter verwenden und ihn auf `edit_history_tweet_ids` setzen. Die Post-Objekte, die die Bearbeitungshistorie bilden, werden im Objekt „includes“ bereitgestellt.
+
+**Anfrage:**
+
+```bash
+      curl --location --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control&expansions=edit_history_tweet_ids' --header 'Authorization: Bearer $BEARER_TOKEN'`
+```
+
+**Beispielantwort:**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "id": "1514991667853602822",
+        "text": "we need an eidt button",
+        "edit_history_tweet_ids": [
+          "1514991667853602822",
+          "1514991667853602823"
+        ],
+        "edit_controls": {
+          "is_edit_eligible": true,
+          "editable_until": "2022-04-21 09:35:20.311",
+          "edits_remaining": 4
+        }
+      }
+    ]
+  }
+}
+```

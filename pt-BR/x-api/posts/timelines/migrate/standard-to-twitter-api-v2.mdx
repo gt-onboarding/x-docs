@@ -1,0 +1,183 @@
+---
+title: da v1 para a v2
+sidebarTitle: da v1 para a v2
+---
+
+import { Button } from '/snippets/pt-BR/button.mdx';
+
+<div id="standard-v11-timelines-to-x-api-v2-timelines">
+  ## Linhas do tempo padrão v1.1 para linhas do tempo da API do X v2
+</div>
+
+Se você vem trabalhando com os endpoints de linhas do tempo da v1.1 (statuses/user\_timeline e statuses/mentions\_timeline), o objetivo deste guia é ajudar você a entender as semelhanças e diferenças entre os endpoints de linhas do tempo padrão e da API do X v2 para que possa migrar sua integração atual para a nova versão.
+
+- **Semelhanças:**
+  - Autenticação:
+    - OAuth 1.0a em contexto de usuário (linha do tempo inicial em ordem cronológica inversa, linha do tempo de Posts do usuário e linha do tempo de menções do usuário)
+    - OAuth 2.0 somente app (linha do tempo de Posts do usuário)
+  - Limite de acesso histórico: a linha do tempo do usuário (linha do tempo de Posts do usuário) fornece acesso aos 3.200 Posts mais recentes; a linha do tempo de menções (linha do tempo de menções do usuário) fornece acesso às 800 menções mais recentes.
+  - Suporte ao histórico de edição de Post e metadados
+  - Limites de taxa (linha do tempo de Posts do usuário)
+  - Consulta de atualização: capacidade de recuperar novos resultados desde o since\_id
+  - Percorrer linhas do tempo por IDs de Post
+  - Especificações de resultados:
+    - Ordem dos resultados: resultados retornados em ordem cronológica inversa
+    - Capacidade de excluir respostas (apenas linha do tempo de Posts do usuário)
+    - Capacidade de excluir Retweets (apenas linha do tempo de Posts do usuário)
+- **Diferenças**
+  - Nova capacidade de autenticação:
+    - OAuth 2.0 somente app (linha do tempo de menções do usuário)
+    - Fluxo de código de autorização OAuth 2.0 com PKCE (linha do tempo inicial em ordem cronológica inversa, linha do tempo de Posts do usuário e linha do tempo de menções do usuário)
+  - Requisitos de acesso: requisitos de App e Projeto da API do X v2
+  - Limites de taxa (linha do tempo de menções do usuário e linha do tempo inicial em ordem cronológica inversa)
+  - Limites diferentes de requisições e de volume
+  - Método adicional de paginação
+    - Valores diferentes de max\_results (count) por resposta
+  - Formato de dados da resposta
+  - Parâmetros de requisição
+    - Formato de dados personalizado com base nos parâmetros de requisição, incluindo campos e expansões da v2
+    - Dados adicionais disponíveis: métricas, anotações de Post, enquetes
+
+<div id="similarities">
+  ### Semelhanças
+</div>
+
+**Autenticação**
+
+Os endpoints v1.1 statuses/user\_timeline e o endpoint de timeline de Posts de usuário da API do X v2 oferecem suporte a [OAuth 1.0a User Context](/pt-BR/resources/fundamentals/authentication) e [OAuth 2.0 App-Only](/pt-BR/resources/fundamentals/authentication#bearer-token-also-known-as-app-only). Portanto, você pode continuar usando o mesmo método de autenticação e os mesmos tokens de autorização se migrar para a versão da API do X v2.
+
+**Acesso histórico**
+
+Os endpoints v1.1 statuses/user\_timeline e o endpoint de timeline de Posts de usuário da API do X v2 retornam os 3.200 Posts mais recentes, incluindo Retweets.
+
+Os endpoints v1.1 statuses/mentions\_timeline e o endpoint de timeline de menções do usuário da API do X v2 podem retornar os 800 Posts mais recentes.
+
+**Suporte a histórico de edição de Post e metadados**
+
+Ambas as versões fornecem metadados que descrevem qualquer histórico de edição. Confira as [referências da API de Fluxo filtrado](/pt-BR/x-api/posts/filtered-stream#api-reference-index) e a [página de fundamentos de edição de Posts](/pt-BR/x-api/fundamentals/edit-posts) para mais detalhes.
+
+**Limites de taxa**
+
+|     |     |
+| :--- | :--- |
+| **Standard v1.1** | **API do X v2** |
+| user\_timeline:<br /><br />900 solicitações por 15 min com OAuth 1.0a User Context<br /><br />1500 solicitações por 15 min com OAuth 2.0 App-Only | Timeline de Posts do usuário:<br /><br />900 solicitações por janela de 15 minutos com OAuth 1.0a User Context<br /><br />1500 solicitações por janela de 15 minutos com OAuth 2.0 App-Only |
+
+**Atualização por polling usando since\_id**
+
+Ambas as versões permitem fazer polling por resultados recentes usando since\_id.
+
+**Percorrendo timelines por IDs de Post**
+
+Ambos os endpoints conseguem percorrer timelines usando “timestamps” de ID de Post com base na forma como os IDs de Post são construídos. A funcionalidade é, em geral, a mesma, com a seguinte diferença:
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| since\_id (exclusivo)<br /><br />max\_id (inclusivo) | since\_id (exclusivo)<br /><br />until\_id (também exclusivo, enquanto max\_id era inclusivo) |
+
+**Parâmetros de filtragem de resposta**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| Parâmetros de filtragem de resposta:<br /><br />\* include\_rts<br />\* exclude\_replies | Parâmetros de filtragem de resposta:<br /><br />\* exclude=retweets,replies |
+| Exemplo:<br /><br />https://api.x.com/1.1/statuses/user\_timeline.json?user\_id=2244994945\&include\_rts=0&\&exclude\_replies=1 | Exemplo:<br /><br />https://api.x.com/2/users/2244994945/tweets?max\_results=100\&exclude=retweets,replies |
+| Observações:<br /><br />Para user\_timeline:<br /><br />\* Usar include\_rts=0 não altera o possível limite histórico de Posts dos 3.200 mais recentes | Observações:<br /><br />Para a timeline de Posts do usuário:<br /><br />\* Usar exclude=retweets não altera o possível limite histórico de Posts dos 3.200 mais recentes<br />\* Usar exclude=replies reduz o possível limite histórico de Posts para as 800 respostas mais recentes |
+
+<div id="differences">
+  ### Diferenças
+</div>
+
+**Autenticação**
+
+**O endpoint v1.1 statuses/mentions\_timeline oferece suporte apenas a [OAuth 1.0a User Context](https://developer-staging.x.com/resources/fundamentals/authentication). O endpoint de timeline de menções do usuário da API do X v2 oferece suporte a [OAuth 1.0a User Context](/pt-BR/resources/fundamentals/authentication), [OAuth 2.0 App-Only](/pt-BR/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) e [OAuth 2.0 Authorization Code with PKCE](/pt-BR/resources/fundamentals/authenticationoauth-2-0/authorization-code "This method allows an authorized app to act on behalf of the user, as the user. It is typically used to access or post public information for a specific user, and it us useful when your app needs to be aware of the relationship between a user and what this endpoint returns. Click to learn how to authenticate with OAuth 2.0 Authorization Code with PKCE.")**
+
+Se você quiser aproveitar a capacidade de acessar métricas privadas ou promovidas usando o endpoint de timeline de Posts do usuário da API do X v2, será necessário usar OAuth 1.0a User Context ou OAuth 2.0 Authorization Code with PKCE e enviar os tokens de acesso do usuário relacionados ao usuário que publicou o Post para o qual você deseja acessar as métricas.
+ 
+
+**URLs de endpoints**
+
+Observe que os endpoints de timelines da API do X v2 exigem um parâmetro de caminho :id para o ID do usuário.
+
+- Endpoints padrão v1.1:
+  - https://api.x.com/1.1/statuses/home\_timeline
+  - https://api.x.com/1.1/statuses/user\_timeline
+  - https://api.x.com/1.1/statuses/mention\_timeline
+- Endpoint da API do X v2:
+  - https://api.x.com/2/users/:id/timelines/reverse\_chronological
+  - https://api.x.com/2/users/:id/tweets
+  - https://api.x.com/2/users/:id/mentions
+
+**Requisitos de App e Projeto**
+
+Os endpoints da API do X v2 exigem que você use credenciais de um [developer App](/pt-BR/resources/fundamentals/developer-apps) associado a um [Project](/pt-BR/resources/fundamentals/projects) ao autenticar suas solicitações. Todos os endpoints da API do X v1.1 podem usar credenciais de Apps autônomos ou de Apps associados a um projeto. 
+ 
+
+**Limites de taxa**
+
+|     |     |
+| :--- | :--- |
+| **mentions\_timeline:**<br /><br />75 solicitações por 15 min com OAuth 1.0a User Context | **user mention timeline:**<br /><br />180 solicitações por janela de 15 minutos com OAuth 1.0a User Context  <br />450 solicitações por janela de 15 minutos com OAuth 2.0 Bearer Token |
+| **home\_timeline:**<br /><br />15 solicitações por 15 minutos  <br /><br />Até 800 Posts podem ser obtidos na home timeline | **reverse chronological home timeline:**<br /><br />180 solicitações por 15 minutos<br /><br />Você pode retornar todos os Posts criados em uma timeline nos últimos 7 dias, bem como os 800 mais recentes, independentemente da data de criação. |
+
+**Limites de solicitação**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| Limite diário de solicitações<br /><br />\* Limite de 100.000 solicitações em um período de 24 horas. | Sem limites diários de solicitação, apenas limitado por volume de consumo. |
+
+**Limites de volume de consumo**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| Consumo limitado apenas por limites de solicitação<br /><br />\* Limite de 100.000 solicitações em um período de 24 horas. | Consumo limitado apenas pelo [Post cap](/pt-BR/x-api/fundamentals/post-cap) mensal em nível de Project (em vários endpoints v2), com base no [nível de acesso](/pt-BR/x-api/getting-started/about-x-api).<br /><br />\* 500.000 Posts por mês com acesso Essential.<br />\* 2 milhões de Posts por mês com acesso Elevated<br />\* 10 milhões de Posts por mês com acesso Academic Research <br /><br />A reverse chronological home timeline não está sujeita ao Post cap mensal. |
+
+**Parâmetros de solicitação**
+
+|     |     |
+| :--- | :--- |
+| **Linhas do tempo padrão v1.1** | **Linhas do tempo v2** |
+| Obrigatório: user\_id ou screen\_name | Obrigatório: o ID específico do usuário é informado no parâmetro de caminho |
+| Opcional:<br /><br />count - define o número máximo de resultados retornados por solicitação<br /><br />exclude\_replies - remove respostas dos resultados<br /><br />include\_rts - quando definido como 0, remove Retweets dos resultados<br /><br />trim\_user - remove objetos de usuário reidratados dos resultados<br /><br />tweet\_mode - define o formato de dados retornado; defina como extended para Posts com mais de 140 caracteres<br /><br />since\_id - define o ID de Post mais antigo no resultado (exclusivo)<br /><br />max\_id - define o ID de Post mais recente no resultado (inclusivo) | Opcional:<br /><br />max\_results - define o número máximo de resultados retornados por solicitação<br /><br />exclude=retweets,replies - remove Retweets e/ou respostas dos resultados<br /><br />tweet.fields - define os campos do objeto Post a serem retornados<br /><br />user.fields - define os campos do objeto User a serem retornados<br /><br />place.fields - define os campos do objeto place a serem retornados<br /><br />media.fields - define os campos do objeto media a serem retornados<br /><br />poll.fields - define os campos do objeto poll a serem retornados<br /><br />expansions - define os campos e dados expandidos a serem retornados<br /><br />start\_time - define o horário created\_at mais antigo para os resultados<br /><br />end\_time - define o horário created\_at mais recente para os resultados<br /><br />since\_id - define o ID de Post mais antigo para os resultados (exclusivo)<br /><br />until\_id - define o ID de Post mais recente no resultado (exclusivo) |
+
+**Formato de dados da resposta**
+
+|     |     |
+| :--- | :--- |
+| **Busca padrão v1.1** | **Buscar Posts v2** |
+| \[<br />    tweet object,<br />    tweet object<br />  ] | <br />  "data": \[id,text,id,text],<br />  "meta": <br />    "oldest\_id": "1337085692623646724",<br />    "newest\_id": "1334183616172019713",<br />    "previous\_token": "77qpymm88g5h9vqkluldpw91lr0qzfz1sqydh841iz48k",<br />    "result\_count": 10,<br />    "next\_token": "7140dibdnow9c7btw3w29gqolns6a1ipl3kzeae41vsxk"<br />  <br /> |
+
+**Formato JSON da API do X v2**
+
+A API do X v2 está introduzindo novos modelos JSON para os objetos retornados pelas APIs, incluindo objetos [Post](/pt-BR/x-api/fundamentals/data-dictionary#tweet) e [user](/pt-BR/x-api/fundamentals/data-dictionary#user). Você pode saber mais sobre o formato da API do X v2 e como usar fields e expansions visitando nosso [guia](/pt-BR/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) e lendo nosso [dicionário de dados](/pt-BR/x-api/fundamentals/data-dictionary).
+
+- No nível raiz do JSON, os endpoints padrão retornam objetos Post em um array statuses, enquanto a API do X v2 retorna um array data. 
+- Em vez de se referir a "statuses" Retweetados e Citados, o JSON da API do X v2 se refere a Tweets Retweetados e Citados. Muitos campos legados e obsoletos, como contributors e user.translator\_type, estão sendo removidos. 
+- Em vez de usar favorites (no objeto Post) e favorites (no objeto user), a API do X v2 usa o termo like. 
+- O X está adotando a convenção de que valores JSON sem valor (por exemplo, null) não são escritos no payload. Atributos de Post e user só são incluídos se tiverem valor não nulo.
+   
+
+Uma das maiores diferenças entre os endpoints padrão v1.1 e a versão da API do X v2 é como você seleciona quais campos retornam no seu payload. Nos endpoints padrão, havia vários parâmetros que podiam ser usados para identificar quais campos ou conjuntos de campos retornariam no payload, enquanto a versão da API do X v2 simplifica esses parâmetros em [fields](/pt-BR/x-api/fundamentals/fields) e [expansions](/pt-BR/x-api/fundamentals/expansions). 
+
+- fields: Os endpoints da API do X v2 permitem selecionar quais campos serão incluídos no seu payload. Por exemplo, os objetos Post, User, Media, Place e Poll têm listas de campos que podem (ou não) ser retornados.
+
+- expansions: Usado para expandir objetos complementares referenciados nos payloads JSON de Post. Por exemplo, todos os Retweets e Replies fazem referência a outros Posts. Ao definir expansions=referenced\_tweets.id, esses outros objetos Post são expandidos de acordo com a configuração de tweet.fields. Outros objetos como Users, Polls e Media também podem ser expandidos.
+
+- conversation\_id
+
+- Dois novos campos de [annotations](/pt-BR/x-api/fundamentals/post-annotations), incluindo context e entities
+
+- Vários novos campos de [metrics](/pt-BR/x-api/fundamentals/metrics)
+
+Reunimos um [guia de migração de formato de dados](/pt-BR/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2) que pode ajudar você a mapear campos do padrão v1.1 para os campos mais recentes da v2. Esse guia também informa os parâmetros específicos de expansion e field que você precisará incluir na sua solicitação v2 para retornar campos específicos.
+
+**Próximas etapas**
+
+[Confira nosso guia de início rápido para Post lookup na API do X v2](/pt-BR/x-api/posts/lookup/quickstart "Confira nosso guia de início rápido para Post lookup na API do X v2")
+
+[Revise as referências da API para Post lookup v2](/pt-BR/x-api/posts/lookup/migrate/overview "Revise as referências da API para Post lookup v2")
+
+[Confira nosso código de exemplo para os endpoints de timelines](https://github.com/xdevplatform/Twitter-API-v2-sample-code "Confira nosso código de exemplo para os endpoints de timelines")

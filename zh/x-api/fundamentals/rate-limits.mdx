@@ -1,0 +1,868 @@
+---
+title: 速率限制
+---
+
+每天都有成千上万的开发者向 X API 发起请求。为应对庞大的请求量，我们对可发起的请求数量设定了限制。这些限制有助于为我们的开发者社区提供稳定且可扩展的 API。
+
+允许的最大请求数基于时间间隔，通常以指定的时间窗口计算。最常见的间隔是 15 分钟。例如，某个端点若限制为每 15 分钟 900 次请求，则在任意 15 分钟窗口内最多可发起 900 次请求。
+
+速率限制取决于所用的身份验证方式。比如，若使用 [OAuth 1.0a User Context](/zh/resources/fundamentals/authentication)，每组用户的 [Access Tokens](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) 在每个周期都有各自的速率限制。或者，若使用 [OAuth 2.0 Bearer Token](/zh/resources/fundamentals/authentication#oauth-2-0)，你的应用在每个时间周期也会有单独的限制。超出这些限制时，会返回错误。
+
+<div id="table-of-contents">
+  ## 目录
+</div>
+
+- [X API v2 速率限制](#v2-limits)
+- [X API 企业版速率限制](#v2-limits-enterprise)
+- [速率限制与身份验证方式](#auth)
+- [HTTP 头与响应状态码](#headers-and-codes)
+- [从速率限制中恢复](#recovering)
+- [避免触发速率限制的建议](#tips)
+
+<div id="x-api-v2-rate-limits">
+  ## X API v2 速率限制
+</div>
+
+下表列出了各 X API 付费方案的速率限制。你也可以在[开发者门户](/zh/resources/fundamentals/developer-portal)的“产品”板块查看这些限制。
+
+<table class="rate-limit-table">
+  <thead>
+    <tr>
+      <th>端点</th>
+      <th>Pro 配额 <button data-feather-tooltip-target="" tabindex="0" aria-label="了解详情" class="IconButton IconButton--infoIcon IconButton--small index__lightThemeColor--1bIsd" type="button"><span aria-hidden="true" class="Icon Icon--info" /></button></th>
+      <th>Basic 配额 <button data-feather-tooltip-target="" tabindex="0" aria-label="了解详情" class="IconButton IconButton--infoIcon IconButton--small index__lightThemeColor--1bIsd" type="button"><span aria-hidden="true" class="Icon Icon--info" /></button></th>
+      <th>Free 配额 <button data-feather-tooltip-target="" tabindex="0" aria-label="了解详情" class="IconButton IconButton--infoIcon IconButton--small index__lightThemeColor--1bIsd" type="button"><span aria-hidden="true" class="Icon Icon--info" /></button></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td colspan="4"><strong>推文</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/post-delete-by-post-id">DELETE /2/tweets/:id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">17 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />17 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/causes-the-user-in-the-path-to-unlike-the-specified-post">DELETE /2/users/:id/likes/:tweet\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/causes-the-user-in-the-path-to-unretweet-the-specified-post">DELETE /2/users/:id/retweets/:tweet\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/post-lookup-by-post-ids">GET /2/tweets</a></td>
+      <td data-label="Pro Limit">900 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />450 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">15 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />15 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="端点"><a href="/zh/x-api/posts/post-lookup-by-post-id">GET /2/tweets/:id</a></td>
+      <td data-label="Pro 限制">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />450 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic 限制">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free 限制">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/returns-user-objects-that-have-liked-the-provided-post-id">GET /2/tweets/:id/liking\_users</a></td>
+      <td data-label="Pro Limit">75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/retrieve-posts-that-quote-a-post">GET /2/tweets/:id/quote\_tweets</a></td>
+      <td data-label="Pro Limit">75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/returns-user-objects-that-have-retweeted-the-provided-post-id">GET /2/tweets/:id/retweeted\_by</a></td>
+      <td data-label="Pro Limit">75 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />75 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="端点"><a href="/zh/x-api/posts/full-archive-search-counts">GET /2/tweets/counts/all</a></td>
+      <td data-label="Pro 配额">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+
+      <td data-label="Basic 配额">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+
+      <td data-label="免费配额">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/recent-search-counts">GET /2/tweets/counts/recent</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/full-archive-search-counts">GET /2/tweets/search/all</a></td>
+      <td data-label="Pro Limit">1 次请求/秒<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1 次请求/秒<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+
+      <td data-label="Basic Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/recent-search-counts">GET /2/tweets/search/recent</a></td>
+      <td data-label="Pro Limit">300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />450 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">60 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />60 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="端点"><a href="/zh/x-api/posts/filtered-stream">GET /2/tweets/search/stream</a></td>
+      <td data-label="Pro 限额">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+
+      <td data-label="Basic 限额">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+
+      <td data-label="Free 限额">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/rules-lookup">GET /2/tweets/search/stream/rules</a></td>
+      <td data-label="Pro Limit">450 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+
+      <td data-label="Basic Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/returns-post-objects-liked-by-the-provided-user-id">GET /2/users/:id/liked\_tweets</a></td>
+      <td data-label="Pro Limit">75 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />75 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/user-mention-timeline-by-user-id">GET /2/users/:id/mentions</a></td>
+      <td data-label="Pro Limit">300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong><br />450 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+      <td data-label="Basic Limit">10 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong><br />15 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/user-home-timeline-by-user-id">GET /2/users/:id/timelines/reverse\_chronological</a></td>
+      <td data-label="Pro Limit">180 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/user-posts-timeline-by-user-id">GET /2/users/:id/tweets</a></td>
+      <td data-label="Pro Limit">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1500 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />10 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/returns-repost-of-user">GET /2/users/reposts\_of\_me</a></td>
+      <td data-label="Pro Limit">75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/creation-of-a-post">POST /2/tweets</a></td>
+      <td data-label="Pro Limit">100 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />10000 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1667 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">17 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />17 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/adddelete-rules">POST /2/tweets/search/stream/rules</a></td>
+      <td data-label="Pro Limit">100 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计算</strong></td>
+
+      <td data-label="Basic Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/causes-the-user-in-the-path-to-like-the-specified-post">POST /2/users/:id/likes</a></td>
+      <td data-label="Pro Limit">1000 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">200 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/causes-the-user-in-the-path-to-repost-the-specified-post">POST /2/users/:id/retweets</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/hide-replies">PUT /2/tweets/:tweet\_id/hidden</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/unfollow-user">DELETE /2/users/:source\_user\_id/following/:target\_user\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/unmute-user-by-user-id">DELETE /2/users/:source\_user\_id/muting/:target\_user\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/user-lookup-by-ids">GET /2/users</a></td>
+      <td data-label="Pro Limit">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/user-lookup-by-id">GET /2/users/:id</a></td>
+      <td data-label="Pro Limit">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/returns-user-objects-that-are-blocked-by-provided-user-id">GET /2/users/:id/blocking</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/returns-user-objects-that-are-muted-by-the-provided-user-id">GET /2/users/:id/muting</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/user-lookup-by-usernames">GET /2/users/by</a></td>
+      <td data-label="Pro Limit">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个用户</strong><br />500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/user-lookup-by-username">GET /2/users/by/username/:username</a></td>
+      <td data-label="Pro Limit">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户计</strong><br />500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Free Limit">3 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong><br />3 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/user-lookup-me">GET /2/users/me</a></td>
+      <td data-label="Pro Limit">75 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">250 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">25 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/user-search">GET /2/users/search</a></td>
+      <td data-label="Pro Limit">900 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+
+      <td data-label="Basic Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/follow-user">POST /2/users/:id/following</a></td>
+      <td data-label="Pro Limit">50 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/mute-user-by-user-id">POST /2/users/:id/muting</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>Spaces</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/spaces/space-lookup-up-space-ids">GET /2/spaces</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/spaces/space-lookup-by-space-id">GET /2/spaces/:id</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />25 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/spaces/retrieve-the-list-of-users-who-purchased-a-ticket-to-the-given-space">GET /2/spaces/:id/buyers</a></td>
+      <td data-label="Pro Limit">300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/spaces/retrieve-posts-from-a-space">GET /2/spaces/:id/tweets</a></td>
+      <td data-label="Pro Limit">每 15 分钟 300 次请求<br /><strong class="index__tenPx--K47R6">按用户</strong><br />每 15 分钟 300 次请求<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">每 15 分钟 5 次请求<br /><strong class="index__tenPx--K47R6">按用户</strong><br />每 15 分钟 25 次请求<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">按用户</strong><br />每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/spaces/space-lookup-by-their-creators">GET /2/spaces/by/creator\_ids</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 秒<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求 / 秒<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 秒<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/spaces/search-for-spaces">GET /2/spaces/search</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />25 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>私信</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/delete-dm">DELETE /2/dm\_events/:id</a></td>
+      <td data-label="Pro Limit">1500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />4000 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">200 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />2500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/get-dm-events-for-a-dm-conversation">GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/get-dm-events-for-a-dm-conversation">GET /2/dm\_conversations/with/:participant\_id/dm\_events</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/get-recent-dm-events">GET /2/dm\_events</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/get-dm-events-by-id">GET /2/dm\_events/:id</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/create-a-new-dm-conversation">POST /2/dm\_conversations</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1440 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/send-a-new-message-to-a-dm-conversation">POST /2/dm\_conversations/:dm\_conversation\_id/messages</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1440 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/direct-messages/send-a-new-message-to-a-user">POST /2/dm\_conversations/with/:participant\_id/messages</a></td>
+      <td data-label="Pro Limit">1440 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1440 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>列表</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/delete-list">DELETE /2/lists/:id</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/remove-a-list-member">DELETE /2/lists/:id/members/:user\_id</a></td>
+      <td data-label="Pro Limit">每 15 分钟 300 次请求<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">每 15 分钟 5 次请求<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/unfollow-a-list">DELETE /2/users/:id/followed\_lists/:list\_id</a></td>
+      <td data-label="Pro Limit">50 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/unpin-a-list">DELETE /2/users/:id/pinned\_lists/:list\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/list-lookup-by-list-id">GET /2/lists/:id</a></td>
+      <td data-label="Pro Limit">75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />75 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/users/returns-user-objects-that-are-members-of-a-list-by-the-provided-list-id">GET /2/lists/:id/members</a></td>
+      <td data-label="Pro Limit">900 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />900 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/list-posts-timeline-by-list-id">GET /2/lists/:id/tweets</a></td>
+      <td data-label="Pro Limit">900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />900 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/get-a-users-list-memberships">GET /2/users/:id/list\_memberships</a></td>
+      <td data-label="Pro Limit">每 15 分钟最多 75 次请求<br /><strong class="index__tenPx--K47R6">每用户</strong><br />每 15 分钟最多 75 次请求<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+      <td data-label="Basic Limit">每 15 分钟最多 5 次请求<br /><strong class="index__tenPx--K47R6">每用户</strong><br />每 15 分钟最多 25 次请求<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+      <td data-label="Free Limit">每 15 分钟最多 1 次请求<br /><strong class="index__tenPx--K47R6">每用户</strong><br />每 15 分钟最多 1 次请求<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/get-a-users-owned-lists">GET /2/users/:id/owned\_lists</a></td>
+      <td data-label="Pro Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />500 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/get-a-users-pinned-lists">GET /2/users/:id/pinned\_lists</a></td>
+      <td data-label="Pro Limit">15 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong><br />15 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+      <td data-label="Basic Limit">100 次请求/24 小时<br /><strong class="index__tenPx--K47R6">每用户</strong><br />500 次请求/24 小时<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+      <td data-label="Free Limit">1 次请求/24 小时<br /><strong class="index__tenPx--K47R6">每用户</strong><br />1 次请求/24 小时<br /><strong class="index__tenPx--K47R6">每应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/create-list">POST /2/lists</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Basic Limit">100 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 24 小时<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/add-a-list-member">POST /2/lists/:id/members</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/follow-a-list">POST /2/users/:id/followed\_lists</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/pin-a-list">POST /2/users/:id/pinned\_lists</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计算</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计算</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计算</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/lists/update-list">PUT /2/lists/:id</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>书签</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/bookmarks/remove-a-bookmarked-post">DELETE /2/users/:id/bookmarks/:tweet\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每用户</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/bookmarks/bookmarks-by-user">GET /2/users/:id/bookmarks</a></td>
+      <td data-label="Pro Limit">180 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Basic Limit">10 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/bookmarks/introduction">GET /2/users/:id/bookmarks/folders</a></td>
+      <td data-label="Pro Limit">每 15 分钟 50 次请求<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />每 15 分钟 50 次请求<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">每 15 分钟 5 次请求<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />每 15 分钟 5 次请求<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/posts/bookmarks/introduction">GET /2/users/:id/bookmarks/folders/:folder\_id</a></td>
+      <td data-label="Pro Limit">50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />50 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/bookmarks/add-post-to-bookmarks">POST /2/users/:id/bookmarks</a></td>
+      <td data-label="Pro Limit">每 15 分钟 50 次请求<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Basic Limit">每 15 分钟 5 次请求<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+      <td data-label="Free Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">按用户</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>合规</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/compliance/list-compliance-jobs">GET /2/compliance/jobs</a></td>
+      <td data-label="Pro Limit">150 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/compliance/get-compliance-job">GET /2/compliance/jobs/:job\_id</a></td>
+      <td data-label="Pro Limit">150 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">5 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/compliance/create-compliance-job">POST /2/compliance/jobs</a></td>
+      <td data-label="Pro Limit">150 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>使用方式</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/usage/post-usage">GET /2/usage/tweets</a></td>
+      <td data-label="Pro Limit">每 15 分钟 50 次请求<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Basic Limit">每 15 分钟 50 次请求<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Free Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>趋势</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/trends/trends">GET /2/trends/by/woeid/:id</a></td>
+      <td data-label="Pro Limit">75 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+      <td data-label="Basic Limit">15 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用计</strong></td>
+
+      <td data-label="Free Limit">
+        <div>
+          <svg class="lucide lucide-x" fill="none" height="24" stroke="red" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="18" x2="6" y1="6" y2="18" />
+
+            <line x1="6" x2="18" y1="6" y2="18" />
+          </svg>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/trends/introduction">GET /2/users/personalized\_trends</a></td>
+      <td data-label="Pro Limit">每 15 分钟 10 次请求<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />每 15 分钟 200 次请求<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Basic Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />每 15 分钟 20 次请求<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+      <td data-label="Free Limit">每 15 分钟 1 次请求<br /><strong class="index__tenPx--K47R6">每位用户</strong><br />每 24 小时 1 次请求<br /><strong class="index__tenPx--K47R6">每个应用</strong></td>
+    </tr>
+
+    <tr>
+      <td colspan="4"><strong>社群</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/communities/lookup/introduction">GET /2/communities/:id</a></td>
+      <td data-label="Pro Limit">300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />300 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求/15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+
+    <tr>
+      <td data-label="Endpoint"><a href="/zh/x-api/communities/search/introduction">GET /2/communities/search</a></td>
+      <td data-label="Pro Limit">300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />300 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Basic Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />25 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+      <td data-label="Free Limit">1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按用户</strong><br />1 次请求 / 15 分钟<br /><strong class="index__tenPx--K47R6">按应用</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div id="rate-limits-and-authentication-method">
+  ## 速率限制与认证方式
+</div>
+
+速率限制同时适用于开发者应用和用户访问令牌两个层级：
+
+- **[OAuth 2.0 Bearer Token](/zh/resources/fundamentals/authentication/oauth-2-0/application-only)：应用级速率限制**
+  该方式允许你以开发者应用的名义发起一定数量的请求。使用此认证方式时，限制取决于使用 Bearer Token 发起的请求数。
+  - 例：若限制为每 15 分钟 450 次请求，则你可在该时间窗口内以应用名义发起 450 次请求。
+
+- **[OAuth 1.0a User Context](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)：用户级速率限制**
+  该方式允许以由用户访问令牌标识的 X 用户名义发起请求。例如，若需获取帖子的私有指标，请使用通过[三方 OAuth 流程](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)为该用户生成的用户访问令牌进行认证。
+  - 例：若限制为每位用户每 15 分钟 900 次请求，则在该时间窗口内你最多可对每位用户发起 900 次请求。
+
+...
+
+<div id="http-headers-and-response-codes">
+  ## HTTP 标头与响应代码
+</div>
+
+使用 HTTP 标头，根据最近一次请求来判断你的应用在指定速率限制内的当前状态。
+
+- `x-rate-limit-limit`：该端点的速率限制上限
+- `x-rate-limit-remaining`：15 分钟窗口内剩余的请求次数
+- `x-rate-limit-reset`：距离速率限制重置的剩余时间（UTC 纪元秒）
+
+<div id="error-responses">
+  ### 错误响应
+</div>
+
+如果应用在某个端点超出速率限制，API 将返回 [HTTP 429 “请求过多”](http://tools.ietf.org/html/rfc6585) 响应，并在响应正文中包含以下错误信息：
+
+```json
+{ "errors": [ { "code": 88, "message": "Rate limit exceeded" } ] }
+```
+
+<div id="recovering-from-a-rate-limit">
+  ## 从速率限制中恢复
+</div>
+
+当超出这些速率限制时，端点会返回 429“请求过多”错误。如下所述，出现速率限制错误时，最佳实践是检查指示限制重置时间的 HTTP 标头，并在那之前暂停请求。<br />当出现“请求过多”或速率限制错误时，需要降低请求频率。触发速率限制错误后，可检查 `x-rate-limit-reset:` HTTP 标头以了解速率限制的重置时间<br /><br />。另一种常见做法是使用指数退避：起初请求间隔较短（例如几秒），此后每次重试前将间隔加倍，直到请求成功，或达到一个合理的最大间隔（例如几分钟）。<br /><br /> 理想情况下，客户端应感知现有速率限制，并在当前超限的时间窗口到期前暂停请求。如果你超出了 15 分钟的限制，那么在重试前等待一两分钟是合理的。<br /><br /> 请注意，除了这些关于请求次数的限制外，Standard Basic 访问级别还通过最近搜索和过滤流端点每月最多提供 500,000 条帖子。如果你已超出每月的帖子配额，更合理的做法是让应用发出通知，记录其每月的计费/入驻日，并在该日期之前暂停请求。
+
+<div id="tips-to-avoid-being-rate-limited">
+  ### 避免触发速率限制的提示
+</div>
+
+以下提示旨在帮助您进行防御性编码，降低触发速率限制的可能性。受速率限制影响，您可能想提供的某些应用功能（尤其在结果新鲜度方面）可能无法实现。如果您的应用以实时信息为目标，请参阅过滤流与采样流端点。
+
+<div id="caching">
+  #### 缓存
+</div>
+
+如果预计会频繁使用，请存储 API 响应。不要在每次页面加载时都调用 API，而应在本地缓存响应。
+
+<div id="prioritize-active-users">
+  #### 优先处理活跃用户
+</div>
+
+如果你的站点需要跟踪大量 X 用户（例如获取他们的当前状态或 X 使用情况的统计数据），请考虑仅为最近登录过你站点的用户请求数据。
+
+<div id="adapt-to-the-search-results">
+  #### 适配搜索结果
+</div>
+
+如果你的应用监控了大量搜索词，对于没有结果的搜索，应当比有结果的搜索降低查询频率。通过使用退避策略，你可以及时跟进热门查询，同时避免在几乎不变的查询上浪费请求资源。或者，考虑使用过滤流端点，并用你的搜索查询进行过滤。
+
+<div id="denylist">
+  #### 拒用名单
+</div>
+
+如果某个应用程序滥用速率限制，它将被拒用。被拒用的应用无法从 X API 获得响应。如果你或你的应用已被拒用并认为这是一个误判，你可以使用我们的[平台支持表单](https://support.x.com/forms/platform)请求协助。请包含以下信息：
+
+1. 说明你认为你的应用为何被拒用。
+2. 如果你已不再触发速率限制，请详细说明你是如何解决该问题的。

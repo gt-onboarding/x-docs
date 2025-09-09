@@ -1,0 +1,79 @@
+---
+title: Guía de migración
+sidebarTitle: Guía de migración
+---
+
+import { Button } from '/snippets/es/button.mdx';
+
+<div id="comparing-v11-and-v2-manage-direct-message-endpoints">
+  ## Comparación de los endpoints de administración de Mensajes Directos entre v1.1 y v2
+</div>
+
+Las versiones v1.1 y v2 de los endpoints de Mensajes Directos proporcionan métodos para crear mensajes directos. Esta guía tiene como objetivo ayudar a entender las diferencias y ofrecer información para migrar a v2. 
+
+Una diferencia importante entre ambas versiones es que v1.1 solo admite conversaciones uno a uno, mientras que v2 introduce compatibilidad con conversaciones grupales. Una consecuencia de esto es que v1.1 solo admite eventos de "message created", mientras que v2 también admite eventos asociados con participantes que se unen o abandonan conversaciones. De hecho, una actualización fundamental de v2 es establecer dm\_conversations como un objeto central de la API.   
+
+Con v1.1, hay dos endpoints para administrar Mensajes Directos:
+
+- POST direct\_messages/events/new - Crea un mensaje directo uno a uno. Este endpoint de v1.1 solo puede crear mensajes uno a uno y no admite mensajes grupales.  
+
+- DELETE direct\_messages/events/destroy - Elimina un mensaje uno a uno de la vista del usuario autenticado. 
+
+Con este lanzamiento de v2, hay tres métodos POST para crear Mensajes Directos: 
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - Crea un mensaje directo uno a uno. Este método agrega el mensaje a una conversación uno a uno existente o crea una nueva. El parámetro de ruta :participant\_id es el ID de usuario de la cuenta que recibe el mensaje. 
+
+- **POST /2/dm\_conversations** - Crea una nueva conversación grupal y agrega un mensaje directo a ella. Estas solicitudes requieren una lista de participantes de la conversación. Ten en cuenta que puedes crear varias conversaciones con la misma lista de participantes. Estas solicitudes siempre devolverán un nuevo ID de conversación. 
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - Crea un mensaje directo y lo agrega a una conversación existente. El parámetro de ruta :dm\_conversation\_id es el ID de la conversación a la que se agregará el mensaje. 
+
+Un detalle importante es que los IDs de conversaciones y eventos se comparten entre las versiones v1.1 y v2 de la Plataforma X. Esto significa que ambas versiones se pueden usar juntas. Por ejemplo, los endpoints de Mensajes Directos de v1.1 proporcionan métodos para devolver un único evento y para eliminar eventos, funciones que aún no están disponibles en v2. Dado que los IDs son comunes entre v1.1 y v2, puedes hacer solicitudes de v1.1 basadas en IDs proporcionados por v2, o hacer referencia a los IDs de conversación que aparecen en las URLs de conversación en la aplicación de X.
+
+La siguiente tabla compara aspectos fundamentales de los endpoints de administración de Mensajes Directos en v1.1 y v2. Las características de la API de X v2 que se comparten aquí son comunes a todos los endpoints de consulta de Mensajes Directos.
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Descripción** | **Estándar v1.1** | **API de X v2** |
+| Dominio host | https://api.x.com | https://api.x.com |
+| Ruta raíz del endpoint | [/1.1/direct\_messages](https://api.x.com/1.1/direct_messages) | [/2/dm\_conversations](https://api.x.com/2/users/:id/dm_conversations)<br /><br />Las conversaciones de Mensajes Directos se introducen como un objeto fundamental de la API.   <br /><br />Estos endpoints recuperan eventos MessageCreate, ParticipantsJoin y ParticipantLeave. |
+| Métodos HTTP admitidos | POST | POST |
+| Admite Mensajes Directos grupales |     | ✔   |
+| Tipos de eventos admitidos | message\_create | MessageCreate, ParticipantsJoin, ParticipantsLeave |
+| [Autenticación](/es/resources/fundamentals/authentication) | OAuth 1.0a User Context | OAuth 1.0a User Context<br /><br />OAuth 2 User Context (scopes: dm.read, dm.write) |
+| Requiere el uso de credenciales de una [App de desarrollador](/es/resources/fundamentals/authentication) asociada a un [Proyecto](/es/resources/fundamentals/projects) de la API de X v2 |     | ✔   |
+| [Límites de velocidad](/es/x-api/fundamentals/rate-limits) predeterminados de solicitud\*  <br />\*Todas las solicitudes requieren tokens de usuario | 1000 solicitudes por usuario por 24 horas  <br />15000 solicitudes por app por 24 horas | 200 solicitudes por 15 minutos por usuario<br /><br />1000 solicitudes por usuario por 24 horas<br /><br />15000 solicitudes por app por 24 horas<br /><br />Estos límites de velocidad se comparten entre todos los endpoints POST de dm\_conversations. |
+
+Las siguientes tablas comparan los métodos POST de v2 con la versión v1.1. Ten en cuenta que estas opciones de v2 amplían las capacidades disponibles al admitir conversaciones grupales. 
+
+**Crear un nuevo mensaje directo uno a uno**
+
+Ruta: POST /2/dm\_conversations/with/:participant\_id/messages
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Descripción** | **Estándar v1.1** | **API de X v2** |
+| Ruta del endpoint | POST direct\_messages/events/new (message\_create) | POST /2/dm\_conversations/with/:participant\_id/messages |
+| Límites predeterminados de [tasa de solicitudes](/es/x-api/fundamentals/rate-limits) | 1000 solicitudes por usuario cada 24 horas  <br />15000 solicitudes por app cada 24 horas | 200 solicitudes por usuario cada 15 minutos<br /><br />1000 solicitudes por usuario cada 24 horas<br /><br />15000 solicitudes por app cada 24 horas<br /><br />Estos límites de tasa se comparten entre todos los endpoints POST de dm\_conversations. |
+| Admite Mensajes Directos grupales |     | ✔   |
+
+**Crear una nueva conversación de Mensajes Directos grupales y agregarle un mensaje**
+
+Ruta: POST /2/dm\_conversations
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Descripción** | **Estándar v1.1** | **API de X v2** |
+| Ruta del endpoint | No admitido | POST /2/dm\_conversations |
+| Límites predeterminados de [tasa de solicitudes](/es/x-api/fundamentals/rate-limits) |     | 200 solicitudes por usuario cada 15 minutos<br /><br />1000 solicitudes por usuario cada 24 horas<br /><br />15000 solicitudes por app cada 24 horas<br /><br />Estos límites de tasa se comparten entre todos los endpoints POST de dm\_conversations. |
+| Admite Mensajes Directos grupales |     | ✔   |
+
+**Agregar un Mensaje Directo a una conversación existente por ID**
+
+Ruta: POST /2/dm\_conversations/:dm\_conversation\_id/messages
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **Descripción** | **Estándar v1.1** | **API de X v2** |
+| Ruta del endpoint | No admitido | POST /2/dm\_conversations/:dm\_conversation\_id/messages |
+| Límites predeterminados de [tasa de solicitudes](/es/x-api/fundamentals/rate-limits) |     | 200 solicitudes por usuario cada 15 minutos<br /><br />1000 solicitudes por usuario cada 24 horas<br /><br />15000 solicitudes por app cada 24 horas<br /><br />Estos límites de tasa se comparten entre todos los endpoints POST de dm\_conversations. |
+| Admite Mensajes Directos grupales |     | ✔   |

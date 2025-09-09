@@ -1,0 +1,306 @@
+---
+title: "Datenanreicherungen: Enterprise"
+---
+
+<div id="introduction">
+  ## Einführung
+</div>
+
+`Enterprise`
+
+Enterprise-Enrichments sind zusätzliche Metadaten, die in die Antwort-Payload einiger Daten-APIs aufgenommen werden. Sie sind nur in kostenpflichtigen Abonnements verfügbar.
+
+Die Tabelle unten bietet eine kurze Beschreibung der einzelnen Enrichments:
+
+| Enrichment: | Beschreibung: |
+| :--- | :--- |
+| Erweiterte und angereicherte URLs | Erweitert automatisch verkürzte URLs (z. B. Bitly), die im Text eines Posts enthalten sind, und liefert HTML-Titel- und -Beschreibungsmetadaten von der Zielseite. |
+| Objekt für übereinstimmende Regeln | Zeigt an, welche Regel(n) auf die empfangenen Posts zutraf(en). Das Objekt liefert den Regel-Tag und die Regel-ID im Response-Objekt. |
+| Umfrage-Metadaten | Vermerkt das Vorhandensein einer Umfrage in einem Post, enthält die Liste der Antwortoptionen und umfasst sowohl die Umfragedauer als auch die Ablaufzeit. |
+| Profil-Geodaten | Abgeleitete Standortdaten aus dem Benutzerprofil, einschließlich der \[Längen-, Breiten-]Koordinaten (wo möglich) sowie zugehöriger Ortsmetadaten. |
+
+<div id="expanded-and-enhanced-urls">
+  ### Erweiterte und verbesserte URLs
+</div>
+
+Die Anreicherung „Erweiterte und verbesserte URL“ erweitert automatisch verkürzte URLs, die im Text eines Posts enthalten sind, und fügt die daraus resultierende URL als Metadaten in die Payload ein. Zusätzlich stellt diese Anreicherung auch HTML-Seitenmetadaten aus dem `title` und der `description` der Zielseite bereit.
+
+**Wichtige Details:**
+
+- Um einen verkürzten Link aufzulösen, sendet unser System HTTP-HEAD-Anfragen an die angegebene URL und folgt allen Weiterleitungen, bis die endgültige URL erreicht ist. Diese endgültige URL (NICHT der Seiteninhalt) wird dann in die Antwort-Payload aufgenommen.
+
+- Die URL-Anreicherung erhöht die Latenz von Echtzeit-Streams um 5–10 Sekunden.
+
+- Bei Anfragen an die Vollarchivsuche sind Daten der erweiterten URL-Anreicherung nur für Posts verfügbar, die höchstens 13 Monate alt sind.
+
+- Die URL-Anreicherung ist nicht verfügbar für Post-Links (einschließlich Zitier-Posts), Moments-Links und Profil-Links, die in einem Post enthalten sind. 
+   
+
+<div id="post-payload">
+  #### Post-Payload
+</div>
+
+Die Expanded- und Enhanced-URL-Anreicherung befindet sich im `entities`-Objekt des Post-Payloads – genauer im Objekt `entities.urls.unwound`. Sie stellt die folgenden Metadatenfelder bereit:
+
+- Erweiterte URL – `unwound.url`
+- Erweiterter HTTP-Status – `unwound.status`
+- Erweiterter HTML-Titel der erweiterten URL – Limit 300 Zeichen – `unwound.title`
+- Erweiterte HTML-Beschreibung der erweiterten URL – Limit 1000 Zeichen – `unwound.description`
+
+**Dies ist ein Beispiel für ein [entities-Objekt](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#x-entities) mit der URL-Anreicherung:**
+
+```
+"entities": {
+    "hashtags": [
+
+    ],
+    "urls": [
+      {
+        "url": "https:\/\/t.co\/HkTkwFq8UT",
+        "expanded_url": "http:\/\/bit.ly\/2wYTb9y",
+        "display_url": "bit.ly\/2wYTb9y",
+        "unwound": {
+          "url": "https:\/\/www.forbes.com\/sites\/laurencebradford\/2016\/12\/08\/11-websites-to-learn-to-code-for-free-in-2017\/",
+          "status": 200,
+          "title": "11 Websites To Learn To Code For Free In 2017",
+          "description": "It\u2019s totally possible to learn to code for free...but what are the best resources to achieve that? Here are 11 websites where you can get started."
+        },
+        "indices": [
+          10,
+          33
+        ]
+      }
+    ],
+    "user_mentions": [
+
+    ],
+    "symbols": [
+
+    ]
+  },
+```
+
+\*\*Dies ist ein Beispiel für ein entities-Objekt mit einem nicht angereicherten Post-Link:
+\*\*
+
+```
+"entities": {
+  "urls": [{
+    "url": "https://t.co/SywNbZdDmb",
+    "expanded_url": "https://x.com/XDevelopers/status/1050118621198921728",
+    "display_url": "x.com/XDevelopers/s…",
+     "indices": [
+        142,
+        165
+     ]
+   }
+  ]
+}
+```
+
+<div id="filtering-operators">
+  #### Filteroperatoren
+</div>
+
+Die folgenden Operatoren filtern und liefern einen tokenisierten Treffer in den zugehörigen Feldern der URL-Metadaten:
+
+**url:**
+
+- Beispiel: „url:tennis“
+- Tokenisierter Treffer für jede Expanded URL, die das Wort „tennis“ enthält
+- Kann auch als Filter verwendet werden, um Links von einer bestimmten Website ein- oder auszuschließen, z. B. mit „url:npr.org“
+
+**url\_title:**
+
+- Beispiel: „url\_title:tennis“
+- Tokenisierter Treffer für jeden Expanded-URL-HTML-Titel, der das Wort „tennis“ enthält
+- Abgleich mit den HTML-Titeldaten, die im Payload enthalten sind und auf 300 Zeichen begrenzt sind.
+
+**url\_description:**
+
+- Beispiel: „url\_description:tennis“
+- Tokenisierter Treffer für jede Expanded-URL-HTML-Beschreibung, die das Wort „tennis“ enthält
+- Abgleich mit der HTML-Beschreibung, die im Payload enthalten ist und auf 1000 Zeichen begrenzt ist.
+   
+
+<div id="http-status-codes">
+  #### HTTP-Statuscodes
+</div>
+
+Die erweiterten URL-Anreicherungen liefern auch den HTTP-Statuscode für die endgültige URL, die wir versuchen, aufzulösen. In der Regel ist dies 200. Andere Werte aus dem 400er-Bereich weisen auf Probleme bei der Auflösung der URL hin.
+
+Beim Versuch, eine URL aufzulösen, können verschiedene Statuscodes zurückgegeben werden. Während des Auflösungsprozesses folgen wir Weiterleitungen unbegrenzt, bis wir entweder:
+
+- einen Code aus dem 200er-Bereich erreichen (Erfolg)
+- einen Code außerhalb des Weiterleitungsbereichs erreichen (Fehler)
+- ein Timeout erhalten, weil die endgültige URL nicht in angemessener Zeit aufgelöst werden konnte (gibt 408 – Timeout zurück)
+- auf eine Ausnahme jeglicher Art stoßen
+   
+
+Wenn eine Ausnahme auftritt, verwenden wir die folgende Zuordnung zwischen Ursache und zurückgegebenem Statuscode:
+
+| Grund | Zurückgegebener Statuscode |
+| :--- | :--- |
+| SSL-Ausnahmen | 403 (Forbidden) |
+| Auflösen durch URL nicht erlaubt | 405 |
+| Socket-Timeout | 408 (Timeout) |
+| Unbekannter Host (Exception) | 404 (Not Found) |
+| Nicht unterstützte Operation | 404 (Not Found) |
+| Verbindungsfehler (Connect Exception) | 404 (Not Found) |
+| Ungültiges Argument | 400 (Bad Request) |
+| Alles andere | 400 (Bad Request) |
+
+<div id="matching-rules">
+  ### Übereinstimmungsregeln
+</div>
+
+Die Anreicherung „Matching Rules“ ist ein Metadatenobjekt, das angibt, welche Regel(n) auf die empfangenen Posts zutrafen. Es wird am häufigsten mit dem PowerTrack-Stream verwendet.
+
+Die Übereinstimmung erfolgt als exakte Übereinstimmung der in einer Regel enthaltenen Begriffe, wobei der Inhalt der Aktivität mit und ohne Interpunktion gescannt wird. Die Übereinstimmung ist nicht case-sensitiv. Wenn der Inhalt alle in der Regel definierten Begriffe enthält, gibt es auf Root-Ebene ein matching\_rules-Objekt, das die Regel(n) angibt, die zum Treffer geführt haben.
+
+**PowerTrack**
+
+Posts, die über PowerTrack (Realtime, Replay und Historical) geliefert werden, enthalten das matching\_rules-Objekt wie folgt:
+
+```
+"matching_rules": [{
+        "tag": null,
+        "id": 907728589029646336,
+        "id_str": "907728589029646336"
+    }]
+```
+
+In PowerTrack spiegelt das Objekt `matching_rules` alle Regeln wider, die auf das jeweilige Ergebnis zutrafen. Anders ausgedrückt: Wenn mehr als eine Regel auf einen bestimmten Post zutrifft, wird er nur einmal geliefert, aber das Element `matching_rules` enthält alle zutreffenden Regeln.
+
+<div id="poll-metadata">
+  ### Umfragemetadaten
+</div>
+
+Umfragemetadaten sind eine kostenlose Anreicherung, die in allen Produkten (Echtzeit- und historischen APIs) in angereicherten Payloads im nativen Format verfügbar ist. Die Metadaten vermerken das Vorhandensein einer Umfrage in einem Post, enthalten die Liste der Antwortoptionen und umfassen sowohl die Laufzeit der Umfrage als auch die Ablaufzeit. Diese Anreicherung erleichtert die Erkennung einer Umfrage und ermöglicht die korrekte Darstellung eines Posts mit Umfrage für die Anzeige.
+
+<div id="important-details">
+  ##### Wichtige Details:
+</div>
+
+- Verfügbar in allen Enterprise-APIs (PowerTrack, Replay, Search, Historical PowerTrack)
+  - Hinweis: Für Replay und Historical PowerTrack sind diese Metadaten erstmals seit dem 22.02.2017 verfügbar.
+- Enthält keine Informationen zu Stimmen oder Umfrageergebnissen
+- Unterstützt derzeit keine Filter/Operatoren
+- Nur im **angereicherten nativen Format** verfügbar
+  - Das angereicherte native Format ist eine benutzerseitig gesteuerte Einstellung, die jederzeit über die Console geändert werden kann: _Select a Product (PowerTrack, Replay, Search) > Settings tab > Output Format (Leave data in its original format)_
+
+<div id="post-payload">
+  #### Post-Payload
+</div>
+
+Ein Umfrage-Post enthält die folgenden Metadaten im Objekt „entities.polls“ in der Payload:
+
+- Ein „options“-Array mit bis zu vier Optionen, das die Position (1–4) und den Optionstext enthält
+- Ablaufdatum der Umfrage
+- Dauer der Umfrage
+
+Siehe die folgende Beispiel-Payload zur weiteren Referenz.
+
+<div id="sample-payload">
+  #### Beispiel-Payload
+</div>
+
+Nachfolgend ein Auszug der angereicherten Payload im nativen Format, der die hinzugefügten Umfrage-Metadaten hervorhebt:
+
+```json
+"entities":{
+          "hashtags":[],
+          "urls":[],
+          "user_mentions":[],
+          "symbols":[],
+          "polls":[
+             {
+                "options":[
+                   {
+                      "position":1,
+                      "text":"The better answer"
+                   },
+                   {
+                      "position":2,
+                      "text":"The best answer"
+                   }
+                ],
+                "end_datetime":"Sat Feb 04 15:33:11 +0000 2017",
+                "duration_minutes":1440
+             }
+          ]
+       },
+```
+
+<div id="profile-geo">
+  ### Profil-Geodaten
+</div>
+
+<div id="introduction">
+  #### Einführung
+</div>
+
+Viele X-Nutzerprofile enthalten öffentliche, vom Nutzer bereitgestellte Standortinformationen. Diese Daten werden als normale Zeichenfolge in user.location zurückgegeben (siehe [Datenwörterbuch für das User-Objekt](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)). Die Profile-Geo-Anreicherung ergänzt die Angabe in user.location um relevante, strukturierte Geodaten, indem Standortangaben, wo möglich, geokodiert und normalisiert werden. Sowohl Breiten-/Längengradkoordinaten als auch zugehörige Ortsmetadaten werden zu user.derived.locations nur dann hinzugefügt, wenn sie als Teil der Post-Payload in Enterprise-API-Produkten enthalten sind. Diese Daten sind bei Verwendung des [angereicherten nativen Formats](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) verfügbar und können mit einer Kombination aus [PowerTrack-Regeln](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators) gefiltert werden.
+
+<Note>
+  **Hinweis:** Einige der unterstützenden Geodaten, die zur Erstellung der Profile-Geo-Anreicherung verwendet werden, stammen von GeoNames.org und werden von X unter der [Creative Commons Attribution 3.0 License](https://creativecommons.org/licenses/by/3.0/us/legalcode) genutzt.
+</Note>
+
+Profile-Geo-Daten werden in den PowerTrack-, Replay-, Volume-Stream-, Search- und Historical-PowerTrack-APIs von X enthalten sein.
+
+<div id="profile-geo-data">
+  #### Profil-Geo-Daten
+</div>
+
+| Angereicherter nativer Feldname | Beispielwert | Beschreibung |
+| :--- | :--- | :--- |
+| user.derived.locations.country | United States | Das Land, aus dem der Nutzer stammt, der den Post erstellt hat. |
+| user.derived.locations.country\_code | US  | Ein zweibuchstabiger ISO-3166-Ländercode, der dem Land entspricht, aus dem der Nutzer stammt, der den Post erstellt hat. |
+| user.derived.locations.locality | Birmingham | Die Ortsangabe (in der Regel Stadt), aus der der Nutzer stammt, der den Post erstellt hat. |
+| user.derived.locations.region | Alabama | Die Regionsangabe (in der Regel Bundesstaat/Provinz), aus der der Nutzer stammt, der den Post erstellt hat. |
+| user.derived.locations.sub\_region | Jefferson County | Die Unterregion (in der Regel Landkreis), aus der der Nutzer stammt, der den Post erstellt hat. |
+| user.derived.locations.full\_name | Birmingham, Alabama, United States | Der vollständige Name (ohne Unterregion) des Ortes, aus dem der Nutzer stammt, der den Post erstellt hat. |
+| user.derived.locations.geo | See Below | Ein Array, das einen Breiten-/Längengradwert für eine Koordinate enthält, der dem Ort mit der niedrigsten Granularität entspricht, aus dem der Nutzer stammt, der den Post erstellt hat. |
+
+Die Historical PowerTrack-, Search- und PowerTrack-APIs unterstützen das Filtern anhand von Profil-Geo-Daten. Siehe die entsprechende Produktdokumentation für Details zu den verfügbaren Operatoren zum Filtern von Profil-Geo-Daten.
+
+<div id="sample-payload">
+  #### Beispiel-Payload
+</div>
+
+```
+{
+    "user": {
+        "derived": {
+            "locations": \[
+                {
+                    "country": "United States",
+                    "country_code": "US",
+                    "locality": "Birmingham",
+                    "region": "Alabama",
+                    "sub_region": "Jefferson County",
+                    "full_name": "Birmingham, Alabama, United States",
+                    "geo": {
+                        "coordinates": \[
+                            -86.80249,
+                            33.52066
+                        \],
+                        "type": "point"
+                    }
+                }
+            \]
+        }
+    }
+}
+```
+
+<div id="limitations">
+  #### Einschränkungen
+</div>
+
+- Die Profile-Geo-Anreicherung versucht, den besten geografischen Ort zu bestimmen, der in der Profilstandort-Zeichenfolge beschrieben ist. Das Ergebnis ist nicht in allen Fällen genau, u. a. aufgrund mehrerer Orte mit ähnlichen oder mehrdeutigen Namen.
+- Wenn im Profilstandortfeld eines Nutzers (actor.location) kein Wert angegeben ist, nehmen wir keine Klassifizierung vor.
+- Präzisionsstufe: Wenn eine Profile-Geo-Anreicherung nur mit hinreichender Sicherheit auf Länder- oder Regionenebene bestimmt werden kann, werden feinere Geografien wie subRegion und locality aus der Nutzlast weggelassen.
+- Die Profile-Geo-Anreicherung liefert Lat/Lon-Koordinaten (einen einzelnen Punkt), die der Präzisionsstufe der Anreicherungsergebnisse entsprechen. Diese Koordinaten repräsentieren das geografische Zentrum der ermittelten Standortergebnisse. Liegt die Präzisionsstufe beispielsweise auf Länderebene, werden die Koordinaten auf das geografische Zentrum dieses Landes gesetzt.
+- Die für Adress-Eigenschaften (locality/region/country/country code) bereitgestellten PowerTrack-Operatoren sind bewusst granular, um viele Regelkombinationen zu ermöglichen. Wenn Sie einen bestimmten Ort anvisieren, der seinen Namen mit einem anderen Ort teilt, sollten Sie Adressregeln kombinieren. So würden die folgenden Regeln Treffer für „San Francisco, Philippines“ vermeiden: profile\_locality:"San Francisco" profile\_region:California. Beim Erstellen von Regeln, die auf einzelne Profile-Geo-Felder abzielen, beachten Sie, dass jede zusätzliche Ebene an Granularität die Ergebnisse einschränkt. In manchen Fällen, wenn Sie Daten auf Stadtebene betrachten möchten, sollten Sie sich ggf. nur auf eine Regionsregel stützen, sofern die Region eine erhebliche Überschneidung mit der Stadt aufweist; z. B. kann die Stadt Zürich (Schweiz) zusammen mit den umliegenden Gebieten effektiv mit profile\_region:"Zurich" anvisiert werden.
+- Verwendung mit nativen Geo-Posts: Die Profile-Geo-Anreicherung bietet einen alternativen Geografietyp für einen Post, der sich vom nativen Geo-Wert in der Nutzlast unterscheidet. Diese beiden Geografietypen können zusammen verwendet werden, um alle möglichen Posts zu erfassen, die sich auf ein bestimmtes Gebiet beziehen (basierend auf verfügbaren Geodaten), auch wenn sie konzeptionell nicht gleichwertig sind.

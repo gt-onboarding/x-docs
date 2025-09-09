@@ -1,0 +1,80 @@
+---
+title: Limitación de tasa
+---
+
+La API de Anunciantes tiene una limitación de tasa similar a la REST API v1.1, como se documenta aquí: [REST API Rate Limiting in v1.1](https://developer.x.com/content/developer-twitter/en/docs/basics/rate-limits). A diferencia de la REST API v1.1, no existe un índice programático de los límites por endpoint. Los límites por endpoint y las ventanas de reinicio se comunican mediante encabezados de respuesta HTTP. Toda la limitación de tasa en la API de Anuncios utiliza OAuth 1.0A.
+
+<div id="user-level-and-ad-account-level-limits">
+  ## Límites a nivel de usuario y a nivel de cuenta de anuncios
+</div>
+
+Existen dos tipos de límites de frecuencia: a nivel de token de usuario y a nivel de cuenta de anuncios. Un subconjunto de endpoints está habilitado para usar la limitación de frecuencia a nivel de cuenta de anuncios. Un token de usuario es el [token de acceso OAuth](/es/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) que se utiliza para autenticarse y llamar a la API de Anuncios. Cada token de usuario puede tener acceso a una o más cuentas de anuncios.
+
+Los desarrolladores deben utilizar el límite de frecuencia a nivel de cuenta de anuncios cuando este se devuelva en los encabezados de respuesta y utilizar únicamente el límite a nivel de usuario cuando no se encuentre el límite de la cuenta de anuncios.
+
+Los límites de frecuencia a nivel de usuario se expresan mediante estos encabezados: **x-rate-limit-limit**, **x-rate-limit-remaining** y **x-rate-limit-reset**.
+
+Para los endpoints con la limitación de frecuencia a nivel de cuenta de anuncios habilitada, los límites se expresan mediante estos encabezados: **x-account-rate-limit-limit**, **x-account-rate-limit-remaining** y **x-account-rate-limit-reset**.
+
+Los límites de frecuencia a nivel de cuenta de anuncios se proporcionan solo para endpoints GET, a fin de permitir que las aplicaciones sincronicen datos de entidades (como objetos de campaña o partidas) desde un único token de usuario que accede a varias cuentas de anuncios. No se garantiza que las acciones de escritura utilicen los mismos límites de frecuencia a nivel de cuenta de anuncios.
+
+Para los endpoints con limitación de frecuencia a nivel de cuenta de anuncios, el límite de frecuencia a nivel de usuario se configura en un valor alto que representa una cuota global para toda su aplicación. Cuando esté disponible, el límite de frecuencia a nivel de cuenta de anuncios debe tener prioridad para controlar su volumen de solicitudes.
+
+<div id="best-practices">
+  ## Mejores prácticas
+</div>
+
+1. Guarda en tu base de datos una marca de tiempo correspondiente a la última sincronización y, al solicitar datos cuando aplique, utiliza la opción `sort_by=updated_at-desc` para poder detener el proceso de sincronización una vez que alcances datos anteriores a tu última marca de tiempo sincronizada. Así evitarás sincronizar los mismos datos de forma redundante.
+
+2. Solicita varias entidades en una sola petición: Algunos endpoints permiten especificar una lista de valores separada por comas para recuperar múltiples datos similares. Esto puede reducir el número total de llamadas y, por lo tanto, aprovechar de forma más eficiente el límite de tasa.
+
+3. Solicita el valor máximo de “count” en tus peticiones: Se recomienda encarecidamente llamar a algunos endpoints, como [GET accounts/:account\_id/targeting\_criteria](/es/x-ads-api/campaign-management#targeting-criteria), con el valor máximo de count para devolver 1000 objetos en lugar del valor predeterminado de 200.
+
+<div id="analytics-syncing">
+  ## Sincronización de analítica
+</div>
+
+Consulta la [Guía de limitación de tasa de analítica](/es/x-ads-api/analytics#best-practices) para obtener más información sobre los límites de tasa de los endpoints de analítica.
+
+<div id="faqs">
+  ## Preguntas frecuentes
+</div>
+
+_¿Es posible aumentar los límites de velocidad para una cuenta publicitaria en particular o para nuestra aplicación?_
+
+Por lo general, no podemos aumentar los límites de velocidad y están configurados para admitir incluso las cuentas publicitarias más grandes. Aplique las mejores prácticas indicadas en este documento como primer paso y, si los límites de velocidad siguen afectando su capacidad para escalar o alcanzar objetivos comerciales, comuníquese con sus contactos de la API de Anuncios de X con todos los detalles sobre el caso de uso y las solicitudes implicadas.
+
+<div id="scopes-of-rate-limiting">
+  ## Ámbitos de limitación de frecuencia
+</div>
+
+<div id="scopes-for-this-doc">
+  ### Alcances de este documento
+</div>
+
+- Categoría: todos los endpoints que pertenecen a la categoría indicada están sujetos a límites de solicitudes compartiendo un único límite asignado por ventana.
+- Endpoint: cada endpoint tiene su propio límite asignado independiente por ventana.
+
+<div id="ads-api-rate-limit-chart">
+  ## Gráfico de límites de velocidad de la API de Anuncios
+</div>
+
+<div id="ads-api-rate-limits">
+  ### Límites de la API de Anuncios
+</div>
+
+| Tipo de endpoint | Alcance por endpoint o categoría | Límite de solicitudes por ventana de 1 minuto |
+| :--- | :--- | :--- |
+| Escrituras (POST, PUT, DELETE) | Categoría | 450 |
+| Audiencia | Endpoint | 1500 |
+
+| Tipo de endpoint | Alcance por endpoint o categoría | Límite de solicitudes por ventana de 15 minutos |
+| :--- | :--- | :--- |
+| Analítica (sincrónica) | Categoría | 250 |
+| Lecturas de entidades principales (Line Items, Campaigns, etc.)<br /><br />Otras lecturas de cuenta (otros endpoints GET con :account\_id) | Endpoint (nivel de cuenta de anuncios)<br /><br />Endpoint (nivel parcial de cuenta de anuncios) | 10,000<br /><br />2000 |
+| Criterios de segmentación (además de los siguientes) | Categoría | 400 |
+| Criterios de segmentación (tv\_markets, tv\_shows) | Endpoint | 2000 |
+| Audience Insights | Categoría | 400 |
+| Keyword Insights | Categoría | 500 |
+| Lecturas globales (endpoints GET sin :account\_id) | Endpoint | 5   |
+| Conversiones | Endpoint | 60,000 |

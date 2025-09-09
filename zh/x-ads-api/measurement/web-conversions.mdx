@@ -1,0 +1,937 @@
+---
+title: 网站转化
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="conversion-api-set-up">
+  ## 转化 API 设置
+</div>
+
+### 前提条件 
+
+<div id="ads-api-access-new-applications">
+  #### **Ads API 访问——新申请**
+</div>
+
+- 使用 Conversion API 的首要前提是拥有[开发者账号](https://developer.x.com/en/portal/dashboard)和[Ads API 访问权限](https://developer.x.com/en/docs/twitter-ads-api/getting-started)。完整流程见[Ads API 入门](https://developer.x.com/en/docs/twitter-ads-api/getting-started)指南。请注意以下事项：
+
+**步骤 1：开发者账号**
+
+- 申请[开发者账号](https://developer.x.com/en/portal/dashboard)时，选择订阅我们的某个[方案](https://developer.x.com/en/portal/products/)，可即时获批。
+- **注意**：作为最佳实践，我们强烈建议使用贵公司的官方 X 账号来创建开发者账号并申请 Ads API 访问权限。如果开发者账号关联的是个人开发者账号，后续将无法转移相关凭据。为便于持续管理，最好归属公司账号，并按需使用[多用户登录](https://business.x.com/en/help/troubleshooting/multi-user-login-faq.html)。否则，至少应将账号从默认设置更新为自定义（页头图片、头像、个人简介与简介 URL），并启用双重身份验证。
+
+**步骤 2：Ads API 申请**
+
+- 请确保为 Ads API 申请准备好正确的**应用** **ID**。应用 ID 可在[开发者平台](https://developer.x.com/en/portal/dashboard)的 项目与应用 下找到。示例：16489123
+- 通过联系您的 X 客户代表申请 Ads API 访问权限。
+
+<div id="ads-api-access-existing-applications">
+  #### **广告 API 访问 — 现有应用**
+</div>
+
+- 如果你已有一个正在使用中的广告 API 应用，则该应用及现有访问令牌均可用于 Conversion API。
+
+<div id="access-tokens">
+  #### **访问令牌**
+</div>
+
+- 属于 Ads API 应用所有者的用户账号（handle）的用户访问令牌可直接在开发者门户生成并获取。由于该令牌用于你自己的 X 账号，因此称为“个人访问令牌”。有关身份验证和开发者门户的总体信息，请参见[此处](/zh/resources/fundamentals/authentication/overview)。
+- 针对除该 Ads API 应用所有者之外的其他用户账号，其用户访问令牌必须通过三方（3-legged）OAuth 流程生成。使用三方 OAuth 生成访问令牌的选项包括：
+  - [使用 twurl 工具进行基于 Web 授权的命令行方式](https://github.com/twitter/twurl#getting-started)
+  - [基于 PIN 授权的命令行方式](https://developer.x.com/resources/fundamentals/authentication/pin-based-oauth)
+  - [实现三方 OAuth 模式的自定义 Web 流程](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)
+- 与 Conversion API 搭配使用的任何用户令牌，必须对应具有 AD\_MANAGER 或 ACCOUNT\_ADMIN 访问级别的用户，可通过 [authenticated\_user\_access](https://developer.x.com/en/docs/twitter-ads-api/campaign-management/api-reference/authenticated-user-access) 端点进行检查。
+- **注意：** 令牌本身（按上述方式创建后）可以共享给不具有 AD\_MANAGER 或 ACCOUNT\_ADMIN 访问级别的用户以供使用。
+
+<div id="steps">
+  ### **步骤**
+</div>
+
+<div id="creating-the-conversion-api-event">
+  ### 创建 Conversion API 事件
+</div>
+
+要使用 Conversion API，您需要在 Ads Manager 中创建一个新的转化事件，或复用已与 X Pixel 一起创建并使用的现有事件。若希望在 Pixel 与 Conversion API 事件之间进行去重，必须使用您为 Pixel 创建的现有事件。 
+
+<div id="option-1-using-an-existing-conversion-event-in-ads-manager">
+  ##### 选项 1：在 Ads Manager 中使用现有的转化事件
+</div>
+
+如果你想沿用已与 X 像素配合使用的现有事件，可以这样做，你需要从该事件中获取 Event ID。若你对同一事件同时使用像素和 Conversion API，请确保在 Pixel 代码片段与 Conversion API 请求中都设置去重键（在请求中作为 `conversion_id`），以在同一事件的 Pixel 与 Conversion API 之间进行去重。更多信息请参见 d. 测试事件与去重 章节。 
+
+<div id="option-2-creating-a-new-conversion-event-in-ads-manager">
+  ##### 选项 2：在 Ads Manager 中创建新的转化事件：
+</div>
+
+在创建事件之前，务必先在 Events Manager 中创建一个 Event Source。要验证你的账户是否已添加 Event Source（X Pixel），请前往 Events Manager，查看左侧菜单中是否有 X Pixel。
+
+如果你尚未添加 Event Source，请按以下步骤创建 Event Source。
+
+1. 访问 ads.x.com
+2. 导航到左上角的 **Tools**，点击 **Events Manager**
+3. 在右上角选择 Add event source 以 **Add an event source**，如果你左侧侧边栏尚无 X Pixel 事件来源
+   1. X Pixel 事件来源的 ID 即为你的 **Pixel ID**
+
+现在你已有一个 Event Source 和 Pixel ID。你需要在该 Event Source 中为希望跟踪的转化创建一个事件：
+
+1. 在 X Pixel 事件来源内，选择右侧的 **Add events**
+2. 选择使用 **Conversion API** 安装
+3. 你将看到此事件在 API 中会使用到的 **Pixel ID** 和 **Event ID**
+   1. 该事件的 ID 即为你的 Event ID
+4. 点击 Save，你的转化事件就已创建并可使用
+
+### 为转化事件准备标识符 
+
+目前我们需要至少传递一个标识符，例如点击 ID（`twclid`）、电子邮件地址或电话号码。若使用 IP 地址或用户代理，则必须再提供第二个标识符，才能进行正确的转化匹配。
+
+传递更多标识符将提升转化匹配率。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| 客户匹配字段 | 格式 | 是否需要哈希处理？ |
+| X Click ID | 由 X 生成（[了解更多](https://business.x.com/en/help/campaign-measurement-and-analytics/conversion-tracking-for-websites.html#faq)） | 否  |
+| 电子邮件地址 | 去除首尾空格 | 需要（SHA256） |
+| 电话号码 | 按照 [E.164 标准](https://en.wikipedia.org/wiki/E.164) | 需要（SHA256） |
+
+|     |     |     |
+| :--- | :--- | :--- |
+| IP 地址 | 去除首尾空格 | 否  |
+| 用户代理 | 去除首尾空格 | 否  |
+
+#### 1. 准备 X Click ID 标识符 
+
+建议在转化请求中始终包含 Click ID
+
+在用户进入目标网站后，如可用，应从查询字符串参数 twclid 中解析出 Click ID。 
+
+基础 JavaScript 代码示例：
+
+```js
+var queryString = document.location.search;
+if (queryString.has('twclid') {
+  twitterClickID = getParam(queryString, 'twclid');
+  // 推荐的后续步骤：记录日志，写入本地存储
+}
+```
+
+建议如下： 
+
+1. 当 URL 查询参数中存在 twclid 值时，务必进行解析。
+
+2. 将该数据与相关的表单字段或转化事件信息一并存储。
+
+将 Click ID 关联到转化事件和工作流信息，可支持以下场景：批处理、用于分析并基于多条网站导航路径创建转化事件的算法，以及批量上传。
+
+Event Source URL 应进行[URL 编码](https://en.wikipedia.org/wiki/Percent-encoding)，用于表示触发该事件的网页。
+
+#### 2. 准备电子邮件标识符 
+
+支持的客户匹配字段可以发送，但应先规范化，并在需要时进行哈希处理以保护隐私。
+
+信息必须使用 SHA256 进行哈希，且不得使用盐值。 
+
+例如，对于电子邮件地址 test@x.com，应以其哈希值发送给我们：d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62。
+
+#### 3. 准备电话号码标识符 
+
+电话号码应按 [E164 标准](https://en.wikipedia.org/wiki/E.164) 传入，且必须使用 SHA256 进行无盐哈希。 
+
+例如，对于美国电话号码 +11234567890，应以哈希值的形式发送给我们：1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231。
+
+<div id="4-prepare-ip-address-identifier">
+  #### 4. 准备 IP 地址标识符
+</div>
+
+IP 地址必须与另一个标识符（twclid、电子邮件地址、电话号码或用户代理）一并传递。该标识符无需进行哈希处理。
+
+该值采用点分十进制表示法，由四个用点分隔的数字组成。例如，某个用户的 IP 地址可能是 8.25.197.25。
+
+<div id="5-prepare-user-agent-identifier">
+  #### 5. 准备 User Agent 标识符
+</div>
+
+User Agent 需要与另一种标识符（twclid、电子邮件地址、电话号码或 IP 地址）一同传递。该标识符无需进行哈希处理。
+
+此标识符使服务器能够识别发出请求的用户代理对应的应用、操作系统、供应商和/或版本。例如，该值可传为：Mozilla/5.0 (Macintosh; Intel Mac OS X 10\_15\_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36。
+
+<div id="constructing-the-conversion-event-request">
+  ### 构造转化事件请求
+</div>
+
+`POST: version/measurement/conversions/:pixel_id`
+
+为指定广告账号发送转化事件。请检查响应状态码以确认成功（HTTP 200 OK）。建议在返回错误码时启用重试机制并记录基础日志。
+
+有关该端点的 URL 和 POST 请求体参数的详细信息，请参阅 [API 参考](https://developer.x.com/en/docs/twitter-ads-api/measurement/api-reference/conversions) 部分。 
+
+<div id="example-request-formatted-for-readability">
+  ### 示例请求（为便于阅读而格式化）
+</div>
+
+```json
+
+    twurl -H 'ads-api.x.com' -X POST '/12/measurement/conversions/oka17' --data '
+    {
+      "conversions":[
+         {
+            "conversion_time":"2022-02-18T01:14:00.603Z",
+            "event_id":"ol288",
+            "identifiers":[
+               {
+                  "twclid":"23opevjt88psuo13lu8d020qkn"
+               },
+               {
+                  "hashed_email":"d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62"
+               },
+               {
+                  "hashed_phone_number":"1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231"
+               },
+               {
+                  "ip_address":"1.0.0.0",
+                  "user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+               }
+            ],
+            "value":"20.00",
+            "number_items":3,
+            "conversion_id":"23294827",
+            "description":"Pet supply purchases",
+            "contents":[
+               {
+                  "content_id":"1",
+                  "content_name":"Blankets",
+                  "content_type":"Pet supplies",
+                  "content_price":100.99,
+                  "num_items":1,
+                  "content_group_id":"123"
+               }
+            ]
+         }
+      ]
+    }' --header 'Content-Type: application/json'
+
+```
+
+<div id="example-response">
+  ### 示例响应
+</div>
+
+```json
+{"request": {
+ "params": {
+   "account_id":"18ce552mlaq"}
+ },
+ "data": {
+   "conversions_processed":1,
+   "debug_id":"ff02e052-36e4-47d6-bdf0-6d8986446562"}
+}
+```
+
+<div id="rate-limit">
+  ### 速率限制
+</div>
+
+速率限制为每个账户、每 15 分钟内 60,000 个事件。
+
+请注意，您的服务器端代码可能需要在此次请求调用之外实现逻辑，包括：
+
+1. 对用户行为进行埋点（日志记录），以便按事件发送正确的转化数据
+2. 实现必要的逻辑，以过滤掉已行使相关隐私选择的用户的转化事件——例如，他们在广告主网站上选择退出跟踪或拒绝出售其个人信息
+3. 与事件触发器和页面进行集成，以捕获事件并发送转化
+
+<div id="testing-events-and-deduplication">
+  ### 测试事件与去重
+</div>
+
+<div id="testing-events">
+  ### 测试事件
+</div>
+
+当你的事件成功接收到转化后，12 至 24 小时内，Ads Manager 的“转化跟踪”页面上“Single event web tag”的状态应显示为 TRACKING。通过 Conversion API 发送转化不会影响正在投放中的广告系列。
+
+你还可以按标签 ID 查看该转化事件的分析结果，方式包括：
+
+- 导出 Ads Manager 数据（参见[网站转化跟踪分析帮助页面](https://business.x.com/en/help/campaign-measurement-and-analytics/conversion-tracking-for-websites.html)）
+
+- 通过 Ads API 导出数据（segmentation\_type=CONVERSION\_TAGS） 
+
+<div id="duplication-between-pixel-and-conversion-api">
+  ### Pixel 与 Conversion API 之间的去重
+</div>
+
+如果你希望在 Pixel 与 Conversion API 请求之间进行去重，我们提供 conversion\_id 作为去重键。去重仅在事件级别生效。换言之，要在 Pixel 与 CAPI 请求之间实现去重，广告主必须在两者请求中使用同一事件，并使用相同的 conversion\_id。去重仅适用于在 48 小时内接收到的事件。
+
+<div id="conversion-tracking-overview">
+  ## 转化跟踪（概览）
+</div>
+
+<div id="summary">
+  ### 摘要
+</div>
+
+转化跟踪可衡量 X 用户在查看并与您在 X 上的广告互动后完成目标行为的人数。它让你能够评估哪些广告系列驱动了网站访问、注册和购买等行为。借此，广告主可获得站外效果衡量能力，更好地理解其直接响应型广告的表现，从而以更具成本效益的方式获客。
+
+通过转化标签，广告主可以跟踪用户转化，并将其归因到 X 上的相关广告系列。这使他们能够具备优化可见性，以便将广告系列优化至满足其每次获客成本（CPA）目标。
+
+广告主可通过转化跟踪衡量多种网站行为，并可根据其广告系列所要推动的目标选择一种或多种：
+
+- 站点访问：用户访问广告主网站的落地页
+- 购买：用户在广告主网站完成某产品或服务的购买
+- 下载：用户从广告主网站下载文件，例如白皮书或软件包
+- 注册：用户注册广告主的服务、新闻通讯或电子邮件订阅
+- 自定义：兜底类别，适用于不属于上述类别的自定义行为
+
+X 的转化跟踪为广告主提供完整的转化归因视图。与客户可能曾用于替代 X 自身转化跟踪能力的第三方测量系统（例如与第三方跟踪标签配对的唯一点击 URL）相比，X 的转化标签还可跟踪归因于中上层漏斗互动（如推文展开、转推、收藏、回复、关注）以及展示所带来的转化。
+
+<div id="faq">
+  ### 常见问题
+</div>
+
+<AccordionGroup>
+  <Accordion title="转化跟踪标签如何工作？">
+    首先，广告主会创建一个转化标签（由 X 提供的一段代码），并将其放置在自己的网站上。这样，当用户完成指定操作时，标签即可用来衡量转化。
+
+    随后，用户在 X 客户端看到广告主的广告，被引导至广告主的网站并执行已被打标签的操作。如果用户在广告主于标签设置时指定的归因窗口内完成该操作，标签会识别该用户此前与 X 广告发生过互动。然后标签会“触发”，即向 X 的服务器发送通知，以便将此次转化归因到带来该转化的广告。
+  </Accordion>
+
+  <Accordion title="在广告系列设置流程中，是否可以选择本次广告系列使用哪些跟踪像素？">
+    不可以，我们的产品不支持将特定转化标签绑定到特定广告系列。相反，一旦设置好标签，系统会自动记录是哪则广告为某个标签带来了转化。
+  </Accordion>
+
+  <Accordion title="转化标签的默认归因窗口设置是什么？">
+    默认的展示后归因窗口：1 天
+
+    默认的互动后归因窗口：14 天
+
+    这些默认设置可在转化标签设置期间或标签创建后的任何时间进行更改。互动后归因窗口可选 1、7、14、30、60、90 天；展示后归因窗口可选无、1、7、14、30、60、90 天。
+  </Accordion>
+
+  <Accordion title="有哪些有效的 DR 创意与策略能更好地带动转化？">
+    尽管各客户的目标、情况和策略不同，以下做法在参与转化跟踪 alpha 或 beta 的客户中被证明有效：
+
+    **创意：**
+
+    - **优惠**：将折扣、促销或免运费等优惠与推广推文（Promoted Tweet）搭配，提升目标行动的吸引力
+    - **抽奖与竞赛**：尤其对知名品牌，抽奖和竞赛能带动转化
+    - **推文文案实验**：测试全大写与小写（如 FREE 与 free、NOW 与 now）
+    - **截止日期**：设置截止时间以促使用户立即行动（优惠至 12 月 12 日！）
+    - **加入更具吸引力的图片**：值得测试在推文创意中使用强视觉冲击的图片是否有助于提升转化；效果可能因客户的具体产品/服务而异
+
+    **定向：**
+
+    - @handle 定向与兴趣分类定向：将推文文案与 @handle 与预期受众高度匹配可促进转化
+    - 使用小众但高量级的关键词：在演出垂直中，使用与艺人/音乐人相关的关键词（如其姓名）效果显著
+    - 定制受众：同时使用 TA Web 与转化跟踪的客户，其 CPA 低于使用其他定向方式的对照组
+
+    你的广告系列分层越细，转化报告的可操作性就越强。比如，优化包含 4 个关键词的广告系列，远比优化包含 50 个关键词的广告系列更容易。
+  </Accordion>
+</AccordionGroup>
+
+<div id="troubleshooting-and-support-for-conversion-api">
+  ## 转化 API 的故障排查与支持
+</div>
+
+如需了解调用 API 后的错误代码，请参阅下方部分。对于其他问题，欢迎随时联系您的 X（原 Twitter）代表，我们将尽快协助解决。 
+
+<div id="error-handling-and-explanation">
+  ### 错误处理与说明
+</div>
+
+只有当单个请求中所包含的所有转化均无任何错误时，请求才会成功。若任一转化出现错误，端点将返回所有适用错误的列表。
+
+<div id="x-ads-api-error-codes-overview">
+  ### X 广告 API 错误代码概览
+</div>
+
+以下是 X 广告 API 中错误代码的完整列表：
+
+[https://developer.x.com/en/docs/twitter-ads-api/response-codes](https://developer.x.com/en/docs/twitter-ads-api/response-codes)
+
+成功的 Conversion API 响应会返回 200 段的 HTTP 状态码，并附带包含所请求对象的 JSON 负载。
+
+<div id="when-there-is-a-500-series-http-code-its-related-to-a-server-issue-instead-of-your-request-or-account-set-up-please-check-the-x-api-status-page-or-the-developer-community-forum-in-case-others-are-having-similar-issues">
+  #### **当出现 500 系列 HTTP 状态码时**，问题与服务器有关，而非你的请求或账户设置。请查看 [X API 状态页](https://api.twitterstat.us/)或[开发者社区论坛](https://devcommunity.x.com/)，以了解是否有他人遇到类似问题。
+</div>
+
+<div id="when-there-is-a-400-series-http-code-the-common-cases-are">
+  #### 当出现 400 系列 HTTP 状态码时，常见情况包括
+</div>
+
+- 400 Bad Request（请求不符合规范）
+
+- 401 Unauthorized（认证问题）
+
+- 403 Forbidden（与该开发者账号的 API 访问权限相关的问题）
+
+- 404 Not Found（该端点的 URL 或参数可能不正确）
+
+<div id="conversion-api-error-codes">
+  ### Conversion API 错误码
+</div>
+
+<div id="400-bad-request-scenarios">
+  #### 400 错误请求场景
+</div>
+
+| **原因** | **类型** | **错误信息** |
+| :--- | :--- | :--- |
+| 缺少标识符（目前支持哈希化邮箱或 X 点击 ID（twclid）） | 400 错误请求 | 必须提供至少一个用户标识符 |
+| 无效的哈希化邮箱 | 400 错误请求 | Hashed\_email 不是有效的 SHA-256 哈希 |
+| event\_id 的类型不是单一事件标签（SET） | 400 错误请求 | Event\_id (\<event\_id>) 不是单一事件标签（SET） |
+| 请求的转化事件数量超出限制（目前每个请求最多 500 个事件） | 400 错误请求 | 转化数量上限为 500 |
+| 缺少事件 ID | 400 错误请求 | 未找到事件 ID |
+
+<div id="json-error-code-example">
+  #### JSON 错误码示例
+</div>
+
+<div id="request">
+  ##### 请求：
+</div>
+
+`POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dkt", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### 错误信息：
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"event_id（o6dkt）不是单一事件标签（SET）","parameter":"event_id"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### 请求：
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dl3", "identifiers": [{"twclid": ""}]}]}' --header 'Content-Type: application/json' `
+
+<div id="error-message">
+  #### 错误消息：
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"必须提供至少一个用户标识符","parameter":""}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### 请求：
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"o6dl3", "identifiers": [{"hashed_email": "abc"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### 错误信息：
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"hashed_email（abc）不是有效的 SHA-256 哈希值","parameter":"hashed_email"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="request">
+  #### 请求：
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o6dkt' --data '{"conversions":[{"conversion_time":"2022-06-16T01:14:00.603","event_id":"o6dl3","identifiers":[{"twclid":"23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+<div id="error-message">
+  #### 错误信息：
+</div>
+
+`{"errors":[{"code":"INVALID_PARAMETER","message":"Expected Time in yyyy-MM-ddTHH:mm:ss.SSSZ, got \"2022-06-16T01:14:00.603\" for conversion_time","parameter":"conversion_time"}],"request":{"params":{"account_id":"18ce552mlaq"}}}`
+
+<div id="401-unauthorized">
+  ### 401 未授权
+</div>
+
+**原因**：缺少或不正确的身份验证凭据
+
+**解决方案**：请按照[设置文档](https://developer.x.com/en/docs/twitter-ads-api/measurement/guides/conversion-api)中的身份验证步骤操作，选择以下三种身份验证方式之一：
+
+对于不属于 Ads API 应用拥有者的账号所使用的用户访问令牌（User Access Tokens），必须通过三方 OAuth 流程生成。使用三方 OAuth 生成访问令牌（Access Token）的方式包括：
+
+- [使用 twurl 工具进行基于 Web 的授权（命令行）](https://github.com/twitter/twurl#getting-started)
+
+- [使用基于 PIN 的授权（命令行）](https://developer.x.com/resources/fundamentals/authentication/pin-based-oauth)
+
+- [实现三方 OAuth 模式的自定义网页流程](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)
+
+用于 Conversion API 的任何用户令牌必须对应具有 AD\_MANAGER 或 ACCOUNT\_ADMIN 访问级别的用户，可通过 [authenticated\_user\_access](https://developer.x.com/en/docs/twitter-ads-api/campaign-management/api-reference/authenticated-user-access) 端点进行检查。
+
+### 403 访问被拒绝 
+
+| 原因 | 类型 | 错误消息 |
+| :--- | :--- | :--- |
+| 您正在使用的开发者账号没有 Ads API 访问权限。[在此申请访问](https://developer.x.com/en/docs/twitter-ads-api/apply)。 | 403 未授权客户端 | 发送此请求的 id 为 \<> 的客户端应用无权访问 X 广告 API。请确保您的应用已开通 advertiser-api 访问权限。使用 'twurl accounts' 和 'twurl set default \<username> \<key>' 更改当前使用的应用。 |
+
+### 404 未找到 
+
+| 原因 | 类型 | 错误消息 |
+| :--- | :--- | :--- |
+| 请求的 URL 或参数与该端点不匹配 | 404 路由未找到 | 找不到请求的资源 |
+| 你无权访问拥有 pixel\_id/Universal website tag 的账户 | 404 未找到 | 用户 \<user\_id> 无权访问账户 \<account\_id>。输入 “sn \<user\_id>” 以获取该用户的 handle。使用 “twurl accounts” 和 “twurl set default \u003Cusername\u003E” 更改当前使用的用户。 |
+| 事件 ID 不属于与该像素 ID（UWT ID）关联的所提供账户 | 404 未找到 | event\_id \<event\_id> 不属于所提供的账户 |
+
+<div id="json-error-code-example">
+  ### JSON 错误码示例
+</div>
+
+<div id="request">
+  #### 请求：
+</div>
+
+`twurl_ads -X POST '/11/measurement/conversions/o8z6j'  --data '{"conversions":[{"conversion_time": "2022-06-16T01:14:00.603Z", "event_id":"abc", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}]}]}' --header 'Content-Type: application/json'`
+
+**错误消息：**
+
+`{"errors":[{"code":"NOT_FOUND","message":"event_id (abc) does not belong to provided account","parameter":"event_id"},{"code":"INVALID_PARAMETER","message":"event_id (abc) is not a single event tag (SET)","parameter":"event_id"}],"request":{"params":{"account_id":"18ce55gze09"}}}`
+
+<div id="api-reference-index">
+  ## API 参考索引
+</div>
+
+如需查看完整的 API 参考，请从列表中选择一个端点：
+
+<div id="web-conversions">
+  ### 网站转化
+</div>
+
+|     |     |
+| :--- | :--- |
+| 转化 API | [measurement/conversions/:pixel\_id](https://developer.x.com/en/docs/x-ads-api/measurement/web-conversions/api-reference/conversions) |
+| 网站事件标签 | [accounts/:account\_id/web\_event\_tags](https://developer.x.com/en/docs/x-ads-api/measurement/web-conversions/api-reference/web-event-tags) |
+
+<div id="web-conversions">
+  ### 网站转化
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  在 Postman 中运行
+</Button>
+
+`POST version/measurement/conversions/:pixel_id`
+
+为单个 Event Tag ID 发送网站转化事件。
+
+应检查响应状态码以确认成功（HTTP 200 OK）。建议在返回错误码时实现重试机制并进行基本日志记录。
+
+速率限制为每个账户在每 15 分钟内最多 100,000 次请求（每个请求最多允许 500 个事件）。
+
+<div id="resource-url">
+  ##### 资源 URL
+</div>
+
+`https://ads-api.x.com/12/measurement/conversions/:pixel_id`
+
+<div id="request-url-parameters">
+  ##### 请求 URL 参数
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| pixel\_id  <br />_必填_ | 广告账户的 Base Tag ID。即该 Base Tag ID 的 base36 编码值。<br /><br />类型：string<br /><br />示例：`o8z6j` |
+| conversions  <br />_必填_ | API 请求的 POST body 中的对象。转化事件列表。最多可提供 500 个转化事件。支持的字段见下表。<br /><br />类型：array<br /><br />示例：`"conversions":[{"conversion_time": "2022-02-18T01:14:00.603Z", "event_id":"o87ne", "identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"}], "conversion_id": "23294827"}]` |
+
+<div id="conversions-object">
+  ###### conversions 对象
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| conversion\_time  <br />_必填_ | 以 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示的时间。<br /><br />类型：string<br /><br />示例：`2017-10-05T00:00:00Z` |
+| event\_id  <br />_必填_ | 某个特定事件的 base-36 ID。它与此广告账户中预先配置的事件匹配。在 Events Manager 中对应事件的字段名为 ID。<br /><br />类型：string<br /><br />示例：`o87ne` 或 `tw-o8z6j-o87ne`（`tw-pixel_id-event-id`）均可接受 |
+| identifiers  <br />_必填_ | 用于匹配转化事件的标识符对象列表。支持的字段见下方表格。至少需要提供一个标识符对象。<br /><br />若使用 IP 地址或 user agent，为确保正确匹配转化，必须同时发送第二个标识符。<br /><br />类型：array<br /><br />示例：`"identifiers": [{"twclid": "23opevjt88psuo13lu8d020qkn"},{"hashed_email": "e586883b2b4faf78d48300a79e0e15138d664cdf796ffb86e533170a9893eda8"}]` |
+| number\_items  <br />_可选_ | 事件中购买的商品数量。必须为大于零的正整数。<br /><br />类型：integer<br /><br />示例：`4` |
+| price\_currency  <br />_可选_ | 事件中购买商品所使用的货币，遵循 [ISO-4217](https://en.wikipedia.org/wiki/ISO_4217)。详见 [Currency](https://developer.x.com/en/docs/twitter-ads-api/currency)。<br /><br />类型：string<br /><br />默认值：`USD`<br /><br />示例：`JPY` |
+| value  <br />_可选_ | 事件中购买商品的价格数值，使用 `price_currency` 指定的货币表示。<br /><br />类型：double<br /><br />示例：`100.00` |
+| conversion\_id  <br />_可选_ | 用于 Pixel 与 Conversion API 转化之间的去重。是在同一事件标签中可用于 Web Pixel 与 Conversion API 转化去重的转化事件标识符。更多信息请参见 [Conversions Guide](https://developer.x.com/en/docs/twitter-ads-api/measurement/guides/conversion-api) 的 Testing Events and Deduplication 部分。<br /><br />类型：string<br /><br />示例：`23294827` |
+| description  <br />_可选_ | 关于转化的附加信息描述。<br /><br />类型：string<br /><br />示例：`test conversion` |
+| contents  <br />_可选_ | 与特定产品/内容相关的详细信息列表，以提供更细粒度的信息。支持的字段见下表。<br /><br />类型：array<br /><br />示例：`contents": [{"content_id": "1", "content_name": "Blankets", "content_type": "home improvement", "content_price": 100.99, "num_items": 1, "content_group_id": "123"}, {"content_id": "2"}]` |
+
+<div id="identifiers-object">
+  ###### identifiers 对象
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| ********twclid********  <br />_有时必填_ | 从点击跳转 URL 解析出的点击 ID。若未提供其他任何标识符，则必填。<br /><br />类型：string<br /><br />示例：`26l6412g5p4iyj65a2oic2ayg2` |
+| ********hashed\_email********  <br />_有时必填_ | 使用 [SHA256](https://en.wikipedia.org/wiki/SHA-2) 对电子邮件地址进行哈希。哈希前须将文本转为小写，并去除首尾空格。若未提供其他任何标识符，则必填。<br /><br />类型：string<br /><br />示例：`test-email@test.com` 的哈希值为 `e586883b2b4faf78d48300a79e0e15138d664cdf796ffb86e533170a9893eda8` |
+| ********hashed\_phone\_number********  <br />_有时必填_ | 使用 [E164](https://en.wikipedia.org/wiki/E.164) 格式的电话号码，并用 [SHA256](https://en.wikipedia.org/wiki/SHA-2) 进行哈希。哈希前电话号码必须为 E164 格式。若未提供其他任何标识符，则必填。<br /><br />类型：string<br /><br />示例：`+11234567890` 的哈希值为 `1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231` |
+| **ip\_address**  <br />_有时必填_ | 该值采用点分十进制表示法，由四个以点分隔的数字组成。<br /><br />IP 地址必须与另一项标识符（twclid、电子邮件地址、电话号码或 user agent）一并传递。<br /><br />类型：string<br /><br />示例：8.25.197.25 |
+| **user\_agent**  <br />_有时必填_ | 此标识符可使服务器识别请求方的应用、操作系统、供应商和/或版本。<br /><br />User Agent 必须与另一项标识符（twclid、电子邮件地址、电话号码或 IP 地址）一并传递。<br /><br />类型：string<br /><br />示例：Mozilla/5.0 (Macintosh; Intel Mac OS X 10\_15\_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 |
+
+<div id="contents-object">
+  ###### contents 对象
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| content\_id  <br />_可选_ | SKU 或 GTIN；用于表示内容的标识符。<br /><br />类型：string<br /><br />示例：`jhp` |
+| content\_group\_id  <br />_可选_ | 与一组产品变体关联的 ID。<br /><br />类型：integer<br /><br />示例：`group 1` |
+| content\_name  <br />_可选_ | 产品或服务的名称。<br /><br />类型：string<br /><br />示例：`radio flyer` |
+| content\_price  <br />_可选_ | 产品或服务的价格。<br /><br />类型：double<br /><br />示例：`5.00` |
+| content\_type  <br />_可选_ | 已购买产品的类别。<br /><br />类型：string<br /><br />示例：`clothes` |
+| num\_items  <br />_可选_ | 购买的产品数量。<br /><br />类型：integer<br /><br />示例：`1` |
+
+<div id="response-parameters">
+  ##### 响应参数
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| conversions\_processed | 成功处理的转化次数<br /><br />类型：integer<br /><br />示例：`1` |
+| debug\_id | 可用于后续排查的调试 UUID<br /><br />类型：string<br /><br />示例：`ff02e052-36e4-47d6-bdf0-6d8986446562` |
+
+<div id="example-request">
+  ##### 示例请求
+</div>
+
+```json
+    twurl -H 'ads-api.x.com' -X POST '/12/measurement/conversions/oka17' --data '
+    {
+      "conversions":[
+         {
+            "conversion_time":"2022-02-18T01:14:00.603Z",
+            "event_id":"ol288",
+            "identifiers":[
+               {
+                  "twclid":"23opevjt88psuo13lu8d020qkn"
+               },
+               {
+                  "hashed_email":"d360d510a224510f373931ce2d6215a799f5a9c1cef221b0149b6b6b50cced62"
+               },
+               {
+                  "hashed_phone_number":"1fa6b8d986d9b9cd01bf36951815158bbde9f520c0567c835dfe34783d0a4231"
+               },
+               {
+                  "ip_address":"1.0.0.0",
+                  "user_agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+               }
+            ],
+            "value":"20.00",
+            "number_items":3,
+            "conversion_id":"23294827",
+            "description":"宠物用品购买",
+            "contents":[
+               {
+                  "content_id":"1",
+                  "content_name":"毯子",
+                  "content_type":"宠物用品",
+                  "content_price":100.99,
+                  "num_items":1,
+                  "content_group_id":"123"
+               }
+            ]
+         }
+      ]
+    }' --header 'Content-Type: application/json'
+```
+
+<div id="example-request">
+  ##### 示例请求
+</div>
+
+```json
+    {
+       "request":{
+          "params":{
+             "account_id":"18ce552mlaq"
+          }
+       },
+       "data":{
+          "conversions_processed":1,
+          "debug_id":"ff02e052-36e4-47d6-bdf0-6d8986446562"
+       }
+    }
+```
+
+<div id="web-event-tags">
+  ### Web 事件标签
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  在 Postman 中运行
+</Button>
+
+`GET accounts/:account_id/web_event_tags`
+
+获取与当前账号关联的部分或全部 Web 事件标签的详细信息。
+
+<div id="resource-url">
+  #### 资源 URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags`
+
+<div id="parameters">
+  #### 参数
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被引用账户的标识符。出现在资源路径中，通常对除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 之外的所有 Advertiser API 请求都是必填参数。指定的账户必须与已认证用户关联。<br /><br />Type: string<br /><br />Example: `18ce54d4x5t` |
+| count  <br />_可选_ | 指定每个独立请求尝试检索的记录数量。<br /><br />Type: int<br /><br />Default: `200`  <br />Min, Max: `1`, `1000` |
+| cursor  <br />_可选_ | 指定用于获取下一页结果的游标。更多信息参见 [Pagination](/zh/x-ads-api/introduction)。<br /><br />Type: string<br /><br />Example: `8x7v00oow` |
+| sort\_by  <br />_可选_ | 按受支持的属性进行升序或降序排序。更多信息参见 [Sorting](/zh/x-ads-api/fundamentals/sorting)。<br /><br />Type: string<br /><br />Example: `created_at-asc` |
+| web\_event\_tag\_ids  <br />_可选_ | 通过指定以逗号分隔的标识符列表，将响应限定为所需的网页事件标签。最多可提供 200 个 ID。<br /><br />Type: string<br /><br />Example: `o3bk1` |
+| with\_deleted  <br />_可选_ | 在请求中包含已删除的结果。<br /><br />Type: boolean<br /><br />Default: `false`  <br />Possible values: `true`, `false` |
+| with\_total\_count  <br />_可选_ | 包含 `total_count` 响应属性。<br /><br />**注意**：此参数与 `cursor` 互斥。<br /><br />**注意**：包含 `total_count` 的请求将有更低的速率限制，当前为每 15 分钟 200 次。<br /><br />Type: boolean<br /><br />Default: `false`  <br />Possible values: `true`, `false` |
+
+<div id="example-request">
+  #### 示例请求
+</div>
+
+`GET https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags?web_event_tag_ids=o3bk1`
+
+<div id="example-response">
+  #### 示例响应
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "web_event_tag_ids": [
+            "o3bk1"
+          ],
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "next_cursor": null,
+      "data": [
+        {
+          "name": "web event tag",
+          "view_through_window": 7,
+          "click_window": 7,
+          "embed_code": "<script src=\"//platform.x.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.x.com/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+          "id": "o3bk1",
+          "retargeting_enabled": false,
+          "last_tracked_at": "2021-05-22T17:00:04Z",
+          "status": "TRACKING",
+          "type": "DOWNLOAD",
+          "website_tag_id": "ny3od",
+          "deleted": false
+        }
+      ]
+    }
+```
+
+#### GET accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+获取与当前账号关联的指定 Web 事件标签。
+
+<div id="resource-url">
+  ##### 资源 URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  ##### 参数
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被使用的账户标识符。出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 外所有 Advertiser API 请求的必填参数。指定的账户必须与已通过身份验证的用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_必填_ | 你在请求中使用的 Web 事件标签的引用。<br /><br />类型：string<br /><br />示例：`o3bk1` |
+| with\_deleted  <br />_可选_ | 在请求中包含已删除的结果。<br /><br />类型：boolean<br /><br />默认值：`false`  <br />可能的取值：`true`、`false` |
+
+<div id="example-request">
+  ##### 示例请求
+</div>
+
+`GET https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1`
+
+<div id="example-response">
+  ##### 示例响应
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data": {
+        "name": "网页事件标签",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src=\"//platform.x.com/oct.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"https://analytics.x.com/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /><img height=\"1\" width=\"1\" style=\"display:none;\" alt=\"\"  src=\"//t.co/i/adsct?txn_id=ny3od&amp;p_id=Twitter&amp;tw_sale_amount=0&amp;tw_order_quantity=0\" /></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "TRACKING",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      }
+    }
+```
+
+#### POST accounts/:account\_id/web\_event\_tags
+
+创建一个与当前账号关联的新网页事件标签。
+
+<div id="resource-url">
+  #### 资源 URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags`
+
+<div id="parameters">
+  #### 参数
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被使用的账户标识符。该参数出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 之外所有 Advertiser API 请求的必填参数。指定的账户必须与已认证用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| click\_window  <br />_必填_ | 此网页标签的点击回溯窗口。<br /><br />**注意**：仅接受下列可能的取值。<br /><br />类型：int<br /><br />可能的取值：`1`、`7`、`14`、`30` |
+| name  <br />_必填_ | 网页标签名称。<br /><br />类型：string<br /><br />示例：`Sample single conversion event` |
+| retargeting\_enabled  <br />_必填_ | 是否为此网页标签启用再营销。<br /><br />类型：boolean<br /><br />可能的取值：`true`、`false` |
+| type  <br />_必填_ | 网页标签类型。<br /><br />类型：enum<br /><br />可能的取值：`ADDED_PAYMENT_INFO`、`ADD_TO_CART`、`ADD_TO_WISHLIST`、`CHECKOUT_INITIATED`、`CONTENT_VIEW`、`CUSTOM`、`DOWNLOAD`、`PRODUCT_CUSTOMIZATION`、`PURCHASE`、`SEARCH`、`SIGN_UP`、`SITE_VISIT`、`START_TRIAL`、`SUBSCRIBE`<br /><br />（在 UI 中，`SITE_VISIT` 显示为 “Page view”，`SIGN_UP` 显示为 “Lead”） |
+| view\_through\_window  <br />_必填_ | 此网页标签的展示回溯窗口。该值必须小于或等于 `click_window` 的值。<br /><br />**注意**：仅接受下列可能的取值。<br /><br />类型：int<br /><br />可能的取值：`0`、`1`、`7`、`14`、`30` |
+
+<div id="example-request">
+  ##### 示例请求
+</div>
+
+`POST https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags?click_window=7&name=web event tag&retargeting_enabled=false&type=SITE_VISIT&view_through_window=7`
+
+<div id="example-response">
+  #### 示例响应
+</div>
+
+```json
+    {
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": null,
+        "status": "UNVERIFIED",
+        "type": "SITE_VISIT",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      },
+      "request": {
+        "params": {
+          "name": "web event tag",
+          "view_through_window": 7,
+          "click_window": 7,
+          "retargeting_enabled": false,
+          "account_id": "18ce54d4x5t",
+          "type": "SITE_VISIT"
+        }
+      }
+    }
+```
+
+#### PUT accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+更新与当前账户关联的 Web 事件标签。
+
+<div id="resource-url">
+  ##### 资源 URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  #### 参数
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被使用账户的标识符。出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 外所有广告主 API 请求所需的参数。指定的账户必须与已认证用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_必填_ | 当前账户中的某个网页标签的标识符。<br /><br />类型：string<br /><br />示例：`o3bk1` |
+| click\_window  <br />_可选_ | 此网页标签的点击回溯窗口。<br /><br />注意：仅接受下方列出的可能取值。<br /><br />类型：int<br /><br />可能取值：`1`、`7`、`14`、`30` |
+| name  <br />_可选_ | 网页标签的名称。<br /><br />类型：string<br /><br />示例：`Sample single conversion event` |
+| retargeting\_enabled  <br />_可选_ | 是否为此网页标签启用再营销。<br /><br />类型：boolean<br /><br />可能取值：`true`、`false` |
+| type  <br />_可选_ | 网页标签的类型。<br /><br />类型：enum<br /><br />可能取值：`ADDED_PAYMENT_INFO`、`ADD_TO_CART`、`ADD_TO_WISHLIST`、`CHECKOUT_INITIATED`、`CONTENT_VIEW`、`CUSTOM`、`DOWNLOAD`、`PRODUCT_CUSTOMIZATION`、`PURCHASE`、`SEARCH`、`SIGN_UP`、`SITE_VISIT`、`START_TRIAL`、`SUBSCRIBE`<br /><br />（在界面上，`SITE_VISIT` 显示为 “Page view”，`SIGN_UP` 显示为 “Lead”） |
+| view\_through\_window  <br />_可选_ | 此网页标签的曝光回溯窗口。该值必须始终小于或等于 `click_window` 的值。<br /><br />注意：仅接受下方列出的可能取值。<br /><br />类型：int<br /><br />可能取值：`0`、`1`、`7`、`14`、`30` |
+
+<div id="example-request">
+  #### 示例请求
+</div>
+
+`PUT https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1?type=DOWNLOAD`
+
+<div id="example-response">
+  #### 示例响应
+</div>
+
+```json
+    {
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "UNVERIFIED",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": false
+      },
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "type": "DOWNLOAD",
+          "account_id": "18ce54d4x5t"
+        }
+      }
+    }
+```
+
+#### DELETE accounts/:account\_id/web\_event\_tags/:web\_event\_tag\_id
+
+删除与当前帐户关联的指定 Web 事件标签。
+
+<div id="resource-url">
+  #### 资源 URL
+</div>
+
+`https://ads-api.x.com/12/accounts/:account_id/web_event_tags/:web_event_tag_id`
+
+<div id="parameters">
+  ##### 参数
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被授权使用的账户标识符。该值出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 外所有 Advertiser API 请求所需的参数。指定的账户必须与已通过身份验证的用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| web\_event\_tag\_id  <br />_必填_ | 当前账户中某个 Web 标签的标识符。<br /><br />类型：string<br /><br />示例：`o3bk1` |
+
+<div id="example-request">
+  ##### 示例请求
+</div>
+
+`DELETE https://ads-api.x.com/12/accounts/18ce54d4x5t/web_event_tags/o3bk1`
+
+<div id="example-response">
+  ##### 示例响应
+</div>
+
+```json
+    {
+      "data": {
+        "name": "web event tag",
+        "view_through_window": 7,
+        "click_window": 7,
+        "embed_code": "<script src='"//platform.x.com/oct.js"' type='"text/javascript"'></script><script type='"text/javascript"'>twttr.conversion.trackPid('ny3od',  { tw_sale_amount: 0, tw_order_quantity: 0 });</script><noscript><img alt='""' height='"1"' src='"https://analytics.x.com/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/><img alt='""' height='"1"' src='"//t.co/i/adsct?txn_id=ny3od&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"' style='"display:none;"' width='"1"'/></noscript>",
+        "id": "o3bk1",
+        "retargeting_enabled": false,
+        "last_tracked_at": "2021-05-22T17:00:04Z",
+        "status": "UNVERIFIED",
+        "type": "DOWNLOAD",
+        "website_tag_id": "ny3od",
+        "deleted": true
+      },
+      "request": {
+        "params": {
+          "web_event_tag_id": "o3bk1",
+          "account_id": "18ce54d4x5t"
+        }
+      }
+    }
+```

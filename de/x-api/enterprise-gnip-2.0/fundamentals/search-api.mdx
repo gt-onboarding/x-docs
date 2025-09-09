@@ -1,0 +1,1623 @@
+---
+title: "Search API: Enterprise"
+sidebarTitle: Search API
+---
+
+> **Bitte beachten:**
+>
+> Wir haben eine neue Version von [Posts durchsuchen](/de/x-api/posts/search/introduction) und [Post-Zählungen](/de/x-api/posts/counts/introduction) in der [X-API v2](/de/x-api/getting-started/about-x-api) veröffentlicht. Wir empfehlen, sich [die Neuerungen](/de/x-api/migrate/overview) der X-API v2 anzusehen.
+>
+> Diese Endpunkte wurden aktualisiert und enthalten nun Metadaten zu Post-Bearbeitungen. Weitere Informationen zu diesen Metadaten finden Sie auf der Grundlagen-Seite [„Posts bearbeiten“](/de/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets). 
+
+<div id="overview">
+  ## Überblick
+</div>
+
+`Enterprise`
+
+_Die Enterprise-APIs sind ausschließlich innerhalb unserer verwalteten Zugriffsebenen verfügbar. Um diese APIs zu nutzen, müssen Sie zunächst ein Konto über unser Enterprise-Vertriebsteam einrichten. Weitere Informationen finden Sie [HIER](https://developer.x.com/en/products/x-api/enterprise)._
+
+_Sie können alle Suchangebote für X-API-Posts [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api) einsehen._
+
+Es gibt zwei Enterprise-Such-APIs:
+
+1. Die 30-Day Search API liefert Daten aus den vergangenen 30 Tagen.
+2. Die Full-Archive Search API bietet vollständigen und sofortigen Zugriff auf den gesamten Korpus der X-Daten bis zurück zum ersten Post im März 2006.
+
+Diese RESTful-APIs unterstützen eine einzelne Abfrage mit bis zu 2.048 Zeichen pro Anfrage. Abfragen werden mit der PowerTrack-Regelsyntax verfasst – siehe [Regeln und Filterung](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#getting-started-with-enterprise-rules-and-queries) für weitere Details. Nutzer können beliebige Zeiträume bis auf die Granularität einer Minute angeben. Antworten sind jedoch auf das kleinere von Ihrem angegebenen maxResults ODER 31 Tagen begrenzt und enthalten ein next-Token zur Paginierung des nächsten Ergebnissatzes. Wenn keine Zeitparameter angegeben sind, gibt die API passende Daten aus den letzten 30 Tagen zurück.
+
+Die Enterprise-Such-APIs bieten latenzarmen, originalgetreuen, abfragebasierten Zugriff auf das Post-Archiv mit Minuten-Granularität. Post-Daten werden in umgekehrt chronologischer Reihenfolge bereitgestellt, beginnend mit dem neuesten Post, der Ihrer Abfrage entspricht. Posts sind etwa 30 Sekunden nach der Veröffentlichung über die Search API verfügbar.
+
+Diese Suchendpunkte stellen Metadaten zu bearbeiteten Posts bereit. Alle Objekte für Posts, die seit dem 29. September 2022 erstellt wurden, enthalten Metadaten zur Post-Bearbeitung, selbst wenn der Post nie bearbeitet wurde. Jedes Mal, wenn ein Post bearbeitet wird, wird eine neue Post-ID erstellt. Der Bearbeitungsverlauf eines Posts wird durch ein Array von Post-IDs dokumentiert, beginnend mit der ursprünglichen ID.
+
+Diese Endpunkte liefern stets die jüngste Bearbeitung zusammen mit dem gesamten Bearbeitungsverlauf. Jeder Post, der nach seinem 30-minütigen Bearbeitungsfenster erfasst wird, stellt seine endgültige Version dar. Weitere Informationen zu Metadaten zum Bearbeiten von Posts finden Sie auf der Seite [Grundlagen zu bearbeiteten Posts](/de/x-api/fundamentals/edit-posts).
+
+Anfragen enthalten einen maxResults-Parameter, der die maximale Anzahl von Posts angibt, die pro API-Antwort zurückgegeben werden. Wenn mehr Posts mit der Abfrage verknüpft sind als diese maximale Anzahl an Ergebnissen pro Antwort, ist in der Antwort ein next-Token enthalten. Diese next-Token werden in nachfolgenden Anfragen verwendet, um durch den gesamten Satz der mit der Abfrage verknüpften Posts zu blättern.
+
+Diese Enterprise-Such-APIs bieten einen _counts_-Endpunkt, der es Nutzern ermöglicht, das mit ihrer Abfrage verbundene Datenvolumen anzufordern. 
+
+<div id="request-types">
+  ### Anfragetypen
+</div>
+
+Die Enterprise-Such-APIs unterstützen zwei Typen von Anfragen:
+
+<div id="search-requests-data">
+  #### Suchanfragen (Daten)
+</div>
+
+Suchanfragen an die Enterprise-Such-APIs ermöglichen es, für einen bestimmten Zeitraum bis zu 500 Ergebnisse pro Antwort abzurufen, mit der Möglichkeit, für zusätzliche Daten zu paginieren. Mit dem Parameter maxResults können Sie kleinere Seitengrößen für Anzeigezwecke festlegen (sodass Ihre Nutzer bei Bedarf mehr Ergebnisse anfordern können) oder größere Seitengrößen (bis zu 500) für umfangreichere Datenabfragen. Die Daten werden in umgekehrt chronologischer Reihenfolge geliefert und entsprechen zum Zeitpunkt der Bereitstellung den Compliance-Vorgaben.
+
+<div id="counts-requests-post-count">
+  #### Count-Anfragen (Post-Zählung)
+</div>
+
+Count-Anfragen ermöglichen das Abrufen historischer Aktivitätszahlen, die die Anzahl der Aktivitäten widerspiegeln, die innerhalb des angeforderten Zeitraums mit einer bestimmten Abfrage übereinstimmen. Die Antwort liefert im Wesentlichen ein Histogramm der Zählungen, gruppiert nach Tag, Stunde oder Minute (der Standard-Bucket ist _hour_). Es ist wichtig zu beachten, dass Count-Ergebnisse nicht immer Compliance-Ereignisse widerspiegeln (z. B. Post-Löschungen), die lange Zeit (7+ Tage) nach der Veröffentlichung eines Posts stattfinden; daher ist zu erwarten, dass die Zählmetrik nicht immer mit der einer Datenabfrage für dieselbe Abfrage übereinstimmt.
+
+**Hinweis zur Abrechnung:** Jede Anfrage – _einschließlich Paginierungsanfragen_ – an die Daten- und Count-Endpunkte wird als abrechenbare Anfrage gezählt. Wenn es also mehrere Ergebnisseiten für eine einzelne Abfrage gibt, entspricht das Durchblättern der X Seiten mit Ergebnissen X Anfragen für die Abrechnung.
+
+<div id="available-operators">
+  ### Verfügbare Operatoren
+</div>
+
+Enterprise-Such-APIs unterstützen Regeln mit bis zu 2.048 Zeichen. Die Enterprise-Such-APIs unterstützen die unten aufgeführten Operatoren. Ausführliche Beschreibungen finden Sie [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators). 
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Abgleich von Post-Inhalten:** | **Abgleich auf relevante Accounts:** | **Post-Attribute:** | **Geospatiale Operatoren:** |
+| \* Schlüsselwort<br />\* „exakte Wortgruppe“<br />\* „keyword1 keyword2“~N<br />\* #<br />\* @<br />\* $<br />\* url:<br />\* lang: | \* from:<br />\* to:<br />\* retweets\_of: | \* is:retweet  <br />    <br />\* has:mentions<br />\* has:hashtags<br />\* has:media<br />\* has:videos<br />\* has:images<br />\* has:links<br />\* has:symbols<br />\* is:verified  <br />    <br />\* -is:nullcast (nur Negationsoperator) | \* bounding\_box:\[west\_long south\_lat east\_long north\_lat]<br />\* point\_radius:\[lon lat radius]<br />\* has:geo<br />\* place:<br />\* place\_country:<br />\* has:profile\_geo<br />\* profile\_country:<br />\* profile\_region:<br />\* profile\_locality: |
+
+Hinweise: Operatoren nicht einbetten/verschachteln („#cats“) wird mit den Such-APIs zu cats aufgelöst. Der Operator „lang:“ sowie alle „is:“‑ und „has:“‑Operatoren können nicht alleinstehend verwendet werden und müssen mit einer weiteren Klausel kombiniert werden (z. B. @XDevelopers has:links).    
+
+Such-APIs verwenden aufgrund der Tokenisierungs- und Matching-Funktionalität einen begrenzten Satz von Operatoren. Enterprise-Echtzeit- und batchbasierte historische APIs bieten zusätzliche Operatoren. Weitere Details finden Sie [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product).
+
+Weitere Informationen finden Sie im Leitfaden [Erste Schritte mit Operatoren](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries).
+
+<div id="data-availability-important-date">
+  ### Datenverfügbarkeit / wichtiges Datum
+</div>
+
+Bei der Verwendung der Vollarchivsuche-API ist zu beachten, dass sich die X-Plattform seit 2006 stetig weiterentwickelt hat. Mit der Einführung neuer Funktionen wurden den zugrunde liegenden JSON-Objekten neue Metadaten hinzugefügt. Daher ist es wichtig zu verstehen, wann Post-Attribute hinzugekommen sind, auf die Suchoperatoren prüfen. Nachfolgend finden Sie einige der grundlegenden „Geburtsdaten“ wichtiger Metadatengruppen. Weitere Informationen darüber, wann Post-Attribute erstmals eingeführt wurden, finden Sie in [diesem Leitfaden](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#full-archive-search-metadata-timeline).
+
+- Erster Post: 21.03.2006
+- Erste nativen Retweets: 06.11.2009
+- Erster geo-getaggter Post: 19.11.2009
+- URLs erstmals zur Filterung indexiert: 27.08.2011
+- Erweiterte Metadaten zur URL-Erweiterung (Website-Titel und -beschreibungen): 01.12.2014
+- Metadaten zur Profil-Geo-Anreicherung und -Filterung: 17.02.2015
+
+<div id="data-updates-and-mutability">
+  ### Datenaktualisierungen und Änderbarkeit
+</div>
+
+Bei den Enterprise-Such-APIs sind einige der Daten innerhalb eines Posts änderbar, d. h. sie können nach der ersten Archivierung aktualisiert oder verändert werden.
+
+Diese änderbaren Daten fallen in zwei Kategorien:
+
+- Metadaten des Benutzerobjekts:
+  - @Handle des Nutzers (die numerische ID ändert sich nie)
+  - Profilbeschreibung (Bio)
+  - Zählwerte: Beiträge, Follower, Folgen, Favoriten, Listen
+  - Profilstandort
+  - Weitere Details wie Zeitzone und Sprache
+- Post-Statistiken – d. h. alles, was durch Nutzeraktionen auf der Plattform geändert werden kann (Beispiele unten):
+  - Anzahl der Favoriten
+  - Anzahl der Retweets
+
+In den meisten dieser Fälle geben die Such-APIs Daten so zurück, wie sie zum Zeitpunkt der Abfrage auf der Plattform vorliegen, nicht zum Zeitpunkt der Erstellung des Posts. Bei Abfragen mit bestimmten Operatoren (z. B. from, to, @, is:verified) kann dies jedoch abweichen. Daten werden in unserem Index regelmäßig aktualisiert, mit höherer Frequenz für jüngere Zeiträume. Daher kann es in einigen Fällen vorkommen, dass die zurückgegebenen Daten nicht exakt mit den aktuell auf X.com angezeigten Daten übereinstimmen, sondern dem Stand zum Zeitpunkt der letzten Indexierung entsprechen.
+
+Beachten Sie, dass dieses Inkonsistenzproblem nur für Abfragen gilt, bei denen der Operator auf änderbare Daten angewendet wird. Ein Beispiel ist das Filtern nach Benutzernamen; die beste Umgehung besteht darin, für diese Abfragen numerische Nutzer-IDs statt @Handles zu verwenden.
+
+<div id="single-vs-multi-threaded-requests">
+  ### Single- vs. Multi-Threaded Requests
+</div>
+
+Jede Kundin und jeder Kunde hat ein festgelegtes Rate-Limit für den eigenen Search-Endpoint. Das standardmäßige Minuten-Rate-Limit für die Vollarchivsuche beträgt 120 Anfragen pro Minute, was durchschnittlich 2 Abfragen pro Sekunde (QPS) entspricht. Diese durchschnittliche QPS bedeutet, dass theoretisch pro Sekunde 2 Anfragen an die API gestellt werden können. Aufgrund der Paginierung des Produkts würden bei einer einjährigen Abfrage mit einer Million zugehöriger Posts, die gleichmäßig über das Jahr verteilt sind, über 2.000 Anfragen benötigt (bei einem angenommenen maxResults von 500), um alle Daten zu erhalten. Geht man von zwei Sekunden pro Antwort aus, ergibt das 4.000 Sekunden (oder etwas über eine Stunde), um all diese Daten seriell/sequenziell über einen einzelnen Thread abzurufen (1 Anfrage pro Sekunde unter Verwendung des „next“-Tokens der vorherigen Antwort). Nicht schlecht!
+
+Betrachten wir nun die Situation, in der zwölf parallele Threads verwendet werden, um Daten zu empfangen. Bei gleichmäßiger Verteilung der einen Million Posts über den Einjahreszeitraum könnten Sie die Anfragen in zwölf parallele Threads (multithreaded) aufteilen und so mehr des pro-Sekunde-Rate-Limits für den einzelnen „Job“ ausnutzen. Anders ausgedrückt: Sie könnten einen Thread pro Monat ausführen, der Sie interessiert, und auf diese Weise die Daten 12-mal schneller abrufen (also ~6 Minuten).
+
+Dieses Multithreading-Beispiel gilt gleichermaßen für den Counts-Endpoint. Wenn Sie beispielsweise Post-Zählungen für einen Zeitraum von zwei Jahren abrufen möchten, könnten Sie eine Single-Threaded-Anfrage stellen und die Zählungen in Schritten von jeweils 31 Tagen zurückpaginieren. Geht man von 2 Sekunden pro Antwort aus, würde es ungefähr 48 Sekunden dauern, die 24 API-Anfragen zu stellen und den gesamten Satz an Zählungen abzurufen. Sie haben jedoch auch die Möglichkeit, mehrere Einmonats-Anfragen gleichzeitig zu stellen. Wenn Sie 12 Anfragen pro Sekunde senden, könnte der gesamte Zählungssatz in etwa 2 Sekunden abgerufen werden.
+
+<div id="retry-logic">
+  ### Wiederholungslogik
+</div>
+
+Wenn bei den Enterprise-Such-APIs ein 503-Fehler auftritt, handelt es sich wahrscheinlich um einen vorübergehenden Fehler, der durch erneutes Senden der Anfrage nach kurzer Zeit behoben werden kann.
+
+Wenn die Anfrage viermal hintereinander fehlschlägt und Sie jeweils mindestens 10 Minuten gewartet haben, gehen Sie wie folgt zur Fehlerbehebung vor:
+
+- Senden Sie die Anfrage erneut, nachdem Sie den betrachteten Zeitraum verkleinert haben. Wiederholen Sie dies schrittweise bis zu einem Zeitfenster von 6 Stunden, falls weiterhin erfolglos.
+- Wenn Sie eine große Anzahl von Begriffen mit OR verknüpfen, teilen Sie diese in separate Regeln auf und versuchen Sie jede einzeln erneut.
+- Wenn Sie in Ihrer Regel viele Ausschlüsse verwenden, reduzieren Sie die Anzahl der negierten Begriffe und versuchen Sie es erneut.
+
+<div id="quick-start">
+  ## Schnellstart
+</div>
+
+<div id="getting-started-with-enterprise-search-posts-30-day-api">
+  ### Erste Schritte mit der Enterprise Search Posts: 30-Day API
+</div>
+
+Die Enterprise Search Posts: 30-Day API stellt Ihnen Posts aus den letzten 30 Tagen bereit. Posts werden auf Basis der Abfrage, die Sie in Ihrer Anfrage angeben, ermittelt und zurückgesendet. Eine Abfrage ist eine Regel, mit der Sie definieren, was der zurückgegebene Post enthalten soll. In diesem Tutorial suchen wir nach englischsprachigen Posts, die vom X-Konto @XDevelopers stammen.
+
+Die Posts in Ihrer Payload können im Datenformat vorliegen, das die vollständige Post-Payload liefert, oder im Zählformat, das numerische Zähldaten zu den abgeglichenen Posts bereitstellt. Wir verwenden cURL, um Anfragen an die Data- und Counts-Endpunkte zu stellen.
+
+Sie benötigen Folgendes:
+
+- \[Ein Enterprise-Konto]https://developer.x.com/en/products/x-api/enterprise
+- Ihren Benutzernamen, Ihr Passwort und Ihren Kontonamen
+- Das Ihrem Suchendpunkt zugeordnete Label, wie auf console.gnip.com angezeigt
+
+<div id="accessing-the-data-endpoint">
+  #### Zugriff auf den Daten-Endpoint
+</div>
+
+Der Daten-Endpoint stellt den vollständigen Post-Payload der übereinstimmenden Posts bereit. Wir verwenden die Operatoren `from:` und `lang:`, um Posts von @XDevelopers in Englisch zu finden. _Für weitere Operatoren [klicken Sie hier](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)._
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL ist ein Kommandozeilen-Tool zum Abrufen oder Senden von Dateien unter Verwendung der URL-Syntax._
+
+    Kopieren Sie die folgende cURL-Anfrage in Ihre Kommandozeile, nachdem Sie die folgenden Anpassungen vorgenommen haben:
+
+    - **Benutzername** `<USERNAME>` z. B. `email@domain.com`
+
+    - **Kontoname** `<ACCOUNT-NAME>` z. B. `john-doe`
+
+    - **Label** `<LABEL>` z. B. `prod`
+
+    - **fromDate und toDate** z. B. `"fromDate":"201811010000", "toDate":"201811122359"`
+
+    _Nach dem Senden Ihrer Anfrage werden Sie zur Eingabe Ihres Passworts aufgefordert._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/30day/accounts/<ACCOUNT-NAME>/<LABEL>.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    ```bash
+    _Dies ist eine Beispiel-cURL-Anfrage. Wenn Sie versuchen, diese auszuführen, wird sie nicht funktionieren._
+
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/30day/accounts/john-doe/prod.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"201811100000","toDate":"201812012359"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="data-endpoint-response-payload">
+  #### Antwort-Payload des Datenendpunkts
+</div>
+
+Die Payload, die Sie auf Ihre API-Anfrage zurückerhalten, wird im JSON-Format ausgegeben, wie unten gezeigt.
+
+```json
+{
+	"results": [
+		{
+			"created_at": "Fri Nov 02 17:18:31 +0000 2018",
+			"id": 1058408022936977409,
+			"id_str": "1058408022936977409",
+			"text": "RT @harmophone: „Das innovative Crowdsourcing, das die Zusammenarbeit von Tagboard, Twitter und TEGNA ermöglicht, bringt lokal relevante Konv…“",
+			"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+			"truncated": false,
+			"in_reply_to_status_id": null,
+			"in_reply_to_status_id_str": null,
+			"in_reply_to_user_id": null,
+			"in_reply_to_user_id_str": null,
+			"in_reply_to_screen_name": null,
+			"user": {
+				"id": 2244994945,
+				"id_str": "2244994945",
+				"name": "Twitter Dev",
+				"screen_name": "TwitterDev",
+				"location": "Internet",
+				"url": "https:\/\/developer.x.com\/",
+				"description": "Ihre offizielle Quelle für Neuigkeiten, Updates und Veranstaltungen zur Twitter-Plattform. Technische Hilfe benötigt? Besuchen Sie https:\/\/devcommunity.com\/ ⌨️ #TapIntoTwitter",
+				"translator_type": "null",
+				"protected": false,
+				"verified": true,
+				"followers_count": 503828,
+				"friends_count": 1477,
+				"listed_count": 1437,
+				"favourites_count": 2199,
+				"statuses_count": 3380,
+				"created_at": "Sat Dec 14 04:35:55 +0000 2013",
+				"utc_offset": null,
+				"time_zone": null,
+				"geo_enabled": true,
+				"lang": "en",
+				"contributors_enabled": false,
+				"is_translator": false,
+				"profile_background_color": "null",
+				"profile_background_image_url": "null",
+				"profile_background_image_url_https": "null",
+				"profile_background_tile": null,
+				"profile_link_color": "null",
+				"profile_sidebar_border_color": "null",
+				"profile_sidebar_fill_color": "null",
+				"profile_text_color": "null",
+				"profile_use_background_image": null,
+				"profile_image_url": "null",
+				"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/880136122604507136\/xHrnqf1T_normal.jpg",
+				"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/2244994945\/1498675817",
+				"default_profile": false,
+				"default_profile_image": false,
+				"following": null,
+				"follow_request_sent": null,
+				"notifications": null
+			},
+			"geo": null,
+			"coordinates": null,
+			"place": null,
+			"contributors": null,
+			"retweeted_status": {
+				"created_at": "Tue Oct 30 21:30:25 +0000 2018",
+				"id": 1057384253116289025,
+				"id_str": "1057384253116289025",
+				"text": "„Das innovative Crowdsourcing, das die Zusammenarbeit von Tagboard, Twitter und TEGNA ermöglicht, bringt lokal relevante Konv… https:\/\/t.co\/w46U5TRTzQ",
+				"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+				"truncated": true,
+				"in_reply_to_status_id": null,
+				"in_reply_to_status_id_str": null,
+				"in_reply_to_user_id": null,
+				"in_reply_to_user_id_str": null,
+				"in_reply_to_screen_name": null,
+				"user": {
+					"id": 175187944,
+					"id_str": "175187944",
+					"name": "Tyler Singletary",
+					"screen_name": "harmophone",
+					"location": "San Francisco, CA",
+					"url": "http:\/\/medium.com\/@harmophone",
+					"description": "SVP Product bei @Tagboard. Habe bei @Klout und für @LithiumTech an Data, Business und Product gearbeitet; @BBI-Vorstandsmitglied; Berater bei @Insightpool. Schlechtester Whiteboarder der Welt.",
+					"translator_type": "null",
+					"protected": false,
+					"verified": false,
+					"followers_count": 1982,
+					"friends_count": 1877,
+					"listed_count": 245,
+					"favourites_count": 23743,
+					"statuses_count": 12708,
+					"created_at": "Thu Aug 05 22:59:29 +0000 2010",
+					"utc_offset": null,
+					"time_zone": null,
+					"geo_enabled": false,
+					"lang": "en",
+					"contributors_enabled": false,
+					"is_translator": false,
+					"profile_background_color": "null",
+					"profile_background_image_url": "null",
+					"profile_background_image_url_https": "null",
+					"profile_background_tile": null,
+					"profile_link_color": "null",
+					"profile_sidebar_border_color": "null",
+					"profile_sidebar_fill_color": "null",
+					"profile_text_color": "null",
+					"profile_use_background_image": null,
+					"profile_image_url": "null",
+					"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/719985428632240128\/WYFHcK-m_normal.jpg",
+					"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/175187944\/1398653841",
+					"default_profile": false,
+					"default_profile_image": false,
+					"following": null,
+					"follow_request_sent": null,
+					"notifications": null
+				},
+				"geo": null,
+				"coordinates": null,
+				"place": null,
+				"contributors": null,
+				"is_quote_status": false,
+				"extended_tweet": {
+					"full_text": "„Das innovative Crowdsourcing, das die Zusammenarbeit von Tagboard, Twitter und TEGNA ermöglicht, bringt lokal relevante Gespräche in Echtzeit an die Oberfläche und ermöglicht es Wählerinnen und Wählern, während Debatten Fragen zu stellen“, – @adamostrow, @TEGNA\nMehr erfahren: https:\/\/t.co\/ivAFtanfje",
+					"display_text_range": [
+						0,
+						259
+					],
+					"entities": {
+						"hashtags": [],
+						"urls": [
+							{
+								"url": "https:\/\/t.co\/ivAFtanfje",
+								"expanded_url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+								"display_url": "blog.tagboard.com\/twitter-and-ta…",
+								"unwound": {
+									"url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+									"status": 200,
+									"title": "Twitter und Tagboard arbeiten zusammen, um Redaktionen die besten Wahl-Inhalte mit Tagboard bereitzustellen…",
+									"description": "Von Tyler Singletary, Head of Product, Tagboard",
+								},
+								"indices": [
+									236,
+									259
+								]
+							}
+						],
+						"user_mentions": [
+							{
+								"screen_name": "adamostrow",
+								"name": "Adam Ostrow",
+								"id": 5695942,
+								"id_str": "5695942",
+								"indices": [
+									204,
+									215
+								]
+							},
+							{
+								"screen_name": "TEGNA",
+								"name": "TEGNA",
+								"id": 34123003,
+								"id_str": "34123003",
+								"indices": [
+									217,
+									223
+								]
+							}
+						],
+						"symbols": []
+					}
+				},
+				"quote_count": 0,
+				"reply_count": 1,
+				"retweet_count": 6,
+				"favorite_count": 19,
+				"entities": {
+					"hashtags": [],
+					"urls": [
+						{
+							"url": "https:\/\/t.co\/w46U5TRTzQ",
+							"expanded_url": "https:\/\/twitter.com\/i\/web\/status\/1057384253116289025",
+							"display_url": "twitter.com\/i\/web\/status\/1…",
+							"indices": [
+								117,
+								140
+							]
+						}
+					],
+					"user_mentions": [],
+					"symbols": []
+				},
+				"favorited": false,
+				"retweeted": false,
+				"possibly_sensitive": false,
+				"filter_level": "low"
+				"lang": "en"
+			},
+			"is_quote_status": false,
+			"quote_count": 0,
+			"reply_count": 0,
+			"retweet_count": 0,
+			"favorite_count": 0,
+			"entities": {
+				"hashtags": [],
+				"urls": [],
+				"user_mentions": [
+					{
+						"screen_name": "harmophone",
+						"name": "Tyler Singletary",
+						"id": 175187944,
+						"id_str": "175187944",
+						"indices": [
+							3,
+							14
+						]
+					}
+				],
+				"symbols": []
+			},
+			"favorited": false,
+			"retweeted": false,
+			"filter_level": "low",
+			"lang": "en",
+			"matching_rules": [
+				{
+					"tag": null
+				}
+			]
+		}
+	],
+	"requestParameters": {
+		"maxResults": 100,
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+<div id="accessing-the-counts-endpoint">
+  #### Zugriff auf den Counts-Endpoint
+</div>
+
+Mit dem Counts-Endpoint rufen wir die Anzahl der Posts des Kontos @XDevelopers in englischer Sprache ab, gruppiert nach `day`.
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL ist ein Kommandozeilen-Tool zum Abrufen oder Senden von Dateien mithilfe der URL-Syntax._
+
+    Kopieren Sie die folgende cURL-Anfrage in Ihre Kommandozeile, nachdem Sie die folgenden Angaben angepasst haben:
+
+    - **Benutzername** `<USERNAME>` z. B. `email@domain.com`
+
+    - **Kontoname** `<ACCOUNT-NAME>` z. B. `john-doe`
+
+    - **Label** `<LABEL>` z. B. `prod`
+
+    - **fromDate und toDate** z. B. `"fromDate":"201811010000", "toDate":"201811122359"`
+
+    _Nach dem Senden Ihrer Anfrage werden Sie zur Eingabe Ihres Passworts aufgefordert._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/30day/accounts/<ACCOUNT-NAME>/<LABEL>/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>","bucket":"day"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    _Dies ist eine Beispiel-cURL-Anfrage. Wenn Sie versuchen, sie auszuführen, funktioniert sie nicht._
+
+    ```bash
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/30day/accounts/john-doe/prod/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"201811100000","toDate":"201812012359","bucket":"day"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="counts-endpoint-response-payload">
+  #### Antwortnutzlast des Counts-Endpunkts
+</div>
+
+Die Nutzlast, die Sie als Antwort auf Ihre API-Anfrage erhalten, wird im JSON-Format zurückgegeben, wie unten gezeigt.
+
+```json
+{
+	"results": [
+		{
+			"timePeriod": "201811010000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811020000",
+			"count": 1
+		},
+		{
+			"timePeriod": "201811030000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811040000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811050000",
+			"count": 0
+		}
+	],
+	"totalCount": 1,
+	"requestParameters": {
+		"bucket": "day",
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+Gute Arbeit! Sie haben nun erfolgreich auf die Enterprise-API „Search Posts: 30-Day“ zugegriffen.
+
+<div id="referenced-articles">
+  ##### **Verweise auf Artikel**
+</div>
+
+- [Einführung in Post-Objekte](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)
+- [Suchoperatoren](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)
+- [Post-Objekte und Payloads](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#post-object)
+
+<div id="getting-started-with-enterprise-search-posts-full-archive-api">
+  ### Einstieg in die Enterprise Search Posts: Full-Archive API
+</div>
+
+Die Enterprise Search Posts: Full-Archive API stellt Ihnen Posts seit dem ersten im Jahr 2006 bereit. Posts werden basierend auf der Abfrage, die Sie in Ihrer Anfrage angeben, ermittelt und an Sie zurückgegeben. Eine Abfrage ist eine Regel, mit der Sie festlegen, was der zurückgegebene Post enthalten soll. In diesem Tutorial suchen wir nach englischsprachigen Posts, die vom X-Konto @XDevelopers stammen.
+
+Die Posts, die Sie in Ihrer Payload zurückerhalten, können entweder im data-Format vorliegen, das den vollständigen Post-Payload liefert, oder im counts-Format, das numerische Zähldaten zu den übereinstimmenden Posts enthält. Wir verwenden cURL, um Anfragen an die data- und counts-Endpunkte zu stellen.
+
+Sie benötigen Folgendes:
+
+- Ein Enterprise-Konto
+- Ihren Benutzernamen, Ihr Passwort und Ihren Kontonamen
+- Das mit Ihrem Such-Endpunkt verknüpfte Label, wie auf console.gnip.com angezeigt
+
+<div id="accessing-the-data-endpoint">
+  #### Zugriff auf den Datenendpunkt
+</div>
+
+Der Datenendpunkt stellt die vollständige Post-Payload der passenden Posts bereit. Wir verwenden die Operatoren `from:` und `lang:`, um Posts zu finden, die von @XDevelopers auf Englisch stammen. _Für weitere Operatoren [klicken Sie hier](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)._
+
+- [cURL](#tab1)
+- [cURL example](#tab2)
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL ist ein Kommandozeilen-Tool zum Abrufen oder Senden von Dateien mithilfe der URL-Syntax._
+
+    Kopieren Sie die folgende cURL-Anfrage in Ihre Kommandozeile, nachdem Sie Folgendes angepasst haben:
+
+    - **Benutzername** `<USERNAME>` z. B. `email@domain.com`
+
+    - **Kontoname** `<ACCOUNT-NAME>` z. B. `john-doe`
+
+    - **Label** `<LABEL>` z. B. `prod`
+
+    - **fromDate und toDate** z. B. `"fromDate":"201802010000", "toDate":"201802282359"`
+
+    _Nach dem Senden Ihrer Anfrage werden Sie nach Ihrem Passwort gefragt._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/fullarchive/accounts/<ACCOUNT-NAME>/<LABEL>.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    _Dies ist eine Beispiel-cURL-Anfrage. Wenn Sie versuchen, diese auszuführen, wird sie nicht funktionieren._
+
+    ```bash
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/fullarchive/accounts/john-doe/prod.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"201802010000","toDate":"201802282359"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="data-endpoint-response-payload">
+  ##### Antwort-Payload des Datenendpunkts
+</div>
+
+Die Payload, die Sie auf Ihre API-Anfrage zurückerhalten, liegt im JSON-Format vor, wie unten gezeigt.
+
+```json
+{
+	"results": [
+		{
+			"created_at": "Fri Nov 02 17:18:31 +0000 2018",
+			"id": 1058408022936977409,
+			"id_str": "1058408022936977409",
+			"text": "RT @harmophone: „Das innovative Crowdsourcing, das die Zusammenarbeit von Tagboard, Twitter und TEGNA ermöglicht, bringt lokal relevante Gespräche an die Oberfläche…",
+			"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+			"truncated": false,
+			"in_reply_to_status_id": null,
+			"in_reply_to_status_id_str": null,
+			"in_reply_to_user_id": null,
+			"in_reply_to_user_id_str": null,
+			"in_reply_to_screen_name": null,
+			"user": {
+				"id": 2244994945,
+				"id_str": "2244994945",
+				"name": "Twitter Dev",
+				"screen_name": "TwitterDev",
+				"location": "Internet",
+				"url": "https:\/\/developer.x.com\/",
+				"description": "Ihre offizielle Quelle für Neuigkeiten, Updates und Veranstaltungen zur Twitter-Plattform. Benötigen Sie technische Hilfe? Besuchen Sie https:\/\/devcommunity.com\/ ⌨️ #TapIntoTwitter",
+				"translator_type": "null",
+				"protected": false,
+				"verified": true,
+				"followers_count": 503828,
+				"friends_count": 1477,
+				"listed_count": 1437,
+				"favourites_count": 2199,
+				"statuses_count": 3380,
+				"created_at": "Sat Dec 14 04:35:55 +0000 2013",
+				"utc_offset": null,
+				"time_zone": null,
+				"geo_enabled": true,
+				"lang": "en",
+				"contributors_enabled": false,
+				"is_translator": false,
+				"profile_background_color": "null",
+				"profile_background_image_url": "null",
+				"profile_background_image_url_https": "null",
+				"profile_background_tile": null,
+				"profile_link_color": "null",
+				"profile_sidebar_border_color": "null",
+				"profile_sidebar_fill_color": "null",
+				"profile_text_color": "null",
+				"profile_use_background_image": null,
+				"profile_image_url": "null",
+				"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/880136122604507136\/xHrnqf1T_normal.jpg",
+				"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/2244994945\/1498675817",
+				"default_profile": false,
+				"default_profile_image": false,
+				"following": null,
+				"follow_request_sent": null,
+				"notifications": null
+			},
+			"geo": null,
+			"coordinates": null,
+			"place": null,
+			"contributors": null,
+			"retweeted_status": {
+				"created_at": "Tue Oct 30 21:30:25 +0000 2018",
+				"id": 1057384253116289025,
+				"id_str": "1057384253116289025",
+				"text": "„Das innovative Crowdsourcing, das die Zusammenarbeit von Tagboard, Twitter und TEGNA ermöglicht, bringt lokal relevante Gespräche an die Oberfläche… https:\/\/t.co\/w46U5TRTzQ",
+				"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+				"truncated": true,
+				"in_reply_to_status_id": null,
+				"in_reply_to_status_id_str": null,
+				"in_reply_to_user_id": null,
+				"in_reply_to_user_id_str": null,
+				"in_reply_to_screen_name": null,
+				"user": {
+					"id": 175187944,
+					"id_str": "175187944",
+					"name": "Tyler Singletary",
+					"screen_name": "harmophone",
+					"location": "San Francisco, CA",
+					"url": "http:\/\/medium.com\/@harmophone",
+					"description": "SVP Product bei @Tagboard. Habe bei @Klout und für @LithiumTech an Daten, Business und Produkt gearbeitet; Vorstandsmitglied bei @BBI; Berater bei @Insightpool. Der schlechteste Whiteboarder der Welt.",
+					"translator_type": "null",
+					"protected": false,
+					"verified": false,
+					"followers_count": 1982,
+					"friends_count": 1877,
+					"listed_count": 245,
+					"favourites_count": 23743,
+					"statuses_count": 12708,
+					"created_at": "Thu Aug 05 22:59:29 +0000 2010",
+					"utc_offset": null,
+					"time_zone": null,
+					"geo_enabled": false,
+					"lang": "en",
+					"contributors_enabled": false,
+					"is_translator": false,
+					"profile_background_color": "null",
+					"profile_background_image_url": "null",
+					"profile_background_image_url_https": "null",
+					"profile_background_tile": null,
+					"profile_link_color": "null",
+					"profile_sidebar_border_color": "null",
+					"profile_sidebar_fill_color": "null",
+					"profile_text_color": "null",
+					"profile_use_background_image": null,
+					"profile_image_url": "null",
+					"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/719985428632240128\/WYFHcK-m_normal.jpg",
+					"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/175187944\/1398653841",
+					"default_profile": false,
+					"default_profile_image": false,
+					"following": null,
+					"follow_request_sent": null,
+					"notifications": null
+				},
+				"geo": null,
+				"coordinates": null,
+				"place": null,
+				"contributors": null,
+				"is_quote_status": false,
+				"extended_tweet": {
+					"full_text": "„Das innovative Crowdsourcing, das die Zusammenarbeit von Tagboard, Twitter und TEGNA ermöglicht, hebt lokal relevante Gespräche in Echtzeit hervor und ermöglicht es Wählerinnen und Wählern, während der Debatten Fragen zu stellen“, — @adamostrow, @TEGNA\nWeitere Informationen: https:\/\/t.co\/ivAFtanfje",
+					"display_text_range": [
+						0,
+						259
+					],
+					"entities": {
+						"hashtags": [],
+						"urls": [
+							{
+								"url": "https:\/\/t.co\/ivAFtanfje",
+								"expanded_url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+								"display_url": "blog.tagboard.com\/twitter-and-ta…",
+								"unwound": {
+									"url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+									"status": 200,
+									"title": "Twitter und Tagboard arbeiten zusammen, um die besten Inhalte zur Wahl mit Tagboard an Nachrichtenredaktionen zu bringen …",
+									"description": "Von Tyler Singletary, Head of Product, Tagboard",
+								},
+								"indices": [
+									236,
+									259
+								]
+							}
+						],
+						"user_mentions": [
+							{
+								"screen_name": "adamostrow",
+								"name": "Adam Ostrow",
+								"id": 5695942,
+								"id_str": "5695942",
+								"indices": [
+									204,
+									215
+								]
+							},
+							{
+								"screen_name": "TEGNA",
+								"name": "TEGNA",
+								"id": 34123003,
+								"id_str": "34123003",
+								"indices": [
+									217,
+									223
+								]
+							}
+						],
+						"symbols": []
+					}
+				},
+				"quote_count": 0,
+				"reply_count": 1,
+				"retweet_count": 6,
+				"favorite_count": 19,
+				"entities": {
+					"hashtags": [],
+					"urls": [
+						{
+							"url": "https:\/\/t.co\/w46U5TRTzQ",
+							"expanded_url": "https:\/\/twitter.com\/i\/web\/status\/1057384253116289025",
+							"display_url": "twitter.com\/i\/web\/status\/1…",
+							"indices": [
+								117,
+								140
+							]
+						}
+					],
+					"user_mentions": [],
+					"symbols": []
+				},
+				"favorited": false,
+				"retweeted": false,
+				"possibly_sensitive": false,
+				"filter_level": "low"
+				"lang": "en"
+			},
+			"is_quote_status": false,
+			"quote_count": 0,
+			"reply_count": 0,
+			"retweet_count": 0,
+			"favorite_count": 0,
+			"entities": {
+				"hashtags": [],
+				"urls": [],
+				"user_mentions": [
+					{
+						"screen_name": "harmophone",
+						"name": "Tyler Singletary",
+						"id": 175187944,
+						"id_str": "175187944",
+						"indices": [
+							3,
+							14
+						]
+					}
+				],
+				"symbols": []
+			},
+			"favorited": false,
+			"retweeted": false,
+			"filter_level": "low",
+			"lang": "en",
+			"matching_rules": [
+				{
+					"tag": null
+				}
+			]
+		}
+	],
+	"requestParameters": {
+		"maxResults": 100,
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+<div id="accessing-the-counts-endpoint">
+  #### Zugriff auf den Counts-Endpunkt
+</div>
+
+Mit dem Counts-Endpunkt rufen wir die Anzahl der auf Englisch verfassten Posts des Kontos @XDevelopers ab, gruppiert nach `day`.
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL ist ein Kommandozeilen-Tool zum Abrufen oder Senden von Dateien mittels URL-Syntax._
+
+    Kopieren Sie die folgende cURL-Anfrage in Ihre Kommandozeile, nachdem Sie die folgenden Werte angepasst haben:
+
+    - **Benutzername** `<USERNAME>` z. B. `email@domain.com`
+
+    - **Kontoname** `<ACCOUNT-NAME>` z. B. `john-doe`
+
+    - **Label** `<LABEL>` z. B. `prod`
+
+    - **fromDate und toDate** z. B. `"fromDate":"201802010000", "toDate":"201802282359"`
+
+    _Nach dem Senden Ihrer Anfrage werden Sie zur Eingabe Ihres Passworts aufgefordert._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/fullarchive/accounts/<ACCOUNT-NAME>/<LABEL>/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>","bucket":"day"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    ```bash
+    _Dies ist eine Beispiel-cURL-Anfrage. Wenn Sie versuchen, sie auszuführen, wird sie nicht funktionieren._
+
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/fullarchive/accounts/john-doe/prod/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"201802010000","toDate":"201802282359","bucket":"day"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="counts-endpoint-response-payload">
+  #### Antwort-Payload des Counts-Endpunkts
+</div>
+
+Die Antwort auf Ihre API-Anfrage wird, wie unten gezeigt, im JSON-Format bereitgestellt.
+
+```json
+{
+	"results": [
+		{
+			"timePeriod": "201811010000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811020000",
+			"count": 1
+		},
+		{
+			"timePeriod": "201811030000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811040000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811050000",
+			"count": 0
+		}
+	],
+	"totalCount": 1,
+	"requestParameters": {
+		"bucket": "day",
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+Gute Arbeit! Sie haben nun erfolgreich auf die Enterprise Search Posts: Full-Archive-API zugegriffen.
+
+<div id="referenced-articles">
+  ##### Referenzierte Artikel
+</div>
+
+- [Einführung in Post-Objekte](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)
+- [Suchoperatoren](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)
+- [Post-Objekte und Nutzlasten](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#post-object)
+
+<div id="guides">
+  ## Leitfäden
+</div>
+
+<div id="building-search-queries">
+  ### Suchabfragen erstellen
+</div>
+
+<div id="enterprise-operators">
+  ### Enterprise-Operatoren
+</div>
+
+Nachfolgend finden Sie eine Liste aller Operatoren, die in den Enterprise-Such-APIs von X unterstützt werden:
+
+- **Enterprise** 30-Tage-Suche-API
+- **Enterprise** Vollarchivsuche-API
+
+Einen direkten Vergleich der verfügbaren Operatoren nach Produkt finden Sie [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product).
+
+|Operator|Beschreibung|
+|:--------|:------------------|
+| keyword      | Entspricht einem tokenisierten Schlüsselwort im Text oder in den URLs eines Posts. Dabei handelt es sich um einen tokenisierten Abgleich, d. h. Ihre Schlüsselwortzeichenfolge wird mit dem tokenisierten Text des Post-Texts abgeglichen – die Tokenisierung basiert auf Zeichen der Unicode-Basis­ebene für Interpunktion, Symbole und Trenner. Beispiel: Ein Post mit dem Text „I like coca-cola“ würde in folgende Token aufgeteilt: I, like, coca, cola. Diese Token würden dann mit der in Ihrer Regel verwendeten Schlüsselwortzeichenfolge verglichen. Um Zeichenfolgen mit Interpunktion (z. B. coca-cola), Symbol- oder Trennzeichen abzugleichen, müssen Sie eine genaue Übereinstimmung in Anführungszeichen verwenden, wie unten beschrieben.<br /><br />Hinweis: Bei der Search API werden Akzent- und Sonderzeichen zu standardisierten lateinischen Zeichen normalisiert, was Bedeutungen in Fremdsprachen verändern oder unerwartete Ergebnisse liefern kann:<br />Zum Beispiel wird „músic“ mit „music“ übereinstimmen und umgekehrt.<br />Zum Beispiel würden gängige Ausdrücke wie „Feliz Año Nuevo!“ auf Spanisch als „Feliz Ano Nuevo“ indiziert, was die Bedeutung der Phrase verändert.<br /><br />Hinweis: Dieser Operator gleicht sowohl mit URLs als auch mit entrollten URLs innerhalb eines Posts ab.                |
+|emoji|Entspricht einem Emoji im Text eines Posts. Emojis werden tokenisiert abgeglichen, d. h. Ihr Emoji wird mit dem tokenisierten Text des Post-Texts abgeglichen – die Tokenisierung basiert auf Zeichen der Unicode-Basis­ebene für Interpunktion, Symbol/Emoji und Trenner. Beispiel: Ein Post mit dem Text „I like <Icon icon="pizza-slice" iconType="solid" />“ würde in folgende Token aufgeteilt: I, like, <Icon icon="pizza-slice" iconType="solid" />. Diese Token würden dann mit dem in Ihrer Regel verwendeten Emoji verglichen. Beachten Sie, dass Sie bei Emojis mit Variante „Anführungszeichen“ verwenden müssen, um sie zu einer Regel hinzuzufügen. |
+|"exact phrase match" |Entspricht der tokenisierten und geordneten Wortgruppe im Text oder in den URLs eines Posts. Dies ist ein tokenisierter Abgleich, d. h. Ihre Schlüsselwortzeichenfolge wird mit dem tokenisierten Text des Post-Texts abgeglichen – die Tokenisierung basiert auf Zeichen der Unicode-Basis­ebene für Interpunktion, Symbole und Trenner. <br /><br />Hinweis: Interpunktion wird nicht tokenisiert und stattdessen als Leerraum behandelt.<br />Zum Beispiel stimmt das zitierte „#hashtag“ mit „hashtag“ überein, aber nicht mit #hashtag (verwenden Sie den Hashtag-Operator # ohne Anführungszeichen, um tatsächliche Hashtags abzugleichen).<br />Zum Beispiel stimmt das zitierte „$cashtag“ mit „cashtag“ überein, aber nicht mit $cashtag (verwenden Sie den Cashtag-Operator $ ohne Anführungszeichen, um tatsächliche Cashtags abzugleichen).<br />Zum Beispiel stimmt „Love Snow“ mit „#love #snow“ überein.<br />Zum Beispiel stimmt „#Love #Snow“ mit „love snow“ überein.<br /><br />Hinweis: Dieser Operator gleicht sowohl mit URLs als auch mit entrollten URLs innerhalb eines Posts ab.|
+|"keyword1 keyword2"~N|Auch als Proximity-Operator bezeichnet; entspricht einem Post, in dem die Schlüsselwörter höchstens N Token voneinander entfernt sind. <br /><br />Wenn die Schlüsselwörter in umgekehrter Reihenfolge stehen, dürfen sie nicht mehr als N-2 Token voneinander entfernt sein. In Anführungszeichen können beliebig viele Schlüsselwörter stehen. N darf nicht größer als 6 sein.<br /><br />Beachten Sie, dass dieser Operator nur in den Enterprise-Such-APIs verfügbar ist.|
+|from:| Entspricht jedem Post eines bestimmten Nutzers.<br />Der Wert muss die numerische X-Konto-ID oder der Benutzername des Nutzers sein (ohne das @-Zeichen). Siehe HIER (/x-api/users/lookup/introduction) oder HIER (http://gettwitterid.com/) für Methoden zum Nachschlagen numerischer X-Konto-IDs.|
+|to:|Entspricht jedem Post, der eine Antwort an einen bestimmten Nutzer ist.<br /><br />Der Wert muss die numerische X-Konto-ID oder der Benutzername des Nutzers sein (ohne das @-Zeichen). Siehe HIER (/x-api/users/lookup/introduction) für Methoden zum Nachschlagen numerischer X-Konto-IDs.|
+|url:|Führt eine tokenisierte (Schlüsselwort-/Phrasen-)Übereinstimmung auf den expandierten URLs eines Posts durch (ähnlich wie url\_contains). Tokens und Phrasen mit Satzzeichen oder Sonderzeichen sollten in doppelte Anführungszeichen gesetzt werden. Zum Beispiel: url:"/developer". Obwohl dies im Allgemeinen nicht empfohlen wird: Wenn Sie auf ein bestimmtes Protokoll matchen möchten, setzen Sie es in doppelte Anführungszeichen: url:"https://developer.x.com".<br />**Hinweis:** Bei Verwendung von PowerTrack oder Historical PowerTrack stimmt dieser Operator mit URLs überein, die im ursprünglichen Post eines Zitier-Posts enthalten sind. Wenn Ihre Regel beispielsweise url:"developer.x.com" enthält und ein Post diese URL enthält, werden alle Zitat-Tweets dieses Posts in die Ergebnisse aufgenommen. Dies ist bei Verwendung der Search API nicht der Fall.|
+|#|Erfasst jeden Post mit dem angegebenen Hashtag.<br /><br />Dieser Operator führt eine exakte Übereinstimmung durch, KEINE tokenisierte. Das bedeutet, die Regel „2016“ erfasst Posts mit dem exakt passenden Hashtag „2016“, aber nicht solche mit dem Hashtag „2016election“. <br /><br />Hinweis: Der Hashtag-Operator stützt sich auf die Entity-Extraktion von X, um Hashtags zu erkennen, statt den Hashtag direkt aus dem Text zu extrahieren. Siehe [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#hashtags) für weitere Informationen zu den JSON-Attributen der X-Entities.|
+|@|Erfasst jeden Post, der den angegebenen Benutzernamen erwähnt.<br />Der to:-Operator liefert eine Teilmenge des @mention-Operators.|
+|$|Erfasst jeden Post, der das angegebene „Cashtag“ enthält (bei dem das führende Zeichen des Tokens das „$“-Zeichen ist).<br /><br />Beachten Sie, dass sich der Cashtag-Operator auf die „symbols“-Entity-Extraktion von X stützt, um Cashtags zu erkennen, statt zu versuchen, das Cashtag direkt aus dem Text zu extrahieren. Siehe [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#symbols) für weitere Informationen zu den JSON-Attributen der X-Entities.<br /><br />Beachten Sie, dass dieser Operator nur in den `enterprise`-Such-APIs verfügbar ist.<br /><br />|
+|retweets\_of:|_Verfügbarer Alias_: retweets\_of\_user:<br />Erfasst Posts, die Retweets eines angegebenen Nutzers sind. Akzeptiert sowohl Benutzernamen als auch numerische X-Konto-IDs (NICHT Post-Status-IDs). Siehe [HIER](/de/x-api/users/lookup/introduction) für Methoden zum Nachschlagen numerischer X-Konto-IDs.|
+|lang:|Erfasst Posts, die von X als einer bestimmten Sprache zugeordnet klassifiziert wurden (wenn und nur wenn der Post klassifiziert wurde). Wichtig: Jeder Post ist derzeit nur einer Sprache zugeordnet, daher liefert die Verknüpfung mehrerer Sprachen mit UND keine Ergebnisse.<br /><br />**Hinweis:** Wenn keine Sprachklassifizierung möglich ist, lautet das zurückgegebene Ergebnis „und“ (für undefined).<br /><br />Die folgende Liste zeigt die aktuell unterstützten Sprachen und ihre entsprechenden BCP-47-Sprachkennungen:<br />|
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Amharisch: am | Deutsch: de | Malayalam: ml | Slowakisch: sk |
+| Arabisch: ar | Griechisch: el | Dhivehi (Maledivisch): dv | Slowenisch: sl |
+| Armenisch: hy | Gujarati: gu | Marathi: mr | Sorani-Kurdisch: ckb |
+| Baskisch: eu | Haitianisches Kreol: ht | Nepali: ne | Spanisch: es |
+| Bengalisch: bn | Hebräisch: iw | Norwegisch: no | Schwedisch: sv |
+| Bosnisch: bs | Hindi: hi | Odia (Oriya): or | Tagalog: tl |
+| Bulgarisch: bg | Lateinisches Hindi: hi-Latn | Panjabi: pa | Tamil: ta |
+| Birmanisch (Myanmar): my | Ungarisch: hu | Paschtunisch: ps | Telugu: te |
+| Kroatisch: hr | Isländisch: is | Persisch: fa | Thailändisch: th |
+| Katalanisch: ca | Indonesisch: in | Polnisch: pl | Tibetisch: bo |
+| Tschechisch: cs | Italienisch: it | Portugiesisch: pt | Traditionelles Chinesisch: zh-TW |
+| Dänisch: da | Japanisch: ja | Rumänisch: ro | Türkisch: tr |
+| Niederländisch: nl | Kannada: kn | Russisch: ru | Ukrainisch: uk |
+| Englisch: en | Khmer: km | Serbisch: sr | Urdu: ur |
+| Estnisch: et | Koreanisch: ko | Vereinfachtes Chinesisch: zh-CN | Uigurisch: ug |
+| Finnisch: fi | Lao: lo | Sindhi: sd | Vietnamesisch: vi |
+| Französisch: fr | Lettisch: lv | Singhalesisch: si | Walisisch: cy |
+| Georgisch: ka | Litauisch: lt |     |
+
+|||
+|:----|:---|
+|place:|Findet Posts, die mit dem angegebenen Ort oder der X-Place-ID getaggt sind (siehe Beispiele). Mehrteilige Ortsnamen („New York City“, „Palo Alto“) sollten in Anführungszeichen gesetzt werden.<br /><br />**Hinweis:** Siehe den öffentlichen API-Endpunkt [GET geo/search](https://developer.x.com/en/docs/x-api/v1/geo/place-information/overview), um X-Place-IDs zu erhalten.<br /><br />**Hinweis:** Dieser Operator greift nicht bei Retweets, da deren Orte am ursprünglichen Post hängen. Er greift auch nicht bei Orten, die am ursprünglichen Post eines Quote-Tweets hängen.|
+|place\_country:|Findet Posts, bei denen der mit einem getaggten [Place](https://developer.x.com/en/docs/x-api/v1/geo/place-information/overview) verknüpfte Ländercode dem angegebenen ISO-Alpha-2-Code entspricht.<br /><br />Gültige ISO-Codes finden Sie hier: [http://en.wikipedia.org/wiki/ISO\_3166-1\_alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)<br /><br />**Hinweis:** Dieser Operator greift nicht bei Retweets, da deren Orte am ursprünglichen Post hängen. Er greift auch nicht bei Orten, die am ursprünglichen Post eines Quote-Tweets hängen.|
+|point\_radius:\[lon lat radius]|Vergleicht mit dem genauen Standort (x,y) des Posts, wenn vorhanden, sowie in X mit einem „Place“-Geo-Polygon, wobei der Place vollständig innerhalb der definierten Region liegt.<br /><br />\* Unterstützte Einheiten für den Radius sind Meilen (mi) und Kilometer (km).<br />\* Der Radius muss kleiner als 25 mi sein.<br />\* Längengrad liegt im Bereich von ±180.<br />\* Breitengrad liegt im Bereich von ±90.<br />\* Alle Koordinaten sind in Dezimalgrad.<br />\* Regelargumente stehen in eckigen Klammern und sind durch Leerzeichen getrennt.<br /><br />**Hinweis:** Dieser Operator greift nicht bei Retweets, da deren Orte am ursprünglichen Post hängen. Er greift auch nicht bei Orten, die am ursprünglichen Post eines Quote-Tweets hängen.|
+|bounding\_box:\[west\_long south\_lat east\_long north\_lat]|_Verfüglicher Alias_: geo\_bounding\_box:<br /><br />Vergleicht mit dem genauen Standort (long, lat) des Posts, wenn vorhanden, sowie in X mit einem „Place“-Geo-Polygon, wobei der Place vollständig innerhalb der definierten Region liegt.<br /><br />\* west\_long und south\_lat stehen für die südwestliche Ecke der Bounding Box, wobei west\_long der Längengrad dieses Punktes ist und south\_lat der Breitengrad.<br />\* east\_long und north\_lat stehen für die nordöstliche Ecke der Bounding Box, wobei east\_long der Längengrad dieses Punktes ist und north\_lat der Breitengrad.<br />\* Breite und Höhe der Bounding Box müssen kleiner als 25 mi sein.<br />\* Längengrad liegt im Bereich von ±180.<br />\* Breitengrad liegt im Bereich von ±90.<br />\* Alle Koordinaten sind in Dezimalgrad.<br />\* Regelargumente stehen in eckigen Klammern und sind durch Leerzeichen getrennt.<br />**Hinweis:** Dieser Operator greift nicht bei Retweets, da deren Orte am ursprünglichen Post hängen. Er greift auch nicht bei Orten, die am ursprünglichen Post eines Quote-Tweets hängen.|
+|profile\_country:|Exakte Übereinstimmung mit dem Feld „countryCode“ aus dem Objekt „address“ in der Profil-Geo-Anreicherung.<br />Verwendet einen normalisierten Satz zweibuchstabiger Ländercodes auf Basis der ISO-3166-1-alpha-2-Spezifikation. Dieser Operator wird der Kürze halber anstelle eines Operators für das Feld „country“ aus dem Objekt „address“ bereitgestellt.|
+|profile\_region:|Vergleicht mit dem Feld „region“ aus dem Objekt „address“ in der Profil-Geo-Anreicherung.<br /><br />Dies ist eine exakte vollständige Zeichenfolgenübereinstimmung. Es ist nicht erforderlich, Zeichen mit einem Backslash zu maskieren. Wenn Sie beispielsweise etwas mit einem Slash abgleichen, verwenden Sie „one/two“ und nicht „one\\/two“. Verwenden Sie doppelte Anführungszeichen, um Teilzeichenfolgen abzugleichen, die Leerzeichen oder Satzzeichen enthalten.|
+|profile\_locality:|Vergleicht mit dem Feld „locality“ aus dem Objekt „address“ in der Profil-Geo-Anreicherung.<br /><br />Dies ist eine exakte vollständige Zeichenfolgenübereinstimmung. Es ist nicht erforderlich, Zeichen mit einem Backslash zu maskieren. Wenn Sie beispielsweise etwas mit einem Slash abgleichen, verwenden Sie „one/two“ und nicht „one\\/two“. Verwenden Sie doppelte Anführungszeichen, um Teilzeichenfolgen abzugleichen, die Leerzeichen oder Satzzeichen enthalten.|
+
+<Info>
+  **HINWEIS:** Alle is:- und has:-Operatoren können bei Verwendung der Search API nicht alleinstehend genutzt werden und müssen mit einer weiteren Klausel kombiniert werden.
+
+  Zum Beispiel: @XDeevelopers has:links
+</Info>
+
+|     |     |
+| :--- | :--- |
+| has:geo | Findet Posts, die beitragsspezifische Geodaten von X enthalten. Das kann entweder ein „geo“-Breiten-/Längengrad sein oder ein „location“-Feld in Form eines X-[„Place“](https://dev.x.com/overview/api/places) mit entsprechendem Anzeigenamen, Geopolygon und weiteren Feldern.<br /><br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:profile\_geo | _Verfüglicher Alias_: has:derived\_user\_geo<br /><br />Findet Posts, die beliebige [Profile Geo](http://support.gnip.com/enrichments/profile_geo.html)-Metadaten enthalten, unabhängig vom tatsächlichen Wert.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:links | Dieser Operator findet Posts, die Links im Nachrichtentext enthalten.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| is:retweet | Liefert nur explizite Retweets, die einer Regel entsprechen. Kann auch negiert werden, um entsprechende Retweets von der Auslieferung auszuschließen, sodass nur Originalinhalte zugestellt werden.<br /><br />Dieser Operator erfasst nur echte Retweets, die die Retweet-Funktion von X verwenden. Zitierte Tweets und modifizierte Posts, die die Retweet-Funktion nicht verwenden, werden von diesem Operator nicht erfasst.<br /><br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| is:reply | Ein Operator zum Filtern von Posts danach, ob sie Antworten auf Posts sind oder nicht. Liefert nur explizite Antworten, die einer Regel entsprechen. Kann auch negiert werden, um entsprechende Antworten von der Auslieferung auszuschließen.<br /><br />Beachten Sie, dass dieser Operator für kostenpflichtige Premium- und Enterprise-Suchen verfügbar ist und in Sandbox-Entwicklungsumgebungen nicht verfügbar ist.<br /><br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| is:quote | Liefert nur Quote Tweets bzw. Posts, die einen anderen Post referenzieren, erkennbar an "is\_quote\_status":true in den Post-Payloads. Kann auch negiert werden, um Quote Tweets auszuschließen.  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| is:verified | Liefert nur Posts, deren Autor von X „verifiziert“ ist. Kann auch negiert werden, um Posts auszuschließen, deren Autor verifiziert ist.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:mentions | Findet Posts, die einen anderen X Nutzer erwähnen.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:hashtags | Findet Posts, die einen Hashtag enthalten.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:media | _Verfüglicher Alias_: has:media\_link<br /><br />Findet Posts, die eine von X klassifizierte Medien-URL enthalten, z. B. pic.x.com.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:images | Findet Posts, die eine von X klassifizierte Medien-URL enthalten, z. B. pic.x.com.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren verwendet werden, die nicht `is:` oder `has:` enthalten. |
+| has:videos | _Verfügbares Alias_: has:video\_link<br /><br />Erfasst Posts, die native X-Videos enthalten, die direkt auf X hochgeladen wurden. Dies erfasst keine Videos, die mit Vine oder Periscope erstellt wurden, und keine Posts mit Links zu anderen Video-Hosting-Seiten.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren eingesetzt werden, die nicht `is:` oder `has:` enthalten. |
+| has:symbols | Erfasst Posts, die ein Cashtag enthalten (mit einem führenden „$“-Zeichen; zum Beispiel $tag). Beachten Sie, dass dieser Operator nur in den `enterprise`-Such-APIs verfügbar ist.  <br />  <br /><br />**Hinweis:** Bei Verwendung der Search API muss dieser Operator zusammen mit anderen Operatoren eingesetzt werden, die nicht `is:` oder `has:` enthalten. |
+
+<div id="product-overview">
+  ### Produktübersicht
+</div>
+
+Die Vollarchivsuche auf Enterprise-Ebene wurde im August 2015 eingeführt, die Version auf Premium-Ebene im Februar 2018. Diese Suchprodukte ermöglichen es Kundinnen und Kunden, sofort auf jeden öffentlich verfügbaren Post zuzugreifen. Mit der Vollarchivsuche senden Sie eine einzelne Abfrage und erhalten eine Antwort im klassischen REST-Stil. Die Vollarchivsuche implementiert eine Paginierung mit bis zu 500 Posts pro Antwort und unterstützt ein Ratenlimit von bis zu 60 Anfragen pro Minute (rpm) für Premium und 120 rpm für Enterprise. Unter diesen Rahmenbedingungen kann die Vollarchivsuche verwendet werden, um Posts schnell und in großem Umfang mittels paralleler Anfragen abzurufen.
+
+Im Gegensatz zu Historical PowerTrack, dessen Archiv auf einer Reihe von Post-Flatfiles auf Datenträgern basiert, ähnelt das Post-Archiv der Vollarchivsuche eher einer Online-Datenbank. Wie alle Datenbanken unterstützt sie Abfragen ihrer Inhalte. Sie verwendet außerdem einen Index, um eine leistungsstarke Datenabfrage zu ermöglichen. Bei den Endpunkten der Vollarchivsuche besteht die Abfragesprache aus PowerTrack-Operatoren, und diese Operatoren entsprechen jeweils einem indizierten Post-JSON-Attribut.
+
+Ebenfalls ähnlich wie bei Historical PowerTrack gibt es Post-Attribute, die zum Zeitpunkt der Abfrage den aktuellen Stand widerspiegeln. Wenn Sie beispielsweise die Search-API verwenden, um heute auf einen Post zuzugreifen, der 2010 veröffentlicht wurde, werden die Profilbeschreibung des Nutzers, der „Home“-Standort des Kontos, der Anzeigename sowie die Post-Metriken für Favoriten- und Retweet-Zahlen auf die heutigen Werte aktualisiert und nicht auf die von 2010. 
+
+<div id="metadata-timelines">
+  ### Metadaten-Zeitachsen
+</div>
+
+Nachfolgend finden Sie eine Zeitachse, ab wann Operatoren des Endpunkts für die Vollarchivsuche übereinstimmen. In einigen Fällen setzte die Operator-Übereinstimmung deutlich _nachdem_ eine „Kommunikationskonvention“ auf X gängig geworden war, ein. Beispielsweise etablierten sich @Replies 2006 als Nutzerkonvention, wurden jedoch erst Anfang 2007 zu einem _First-Class-Objekt_ bzw. _Ereignis_ mit „unterstützendem“ JSON. Entsprechend erfordert das Matching von @Replies im Jahr 2006 die Auswertung des Post-Inhalts, statt sich auf die PowerTrack-Operatoren `to:` und `in_reply_to_status_id:` zu stützen.
+
+Die hier bereitgestellten Details wurden mithilfe der Vollarchivsuche generiert (das Ergebnis von Hunderten von Suchanfragen). Diese Zeitachse ist nicht zu 100 % vollständig oder exakt. Wenn Sie ein weiteres grundlegendes „Geburtsdatum“ für Filter/Metadaten identifizieren, das für Ihren Anwendungsfall wesentlich ist, lassen Sie es uns bitte wissen.
+
+Beachten Sie, dass der zugrunde liegende Suchindex neu aufgebaut werden kann. Entsprechend können sich diese Zeitachsenangaben ändern.
+
+<div id="2006">
+  #### 2006
+</div>
+
+- 26. März – `lang:`. Ein Beispiel dafür, dass Post-Metadaten beim Erstellen des Suchindex nachträglich aufgefüllt wurden.
+- 13. Juli – `has:mentions` beginnt übereinzustimmen.
+- 6. Oktober – `has:symbols`. $Cashtags (oder Symbole) zur Diskussion von Aktiensymbolen werden erst Anfang 2009 allgemein üblich. Bis dahin waren die meisten Verwendungen wahrscheinlich umgangssprachlich (z. B. $slang).
+- 26. Oktober – `has:links` beginnt übereinzustimmen.
+- 23. November – `has:hashtags` beginnt übereinzustimmen.
+
+<div id="2007">
+  #### 2007
+</div>
+
+- 30. Januar – Erste @reply auf Top-Level (in\_reply\_to\_user\_id), `reply_to_status_id:` beginnt zu matchen.
+- 23. August – Hashtags etablieren sich als gängige Konvention zur Organisation von Themen und Gesprächen. Erste echte Verwendung eine Woche später.
+
+<div id="2009">
+  #### 2009
+</div>
+
+- 15. Mai - `is:retweet`. Beachten Sie, dass dieser Operator mit der „Beta“-Einführung der offiziellen Retweets und dem „Via @“-Muster zu greifen beginnt. Während dieser Beta-Phase ist das Verb für Postings „post“ und der ursprüngliche Beitrag ist nicht in der Nutzlast enthalten.
+- 13. August - Die endgültige Version der offiziellen Retweets wird mit dem Muster „RT @“, dem Verb auf „share“ gesetzt und dem Attribut „retweet\_status“, das den ursprünglichen Beitrag enthält, veröffentlicht (wodurch sich die Größe der JSON-Nutzlast ungefähr verdoppelt).
+
+<div id="2010">
+  #### 2010
+</div>
+
+- 6. März – Die Geo-Operatoren `has:geo`, `bounding_box:` und `point_radius:` beginnen zu matchen.
+- 28. August – `has:videos` (Bis Februar 2015 matcht dieser Operator Posts mit Links zu ausgewählten Video-Hosting-Seiten wie youtube.com, vimeo.com und vivo.com).
+
+<div id="2011">
+  #### 2011
+</div>
+
+- 20. Juli – `has:media` und `has:images` beginnen zu matchen. Native Fotos wurden am 9. August 2010 offiziell angekündigt.
+
+<div id="2014">
+  #### 2014
+</div>
+
+- 3. Dezember – (ungefähr) _einige_ [erweiterte URL-Metadaten](/de/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) mit HTML-Titel und -Beschreibung erscheinen in Payloads. Erweiterte Metadaten wurden im Mai 2016 umfassender eingeführt.
+
+<div id="2015">
+  #### 2015
+</div>
+
+- 10. Februar – `has:videos` erfasst „native“ X‑Videos.
+- 17. Februar – `has:profile_geo`, `profile_country:`, `profile_region:`, `profile_locality:` [Profile-Geo](/de/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#profile-geo)-Operatoren beginnen zu greifen.
+- 17. Februar – `place_country:` und `place:` Geo-Operatoren für Posts beginnen zu greifen.
+
+<div id="2016">
+  #### 2016
+</div>
+
+- 1. Mai – [Erweiterte URL-Metadaten](/de/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) breiter verfügbar und offiziell als Teil des [Gnip-2.0-Starts im August 2016](https://blog.x.com/2016/gnip-2-is-here) angekündigt. Keine zugehörigen Operatoren für diese Metadaten in den Search-APIs.
+
+<div id="2017">
+  #### 2017
+</div>
+
+- 22. Februar – Umfrage-Metadaten sind im erweiterten nativen Format verfügbar. Keine zugehörigen Operatoren für diese Metadaten.
+
+<div id="2022">
+  #### 2022
+</div>
+
+- 27. September – Alle seit diesem Datum erstellten Post-Objekte enthalten Metadaten zu bearbeiteten Posts. Alle Enterprise-Endpunkte, die Post-Objekte zurückgeben, wurden ab diesem Datum aktualisiert, um diese Metadaten bereitzustellen. Die bereitgestellten Bearbeitungsmetadaten umfassen die Objekte edit\_history und edit\_controls. Für Posts, die vor dem 27. September 2022 erstellt wurden, werden diese Metadaten nicht zurückgegeben. Derzeit gibt es keine Enterprise-Operatoren, die diesen Metadaten entsprechen. Weitere Informationen zu Metadaten für bearbeitete Posts finden Sie auf der Seite [Edit-Posts – Grundlagen](/de/x-api/fundamentals/edit-posts).
+
+<div id="2022">
+  #### 2022
+</div>
+
+- 29. September – Alle seit diesem Datum erstellten Post-Objekte enthalten Metadaten zu bearbeiteten Posts. Alle Enterprise-Endpunkte, die Post-Objekte liefern, wurden ab diesem Datum aktualisiert, diese Metadaten bereitzustellen. Die bereitgestellten Bearbeitungsmetadaten umfassen die Objekte edit\_history und edit\_controls. Für Posts, die vor dem 27. September 2022 erstellt wurden, werden diese Metadaten nicht zurückgegeben. Derzeit sind keine Enterprise-Operatoren verfügbar, die zu diesen Metadaten passen. Weitere Informationen zu Metadaten bearbeiteter Posts finden Sie auf der Seite [Edit Posts fundamentals](/de/x-api/fundamentals/edit-posts).
+
+<div id="filtering-tips">
+  ### Filtertipps
+</div>
+
+Angesichts der oben beschriebenen Informationen zur Zeitachse ist klar, dass es beim Erstellen von Filtern für Search-APIs viele Details zu beachten gibt. Zwei Punkte sind besonders wichtig:
+
+- Einige Metadaten haben „Geburtsdaten“, sodass Filter zu _falsch-negativen_ Ergebnissen führen können. Das betrifft Suchen mit Operatoren, die auf Metadaten basieren, die während des gesamten oder eines Teils des Suchzeitraums nicht existierten. Wenn Sie beispielsweise nach Posts mit dem Operator `has:images` suchen, erhalten Sie für Zeiträume vor Juli 2011 keine Treffer. Der Grund ist, dass dieser Operator auf _native_ Fotos anspricht (über die X-Benutzeroberfläche an einen Post angehängt). Für einen vollständigeren Datensatz von foto­bezogenen Posts müssten Filter für Zeiträume vor Juli 2011 Regelklauseln enthalten, die auf gängige Foto-Hosting-URLs matchen.
+- Einige Metadaten wurden nachträglich mit Informationen aus einer Zeit _nachdem_ der Post auf X veröffentlicht wurde, ergänzt.
+
+Es gibt mehrere Attributtypen, auf die bei der Erstellung von PowerTrack-Abfragen häufig fokussiert wird:
+
+- X-Profile
+- Originale oder geteilte Posts
+- Sprachklassifizierung von Posts
+- Georeferenzierte Posts
+- Geteilte Link-Medien
+
+Einige davon haben produktspezifisches Verhalten, während andere identisch funktionieren. Weitere Details finden Sie unten.
+
+<div id="x-profiles">
+  #### X-Profile
+</div>
+
+Die Search-APIs liefern historische Posts zusammen mit den Profilinformationen des Nutzers, so wie sie zum _Zeitpunkt der Abfrage_ vorliegen. Fordern Sie beispielsweise einen Post aus dem Jahr 2014 an, spiegeln die Profil-Metadaten des Nutzers den Zustand zum Abfragezeitpunkt wider.
+
+<div id="original-posts-and-retweets">
+  #### Original-Posts und Retweets
+</div>
+
+Der PowerTrack-Operator `_is:retweet_` ermöglicht es Nutzern, Retweets entweder einzuschließen oder auszuschließen. Nutzer dieses Operators benötigen zwei Strategien für die Erkennung von Retweets (bzw. das Nicht-Erkennen) für Daten vor August 2009. Vor August 2009 muss die Post-Nachricht selbst mithilfe exakter Phrasenübereinstimmung auf das Muster „@RT “ geprüft werden (tatsächlich sollte, wenn Sie Retweets aus dem Zeitraum Mai–August 2009 filtern, auch das Muster „Via @“ einbezogen werden). Für Zeiträume nach August 2009 ist der Operator _is:retweet_ verfügbar.
+
+<div id="post-language-classifications">
+  #### Sprachklassifizierungen von Posts
+</div>
+
+Beim Filtern nach der Sprachklassifizierung eines Posts unterscheiden sich die historischen Produkte von X deutlich. Als das Sucharchiv erstellt wurde, wurden alle Posts nachträglich mit der X-Sprachklassifizierung versehen. Daher ist der Operator lang: für das gesamte Post-Archiv verfügbar.
+
+<div id="geo-referencing-posts">
+  #### Georeferenzierung von Posts
+</div>
+
+Es gibt drei primäre Möglichkeiten, Posts zu georeferenzieren:
+
+- **Geografische Verweise im Post-Text.** Das Abgleichen anhand geografischer Verweise im Post-Text ist zwar oft die anspruchsvollste Methode, da sie lokales Wissen erfordert, ist aber für das gesamte Post-Archiv möglich. [Hier](https://x.com/biz/statuses/28311) ist ein Beispiel für einen georeferenzierten Treffer aus dem Jahr 2006 für den Raum San Francisco, basierend auf einem „golden gate“-Filter.
+
+- **Vom Nutzer geo-getaggte Posts.** Mit den Such-APIs wurde die Möglichkeit eingeführt, Posts mithilfe einiger Geo-Operatoren ab März 2010 und mit weiteren ab Februar 2015 abzugleichen:
+
+  - 6. März 2010: `has:geo`, `bounding_box:` und `point_radius:`
+  - 17. Februar 2015: `place_country:` und `place:`
+
+- **Im Account-Profil vom Nutzer festgelegter „Home“-Standort.** Profil-Geo-Operatoren sind sowohl in Historical PowerTrack als auch in den Such-APIs verfügbar. In den Such-APIs stehen diese Profil-Geo-Metadaten seit Februar 2015 zur Verfügung. Für Posts, die vor der Verfügbarkeit der Profil-Geo-Metadaten veröffentlicht wurden, steht der Operator `bio_location:` zur Verfügung, mit dem auf nicht normalisierte Nutzereingaben gematcht werden kann.
+
+<div id="shared-links-and-media">
+  #### Geteilte Links und Medien
+</div>
+
+Im März 2012 wurde die Erweiterung für expandierte URLs eingeführt. Zuvor enthielten die Post-Payloads nur die vom Nutzer bereitgestellte URL. Wenn der Nutzer also eine verkürzte URL verwendete, ist es schwierig, mit (expandierten) interessanten URLs abzugleichen. Mit den Search-APIs sind diese Metadaten ab März 2012 verfügbar.
+
+Im Juli 2016 wurde die erweiterte URL-Anreicherung eingeführt. Diese Version liefert den HTML-Titel und die Beschreibung einer Website in der Post-Payload sowie Operatoren, um darauf zu matchen. Diese Metadaten tauchen ab Dezember 2014 auf.
+
+Im September 2016 führte X „native Attachments“ ein, bei denen ein nachgestellter geteilter Link nicht auf das 140-Zeichen-Limit für Posts angerechnet wird. Beide URL-Anreicherungen gelten weiterhin für diese geteilten Links.
+
+Ab folgenden Zeitpunkten beginnen die entsprechenden Search-Operatoren zu matchen:
+
+- 26. Oktober 2006 - `has:links`
+- 20. Juli 2011 - `has:images` und `has:media`
+- August 2011 - `url:` mit der [Expanded URLs enrichment](/de/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments). Bereits im September 2006 matcht `(url:"spotify.com" OR url:gnip OR url:microsoft OR url:google OR url:youtube)` http://x.com/Adam/statuses/16602, obwohl es keine urls\[]-Metadaten in twitter\_entities- und gnip-Objekten gibt. „youtube.com“ ist ein Beispiel für Nachrichteninhalt, der ohne jegliche urls\[]-Metadaten auf url:youtube matcht.
+- 10. Februar 2015 - `has:videos` für native Videos. Zwischen 2010/08/28 und 2015/02/10 matcht dieser Operator Posts mit Links zu ausgewählten Videohosting-Seiten wie youtube.com, vimeo.com und vivo.com.
+- 1. Mai 2016 - `url_title:` und `url_description:`, basierend auf der [Enhanced URLs enrichment](/de/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments), allgemein verfügbar. Erste Enhanced-URL-Metadaten tauchten im Dezember 2014 auf.
+
+<div id="frequently-asked-questionsfaq">
+  ## Häufig gestellte Fragen (FAQ)
+</div>
+
+<div id="general-search-post-api-questions">
+  ### Allgemeine Fragen zur Search Post API
+</div>
+
+<AccordionGroup>
+  <Accordion title="The number of Posts I receive with the data endpoint doesn't match the number of Posts identified by the counts endpoint. Why is this the case?">
+    Es gibt einen bekannten Unterschied zwischen den Ergebnissen des Counts-Endpunkts und denen des Data-Endpunkts. Es kann zu Abweichungen in Ihren Ergebnissen kommen, weil der Counts-Endpunkt vor der Compliance greift (d. h., er berücksichtigt keine gelöschten Posts, Scrub-Geo usw.), während der Data-Endpunkt zum Zeitpunkt der Auslieferung compliant ist und alle Compliance-Ereignisse berücksichtigt.
+  </Accordion>
+
+  <Accordion title="I didn't receive a Post that should match my query. Why?">
+    Es gibt mehrere Gründe, warum dies passiert sein könnte, unter anderem:
+
+    1. Der Beitrag, den Sie erwartet haben, stammt von einem geschützten Account.
+    2. Der Daten-Endpoint berücksichtigt alle Compliance-Ereignisse (das heißt, gelöschte Beiträge, bereinigte Geodaten usw. werden nicht in der Antwort enthalten sein).
+  </Accordion>
+
+  <Accordion title="My query matched a Post but includes a keyword that I negated. Why is this happening?">
+    Dies liegt wahrscheinlich an einer falschen Verwendung unserer Premium-Regeln und Filter. Bitte lesen Sie unsere Dokumentation [hier](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering) und stellen Sie sicher, dass Sie die Einschränkungen beim Erstellen von Regeln verstehen.
+  </Accordion>
+
+  <Accordion title="Are there any libraries that I can use to get started using the Search Post APIs?">
+    Ja, es gibt einige, darunter:
+
+    - [Tweepy](http://www.tweepy.org/) – gut geeignet für die Nutzung des Standardprodukts Suche/Posts (Python)
+    - [X API](https://github.com/geduldig/TwitterAPI) – gut geeignet für die Nutzung der Standard-Search-Post-APIs (Python)
+    - [Search Posts Python](https://github.com/xdevplatform/search-tweets-python) und [Search Posts Ruby](https://github.com/xdevplatform/search-tweets-ruby) – zwei geeignete Tools für die Nutzung der Enterprise- (und v2-) Search-Post-APIs
+
+    Alle Bibliotheken, die wir direkt unterstützen, finden Sie auf unserer xdevplatform-GitHub-Seite: [https://github.com/xdevplatform](https://github.com/xdevplatform).
+
+    Es gibt [weitere Bibliotheken von Drittanbietern](/de/resources/fundamentals/authentication#oauth-1-0a-2), die ebenfalls hilfreich sein können; beachten Sie jedoch, dass einige davon nicht mit unseren Premium- und Enterprise-Produkten funktionieren.
+  </Accordion>
+
+  <Accordion title="Will I ever receive less volume of Posts than the value I set as the `maxResults` in my request to the data endpoint?">
+    Ja. Unser Daten-Endpoint paginiert entweder bei dem angegebenen `maxResults`-Wert oder nach 30 Tagen.
+
+    Wenn Sie beispielsweise 800 Posts in einem bestimmten 30-Tage-Zeitraum haben, müssen Sie zwei Anfragen stellen, um die vollständigen Ergebnisse abzurufen, da die maximale Anzahl von Posts pro Anfrage 500 beträgt (`maxResults`). Und wenn Sie im ersten Monat nur 400 Posts und im zweiten Monat 100 Posts haben, müssen Sie ebenfalls zwei Anfragen verwenden, um die vollständigen Ergebnisse abzurufen, denn die Paginierung erfolgt nach einem Zeitraum von 30 Tagen, selbst wenn die erste Anfrage weniger als die angegebenen `maxResults`-Posts zurückgibt.
+  </Accordion>
+
+  <Accordion title="In what order are the matching Posts returned?">
+    Posts werden in umgekehrt chronologischer Reihenfolge zurückgegeben. Die erste Ergebnisseite zeigt beispielsweise die neuesten Posts, die der Abfrage entsprechen; die Seitennavigation läuft weiter, bis die Datumsangaben der Ergebnisse das ursprünglich angeforderte `fromDate` erreichen.
+  </Accordion>
+
+  <Accordion title="How do Edit Posts impact my usage and billing?">
+    Nur der ursprüngliche Post wird für Abrechnungszwecke berücksichtigt. Alle nachfolgenden Bearbeitungen werden ignoriert und zählen nicht zu Ihrer gesamten Aktivität.
+
+    `Enterprise`
+  </Accordion>
+
+  <Accordion title="I'm interested in learning more about the pricing of the enterprise Search Post API and in applying for this offering. How can I do this?">
+    Unsere Enterprise‑Lösungen sind individuell auf die Bedürfnisse Ihres Unternehmens zugeschnitten und bieten transparente, planbare Preise. Bitte stellen Sie [hier](/de/x-api/enterprise-gnip-2.0/enterprise-gnip) eine Anfrage, um weitere Informationen zu erhalten.
+  </Accordion>
+
+  <Accordion title="How do I build a rule set that matches my use case?">
+    - Bitte beachten Sie unsere Dokumentation zu den Enterprise-Search-Post-APIs [hier](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-search-apis)
+    - Nützliche Informationen zu Regeln und Filterung finden Sie [hier](/de/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators)
+    - Nützliche Informationen zur Verwendung des Data-Endpunkts finden Sie [hier](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#data-endpoint)
+    - Nützliche Informationen zur Verwendung des Counts-Endpunkts finden Sie [hier](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#counts-endpoint)
+    - Eine Liste der verfügbaren Operatoren finden Sie [hier](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators)
+  </Accordion>
+
+  <Accordion title="I have exceeded my request caps/limits for the month, but I need to access more data - what can I do?">
+    Bitte wenden Sie sich an Ihre(n) Account Manager bei X, der bzw. die Ihnen dabei helfen kann.
+  </Accordion>
+</AccordionGroup>
+
+<div id="error-troubleshooting-guide">
+  ### Leitfaden zur Fehlerbehebung
+</div>
+
+**Code 404 – Nicht gefunden**
+
+1. Bitte stellen Sie sicher, dass Sie die richtigen Parameter für den jeweiligen Endpoint verwenden (z. B. kann das Feld `buckets` nur mit dem Counts-Endpoint verwendet werden, nicht mit dem Data-Endpoint).
+2. Bitte überprüfen Sie, ob die Felder `:product`, `:account_name` und `:label` korrekt sind. Ihr `:label`-Feld finden Sie in der GNIP Console (nur für Enterprise-Kunden).
+
+<div id="api-reference">
+  ## API-Referenz
+</div>
+
+<div id="enterprise-search-apis">
+  ### Enterprise-Such-APIs
+</div>
+
+Es gibt zwei Enterprise-Such-APIs:
+
+- 30-Day Search API – stellt Tweets bereit, die in den letzten 30 Tagen gepostet wurden.
+- Full-Archive Search API – stellt Tweets bereit, die bis ins Jahr 2006 zurückreichen, beginnend mit dem ersten im März 2006 geposteten Tweet.
+
+Diese Such-APIs haben ein gemeinsames Design und die folgende Dokumentation gilt für beide. Beachten Sie, dass für Tweets, die ab dem 29. September 2022 erstellt wurden, Tweet-Objekte Bearbeitungsmetadaten enthalten, die den Editierverlauf beschreiben. Siehe die Grundlagen-Seite ["Edit Tweets"](/de/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets) für weitere Details.
+
+Nachfolgend finden Sie wichtige Details für die Integration mit den Enterprise-Such-APIs:
+
+- Methoden zum Abrufen von Tweet-Daten und -Zählungen
+- Authentifizierung
+- Paginierung
+- API-Anfrageparameter und Beispielanfragen
+- JSON-Nutzlasten von API-Antworten und Beispielantworten
+- HTTP-Statuscodes
+
+Die Enterprise-APIs bieten latenzarmen, vollständig getreuen, abfragebasierten Zugriff auf das Tweet-Archiv. Der einzige Unterschied zwischen den beiden APIs ist der durchsuchbare Zeitraum: entweder die letzten 30 Tage oder bis zurück ins Jahr 2006. Zeiträume können minutengenau angegeben werden. Tweet-Daten werden in umgekehrt chronologischer Reihenfolge bereitgestellt, beginnend mit dem neuesten Tweet, der Ihrer Abfrage entspricht. Tweets sind etwa 30 Sekunden nach der Veröffentlichung über die Such-API verfügbar.
+
+<div id="methods">
+  #### Methoden
+</div>
+
+Die Basis-URI für Enterprise Search lautet `https://gnip-api.x.com/search/`.
+
+| Methode | Beschreibung |
+| :--- | :--- |
+| [POST /search/:product/accounts/:account\_name/:label](#SearchRequests) | Ruft Tweets aus den letzten 30 Tagen ab, die der angegebenen PowerTrack-Regel entsprechen. |
+| [POST /search/:product/accounts/:account\_name/:label/counts](#CountRequests) | Ruft die Anzahl der Tweets aus den letzten 30 Tagen ab, die der angegebenen PowerTrack-Regel entsprechen. |
+
+Dabei gilt:
+
+- `:product` gibt den Search-Endpunkt an, an den Sie Anfragen stellen, entweder `30day` oder `fullarchive`.
+- `:account_name` ist der (Groß-/Kleinschreibung beachtende) Name, der Ihrem Konto zugeordnet ist, wie auf console.gnip.com angezeigt.
+- `:label` ist das (Groß-/Kleinschreibung beachtende) Label, das Ihrem Search-Endpunkt zugeordnet ist, wie auf console.gnip.com angezeigt.
+
+Wenn beispielsweise das Konto TwitterDev das 30-Day-Search-Produkt mit dem Label „prod“ (Kurzform für „production“) hat, lauten die Search-Endpunkte:
+
+- Datenendpunkt: [https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod.json](https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod.json)
+- Zählendpunkt: [https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod/counts.json](https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod/counts.json)
+
+Ihr vollständiger Enterprise-Search-API-Endpunkt wird unter [https://console.gnip.com](https://console.gnip.com) angezeigt.
+
+Nachfolgend finden Sie mehrere Beispielanfragen mit einem einfachen HTTP-Tool namens curl. Diese Beispiele verwenden URLs mit `:product`, `:account_name` und `:label`. Um diese Beispiele zu verwenden, aktualisieren Sie die URLs mit Ihren eigenen Angaben.
+
+<div id="authentication">
+  #### Authentifizierung
+</div>
+
+Alle Anfragen an die Enterprise-Such-APIs müssen die HTTP-Authentifizierungsmethode „Basic Authentication“ verwenden, die aus einer gültigen E‑Mail‑Adresse und einem Passwort besteht, mit denen Sie sich unter [https://console.gnip.com](https://console.gnip.com) bei Ihrem Konto anmelden. Die Anmeldedaten müssen bei jeder Anfrage im Header „Authorization“ übermittelt werden.
+
+<div id="requestresponse-behavior">
+  #### Anforderungs-/Antwortverhalten
+</div>
+
+Mit den Parametern `fromDate` und `toDate` können Sie jeden vom API unterstützten Zeitraum anfordern. Die 30-Day Search API stellt Tweets aus den letzten 31 Tagen bereit (obwohl sie als „30-Day“-API bezeichnet wird, sind 31 Tage verfügbar, um vollständige Monatsabfragen zu ermöglichen). Die Full-Archive Search API liefert Tweets bis zum allerersten Tweet (21. März 2006). Eine einzelne Antwort ist jedoch auf den kleineren Wert aus Ihrem angegebenen `maxResults` oder 31 Tagen begrenzt. Wenn die passenden Daten bzw. Ihr Zeitraum Ihre angegebenen `maxResults` oder 31 Tage übersteigen, erhalten Sie ein `next`-Token, mit dem Sie durch den restlichen Teil Ihres angegebenen Zeitraums paginieren sollten.
+
+Angenommen, Sie verwenden die Full-Archive Search und möchten alle Tweets, die Ihrer Abfrage entsprechen, vom 1. Januar 2017 bis zum 30. Juni 2017. Sie geben diesen vollständigen Sechsmonatszeitraum in Ihrer Anfrage mit den Parametern `fromDate` und `toDate` an. Die Search API antwortet mit der ersten „Seite“ von Tweets, wobei die Anzahl der Tweets Ihrem `maxResults`-Parameter entspricht (Standard ist 100). Da es voraussichtlich weitere Tweets gibt, stellt die API außerdem ein `next`-Token bereit, mit dem Sie die nächste „Seite“ der Daten anfordern können. Dieser Vorgang wird wiederholt, bis die API kein `next`-Token mehr zurückgibt. Weitere Details finden Sie im nächsten Abschnitt.
+
+<div id="pagination">
+  #### Paginierung
+</div>
+
+Bei Daten- und Zählanfragen ist es wahrscheinlich, dass mehr Daten vorliegen, als in einer einzelnen Antwort zurückgegeben werden können. In diesem Fall enthält die Antwort ein „next“-Token. Das „next“-Token wird als JSON-Attribut auf Root-Ebene bereitgestellt. Immer wenn ein „next“-Token vorhanden ist, gibt es weitere Daten abzurufen, sodass Sie weiterhin API-Anfragen stellen müssen.
+
+Hinweis: Das Verhalten des „next“-Tokens unterscheidet sich bei Daten- und Zählanfragen leicht; beide werden unten beschrieben, mit Beispielantworten im Abschnitt „API-Referenz“.
+
+<div id="data-pagination">
+  ##### Datenpaginierung
+</div>
+
+Datenabfragen liefern oft mehr Ergebnisse, als in einer einzigen Antwort zurückgegeben werden können. Jede Abfrage enthält einen Parameter, der die maximale Anzahl an Tweets pro Anfrage festlegt. Dieser Parameter `maxResults` ist standardmäßig auf 100 gesetzt und kann auf einen Wert zwischen 10 und 500 eingestellt werden. Wenn Ihre Abfrage mehr Tweets ergibt, als durch den in der Anfrage verwendeten Parameter „maxResults“ abgedeckt sind, enthält die Antwort ein „next“-Token (als JSON-Attribut auf Root-Ebene). Dieses „next“-Token wird in der nachfolgenden Anfrage verwendet, um den nächsten Abschnitt der passenden Tweets für diese Abfrage abzurufen (also die nächste „Seite“). „Next“-Tokens werden weiterhin bereitgestellt, bis Sie die letzte „Seite“ der Ergebnisse für diese Abfrage erreicht haben, bei der kein „next“-Token mehr zurückgegeben wird.
+
+Um die nächste „Seite“ Daten anzufordern, müssen Sie exakt dieselbe Abfrage wie die ursprüngliche senden, einschließlich der Parameter `query`, `toDate` und `fromDate`, sofern verwendet, und zusätzlich einen Anfrageparameter „next“ mit dem Wert aus der vorherigen Antwort angeben. Dies kann mit einer GET- oder POST-Anfrage erfolgen. Bei einer GET-Anfrage muss der Parameter „next“ jedoch URL-codiert sein.
+
+Sie können das Element „next“ aus Ihrer vorherigen Abfrage weiterhin übergeben, bis Sie alle Tweets aus dem von Ihrer Abfrage abgedeckten Zeitraum erhalten haben. Wenn Sie eine Antwort erhalten, die kein Element „next“ enthält, bedeutet dies, dass Sie die letzte Seite erreicht haben und keine weiteren Daten für die angegebene Abfrage und den angegebenen Zeitraum verfügbar sind.
+
+<div id="counts-pagination">
+  ##### Paginierung von Counts
+</div>
+
+Der „counts“-Endpoint liefert Tweet-Volumina, die mit einer Abfrage entweder täglich, stündlich oder minütlich verknüpft sind. Der „counts“-API-Endpoint gibt ein zeitgestempeltes Array von Counts für eine maximale Nutzlast von 31 Tagen zurück. Wenn Sie mehr als 31 Tage an Counts anfordern, erhalten Sie ein „next“-Token. Wie bei den Daten-„next“-Tokens müssen Sie exakt dieselbe Abfrage wie die ursprüngliche stellen und zusätzlich einen „next“-Anfrageparameter mit dem Wert aus der vorherigen Antwort übergeben.
+
+Über Anfragen von mehr als 31 Tagen an Counts hinaus gibt es ein weiteres Szenario, in dem ein „next“-Token bereitgestellt wird. Bei Abfragen mit hohem Volumen kann die Erstellung der Counts so lange dauern, dass ein Antwort-Timeout ausgelöst wird. In diesem Fall erhalten Sie weniger als 31 Tage an Counts, bekommen jedoch ein „next“-Token, um weitere Anfragen zu stellen und die vollständige Nutzlast der Counts abzurufen. Wichtig: Timeouts liefern nur vollständige „Buckets“ – 2,5 Tage würden also in 2 vollständigen Tages-„Buckets“ resultieren.
+
+<div id="additional-notes">
+  ##### Zusätzliche Hinweise
+</div>
+
+- Wenn Sie in einer Suchanfrage fromDate oder toDate verwenden, erhalten Sie nur Ergebnisse innerhalb Ihres angegebenen Zeitraums. Sobald Sie die letzte Ergebnisgruppe in diesem Zeitraum erreicht haben, wird kein „next“-Token mehr zurückgegeben.
+- Das Element „next“ kann mit jedem maxResults-Wert zwischen 10 und 500 verwendet werden (Standardwert: 100). Der Wert von maxResults bestimmt, wie viele Tweets pro Antwort zurückgegeben werden, verhindert jedoch nicht, dass Sie schließlich alle Ergebnisse erhalten.
+- Das Element „next“ läuft nicht ab. Mehrere Anfragen mit derselben „next“-Abfrage liefern unabhängig vom Zeitpunkt der Anfrage dieselben Ergebnisse.
+- Beim Durchblättern der Ergebnisse mit dem Parameter „next“ können an den Rändern der Abfrage Duplikate auftreten. Ihre Anwendung sollte damit umgehen können.
+
+<div id="data-endpoint">
+  #### Datenendpunkt
+</div>
+
+<div id="post-searchproductlabel">
+  ##### POST /search/:product/:label
+</div>
+
+<div id="endpoint-pattern">
+  ###### Endpunktmuster:
+</div>
+
+Dieser Endpunkt liefert Daten für die angegebene Abfrage und den angegebenen Zeitraum. Wenn kein Zeitraum angegeben ist, werden die Zeitparameter standardmäßig auf die letzten 30 Tage gesetzt. Hinweis: Diese Funktionalität kann auch mit einer GET-Anfrage statt einer POST-Anfrage genutzt werden, indem die unten beschriebenen Parameter in der URL kodiert werden.
+
+<div id="data-request-parameters">
+  ##### Datenanforderungsparameter
+</div>
+
+| Parameter | Beschreibung | Erforderlich | Beispielwert |
+| :--- | :--- | :--- | :--- |
+| query | Entspricht einer PowerTrack-Regel mit bis zu 2.048 Zeichen (ohne Begrenzung der Anzahl positiver und negativer Klauseln).  <br />  <br />Dieser Parameter sollte ALLE Teile der PowerTrack-Regel enthalten, einschließlich aller Operatoren; Teile der Regel sollten nicht auf andere Parameter der Abfrage verteilt werden.  <br />  <br />**Hinweis:** Nicht alle PowerTrack-Operatoren werden unterstützt. Unterstützte Operatoren sind [HIER](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) aufgeführt. | Ja | (snow OR cold OR blizzard) weather |
+| tag | Tags können verwendet werden, um Regeln und deren zugehörige Daten in verschiedene logische Gruppen zu unterteilen. Wenn ein Regel-Tag angegeben wird, ist dieses im Attribut „matching\_rules“ enthalten.  <br />  <br />Es wird empfohlen, regelspezifische UUIDs den Regel-Tags zuzuweisen und die gewünschten Zuordnungen clientseitig zu pflegen. | Nein  | 8HYG54ZGTU |
+| fromDate | Der älteste UTC-Zeitstempel (bis zurück zum 21.03.2006 mit Vollarchivsuche), ab dem die Tweets bereitgestellt werden. Der Zeitstempel hat Minuten‑Granularität und ist inklusive (d. h. 12:00 schließt die Minute 00 ein).  <br />  <br />_Angegeben:_ Nur fromDate ohne toDate-Parameter liefert Ergebnisse für die Abfrage rückwärts in der Zeit von now() bis zum fromDate.  <br />  <br />_Nicht angegeben:_ Wenn kein fromDate angegeben ist, liefert die API alle Ergebnisse der letzten 30 Tage vor now() bzw. vor dem toDate (falls angegeben).  <br />  <br />Wenn weder fromDate noch toDate verwendet wird, liefert die API alle Ergebnisse der letzten 30 Tage, beginnend zum Zeitpunkt der Anfrage, rückwärts. | Nein  | 201207220000 |
+| toDate | Der jüngste UTC-Zeitstempel, bis zu dem die Tweets bereitgestellt werden. Der Zeitstempel hat Minuten‑Granularität und ist exklusive (d. h. 11:59 schließt die 59. Minute der Stunde nicht ein).  <br />  <br />_Angegeben:_ Nur toDate ohne fromDate-Parameter liefert die aktuellsten 30 Tage an Daten vor dem toDate.  <br />  <br />_Nicht angegeben:_ Wenn kein toDate angegeben ist, liefert die API alle Ergebnisse ab now() für die Abfrage rückwärts in der Zeit bis zum fromDate.  <br />  <br />Wenn weder fromDate noch toDate verwendet wird, liefert die API alle Ergebnisse für den gesamten 30‑Tage‑Index, beginnend zum Zeitpunkt der Anfrage, rückwärts. | Nein  | 201208220000 |
+| maxResults | Die maximale Anzahl von Suchergebnissen, die eine Anfrage zurückgibt. Eine Zahl zwischen 10 und dem Systemlimit (derzeit 500). Standardmäßig liefert eine Antwort 100 Ergebnisse. | Nein  | 500 |
+| next | Dieser Parameter wird verwendet, um die nächste „Seite“ der Ergebnisse wie [HIER](#Pagination) beschrieben abzurufen. Der mit dem Parameter verwendete Wert wird direkt der von der API bereitgestellten Antwort entnommen und sollte nicht verändert werden. | Nein  | NTcxODIyMDMyODMwMjU1MTA0 |
+
+<div id="additional-details">
+  ###### Zusätzliche Details
+</div>
+
+|     |     |
+| :--- | :--- |
+| **Verfügbarer Zeitraum** | 30-Tage: letzte 31 Tage  <br />Vollarchiv: 21. März 2006 – heute |
+| **Abfrageformat** | Entspricht einer PowerTrack-Regel mit bis zu 2.048 Zeichen (ohne Begrenzung der Anzahl positiver und negativer Teilterme).  <br />  <br />**Hinweis:** Nicht alle PowerTrack-Operatoren werden unterstützt. Eine Liste der unterstützten Operatoren finden Sie unter [Verfügbare Operatoren](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators). |
+| **Rate Limit** | Partner unterliegen einer Ratenbegrenzung sowohl mit Minuten- als auch mit Sekunden-Granularität. Das Minutenlimit variiert je nach Partner, wie in Ihrem Vertrag festgelegt. Diese pro-Minute-Limits sind jedoch nicht dafür gedacht, in einem einzigen Burst genutzt zu werden. Unabhängig von Ihrem Minutenlimit sind alle Partner auf maximal 20 Anfragen pro Sekunde beschränkt, aggregiert über alle Anfragen nach Daten und/oder Zählwerten. |
+| **Compliance** | Alle über die Full-Archive Search API gelieferten Daten sind zum Zeitpunkt der Auslieferung konform. |
+| **Echtzeitverfügbarkeit** | Daten sind innerhalb von 30 Sekunden nach ihrer Generierung auf der Twitter-Plattform im Index verfügbar |
+
+<div id="example-data-requests-and-responses">
+  ##### Beispielanforderungen und -antworten für Daten
+</div>
+
+<div id="example-post-request">
+  ###### Beispiel einer POST-Anfrage
+</div>
+
+- Parameter in einer POST-Anfrage werden, wie unten gezeigt, im JSON-formatierten Body gesendet.
+- Alle Bestandteile der PowerTrack-Regel, nach der gesucht wird (z. B. Schlüsselwörter, andere Operatoren wie bounding\_box:), gehören in den Parameter 'query'.
+- Teile der Regel nicht als separate Parameter in der Query-URL auslagern.
+
+Hier ist ein Beispielbefehl für eine POST-Anfrage (mit cURL) zum Stellen einer initialen Datenanfrage:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label.json" -d '{"query":"from:twitterDev","maxResults":500,"fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm"}'
+```
+
+Wenn die API-Antwort ein 'next'-Token enthält, folgt hier eine anschließende Anfrage, die der ursprünglichen entspricht, wobei der Parameter 'next' auf das bereitgestellte Token gesetzt ist:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label.json" -d '{"query":"from:twitterDev","maxResults":500,"fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm",
+    "next":"NTcxODIyMDMyODMwMjU1MTA0"}'
+```
+
+<div id="example-get-request">
+  ###### Beispiel für eine GET-Anfrage
+</div>
+
+- Parameter in einer GET-Anfrage werden mithilfe der standardmäßigen URL-Codierung in die URL kodiert.
+- Alle Teile der PowerTrack-Regel, nach denen gesucht wird (z. B. Schlüsselwörter, andere Operatoren wie bounding\_box:), sollten im Parameter „query“ angegeben werden.
+- Trennen Sie keine Teile der Regel als separate Parameter in der Abfrage-URL ab.
+
+Hier ist ein Beispielbefehl für eine GET-Anfrage (mit cURL) zum Abrufen initialer Daten:
+
+```bash
+    curl -u<username> "http://gnip-api.x.com/search/:product/accounts/:account_name/:label.json?query=from%3Atwitterdev&maxResults=500&fromDate=yyyymmddhhmm&toDate=yyyymmddhhmm"
+```
+
+<div id="example-data-responses">
+  ###### Beispielantworten für Datenabfragen
+</div>
+
+Beachten Sie, dass für Tweets, die ab dem 29. September 2022 erstellt wurden, Tweet-Objekte Bearbeitungsmetadaten enthalten, die deren Bearbeitungshistorie beschreiben. Weitere Details finden Sie auf der Fundamentals-Seite ["Tweets bearbeiten"](/de/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets).
+
+Unten finden Sie eine Beispielantwort auf eine Datenabfrage. Dieses Beispiel geht davon aus, dass mehr als 'maxResults' Tweets verfügbar waren, sodass ein 'next'-Token für nachfolgende Anfragen bereitgestellt wird. Wenn 'maxResults' oder weniger Tweets mit Ihrer Abfrage verknüpft sind, ist in der Antwort kein 'next'-Token enthalten.
+Der Wert des 'next'-Elements ändert sich mit jeder Abfrage und sollte als undurchsichtige Zeichenkette behandelt werden. Das 'next'-Element sieht im Antworttext wie folgt aus:
+
+```json
+{
+    "results":
+      [
+            {--Tweet 1--},
+            {--Tweet 2--},
+            ...
+            {--Tweet 500--}
+      ],
+    "next":"NTcxODIyMDMyODMwMjU1MTA0",
+    "requestParameters":
+      {
+        "maxResults":500,
+        "fromDate":"201101010000",
+        "toDate":"201201010000"
+      }
+  }
+```
+
+Die Antwort auf eine nachfolgende Anfrage könnte wie folgt aussehen (beachten Sie die neuen Tweets und den anderen 'next'-Wert):
+
+```json
+{
+      "results":
+      [
+            {--Tweet 501--},
+            {--Tweet 502--},
+            ...
+            {--Tweet 1000--}
+      ],
+      "next":"R2hCDbpBFR6eLXGwiRF1cQ",
+      "requestParameters":
+      {
+        "maxResults":500,
+        "fromDate":"201101010000",
+        "toDate":"201201010000"
+      }
+  }
+```
+
+Sie können das 'next'-Element aus Ihrer vorherigen Abfrage weiterhin übergeben, bis Sie alle Tweets aus dem von Ihrer Abfrage abgedeckten Zeitraum erhalten haben. Wenn Sie eine Antwort erhalten, die kein 'next'-Element enthält, bedeutet dies, dass Sie die letzte Seite erreicht haben und in Ihrem Zeitbereich keine zusätzlichen Daten verfügbar sind.
+
+<div id="counts-endpoint">
+  #### Counts-Endpoint
+</div>
+
+<div id="searchstreamcounts">
+  ##### /search/:stream/counts
+</div>
+
+<div id="endpoint-pattern">
+  ###### Endpunktmuster:
+</div>
+
+`/search/fullarchive/accounts/:account_name/:label/counts.json`
+
+Dieser Endpunkt gibt Zählwerte (Datenvolumen) für die angegebene Abfrage zurück. Wenn kein Zeitraum angegeben ist, werden die Zeitparameter standardmäßig auf die letzten 30 Tage gesetzt. Die Datenvolumen werden als zeitgestempeltes Array entweder täglich, stündlich (Standard) oder minütlich zurückgegeben.
+
+**Hinweis:** Diese Funktion ist auch mit einer GET-Anfrage statt einer POST-Anfrage möglich, indem die unten beschriebenen Parameter in die URL kodiert werden.
+
+<div id="counts-request-parameters">
+  ##### Parameter für Counts-Anfragen
+</div>
+
+| Parameter | Beschreibung | Erforderlich | Beispielwert |
+| :--- | :--- | :--- | :--- |
+| query | Entspricht einer PowerTrack-Regel mit bis zu 2.048 Zeichen (ohne Begrenzung der Anzahl positiver und negativer Klauseln).  <br />  <br />Dieser Parameter muss ALLE Teile der PowerTrack-Regel enthalten, einschließlich aller Operatoren; Teile der Regel sollten nicht auf andere Parameter der Abfrage verteilt werden.  <br />  <br />**Hinweis:** Nicht alle PowerTrack-Operatoren werden unterstützt. Eine Liste der unterstützten Operatoren finden Sie unter [Available operators](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators). | Ja | (snow OR cold OR blizzard) weather |
+| fromDate | Der älteste UTC-Zeitstempel (bis zurück zum 21.03.2006), ab dem die Tweets bereitgestellt werden. Der Zeitstempel hat Minuten-Granularität und ist inklusiv (d. h. 12:00 schließt die Minute 00 ein).  <br />  <br />_Angegeben:_ Wenn nur fromDate ohne den Parameter toDate verwendet wird, liefert die API Counts (Datenvolumina) für die Abfrage rückwärts in der Zeit von jetzt bis zum fromDate. Liegt der fromDate mehr als 31 Tage vor jetzt, erhalten Sie ein next-Token, um Ihre Anfrage zu paginieren.  <br />  <br />_Nicht angegeben:_ Wenn kein fromDate angegeben ist, liefert die API Counts (Datenvolumina) für 30 Tage vor jetzt bzw. bis zum toDate (falls angegeben).  <br />  <br />Wenn weder der Parameter fromDate noch toDate verwendet wird, liefert die API Counts (Datenvolumina) für die letzten 30 Tage, beginnend zum Zeitpunkt der Anfrage, rückwärts. | Nein  | 201207220000 |
+| toDate | Der neueste UTC-Zeitstempel, bis zu dem die Tweets bereitgestellt werden. Der Zeitstempel hat Minuten-Granularität und ist nicht inklusiv (d. h. 11:59 schließt die 59. Minute der Stunde nicht ein).  <br />  <br />_Angegeben:_ Wenn nur toDate ohne den Parameter fromDate verwendet wird, liefert die API die aktuellsten Counts (Datenvolumina) für 30 Tage vor dem toDate.  <br />  <br />_Nicht angegeben:_ Wenn kein toDate angegeben ist, liefert die API Counts (Datenvolumina) für die Abfrage rückwärts bis zum fromDate. Liegt der fromDate mehr als 31 Tage vor jetzt, erhalten Sie ein next-Token, um Ihre Anfrage zu paginieren.  <br />  <br />Wenn weder der Parameter fromDate noch toDate verwendet wird, liefert die API Counts (Datenvolumina) für die letzten 30 Tage, beginnend zum Zeitpunkt der Anfrage, rückwärts. | Nein  | 201208220000 |
+| bucket | Die Zeiteinheit, für die Count-Daten bereitgestellt werden. Count-Daten können für jeden Tag, jede Stunde oder Minute im angeforderten Zeitraum zurückgegeben werden. Standardmäßig werden stündliche Counts bereitgestellt. Optionen: 'day', 'hour', 'minute' | Nein  | minute |
+| next | Dieser Parameter wird verwendet, um die nächste „Seite“ von Ergebnissen abzurufen, wie [HIER](#Pagination) beschrieben. Der mit dem Parameter verwendete Wert wird direkt aus der von der API bereitgestellten Antwort übernommen und sollte nicht verändert werden. | Nein  | NTcxODIyMDMyODMwMjU1MTA0 |
+
+<div id="additional-details">
+  ###### Zusätzliche Details
+</div>
+
+|     |     |
+| :--- | :--- |
+| **Verfügbarer Zeitraum** | 30-Tage: letzte 31 Tage  <br />Vollarchiv: 21. März 2006 – heute |
+| **Abfrageformat** | Entspricht einer PowerTrack-Regel mit bis zu 2.048 Zeichen.  <br />  <br />**Hinweis:** Nicht alle PowerTrack-Operatoren werden unterstützt. Eine Liste der unterstützten Operatoren finden Sie unter [Verfügbare Operatoren](/de/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators). |
+| **Rate Limit** | Partner unterliegen Rate Limits sowohl auf Minuten- als auch auf Sekunden-Granularität. Das Minutenlimit variiert je nach Partner, wie in Ihrem Vertrag festgelegt. Diese pro-Minute-Limits sind jedoch nicht dafür vorgesehen, in einem einzigen Burst ausgeschöpft zu werden. Unabhängig von Ihrem Minutenlimit sind alle Partner auf maximal 20 Anfragen pro Sekunde begrenzt, aggregiert über alle Anfragen für Daten und/oder Zählungen. |
+| **Zählgenauigkeit** | Die über diesen Endpunkt gelieferten Zählwerte spiegeln die Anzahl der erfolgten Tweets wider und berücksichtigen keine späteren Compliance-Ereignisse (Löschungen, Scrub Geos). Einige gezählte Tweets sind aufgrund von Compliance-Aktionen von Nutzern möglicherweise nicht über den Datenendpunkt verfügbar. |
+
+<div id="example-counts-requests-and-responses">
+  ##### Beispielanfragen und -antworten für Counts
+</div>
+
+<div id="example-post-request">
+  ###### Beispiel-POST-Anfrage
+</div>
+
+- Parameter einer POST-Anfrage werden, wie unten gezeigt, im JSON-formatierten Body gesendet.
+- Alle Bestandteile der abgefragten PowerTrack-Regel (z. B. Schlüsselwörter, andere Operatoren wie bounding\_box:) gehören in den Parameter „query“.
+- Zerlegen Sie die Regel nicht in separate Parameter in der Query-URL.
+
+Hier ist ein Beispiel für einen POST-Befehl (mit cURL) für eine erste Zählabfrage:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label/counts.json" -d '{"query":"TwitterDev","fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm","bucket":"day"}'
+```
+
+Wenn die API-Antwort für Counts ein „next“-Token enthält, folgt hier eine anschließende Anfrage, die der ursprünglichen entspricht, mit dem Parameter „next“, der auf das bereitgestellte Token gesetzt ist:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label/counts.json" -d '{"query":"TwitterDev","fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm","bucket":"day",
+    "next":"YUcxO87yMDMyODMwMjU1MTA0"}'
+```
+
+<div id="example-get-request">
+  ###### Beispiel für eine GET-Anfrage
+</div>
+
+- Anfrageparameter in einer GET-Anfrage werden mithilfe der Standard-URL-Codierung in die URL kodiert
+- Alle Teile der PowerTrack-Regel, nach denen gesucht wird (z. B. Schlüsselwörter, andere Operatoren wie bounding\_box:), sollten im Parameter „query“ angegeben werden
+- Teile der Regel nicht als separate Parameter in der Abfrage-URL aufsplitten
+
+Hier ist ein Beispiel für einen GET-Befehl (mit cURL) zum Ausführen einer initialen Zählabfrage:
+
+```bash
+    curl -u<username> "http://gnip-api.x.com/search/fullarchive/accounts/:account_name/:label/counts.json?query=TwitterDev&bucket=day&fromDate=yyyymmddhhmm&toDate=yyyymmddhhmm"
+```
+
+<div id="example-counts-responses">
+  #### Beispielantworten für Counts
+</div>
+
+Unten finden Sie eine Beispielantwort auf eine Counts-Abfrage (Datenvolumen). Diese Beispielantwort enthält ein „next“-Token. Das bedeutet, dass die Counts-Anfrage einen Zeitraum von mehr als 31 Tagen umfasste oder dass die übermittelte Abfrage ein so großes Volumen hatte, dass eine Teilantwort zurückgegeben wurde.
+
+Der Wert des Elements „next“ ändert sich mit jeder Abfrage und sollte als undurchsichtige Zeichenfolge behandelt werden. Das Element „next“ sieht im Antworttext wie folgt aus:
+
+```json
+    {
+      "results": [
+        { "timePeriod": "201101010000", "count": 32 },
+        { "timePeriod": "201101020000", "count": 45 },
+        { "timePeriod": "201101030000", "count": 57 },
+        { "timePeriod": "201101040000", "count": 123 },
+        { "timePeriod": "201101050000", "count": 134 },
+        { "timePeriod": "201101060000", "count": 120 },
+        { "timePeriod": "201101070000", "count": 43 },
+        { "timePeriod": "201101080000", "count": 65 },
+        { "timePeriod": "201101090000", "count": 85 },
+        { "timePeriod": "201101100000", "count": 32 },
+        { "timePeriod": "201101110000", "count": 23 },
+        { "timePeriod": "201101120000", "count": 85 },
+        { "timePeriod": "201101130000", "count": 32 },
+        { "timePeriod": "201101140000", "count": 95 },
+        { "timePeriod": "201101150000", "count": 109 },
+        { "timePeriod": "201101160000", "count": 34 },
+        { "timePeriod": "201101170000", "count": 74 },
+        { "timePeriod": "201101180000", "count": 24 },
+        { "timePeriod": "201101190000", "count": 90 },
+        { "timePeriod": "201101200000", "count": 85 },
+        { "timePeriod": "201101210000", "count": 93 },
+        { "timePeriod": "201101220000", "count": 48 },
+        { "timePeriod": "201101230000", "count": 37 },
+        { "timePeriod": "201101240000", "count": 54 },
+        { "timePeriod": "201101250000", "count": 52 },
+        { "timePeriod": "201101260000", "count": 84 },
+        { "timePeriod": "201101270000", "count": 120 },
+        { "timePeriod": "201101280000", "count": 34 },
+        { "timePeriod": "201101290000", "count": 83 },
+        { "timePeriod": "201101300000", "count": 23 },
+        { "timePeriod": "201101310000", "count": 12 }
+       ],
+      "totalCount":2027,
+      "next":"NTcxODIyMDMyODMwMjU1MTA0",
+      "requestParameters":
+        {
+          "bucket":"day",
+          "fromDate":"201101010000",
+          "toDate":"201201010000"
+        }
+    }
+```
+
+Die Antwort auf eine nachfolgende Anfrage könnte wie folgt aussehen (beachten Sie die neue Zeitachse der Counts und den anderen „next“-Wert):
+
+```json
+    {
+      "results": [
+        { "timePeriod": "201102010000", "count": 45 },
+        { "timePeriod": "201102020000", "count": 76 },
+         ....
+        { "timePeriod": "201103030000", "count": 13 }
+     ],
+     "totalCount":3288,
+     "next":"WE79fnakFanyMDMyODMwMjU1MTA0",
+     "requestParameters":
+        {
+          "bucket":"day",
+          "fromDate":"201101010000",
+          "toDate":"201201010000"
+        }
+    }
+```
+
+Sie können das Element „next“ aus Ihrer vorherigen Abfrage weiterhin übergeben, bis Sie alle Counts aus dem Abfragezeitraum erhalten haben. Wenn Sie eine Antwort erhalten, die kein Element „next“ enthält, bedeutet dies, dass Sie die letzte Seite erreicht haben und in Ihrem Zeitbereich keine weiteren Counts verfügbar sind.
+
+<div id="http-response-codes">
+  #### HTTP-Antwortcodes
+</div>
+
+| Status | Text | Beschreibung |
+| :--- | :--- | :--- |
+| 200 | OK  | Die Anfrage war erfolgreich. Die JSON-Antwort sieht in etwa wie folgt aus: |
+| 400 | Ungültige Anfrage | Diese Antwort tritt in der Regel auf, wenn die Anfrage ungültiges JSON enthält oder gar keine JSON-Nutzlast gesendet wurde. |
+| 401 | Nicht autorisiert | Die HTTP-Authentifizierung ist aufgrund ungültiger Anmeldedaten fehlgeschlagen. Melden Sie sich mit Ihren Anmeldedaten bei console.gnip.com an, um sicherzustellen, dass Sie sie in Ihrer Anfrage korrekt verwenden. |
+| 404 | Nicht gefunden | Die Ressource wurde unter der URL, an die die Anfrage gesendet wurde, nicht gefunden, wahrscheinlich weil eine falsche URL verwendet wurde. |
+| 422 | Nicht verarbeitbare Entität | Wird aufgrund ungültiger Parameter in der Abfrage zurückgegeben — z. B. ungültige PowerTrack-Regeln. |
+| 429 | Unbekannter Code | Ihre App hat das Limit für Verbindungsanfragen überschritten. Die entsprechende JSON-Nachricht sieht in etwa wie folgt aus: |
+| 500 | Interner Serverfehler | Auf dem Server ist ein Fehler aufgetreten. Wiederholen Sie Ihre Anfrage mit exponentiellem Backoff. |
+| 502 | Proxy-Fehler | Auf dem Server ist ein Fehler aufgetreten. Wiederholen Sie Ihre Anfrage mit exponentiellem Backoff. |
+| 503 | Dienst nicht verfügbar | Auf dem Server ist ein Fehler aufgetreten. Wiederholen Sie Ihre Anfrage mit exponentiellem Backoff. |

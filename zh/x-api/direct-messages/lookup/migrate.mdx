@@ -1,0 +1,83 @@
+---
+title: 迁移指南
+sidebarTitle: 迁移指南
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="comparing-v11-and-v2-direct-message-event-lookup-endpoints">
+  ## 比较 v1.1 与 v2 私信事件查询端点
+</div>
+
+Direct Messages 端点的 v1.1 和 v2 版本都提供了查询私信事件的方法。本指南旨在帮助理解两者的差异，并为迁移到 v2 提供参考。
+
+两者之间的一个主要差异是 v1.1 仅支持一对一会话，而 v2 引入了对群组会话的支持。其直接结果是 v1.1 仅支持“message created”事件，而 v2 还支持参与者加入和离开会话相关的事件。事实上，v2 的一项基础更新是将 dm\_conversations 设为核心 API 对象。
+
+在 v1.1 中，有两个用于检索私信的端点（同样，v1.1 仅支持“新消息”这一种事件类型）：
+
+- GET direct\_messages/events/show - 按 ID 检索单个事件。
+
+- GET direct\_messages/events/list - 检索经过身份验证的用户发送和接收的一对一私信（最长可追溯 30 天）。请注意，此方法无法检索群组会话中的消息。
+
+在 v2 版本中，有三个用于检索私信会话事件的 GET 方法：
+
+- **GET /2/dm\_conversations/with/:participant\_id/dm\_events** - 检索与一对一会话相关的私信事件。:participant\_id 路径参数是与发起此请求的已认证用户进行会话的账户的用户 ID。
+
+- **GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events** - 检索与特定会话 ID 相关的私信事件，由 :dm\_conversation\_id 路径参数指定。此方法支持一对一和群组会话。
+
+- **GET /2/dm\_events** - 检索与某个用户相关的私信事件，包括一对一和群组会话。可获取的事件最长可追溯至 30 天前。
+
+一个重要细节是，会话和事件 ID 在 X 平台的 v1.1 与 v2 版本之间是共享的。这意味着两个版本可以配合使用。例如，Direct Messages v1.1 端点提供了返回单个事件和删除事件的方法，而这些方法在 v2 中尚不可用。由于 ID 在 v1.1 与 v2 之间通用，您可以根据 v2 提供的 ID 发起 v1.1 请求，或者引用 X 应用中会话 URL 所显示的会话 ID。
+
+下表比较了 v1.1 与 v2 私信事件查询端点的基本方面。此处列示的 X API v2 特性适用于所有私信查询端点。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **标准 v1.1** | **X API v2** |
+| 主机域名 | https://api.x.com | https://api.x.com |
+| 端点根路径 | [/1.1/direct\_messages](https://api.x.com/1.1/direct_messages) | [/2/dm\_conversations](https://api.x.com/2/users/:id/dm_conversations)<br /><br />私信会话被引入为基础 API 对象。  <br /><br />这些端点可检索 MessageCreate、ParticipantsJoin 和 ParticipantsLeave 事件。 |
+| 支持的 HTTP 方法 | GET | GET |
+| 是否支持群组私信 |     | ✔   |
+| 支持的事件类型 | message\_create | MessageCreate、ParticipantsJoin、ParticipantsLeave |
+| [Authentication](/zh/resources/fundamentals/authentication) | OAuth 1.0a 用户上下文 | OAuth 1.0a 用户上下文<br /><br />OAuth 2 用户上下文（范围：dm.read、tweet.read、user.read） |
+| 需要使用与 X API v2 [Project](/zh/resources/fundamentals/projects) 关联的[开发者 App](/zh/resources/fundamentals/authentication)凭据 |     | ✔   |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits)\*  <br />\*所有请求都需要用户令牌 |     | GET 请求：15 分钟内 300 次<br /><br />速率限制在三个端点之间共享 |
+
+下表将 v2 的 GET 方法与 v1.1 进行比较。请注意，这些 v2 能力通过支持群组会话扩展了可用功能。
+
+**获取特定一对一会话中的所有消息**
+
+---
+
+Path: GET /2/dm\_conversations/with/:participant\_id/dm\_events
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **Standard v1.1** | **X API v2** |
+| 端点路径 | GET <br /><br />/1.1/direct\_messages/events/list | GET /2/dm\_conversations/with/:participant\_id/dm\_events |
+| 可用的事件历史时长 | 30 天 | 无上限 |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits) | 每 15 分钟 15 次请求 | 每 15 分钟 300 次请求  <br />速率限制适用于这三个 GET 端点 |
+
+**按会话 ID 获取所有消息**
+
+路径：GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **Standard v1.1** | **X API v2** |
+| 端点路径 | 不支持。V1.1 仅能返回一对一会话的消息，且不支持按会话 ID 检索事件。 | GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events |
+| 可用的事件历史时长 | 30 天 | 无上限 |
+| 支持群组会话 |     | ✔   |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits) | 每 15 分钟 15 次请求 | 每 15 分钟 300 次请求  <br />速率限制适用于这三个 GET 端点 |
+
+**获取已认证用户的所有会话（包含一对一与群组会话）中的全部事件**
+
+路径：GET /2/dm\_events
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **描述** | **Standard v1.1** | **X API v2** |
+| 端点路径 | GET /1.1/direct\_messages/events/list  <br />  <br />V1.1 仅能返回一对一会话的消息。 | GET /2/dm\_events |
+| 可用的事件历史时长 | 30 天 | 30 天 |
+| 支持群组会话 |     | ✔   |
+| 默认请求[速率限制](/zh/x-api/fundamentals/rate-limits) | 每 15 分钟 15 次请求 | 每 15 分钟 300 次请求  <br />速率限制适用于这三个 GET 端点 |

@@ -1,0 +1,149 @@
+---
+title: Autorizzazione di una richiesta
+sidebarTitle: Autorizzazione di una richiesta
+---
+
+import { Button } from "/snippets/it/button.mdx";
+
+<div id="authorizing-a-request">
+  ### Autorizzare una richiesta
+</div>
+
+Lo scopo di questo documento è mostrare come modificare le richieste HTTP per inviare richieste autorizzate all’API X.
+
+Tutte le API di X si basano sul protocollo HTTP. Ciò significa che qualsiasi software scritto per utilizzare le API di X invia una serie di messaggi strutturati ai server di X. Ad esempio, una richiesta per pubblicare il testo “**Hello Ladies + Gentlemen, a signed OAuth request!**” come Tweet sarà simile a questa:
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+Qualsiasi libreria HTTP dovrebbe essere in grado di generare ed emettere la richiesta sopra con un livello minimo di difficoltà. Tuttavia, la richiesta sopra è considerata non valida, poiché non c’è modo di sapere:
+
+1. Quale applicazione sta effettuando la richiesta
+2. Per conto di quale utente la richiesta sta pubblicando
+3. Se l’utente ha concesso all’applicazione l’autorizzazione a pubblicare per suo conto
+4. Se la richiesta è stata manomessa da terzi durante il transito
+
+Per consentire alle applicazioni di fornire queste informazioni, l’API di X si basa sul [protocollo OAuth 1.0a](http://tools.ietf.org/html/rfc5849). In termini molto semplificati, l’implementazione di X richiede che le richieste che necessitano di autorizzazione contengano un’intestazione HTTP Authorization aggiuntiva con informazioni sufficienti a rispondere alle domande elencate sopra. Una versione della richiesta HTTP mostrata sopra, modificata per includere questa intestazione, è simile a questa (normalmente l’intestazione Authorization dovrebbe essere su una sola riga, ma qui è stata spezzata per leggibilità):
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Authorization:
+OAuth oauth\_consumer\_key="xvz1evFS4wEEPTGEFPHBog",
+oauth_nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg",
+oauth_signature="tnnArxj06cWHq44gCs1OSKk%2FjLY%3D",
+oauth\_signature\_method="HMAC-SHA1",
+oauth_timestamp="1318622958",
+oauth_token="370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb",
+oauth_version="1.0"
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+Quando questa richiesta è stata creata, sarebbe stata accettata dall’API X come valida.
+
+Se questo processo di firma è al di fuori dell’ambito della sua integrazione, consideri l’uso dei [Web Intents](https://dev.x.com/web/intents), che non richiedono l’uso di OAuth per interagire con l’API X.
+ 
+
+**Raccolta dei parametri**
+
+L’intestazione contiene 7 coppie chiave/valore, in cui le chiavi iniziano tutte con la stringa “oauth\_”. Per qualsiasi richiesta all’API X, raccogliere questi 7 valori e creare un’intestazione analoga consente di specificare l’autorizzazione per la richiesta. Di seguito è descritto come è stato generato ciascun valore:
+
+**Consumer key**
+
+L’oauth\_consumer\_key identifica quale applicazione sta effettuando la richiesta. Ottenere questo valore dalla pagina delle impostazioni della propria [app X](/it/resources/fundamentals/developer-apps) nel [developer portal](/it/resources/fundamentals/developer-portal).
+
+|     |     |
+| :--- | :--- |
+| oauth\_consumer\_key | xvz1evFS4wEEPTGEFPHBog |
+
+**Nonce**
+
+Il parametro oauth\_nonce è un token univoco che l’applicazione dovrebbe generare per ogni richiesta. X utilizzerà questo valore per determinare se una richiesta è stata inviata più volte. Il valore per questa richiesta è stato generato codificando in base64 32 byte di dati casuali e rimuovendo tutti i caratteri non alfanumerici; qualsiasi approccio che produca una stringa alfanumerica sufficientemente casuale è adeguato.
+
+|     |     |
+| :--- | :--- |
+| oauth\_nonce | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg |
+
+**Signature**
+
+Il parametro oauth\_signature contiene un valore generato passando tutti gli altri parametri della richiesta e due valori segreti attraverso un algoritmo di firma. La firma consente a X di verificare che la richiesta non sia stata modificata in transito, identificare l’applicazione che invia la richiesta e verificare che l’applicazione sia autorizzata a interagire con l’account dell’utente.
+
+Il processo per calcolare oauth\_signature per questa richiesta è descritto in [Creare una firma](/it/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature).
+
+|     |     |
+| :--- | :--- |
+| oauth\_signature | tnnArxj06cWHq44gCs1OSKk/jLY= |
+
+**Metodo di firma**
+
+Il parametro oauth\_signature\_method utilizzato da X è HMAC-SHA1. Questo valore deve essere usato per qualsiasi richiesta autorizzata inviata all’API di X.
+
+|     |     |
+| :--- | :--- |
+| oauth\_signature\_method | HMAC-SHA1 |
+
+**Timestamp**
+
+Il parametro oauth\_timestamp indica quando è stata creata la richiesta. Questo valore deve essere il numero di secondi dalla Unix epoch al momento in cui la richiesta viene generata ed è facilmente producibile nella maggior parte dei linguaggi di programmazione. X rifiuterà le richieste create troppo tempo fa, quindi è importante mantenere l’orologio del computer che genera le richieste sincronizzato con NTP.
+
+|     |     |
+| :--- | :--- |
+| oauth\_timestamp | 1318622958 |
+
+**Token**
+
+Il parametro oauth\_token in genere rappresenta il consenso di un utente a condividere l’accesso al proprio account con la tua applicazione. Esistono alcune richieste di autenticazione in cui questo valore non viene passato o ha una forma diversa di token, ma tali casi sono trattati in dettaglio in [Ottenere i token di accesso](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens). Per la maggior parte delle richieste di uso generale, utilizzerai quello che viene definito un **token di accesso**.
+
+Puoi generare un [token di accesso](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) valido per il tuo account nella pagina delle impostazioni della tua [app X](/it/resources/fundamentals/developer-apps) nel [portale sviluppatori](/it/resources/fundamentals/developer-portal).
+
+|     |     |
+| :--- | :--- |
+| oauth\_token | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+
+**Versione**
+
+Il parametro oauth\_version deve essere sempre 1.0 per qualsiasi richiesta inviata all’API X.
+
+|     |     |
+| :--- | :--- |
+| oauth\_version | 1.0 |
+
+<div id="building-the-header-string">
+  #### Creazione della stringa dell’intestazione
+</div>
+
+Per creare la stringa dell’intestazione, immagina di scrivere in una stringa chiamata DST.
+
+1. Aggiungi la stringa “OAuth ” (incluso lo spazio finale) a DST.
+2. Per ciascuna coppia chiave/valore dei 7 parametri elencati sopra:
+   1. [Applica la percent-encoding](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) alla chiave e aggiungila a DST.
+   2. Aggiungi il carattere di uguale ‘=’ a DST.
+   3. Aggiungi un doppio apice ‘”’ a DST.
+   4. [Applica la percent-encoding](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) al valore e aggiungilo a DST.
+   5. Aggiungi un doppio apice ‘”’ a DST.
+   6. Se restano coppie chiave/valore, aggiungi una virgola ‘,’ e uno spazio ‘ ‘ a DST.
+
+Presta particolare attenzione alla percent-encoding dei valori durante la creazione di questa stringa. Ad esempio, il valore di oauth\_signature tnnArxj06cWHq44gCs1OSKk/jLY= deve essere codificato come tnnArxj06cWHq44gCs1OSKk%2FjLY%3D.
+
+Eseguendo questi passaggi sui parametri raccolti sopra si ottiene la seguente stringa:
+
+```
+OAuth oauth\_consumer\_key="xvz1evFS4wEEPTGEFPHBog", oauth\_nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg", oauth\_signature="tnnArxj06cWHq44gCs1OSKk%2FjLY%3D", oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="1318622958", oauth\_token="370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb", oauth_version="1.0"
+```
+
+Questo valore deve essere impostato come intestazione Authorization della richiesta.

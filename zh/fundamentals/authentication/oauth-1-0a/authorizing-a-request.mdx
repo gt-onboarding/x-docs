@@ -1,0 +1,149 @@
+---
+title: 为请求授权
+sidebarTitle: 为请求授权
+---
+
+import { Button } from "/snippets/zh/button.mdx";
+
+<div id="authorizing-a-request">
+  ### 授权请求
+</div>
+
+本文旨在说明如何修改 HTTP 请求，以便向 X API 发送已授权的请求。
+
+X 的所有 API 都基于 HTTP 协议。这意味着你编写的任何使用 X API 的软件都会向 X 的服务器发送一系列结构化消息。例如，将文本“**Hello Ladies + Gentlemen, a signed OAuth request!**”作为一条推文发布的请求大致如下：
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+任何 HTTP 库一般都能比较容易地生成并发出上述请求。但上述请求被视为无效，因为无法得知：
+
+1. 是哪个应用在发起请求
+2. 请求代表的是哪个用户进行发布
+3. 该用户是否已授予该应用代表其发布的授权
+4. 请求在传输过程中是否被第三方篡改
+
+为使应用能够提供上述信息，X 的 API 依赖于 [OAuth 1.0a 协议](http://tools.ietf.org/html/rfc5849)。在高度简化的层面上，X 的实现要求需要授权的请求额外包含一个 HTTP Authorization 头，其中包含足够的信息来回答上述问题。上面的 HTTP 请求，若加入该头后，形式如下（正常情况下 Authorization 头应在同一行，这里为便于阅读进行了换行）：
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Authorization:
+OAuth oauth\_consumer\_key="xvz1evFS4wEEPTGEFPHBog",
+oauth_nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg",
+oauth_signature="tnnArxj06cWHq44gCs1OSKk%2FjLY%3D",
+oauth\_signature\_method="HMAC-SHA1",
+oauth_timestamp="1318622958",
+oauth_token="370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb",
+oauth_version="1.0"
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+此请求在创建时会被 X API 视为有效。
+
+如果该签名流程超出你的集成范围，建议使用 [Web Intents](https://dev.x.com/web/intents)，其与 X API 交互无需使用 OAuth。
+ 
+
+**收集参数**
+
+可以看到，该头包含 7 个键值对，键名均以“oauth\_”开头。对于任意 X API 请求，收集这 7 个值并创建类似的头部，即可为该请求指定授权。每个值的生成方式如下：
+
+**Consumer key**
+
+oauth\_consumer\_key 用于标识发起请求的应用。从 [developer portal](/zh/resources/fundamentals/developer-portal) 中你的 [X app](/zh/resources/fundamentals/developer-apps) 的设置页面获取该值。
+
+|     |     |
+| :--- | :--- |
+| oauth\_consumer\_key | xvz1evFS4wEEPTGEFPHBog |
+
+**Nonce**
+
+oauth\_nonce 参数是你的应用应为每个请求生成的唯一令牌。X 将使用此值来确定某个请求是否被重复提交。此示例中的值是通过对 32 字节随机数据进行 base64 编码，并剔除所有非字母数字字符得到的，不过任何能产生相对随机的字母数字字符串的方法都可以。
+
+|     |     |
+| :--- | :--- |
+| oauth\_nonce | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg |
+
+**Signature**
+
+oauth\_signature 参数包含一个通过将所有其他请求参数和两个密钥值输入签名算法生成的值。签名的目的在于使 X 能验证请求在传输过程中未被篡改、验证发送请求的应用程序，并验证该应用是否有权与用户账户交互。
+
+计算此请求的 oauth\_signature 的过程见[创建签名](/zh/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature)。
+
+|     |     |
+| :--- | :--- |
+| oauth\_signature | tnnArxj06cWHq44gCs1OSKk/jLY= |
+
+**签名方法**
+
+X 使用的 oauth\_signature\_method 为 HMAC-SHA1。此值应适用于发送到 X API 的任何授权请求。
+
+|     |     |
+| :--- | :--- |
+| oauth\_signature\_method | HMAC-SHA1 |
+
+**时间戳**
+
+oauth\_timestamp 参数表示请求的创建时间。该值应是请求生成时自 Unix 纪元起的秒数，并且在大多数编程语言中都易于生成。X 会拒绝创建时间过早的请求，因此务必使用于生成请求的计算机时钟与 NTP 保持同步。
+
+|     |     |
+| :--- | :--- |
+| oauth\_timestamp | 1318622958 |
+
+**令牌**
+
+oauth\_token 参数通常表示用户授予你的应用访问其账户的权限。在某些身份验证请求中，该值不会传递或会采用不同形式的令牌，但这些在[获取访问令牌](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)中有详细说明。对于大多数通用用途的请求，你将使用所谓的**访问令牌**。
+
+你可以在[开发者门户](/zh/resources/fundamentals/developer-portal)中你的[X 应用](/zh/resources/fundamentals/developer-apps)的设置页面为你的账户生成有效的[访问令牌](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)。
+
+|     |     |
+| :--- | :--- |
+| oauth\_token | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+
+**版本**
+
+发送到 X API 的任何请求，其 oauth\_version 参数应始终为 1.0。
+
+|     |     |
+| :--- | :--- |
+| oauth\_version | 1.0 |
+
+<div id="building-the-header-string">
+  #### 构建请求头字符串
+</div>
+
+要构建请求头字符串，设想将内容写入名为 DST 的字符串中。
+
+1. 将字符串 “OAuth ”（包括末尾的空格）追加到 DST。
+2. 对于上面列出的 7 个参数中的每个键/值对：
+   1. 将键进行[百分号编码](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)并追加到 DST。
+   2. 将等号字符 ‘=’ 追加到 DST。
+   3. 将双引号 ‘”’ 追加到 DST。
+   4. 将值进行[百分号编码](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)并追加到 DST。
+   5. 将双引号 ‘”’ 追加到 DST。
+   6. 如果仍有剩余的键/值对，则将逗号 ‘,’ 和空格 ‘ ‘ 追加到 DST。
+
+在构建该字符串时，务必特别注意对值进行百分号编码。例如，oauth\_signature 的值 tnnArxj06cWHq44gCs1OSKk/jLY= 必须编码为 tnnArxj06cWHq44gCs1OSKk%2FjLY%3D。
+
+对上述收集到的参数执行这些步骤会得到以下字符串：
+
+```
+OAuth oauth\_consumer\_key="xvz1evFS4wEEPTGEFPHBog", oauth\_nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg", oauth\_signature="tnnArxj06cWHq44gCs1OSKk%2FjLY%3D", oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="1318622958", oauth\_token="370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb", oauth_version="1.0"
+```
+
+该值应作为请求的 Authorization 头设置。

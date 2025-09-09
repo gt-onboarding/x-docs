@@ -1,0 +1,86 @@
+---
+title: はじめに
+sidebarTitle: はじめに
+description: "X API v2 には 3 種類のタイムライン用エンドポイントがあります。逆時系列のホームタイムライン、ユーザーの投稿タイムライン、ユーザーのメンションタイムラインです。詳細は以下をご覧ください。"
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+これら3つのタイムラインエンドポイントは、編集された投稿をサポートします。これらのエンドポイントは常に、最新の編集済みバージョンと編集履歴を返します。30分の編集可能時間を過ぎて取得された投稿は、その確定版を表します。編集メタデータには、その履歴に含まれるすべての投稿のID配列が含まれます。編集履歴のない投稿では、この配列には単一のIDのみが含まれます。編集が行われた投稿では、この配列には複数のIDが含まれ、編集の順序を反映した昇順で並んでおり、配列の最後の要素が最新バージョンです。投稿の編集の仕組みについては、[Edit Posts fundamentals](/ja/x-api/fundamentals/edit-posts) を参照してください。
+
+<div id="reverse-chronological-home-timeline">
+  ## 逆時系列のホームタイムライン
+</div>
+
+このエンドポイントでは、認証済みユーザー本人と、そのユーザーがフォローしているアカウントによる最新の投稿、リポスト、返信を取得できます。
+
+ユーザーの代理でリクエストを行うため、[OAuth 2.0（PKCE）](/ja/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3) または [OAuth 1.0a ユーザーコンテキスト](/ja/resources/fundamentals/authentication) で認可する必要があります。本エンドポイントには、ユーザー単位で15分あたり180件のレート制限が適用されます。過去7日間にタイムライン上で作成されたすべての投稿、または作成日時に関係なく最新の800件までを返すことができます。
+
+<div id="user-post-timeline">
+  ## ユーザー投稿タイムライン
+</div>
+
+ユーザー投稿タイムラインエンドポイントは、特定の X アカウントが公開した投稿へアクセスするための機能です。ユーザーの投稿を取得することで、UI にタイムラインを表示する、投稿を分析してコンテンツの傾向を把握する、あるいは投稿を用いたエンゲージメントのワークフローをプログラムで構築するといった体験を実現できます。このエンドポイントは、ユーザーのプロフィールタイムラインで見られる内容に類似して、単一の X アカウントにおける最新の投稿、リポスト、返信、引用投稿にアクセスできます。
+
+@XDevelopers のユーザータイムラインはこちらです:
+
+ユーザー投稿タイムラインエンドポイントは、目的のユーザー（ユーザー ID 指定）を示す単一のパスパラメータを受け取る REST エンドポイントです。このエンドポイントは、当該ユーザーによって投稿された最新 3,200 件の投稿、リポスト、返信、引用投稿を返すことができます。
+
+投稿は新しいものからの逆時系列で返されます。結果は 1 ページあたり最大 100 件の[ページネーション](/ja/x-api/fundamentals/pagination)が適用されます。大量の投稿をページングするためのページネーショントークンが提供されます。該当ページに含まれる最新および最古の投稿 ID もメタデータとして提供され、最新投稿のポーリングにも利用できます。ユーザー投稿タイムラインは、特定の時間範囲内に作成された投稿のみを受け取るための start\_time と end\_time パラメータ指定もサポートしています。
+
+ユーザー投稿タイムラインエンドポイントは、[fields](/ja/x-api/fundamentals/fields) および [expansions](/ja/x-api/fundamentals/expansions) パラメータをサポートし、[新しい JSON データ形式](/ja/x-api/fundamentals/data-dictionary)を返します。
+
+このエンドポイントへリクエストするには、[OAuth 1.0a User Context](/ja/resources/fundamentals/authentication)、[OAuth 2.0 Authorization Code with PKCE](/ja/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3)、または [OAuth 2.0 App-Only](/ja/resources/fundamentals/authentication#app-only-authentication-and-oauth-2-0-bearer-token) のいずれかの認可方式で認証する必要があります。非公開メトリクス、プロモーションメトリクス、または保護されたユーザーのタイムラインをリクエストする場合は、OAuth 1.0a User Context もしくは OAuth 2.0 Authorization Code with PKCE を使用する必要があります。
+
+ユーザー投稿タイムラインエンドポイントは、次の 2 つの一般的な利用パターンを想定して設計されています。
+
+- 「ユーザーの履歴投稿を取得する」: 特定の最近の期間において、関心のあるユーザーが作成した投稿を時系列で受け取るためにユーザー投稿タイムラインへ行うリクエスト。期間は start\_time と end\_time を使用し、結果全体をページネーションで取得できます。場合によっては、アカウント内の投稿数が 3,200 件以下であれば、ユーザーの全投稿履歴を取得できます。含まれる投稿は公開状況および使用する認証方式に依存します。
+
+- 「新規投稿のポーリング」: 特定のユーザーが作成した新規投稿を取得するため、継続的にユーザー投稿タイムラインへ行うリクエスト。最後に受け取った投稿 ID を、以降の新規リクエストのパラメータとして指定できます。
+
+<div id="user-mention-timeline">
+  ## ユーザーメンションタイムライン
+</div>
+
+ユーザーメンションタイムラインエンドポイントを使用すると、特定のXユーザーにメンションしている投稿をリクエストできます。例えば、Xアカウントが投稿内で@XDevelopersにメンションした場合などです。これには、リクエストされたユーザーによる投稿への返信も含まれます。ユーザーのメンションを取得することで、ユーザーの投稿に返信している人やメンションしている人を素早く発見したり、プログラムで投稿とのエンゲージメントワークフローを作成したりする体験を構築できます。このエンドポイントでは、単一ユーザーの最新のメンションと返信をリクエストでき、Xの[メンション通知](https://x.com/notifications/mentions)で見られるものと似ています。
+
+ユーザーメンションタイムラインは、希望するユーザー（ユーザーIDによる）を示す単一のパスパラメータを受け取るRESTエンドポイントです。このエンドポイントは、そのユーザーの最新800件のメンションを返すことができます。
+
+投稿は最新のものから始まる逆時系列順で配信されます。結果は1ページあたり最大100件の投稿で[ページ分割](/ja/x-api/fundamentals/pagination)されます。大量の投稿セットをページングするためのページネーショントークンが提供されます。指定されたページに含まれる最新および最古の投稿のIDもメタデータとして提供され、これらは最新の投稿のタイムラインをポーリングしたり、v1.1の[mentions\_timeline](https://developer.x.com/en/docs/twitter-api/v1/tweets/timelines/api-reference/get-statuses-mentions_timeline)エンドポイントと同様にタイムラインをナビゲートしたりするためにも使用できます。このエンドポイントは、特定の時間枠内で作成された投稿を受信するためのstart\_timeおよびend\_timeパラメータの指定もサポートしています。
+
+このエンドポイントへのリクエストを正常に行うには、[OAuth 1.0a User Context](/ja/resources/fundamentals/authentication)、[OAuth 2.0（PKCE）](/ja/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3)、または[OAuth 2.0 App-Only](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)認証方法でリクエストを認証する必要があります。非公開メトリクス、プロモートメトリクス、または保護されたユーザーのタイムラインをリクエストする場合は、OAuth 1.0a User ContextまたはOAuth 2.0（PKCE）を使用する必要があります。
+
+ユーザーメンションタイムラインエンドポイントは[フィールド](/ja/x-api/fundamentals/fields)および[展開](/ja/x-api/fundamentals/expansions)パラメータをサポートし、[新しいJSONデータ形式](/ja/x-api/fundamentals/data-dictionary)を返します。
+
+<Info>
+  **アカウント設定**
+
+  これらのエンドポイントにアクセスするには、以下が必要です：
+
+  - 承認された[開発者アカウント](https://developer.x.com/en/portal/petition/essential/basic-info)
+  - [プロジェクト](/ja/resources/fundamentals/projects)内にある[開発者アプリ](/ja/resources/fundamentals/developer-apps)のキーとトークンを使用した認証
+
+  X API v2エンドポイントへのアクセス取得について詳しくは、[はじめに](/ja/x-api/getting-started/getting-access)ガイドをご覧ください。
+</Info>
+
+<div className="flex space-x-2">
+  <Button href="/ja/x-api/posts/timelines/quickstart/reverse-chron-quickstart">
+    クイックスタート
+  </Button>
+
+  <Button href="https://app.getpostman.com/run-collection/9956214-784efcda-ed4c-4491-a4c0-a26470a67400">
+    Postmanで実行
+  </Button>
+
+  <Button href="https://developer.x.com/apitools/api?endpoint=%2F2%2Fusers%2F%7Bid%7D%2Ftweets&method=get">
+    API Explorerで試す
+  </Button>
+</div>
+
+**サポートリソース**
+
+[Postmanを使用してリクエストを行う方法を学ぶ](/ja/tutorials/postman-getting-started)
+
+[エラーのトラブルシューティング](https://developer.x.com/en/support/x-api)
+
+\[このエンドポイントのAPIリファレンスページを見る]\((/x-api/posts/tweets-lookup#curl-requests "このエンドポイントのAPIリファレンスページを見る")

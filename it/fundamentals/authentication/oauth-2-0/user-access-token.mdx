@@ -1,0 +1,165 @@
+---
+title: Come connettersi agli endpoint con OAuth 2.0 Authorization Code Flow con PKCE
+sidebarTitle: "OAuth 2.0: inviare richieste per conto degli utenti"
+---
+
+<div id="how-to-connect-to-endpoints-using-oauth-20-authorization-code-flow-with-pkce">
+  ### Come connettersi agli endpoint usando il flusso di autorizzazione OAuth 2.0 con codice e PKCE
+</div>
+
+<div id="how-to-connect-to-the-endpoints">
+  #### Come connettersi agli endpoint
+</div>
+
+Per autenticare gli utenti, la tua App deve implementare un flusso di autorizzazione. Questo flusso consente di indirizzare gli utenti a una finestra di autorizzazione su X. Da lì, l’esperienza principale di X mostrerà la finestra e gestirà l’autorizzazione per conto della tua App. Gli utenti potranno autorizzare la tua App oppure rifiutare. Dopo la scelta, X reindirizzerà l’utente alla tua App, dove potrai scambiare il codice di autorizzazione con un token di accesso (se l’utente ha autorizzato la tua App) oppure gestire il rifiuto (se l’utente non l’ha autorizzata).
+
+<div id="working-with-confidential-clients">
+  #### Lavorare con client riservati
+</div>
+
+Se lavori con client riservati, devi utilizzare lo schema di [autenticazione Basic](https://datatracker.ietf.org/doc/html/rfc2617#section-2) per generare un’intestazione Authorization con codifica base64 quando effettui richieste agli endpoint dei token.
+
+Lo `userid` e la `password` sono separati da un singolo carattere due punti (":") all’interno di una stringa con codifica base64 nei dati di credenziale.
+
+Un esempio è il seguente:
+
+`-header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='`
+
+Se lo user agent desidera inviare il Client ID "Aladdin" e la password "open sesame", utilizzerà il seguente campo di intestazione:
+
+`Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==`
+
+Per creare l’intestazione Authorization Basic, devi applicare la codifica base64 al tuo Client ID e Client Secret, che puoi ottenere dalla pagina “Keys and Tokens” della tua App nel [developer portal](https://developer.x.com/en/portal/dashboard).
+
+<div id="steps-to-connect-using-oauth-20">
+  #### Passaggi per la connessione tramite OAuth 2.0
+</div>
+
+**Passaggio 1: Creare un URL di autorizzazione**
+
+La tua App deve generare un URL di autorizzazione verso X, indicando gli scope necessari. Ad esempio, se la tua App deve cercare Tweet, utenti e gestire i follow, dovrebbe richiedere i seguenti scope:
+
+`tweet.read%20users.read%20follows.read%20follows.write`
+
+L’URL conterrà anche i parametri `code_challenge` e `state`, oltre agli altri parametri obbligatori. In produzione dovresti usare una stringa casuale per il `code_challenge`.
+
+**Passaggio 2: GET oauth2/authorize**
+
+Fai autenticare l’utente e invia all’applicazione un codice di autorizzazione. Se hai abilitato OAuth 2.0 per la tua App, puoi trovare il Client ID nella pagina “Keys and Tokens” della tua App.
+
+Un esempio di URL a cui reindirizzare l’utente è il seguente:
+
+```
+https://x.com/i/oauth2/authorize?response_type=code&client_id=M1M5R3BMVy13QmpScXkzTUt5OE46MTpjaQ&redirect_uri=https://www.example.com&scope=tweet.read%20users.read%20follows.read%20follows.write&state=state&code_challenge=challenge&code_challenge_method=plain
+```
+
+Un esempio di URL con offline\_access è il seguente:
+
+```
+https://x.com/i/oauth2/authorize?response_type=code&client_id=M1M5R3BMVy13QmpScXkzTUt5OE46MTpjaQ&redirect_uri=https://www.example.com&scope=tweet.read%20users.read%20offline.access&state=state&code_challenge=challenge&code_challenge_method=plain
+```
+
+Dopo un’autenticazione riuscita, al redirect\_uri verrà inviata una richiesta contenente il parametro auth\_code. La tua applicazione dovrebbe verificare il parametro state.
+
+Un esempio di richiesta dal reindirizzamento del client è:
+
+```
+https://www.example.com/?state=state&code=VGNibzFWSWREZm01bjN1N3dicWlNUG1oa2xRRVNNdmVHelJGY2hPWGxNd2dxOjE2MjIxNjA4MjU4MjU6MToxOmFjOjE
+```
+
+**Passaggio 3: POST oauth2/token - Access token**
+
+A questo punto puoi usare il codice di autorizzazione per creare un access token e un refresh token (solo se è stato richiesto lo scope `offline.access`). Puoi effettuare una richiesta POST al seguente endpoint:
+
+```
+https://api.x.com/2/oauth2/token
+```
+
+Devi impostare l’header `Content-Type` su `application/x-www-form-urlencoded`. Inoltre, nella richiesta includi: `code`, `grant_type`, `client_id`, `redirect_uri` e `code_verifier`.
+
+Ecco un esempio di richiesta di token per un client pubblico:
+
+```json
+curl --location --request POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'code=VGNibzFWSWREZm01bjN1N3dicWlNUG1oa2xRRVNNdmVHelJGY2hPWGxNd2dxOjE2MjIxNjA4MjU4MjU6MToxOmFjOjE' \
+--data-urlencode 'grant_type=authorization_code' \
+--data-urlencode 'client_id=rG9n6402A3dbUJKzXTNX4oWHJ' \
+--data-urlencode 'redirect_uri=https://www.example.com' \
+--data-urlencode 'code_verifier=challenge'
+```
+
+Ecco un esempio che utilizza un client riservato: 
+
+```json
+curl --location --request POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='\
+--data-urlencode 'code=VGNibzFWSWREZm01bjN1N3dicWlNUG1oa2xRRVNNdmVHelJGY2hPWGxNd2dxOjE2MjIxNjA4MjU4MjU6MToxOmFjOjE' \
+--data-urlencode 'grant_type=authorization_code' \
+--data-urlencode 'redirect_uri=https://www.example.com' \
+--data-urlencode 'code_verifier=challenge'
+```
+
+**Passo 4: Connessione alle API**
+
+Ora sei pronto per connetterti agli endpoint utilizzando OAuth 2.0. Per farlo, effettuerai le richieste all’API come faresti con l’autenticazione [Bearer Token](/it/resources/fundamentals/authentication/oauth-2-0/application-only). Invece di inviare il tuo Bearer Token, utilizzerai il token di accesso generato nel passaggio precedente. In risposta dovresti ricevere il payload appropriato corrispondente all’endpoint richiesto. Questa richiesta è la stessa sia per i client pubblici sia per quelli riservati.
+
+Un esempio della richiesta che effettueresti è il seguente:
+
+```json
+curl --location --request GET 'https://api.x.com/2/tweets?ids=1261326399320715264,1278347468690915330' \
+--header 'Authorization: Bearer Q0Mzb0VhZ0V5dmNXSTEyNER2MFNfVW50RzdXdTN6STFxQlVkTGhTc1lCdlBiOjE2MjIxNDc3NDM5MTQ6MToxOmF0OjE'
+```
+
+**Passo 5: POST oauth2/token - refresh token**
+
+Un refresh token consente a un’applicazione di ottenere un nuovo token di accesso senza richiedere l’intervento dell’utente. Puoi creare un refresh token effettuando una richiesta POST al seguente endpoint: https://api.x.com/2/oauth2/token. Dovrai aggiungere l’header `Content-Type` con valore `application/x-www-form-urlencoded`. Inoltre, dovrai includere il tuo `refresh_token`, impostare `grant_type` su `refresh_token` e specificare il tuo `client_id`.
+
+Questa richiesta funzionerà per i client pubblici:
+
+```json
+POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'refresh_token=bWRWa3gzdnk3WHRGU1o0bmRRcTJ5VUxWX1lZTDdJSUtmaWcxbTVxdEFXcW5tOjE2MjIxNDc3NDM5MTQ6MToxOnJ0OjE' \
+--data-urlencode 'grant_type=refresh_token' \
+--data-urlencode 'client_id=rG9n6402A3dbUJKzXTNX4oWHJ'
+```
+
+Ecco un esempio per i client riservati:
+
+```json
+POST 'https://api.x.com/2/oauth2/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='\
+--data-urlencode 'refresh_token=bWRWa3gzdnk3WHRGU1o0bmRRcTJ5VUxWX1lZTDdJSUtmaWcxbTVxdEFXcW5tOjE2MjIxNDc3NDM5MTQ6MToxOnJ0OjE'\
+--data-urlencode 'grant_type=refresh_token'
+```
+
+**Passo 6: POST oauth2/revoke - Revoca del token**
+
+Un token di revoca invalida un access token o un refresh token. Viene utilizzato per abilitare una funzionalità di logout nei client, consentendo di rimuovere eventuali credenziali di sicurezza associate al flusso di autorizzazione che potrebbero non essere più necessarie. Il token di revoca serve a un’App per revocare un token, non a un utente. Puoi creare una richiesta di revoca effettuando una richiesta POST al seguente URL se l’App desidera revocare in modo programmatico l’accesso che le è stato concesso:
+
+```
+https://api.x.com/2/oauth2/revoke
+```
+
+Dovrai includere l’header `Content-Type` con valore `application/x-www-form-urlencoded`, il tuo token e il tuo client\_id.
+
+In alcuni casi, un utente potrebbe desiderare di revocare l’accesso concesso a un’App; può farlo visitando la [pagina delle App collegate](https://x.com/settings/connected_apps).
+
+```bash
+curl --location --request POST 'https://api.x.com/2/oauth2/revoke' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'token=Q0Mzb0VhZ0V5dmNXSTEyNER2MFNfVW50RzdXdTN6STFxQlVkTGhTc1lCdlBiOjE2MjIxNDc3NDM5MTQ6MToxOmF0OjE' \
+--data-urlencode 'client_id=rG9n6402A3dbUJKzXTNX4oWHJ'
+```
+
+Questa richiesta funziona per i client riservati:
+
+```bash
+curl --location --request POST 'https://api.x.com/2/oauth2/revoke' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Basic V1ROclFTMTRiVWhwTWw4M2FVNWFkVGQyTldNNk1UcGphUTotUm9LeDN4NThKQThTbTlKSXQyZm1BanEzcTVHWC1icVozdmpKeFNlR3NkbUd0WEViUA=='\
+--data-urlencode 'token=Q0Mzb0VhZ0V5dmNXSTEyNER2MFNfVW50RzdXdTN6STFxQlVkTGhTc1lCdlBiOjE2MjIxNDc3NDM5MTQ6MToxOmF0OjE'
+```

@@ -1,0 +1,882 @@
+---
+title: Engagement-API
+---
+
+<div id="overview">
+  ## Überblick
+</div>
+
+[`Enterprise`](https://developer.x.com/en/products/x-api/enterprise)
+
+_Dies ist eine Enterprise-API, die ausschließlich im Rahmen unserer verwalteten Zugriffsebenen verfügbar ist. Um diese API zu nutzen, müssen Sie zunächst ein Konto über unser Enterprise-Vertriebsteam einrichten. [Weitere Informationen](/de/x-api/enterprise-gnip-2.0/enterprise-gnip)_
+
+Die Engagement-API bietet Zugriff auf Impressionen- und Engagement-Kennzahlen für Posts. Während die meisten Kennzahlen und Endpunkte eine Authentifizierung mit [OAuth 1.0a User Context](/de/resources/fundamentals/authentication) erfordern, können Sie öffentliche Kennzahlen für Favorite, Retweet, Reply und Video Views mithilfe des [OAuth 2.0 Bearer Tokens](/de/resources/fundamentals/authentication#oauth-2-0) und des Endpunkts /totals abrufen.  
+
+**Hinweis:** Zwischen den in einigen X-Web-Dashboards ausgewiesenen Daten und den in der Engagement-API gemeldeten Daten können Unterschiede auftreten. Diese entstehen, weil die Web-Dashboards typischerweise nur Engagements und/oder Impressionen anzeigen, die innerhalb des ausgewählten Zeitraums stattgefunden haben. So kann ein Web-Dashboard beispielsweise Engagements für Posts innerhalb eines Kalendermonats anzeigen, während die Engagement-API Engagements ausweisen kann, die über diesen Monat hinausgehen, aber noch innerhalb des angeforderten Zeitfensters liegen. In solchen Fällen ist die Engagement-API als maßgebliche Quelle zu betrachten.
+ 
+
+<div id="request-endpoints">
+  ### Request-Endpunkte
+</div>
+
+Die Engagement-API verfügt über drei Endpunkte:
+
+#### Aktuelle Gesamtwerte: \[/totals]
+
+- Anfragen liefern eine Gesamtmetrik für Impressions und eine Gesamtmetrik für Engagements für die gewünschten Posts
+- Beschränkt auf die folgenden Metriken: Impressions, Engagements, Favoriten, Antworten, Retweets, Zitierte Posts und Videoaufrufe
+- Unterstützt das Abrufen der Metriken **Impressions** und **Engagements** für Posts, die **in den letzten 90 Tagen** erstellt wurden, unter Verwendung von OAuth 1.0a User Context
+- Unterstützt das Abrufen der Metriken **Favoriten, Retweets, Zitierte Posts, Antworten** und **Videoaufrufe** für **beliebige Posts** unter Verwendung eines OAuth-2.0-Bearer-Tokens
+- Die Ergebnisse basieren auf der aktuellen Gesamtsumme der Impressions und Engagements zum Zeitpunkt der Anfrage
+- Ideal zur Nutzung in Dashboard-Berichten und zur Berechnung von Engagement-Raten über eine Vielzahl von @Handles hinweg
+- Unterstützt das Anfordern von Metriken für bis zu 250 Posts pro Anfrage
+   
+
+#### Letzte 28 Stunden: \[/28hr]
+
+- Anfragen können eine Gesamtmetrik für Impressionen, eine Gesamtmetrik für Engagements sowie eine Aufschlüsselung einzelner Engagement-Metriken zurückgeben, die innerhalb der letzten 28 Stunden aufgetreten sind
+- Daten können nach Post-ID gruppiert und als Zeitreihen aggregiert nach Tag oder Stunde ausgegeben werden
+- Ideal zur Verfolgung der Performance kürzlich erstellter Inhalte
+- Unterstützt alle verfügbaren Metriken
+- Unterstützt das Anfordern von Metriken für bis zu 25 Posts pro Anfrage
+   
+
+#### Historisch: \[/historical]
+
+- Anfragen können Impressions, Engagements und eine Aufschlüsselung einzelner Engagement-Metriken für das jeweils letzte Jahr zurückgeben, basierend auf der Engagement-Zeit (nicht der Post-Erstellungszeit).
+- Anfragen unterstützen Start- und Enddatum-Parameter und bieten die Flexibilität, den Zeitraum auf bis zu 4 Wochen einzugrenzen.
+- Engagement-Daten zu Posts sind auf maximal 365 Tage in der Vergangenheit begrenzt.
+- Daten können nach Post-ID gruppiert werden und als Zeitreihen aggregiert, nach Tag oder Stunde.
+- Ideal zur Bewertung der jüngsten Performance im Vergleich zu einem historischen Benchmark oder zur Erstellung eines historischen Leistungsbilds eines @handle.
+- Unterstützt alle verfügbaren Metriken.
+- Unterstützt das Anfordern von Metriken für bis zu 25 Posts pro Anfrage.
+
+<div id="available-metrics">
+  ### Verfügbare Metriken
+</div>
+
+Die folgende Tabelle beschreibt die Arten von Metriken, die über die Engagement-API verfügbar sind.
+
+Weitere Informationen zu den unten aufgeführten Metriken finden Sie auf unserer Seite [Interpretation der Metriken](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#interpreting-the-metrics).
+
+| Metrik | Verfügbarkeit des Endpunkts | Benutzerkontext erforderlich | Beschreibung |
+| :--- | :--- | :--- | :--- |
+| impressions | Alle | Ja | Anzahl, wie oft der Post angesehen wurde. Diese Metrik ist nur für Posts verfügbar, die in den letzten 90 Tagen veröffentlicht wurden. |
+| engagements | Alle | Ja | Anzahl, wie oft Nutzer mit dem Post interagiert haben. Diese Metrik ist nur für Posts verfügbar, die in den letzten 90 Tagen veröffentlicht wurden. |
+| favorites | Alle | Ja - /28hrs & /Historical<br /><br />Nein - /totals | Anzahl, wie oft der Post favorisiert wurde. |
+| retweets | Alle | Ja - /28hrs & /Historical<br /><br />Nein - /totals | Anzahl, wie oft der Post retweetet wurde. |
+| quote\_tweets | /totals | Nein - /totals | Anzahl, wie oft ein Post mit Kommentar retweetet wurde (auch bekannt als Quote). |
+| replies | Alle | Ja - /28hrs & /Historical<br /><br />Nein - /totals | Anzahl, wie oft auf den Post geantwortet wurde. |
+| video\_views | Alle | Ja - /28hrs & /Historical<br /><br />Nein - /totals | Anzahl, wie oft ein Video im angegebenen Post zu 50% für mindestens zwei Sekunden sichtbar war.<br /><br />Videoaufrufe sind nur für Posts verfügbar, die 1800 Tage alt oder jünger sind. Wenn Sie versuchen, Videoaufrufe für Posts anzufordern, die älter als 1800 Tage sind, erhalten Sie das folgende Objekt in Ihrer Antwort, zusammen mit einem separaten Objekt, das alle anderen angeforderten Metriken enthält:<br /><br />"unsupported\_for\_video\_views\_tweet\_ids": \["TWEET\_ID"]<br /><br /><strong>Bitte beachten:</strong> Zwischen der in den X-eigenen Plattformen (Mobile-App und Website) angezeigten Videoansichtsmetrik und der Zahl, die Sie über die Endpunkte /28hr und /historical erhalten, kann es zu Abweichungen kommen.<br /><br />\* Die in der X-Benutzeroberfläche und über den Endpunkt /totals angezeigten Videoaufrufe aggregieren die Videoaufrufe über alle Posts, in denen das betreffende Video gepostet wurde. Das bedeutet, dass die in der UI angezeigte Metrik die kombinierten Aufrufe aus allen Fällen umfasst, in denen das Video retweetet oder in separaten Posts erneut gepostet wurde. Diese Metrik schließt Videoaufrufe von GIFs aus.<br />\* Die von den Endpunkten /28hr und /historical bereitgestellten Videoaufrufe umfassen nur jene Aufrufe, die durch den spezifischen Post erzeugt wurden, für den Sie Metriken abrufen. Diese Metrik schließt Videoaufrufe von GIFs aus. |
+| media\_views | /28hr /historical | Ja | Anzahl aller Aufrufe (Autoplay und Klick) Ihrer Medien über Videos, GIFs und Bilder hinweg. |
+| media\_engagements<br /><br />([ehemals Media Clicks](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#recent-changes-to-the-engagement-api)) | /28hr /historical | Ja | Anzahl, wie oft Medien wie ein Bild oder Video im Post angeklickt wurden. |
+| url\_clicks | /28hr /historical | Ja | Anzahl, wie oft eine URL im Post angeklickt wurde. |
+| hashtag\_clicks | /28hr /historical | Ja | Anzahl, wie oft ein Hashtag im Post angeklickt wurde. |
+| detail\_expands | /28hr /historical | Ja | Anzahl, wie oft auf den Post geklickt wurde, um weitere Details anzuzeigen. |
+| permalink\_clicks | /28hr /historical | Ja | Anzahl, wie oft der Permalink zum Post (die dem Post gewidmete einzelne Webseite) angeklickt wurde. |
+| app\_install\_attempts | /28hr /historical | Ja | Anzahl, wie oft ein App-Installations-Ereignis aus dem Post heraus stattgefunden hat. |
+| app\_opens | /28hr /historical | Ja | Anzahl, wie oft ein App-Öffnen-Ereignis aus dem Post heraus stattgefunden hat. |
+| email\_tweet | /28hr /historical | Ja | Anzahl, wie oft der Post per E-Mail geteilt wurde. |
+| user\_follows | /28hr /historical | Ja | Anzahl, wie oft dem Nutzer (Post-Autor) von diesem Post aus gefolgt wurde. || user\_profile\_clicks | /28hr /historical | Ja | Anzahl, wie oft das Profil des Nutzers (Post-Autor) von diesem Post aus angeklickt wurde. |
+
+<div id="engagement-groupings">
+  ### Engagement-Gruppierungen
+</div>
+
+Gruppierungen ermöglichen eine individuelle Organisation der zurückgegebenen Engagement-Metriken. Pro Anfrage können Sie maximal 3 Gruppierungen einbeziehen. Sie können die Metriken nach einem oder mehreren der folgenden Werte gruppieren:
+
+_Alle drei Endpunkte unterstützen:_
+
+- tweet.id
+- engagement.type
+   
+
+_Die Endpunkte `/28hr` und `/historical` können Zeitreihenmetriken liefern und unterstützen daher:_
+
+- engagement.day
+- engagement.hour
+
+Weitere Informationen zur Gruppierung finden Sie auf der Seite [Engagement API Grouping](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings) im Abschnitt „Guides“.
+
+<div id="guides">
+  ## Leitfäden
+</div>
+
+<div id="developer-getting-started-guide">
+  ### Entwickler:inneneinstieg
+</div>
+
+<div id="introduction">
+  #### Einführung
+</div>
+
+Ziel dieser Dokumentation ist es, Entwicklern eine Einführung in die Integration mit der Engagement-API zu geben. Wir beginnen damit, die Gründe für eine Integration zu erläutern, und gehen anschließend auf das technische „Wie“ ein.
+
+<div id="what-does-the-engagement-api-provide">
+  ##### **Was bietet die Engagement-API?**
+</div>
+
+- Die Engagement-API stellt Impressionen- und Engagement-Daten für die eigenen Posts eines X-Kontos aus den letzten 90 Tagen bereit, vorausgesetzt, dieses Konto hat Ihrer App über [3-legged OAuth](/de/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) die Berechtigung erteilt, in seinem Namen Metriken anzufordern. Diese leistungsstarke, dennoch leicht zu implementierende Lösung bietet sofortigen Zugriff auf Impressionen und tiefe Engagements wie URL-Klicks, #Hashtag-Klicks und vieles mehr.
+- Die Engagement-API liefert aggregierte Gesamtsummen für Favoriten, Retweets, Quote-Tweets, Antworten und Videowiedergaben für jeden Post. Dies ist eine effektive Methode, um grundlegende Engagement-Daten zu einem einzelnen Post oder einer Sammlung von Posts zu erhalten.
+- Die Engagement-API bietet Social-Listening-, Marketing- und Publishing-Plattformen neuen Mehrwert, indem sie Kundinnen und Kunden ermöglicht, den ROI auf X zu messen, indem die Performance von Inhalten anhand von über 15 Performance-Metriken effektiv bewertet wird.
+- Die Engagement-API ist eine Request/Response-API, die App-Entwicklerinnen und -Entwicklern ermöglicht, Anfragen mit Post-IDs, gewünschten Metriken und einem Zeitraum zu senden, auf die die API sofort Daten zurückgibt.
+   
+
+<div id="why-integrate-example-use-cases">
+  ##### **Warum integrieren? Beispielanwendungsfälle**
+</div>
+
+- Verstehen Sie die gesamte Reichweite Ihrer Inhalte, um zu sehen, wie viele Personen sie sehen. Sehen Sie, wie viele Personen Videos ansehen, auf Links klicken, Hashtags anklicken oder Ihre Apps installieren.
+- Sowohl Gesamt- als auch Zeitreihenmetriken zum Engagement erzeugen.
+- Grundlegende Engagement-Metriken (Favoriten, Retweets, Zitat-Posts, Antworten) zu jedem öffentlichen Post verstehen.
+- Diese Metriken nutzen, um zu bestimmen, welche Arten von Posts funktionieren, sodass Sie sie häufiger veröffentlichen und mehr Impressionen und mehr Engagement für Ihre Inhalte erzielen können.
+- Marketingaktionen automatisieren (z. B. das Retweeten von Inhalten aus einem anderen eigenen Account), jedes Mal, wenn einer Ihrer Posts 100 Likes oder einen anderen Schwellenwert erreicht.
+- Eigene Kampagnen als Instrument für A/B-Tests benchmarken und vergleichen.
+- Analysieren, welche Art von Inhalten beim Kundenservice-Team Anklang findet, um zu bestimmen, wie und wann reagiert werden soll.
+- Analytics für Inhalte anzeigen, die von Ihrer Plattform veröffentlicht werden.
+   
+
+[Die Engagement-API wurde 2016 eingeführt](https://blog.x.com/official/en_us/a/2016/gnip-s-engagement-api-is-now-generally-available.html) und war die erste X-API, die diese detaillierten Engagement-Metriken in großem Umfang bereitstellte. Die Engagement-API ist einfach zu verwenden und ermöglicht es Kundinnen und Kunden, den Prozess zu automatisieren. Hier ist eine Fallstudie, die eine Beispielintegration beschreibt:
+
+- [Kampagnenerfolg mit dem Roten Kreuz messen](https://blog.x.com/developer/en_us/topics/spotlight/2016/measuring-campaign-success-with-the-red-cross.html)[](https://simplymeasured.com/blog/true-twitter-impressions-and-url-clicks-new-from-simply-measured/#sm.0007werel134td8zqf02m2mduumr6)
+
+Nachdem wir die Gründe für die Engagement-API beleuchtet haben, lassen Sie uns mit den technischen Details beginnen.
+
+<div id="integrating-the-engagement-api">
+  #### Integration der Engagement-API
+</div>
+
+<div id="introduction-to-api">
+  ##### **Einführung in die API**
+</div>
+
+Die Engagement-API ist eine einfache RESTful-API, die Anfragen im JSON-Format empfängt und mit Engagement-Metriken im JSON-Format antwortet. Anfragen bestehen aus drei Hauptteilen (den Links für weitere Dokumentation folgen):
+
+- Array von **_Post-IDs_**.
+- Array, das die [Metriktypen](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes) von Interesse angibt. Zu den Typen gehören unter anderem „impressions“, „retweets“, „hashtag\_clicks“ und „user\_follows“.
+- [Engagement-Gruppierungen](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings), eine JSON-Struktur, die angibt, wie die Engagement-Daten in der API-Antwort angeordnet werden sollen.
+
+In vielen Fällen bleiben die Engagement-Typen und -Gruppierungen von Anfrage zu Anfrage relativ konstant, wobei nur die Post-IDs aktualisiert werden.
+
+Die Engagement-API stellt [drei Endpunkte](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#RequestEndpoints) bereit:
+
+- **Totals** – liefert Gesamtsummen der Engagements für Posts. Einige Metriken sind für alle Posts verfügbar, während andere nur für die letzten 90 Tage verfügbar sind.
+- **28 hour** – liefert Zeitreihen-Engagement-Metriken der letzten 28 Stunden.
+- **Historical** – liefert Zeitreihen-Engagement-Metriken für bis zu vier aufeinanderfolgende Wochen für Posts, die seit dem 1. September 2014 veröffentlicht wurden.
+
+Der Endpunkt **/totals** unterstützt das Anfordern von Metriken für bis zu **250 Posts pro Anfrage**. Die Endpunkte **/28hour** und **/historical** unterstützen **25 pro Anfrage**.
+
+Nachdem wir den Zugang zur Engagement-API besprochen haben, führen wir Sie durch das Erstellen einer API-Anfrage, geben einen Überblick über OAuth und verweisen auf weitere technische Ressourcen.
+
+<div id="getting-api-access">
+  ##### **API-Zugriff erhalten**
+</div>
+
+Wenn Sie dieses Dokument lesen, haben Sie höchstwahrscheinlich bereits Zugriff auf die Engagement-API. Falls nicht, wenden Sie sich bitte an Ihre Enterprise-Account-Managerin bzw. Ihren -Account-Manager oder beantragen Sie den Enterprise-Zugang [hier](/de/x-api/enterprise-gnip-2.0/enterprise-gnip).
+
+Der erste Schritt ist, mit einem genehmigten Entwicklerkonto über das [Developer-Portal](/de/resources/fundamentals/developer-portal) eine [X-App](/de/resources/fundamentals/developer-apps) zu erstellen. Ihre Account-Managerin bzw. Ihr Account-Manager benötigt die numerische App-ID dieser Anwendung, um den Zugang bereitzustellen. Wenn Sie ein Entwicklerkonto beantragen müssen, können Sie dies [hier](/de/resources/fundamentals/developer-apps) tun.
+
+<div id="making-a-request">
+  ##### **Eine Anfrage stellen**
+</div>
+
+Die gute Nachricht ist: Anfragen an die Engagement-API zu stellen ist einfach. In unserem Beispiel bitten wir um die Gesamtzahl von Retweets, Zitaten, Favoriten und Antworten für die folgenden zwei [@XDevelopers](https://x.com/XDevelopers)-Posts:
+
+> 1/ Today we’re sharing our vision for the future of the X API platform![https://t.co/XweGngmxlP](https://t.co/XweGngmxlP)
+>
+> — Twitter Dev (@TwitterDev) [6. April 2017](https://x.com/TwitterDev/status/850006245121695744)
+
+> Don’t miss the Posts about your Post.
+>
+> Now on iOS, you can see Retweets with comments all in one place. [pic.x.com/oanjZfzC6y](https://t.co/oanjZfzC6y)
+>
+> — X (@X) [12. Mai 2020](https://x.com/status/1260294888811347969?ref_src=twsrc%5Etfw)
+
+Der erste Schritt ist, die API-Anfrage in JSON zu konstruieren. Sie besteht aus diesen zwei Post-IDs in einem Array, einem Array der relevanten Engagement-Typen sowie einem benanntem JSON-Objekt „groupings“, das angibt, wie die Metriken in der Antwort angeordnet werden sollen. So sieht unsere Anfrage aus:
+
+```json
+{
+  "tweet_ids": [
+    1260294888811347969, 850006245121695744
+  ],
+  "engagement_types": [
+    "retweets", "quote_tweets", "favorites", "replies"
+  ],
+  "groupings": {
+    "engagement-types-by-id": {
+      "group_by": [
+        "Tweet.id", "engagement.type"
+      ]
+    }
+  }
+}
+```
+
+Um diese Gesamtsummen abzurufen, senden wir diese JSON-Anfrage per POST an den Endpoint https://data-api.x.com/insights/engagement/totals.
+
+Wir fügen die folgenden Header hinzu, um anzuzeigen, dass unsere Anfrage JSON-codiert ist und Gzip-Komprimierung verwendet (Request-Bodies können groß werden):
+
+- Content-Type: application/json
+- Accept-Encoding: gzip
+   
+
+Bei Anfragen authentifizieren wir uns mit OAuth; darauf gehen wir im nächsten Abschnitt näher ein.
+
+Die API gibt die folgende Payload zurück:
+
+```json
+{
+  "grouping name": {
+    "1260294888811347969": {
+      "favorites": "17111",
+      "quote_tweets": "3254",
+      "replies": "1828",
+      "retweets": "5218"
+    },
+    "850006245121695744": {
+      "favorites": "492",
+      "quote_tweets": "66",
+      "replies": "42",
+      "retweets": "324"
+    }
+  }
+}
+```
+
+Beachten Sie, dass die Antwort unsere angeforderten Metriken in der durch die „groupings“-Definitionen beschriebenen Struktur enthält, wobei die Metriken zuerst nach Post-ID und dann auf der nächsten Ebene nach Engagement-Typ aufgeführt sind.
+
+Das war recht einfach. Wenn Sie neu bei der Authentifizierung mit OAuth sind, lesen Sie den nächsten Abschnitt.
+
+<div id="authenticating-with-oauth">
+  #### Authentifizierung mit OAuth
+</div>
+
+OAuth ist ein Authentifizierungsstandard, der in der Technologiebranche sehr verbreitet ist. Wenn Sie bereits OAuth verwenden (etwa mit anderen X-APIs), nutzen Sie wahrscheinlich ein sprachspezifisches OAuth-Paket, das die ganzen kniffligen Details abstrahiert. Wenn Sie neu bei OAuth sind, besuchen Sie bitte unsere Seite [OAuth mit der X-API](/de/resources/fundamentals/authentication) oder gehen Sie direkt zu [https://oauth.net](https://oauth.net/), um mehr zu erfahren. Anschließend empfehlen wir, ein OAuth-Paket für die Integrationssprache Ihrer Wahl zu wählen und damit zu beginnen. Mit diesen Paketen umfasst der Weg zur Authentifizierung typischerweise das Konfigurieren Ihrer Keys und Tokens, das Erstellen eines HTTP-Objekts und das anschließende Senden von Anfragen mit diesem Objekt.
+
+Zum Beispiel zeigt in der Ruby-Welt der folgende Pseudocode ein Rezept, um eine OAuth-fähige App mit dem Ruby-Gem „oauth“ zu erstellen und eine POST-Anfrage zu senden:
+
+```js
+require 'oauth'
+
+# Assemble JSON request (as above).
+request = make_json_request()
+
+# Build an app consumer object with my app consumer key and secret.
+consumer = OAuth::Consumer.new(keys['consumer_key'], keys['consumer_secret'], {:site => 'https://data-api.x.com'})
+# Build a user token with tokens provided by account providing permission. If making app-only
+# request (checking Tweets that do not require permission with /totals endpoint), this step can be
+# skipped.
+token = {:oauth_token => keys['access_token'], :oauth_token_secret => keys['access_token_secret']}
+
+# Create oauth-enabled app object.
+app = OAuth::AccessToken.from_hash(consumer, token)
+# Make POST request.
+result = app.post("/insights/engagement/totals", request, {"content-type" => "application/json", "Accept-Encoding" => "gzip"})
+```
+
+Die Engagement-API unterstützt sowohl reine Anwendungs- als auch Benutzerkontext-Authentifizierung. Wenn Sie Engagement-Metriken für nicht eigene öffentliche Posts über den Endpunkt /totals erfassen, ist keine Benutzerberechtigung erforderlich und Sie können die reine Anwendungs-Authentifizierung verwenden. In diesem Fall authentifizieren Sie sich nur mit Ihrem App-Key und -Secret.
+
+OAuth ermöglicht es einer App auch, eine API-Anfrage „im Namen eines anderen Benutzers“ zu stellen, wobei benutzerbezogene Tokens verwendet werden. Wenn Sie Engagement-Metriken für eigene Posts generieren, also Posts, die von einem Benutzer veröffentlicht wurden, für den Ihnen Benutzertokens vorliegen, senden Sie Anfragen im Benutzerkontext, das heißt, Sie authentifizieren sich sowohl mit Ihren App-Keys als auch mit benutzerspezifischen Access Tokens. Diese Benutzer-Access-Tokens werden typischerweise über den Prozess „[Mit X anmelden](/de/resources/fundamentals/authentication#log-in-with-x)“ bereitgestellt oder direkt vom Benutzer bezogen (bitte beachten Sie, dass Sie [xurl](https://github.com/xdevplatform/xurl) verwenden müssen, wenn Sie die Tokens direkt vom Benutzer beziehen). Sobald der Benutzer seine Tokens bereitstellt, laufen sie nicht ab und können mit der Engagement-API genutzt werden, um in seinem Namen Anfragen zu stellen, solange der Benutzer seine Tokens nicht zurücksetzt oder sein Passwort ändert; in diesem Fall muss er Ihnen die neuen Tokens bereitstellen.
+
+Welche Metriken welche Authentifizierung erfordern, können Sie in [dieser Tabelle](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings) nachsehen.
+ 
+
+<div id="selecting-an-engagement-api-endpoint">
+  ### Auswahl eines Engagement-API-Endpunkts
+</div>
+
+Die Engagement-API stellt drei unterschiedliche Endpunkte bereit:
+
+- **[Totals](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)** – liefert Gesamtsummen ausgewählter Metriken für „Owned“- oder „Unowned“-Posts. Einige Metriken sind für alle Posts verfügbar, andere nur für Posts, die in den letzten 90 Tagen veröffentlicht wurden. Unterstützt 250 Posts pro Anfrage.
+- **[28 hour](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)** – liefert Zeitreihen-Engagement-Metriken für „Owned“-Posts der letzten 28 Stunden. Unterstützt 25 Posts pro Anfrage.
+- **[Historical](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-historical)** – liefert Zeitreihen-Engagement-Metriken für bis zu vier aufeinanderfolgende Wochen für „Owned“-Posts, die seit dem 1. September 2014 veröffentlicht wurden. Unterstützt 25 Posts pro Anfrage.
+   
+
+Jeder Endpunkt hat seine eigenen Besonderheiten. Unabhängig davon, ob Sie alle drei nutzen möchten oder entscheiden wollen, welcher am besten zu Ihrem Anwendungsfall passt, ist es wichtig, die Unterschiede zwischen ihnen zu verstehen.
+
+Im Folgenden führen wir einige Schlüsselkonzepte ein, erläutern die drei Endpunkte ausführlicher und präsentieren anschließend Beispielanwendungsfälle, die im Allgemeinen einem bestimmten Endpunkt zugeordnet sind. Wir hoffen, dass Ihnen diese Informationen helfen, alle drei effizienter zu integrieren, oder Ihnen die Entscheidung erleichtern, welcher einzelne Endpunkt am besten zu Ihrem Ziel passt.
+ 
+
+<div id="key-concepts">
+  #### Zentrale Konzepte
+</div>
+
+Es gibt mehrere zentrale Konzepte, die die unterschiedlichen Funktionen und die von den drei Engagement-API-Endpunkten bereitgestellten Daten veranschaulichen.
+ 
+
+<div id="impressions-and-engagement-metrics">
+  ##### Impressionen und Engagement-Metriken
+</div>
+
+Impressionen entsprechen der Anzahl der Male, die ein bestimmter Post auf der X-Plattform in einem organischen Kontext angezeigt wurde. Impressionen aus Posts, die in einem beworbenen oder bezahlten Kontext gesehen werden, sind nicht enthalten. Vor der Engagement-API standen Post-Impressionen lediglich für ein Maß potenzieller Sichtkontakte. Sie basierten auf der Zählung der Follower des Accounts der Autorin oder des Autors sowie der Follower aller Accounts, die den Inhalt retweeten. Dabei wurde die häufige Situation nicht berücksichtigt, dass eine bestimmte Nutzerin oder ein bestimmter Nutzer den Post tatsächlich nicht sieht.
+
+Die von der Engagement-API generierten Impressionsmetriken messen tatsächlich, wie oft ein Post zur Anzeige gerendert wurde. Wenn eine Followerin oder ein Follower Ihres Accounts Ihren Post verpasst, zählt das nicht als Impression.
+
+Die Engagement-API stellt Metriken zu 14 eindeutigen Engagement-[Metriktypen](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#available-metrics) bereit, die jeweils eine konkrete Aktion darstellen, die eine Nutzerin oder ein Nutzer beim Anzeigen eines Posts ausführen kann. Dazu gehören Retweeten, Liken, Antworten, Klicks auf Entitäten wie #Hashtags, Links und Medien, dem Autor folgen sowie das Anzeigen des Profils der Autorin bzw. des Autors. All diese Einzelaktionen werden in einer einzigen Metrik namens Engagements zusammengefasst.
+
+<div id="owned-and-unowned-x-content">
+  ##### Eigene und fremde X-Inhalte
+</div>
+
+Die Engagement-API unterscheidet klar zwischen eigenen und fremden Posts. Eigene Posts sind Beiträge, die von deinem Konto veröffentlicht wurden, oder Beiträge, für die du die Berechtigung erhalten hast, Engagement-Daten anzufordern. Wie bei anderen X-APIs erhältst du diese Berechtigung, indem andere X-Nutzer/Konten Zugriffstokens mit dir teilen, die es dir ermöglichen, API-Anfragen in ihrem Namen zu stellen. Eine gängige Methode, diese Tokens zu erhalten, ist der Prozess [„Mit X anmelden“](/de/resources/fundamentals/authentication#log-in-with-x).
+
+Der Endpunkt /totals liefert Engagement-Daten sowohl für eigene als auch für fremde Posts. Für fremde Posts kannst du Engagement-Metriken anfordern, die in der öffentlichen Post-Anzeige verfügbar sind: Favorite, Retweet und Reply. Für diese Metriken bietet die Engagement-API die Möglichkeit, sie automatisiert und in großem Umfang abzurufen. Für eigene Posts liefert der Endpunkt /totals außerdem Impressionen und (gesamt) Engagement-Metriken.
+
+Die Endpunkte /28hr und /historical liefern nur Metriken für eigene Posts. Das bedeutet, dass du beim Aufrufen dieser Endpunkte den Benutzerkontext mitgeben musst.
+
+<div id="total-and-time-series-engagement-data">
+  ##### Gesamt- und Zeitreihen-Engagementdaten
+</div>
+
+Der Endpunkt /totals liefert, wie der Name schon sagt, nur Gesamtsummen für die jeweiligen Engagement-Typen. Diese Zahlen entsprechen den aktuellen Gesamtsummen seit der Veröffentlichung des Posts. Wenn ein Post gerade veröffentlicht wurde und Sie seine Metriken wiederholt abfragen, ändern sich diese Gesamtsummen in der Regel mit jeder Anfrage.
+
+Die Endpunkte /28hr und /historical können sowohl Gesamtsummen als auch Zeitreihendaten bereitstellen. Bei der Abfrage von Zeitreihendaten können die Engagement-Metriken zu täglichen oder stündlichen Werten aggregiert werden.   
+
+Weitere Informationen finden Sie in unserer Dokumentation zu [Engagement-Gruppierungen](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings), in der beschrieben wird, wie Zeitreihendaten mit den Endpunkten /28hr und /historical angefordert werden.
+
+<div id="endpoints-and-example-use-cases">
+  #### Endpunkte und Beispielanwendungsfälle
+</div>
+
+Angesichts der oben beschriebenen Eigenschaften und Unterschiede eignen sich die einzelnen Endpunkte in der Regel für unterschiedliche Arten von Anwendungsfällen. Um Ihnen die Wahl des am besten passenden Endpunkts für Ihren konkreten Anwendungsfall zu erleichtern, finden Sie unten einige beispielhafte Nutzerstatements sowie den jeweils geeignetsten Endpunkt.
+
+<div id="totals">
+  ##### **/totals**
+</div>
+
+- Ich benötige nur Zugriff auf bestimmte Metriktypen (Impressions, Engagements, Favoriten, Retweets, Zitierte Posts, Antworten und Videoaufrufe).
+- Ich benötige Zugriff auf grundlegende Engagement-Daten für beliebige Posts, nicht nur für eigene.
+- Ich möchte die Performance mit einem Wettbewerber vergleichen.
+- Ich möchte grundlegende Engagement-Statistiken für einen Hashtag oder eine Kampagne verfolgen, die auch Posts umfasst, die nicht von mir stammen.
+- Ich benötige keine nach Tag oder Stunde aufgeschlüsselten Daten, sondern nur die aktuelle Gesamtsumme zum Zeitpunkt der Anfrage.
+- Ich benötige eine einzelne Metrik zur Anzeige in einem Bericht oder Dashboard und möchte keine Daten speichern.
+- Ich möchte Daten beim Seitenaufruf anzeigen und muss lediglich eine Anfrage stellen und eine Antwort erhalten.
+- Ich benötige Zugriff, um Daten für Hunderttausende oder Millionen von Posts pro Tag abzurufen.
+   
+
+<div id="28hr">
+  ##### **/28hr**
+</div>
+
+- Ich benötige Zugriff auf alle 17 Metriktypen.
+- Ich möchte Daten für sehr aktuelle Posts anzeigen, die in den letzten 28 Stunden veröffentlicht wurden.
+- Ich habe einen Job, der einmal täglich läuft, um die für mich relevanten Daten abzurufen, und muss nur Daten für den letzten Tag beziehen.
+- Ich benötige Metriken, die nach Tag oder Stunde aufgeschlüsselt sind.
+- Ich möchte in einem Dashboard Zeitreihenaufschlüsselungen der Aktivität nach Stunde anzeigen.
+- Ich benötige hohe Zugriffskapazitäten für Hunderttausende Posts pro Tag.
+- Ich verfüge über Speicherkapazitäten, kann Daten einmal pro Tag aktualisieren und eine laufende Gesamtsumme führen.
+   
+
+<div id="historical">
+  ##### **/historical**
+</div>
+
+- Ich benötige Zugriff auf alle 17 Metriktypen.
+- Ich muss historische Daten für Posts abrufen, die bis September 2014 zurückreichen.
+- Ich möchte detaillierte historische Analysen bereitstellen, die Kampagnen vergleichen.
+- Ich benötige Metriken, die nach Tag oder Stunde aufgeschlüsselt sind.
+- Ich brauche keinen hohen Zugriff auf die Engagement-API und muss pro Tag nur Daten für einige Hundert bis Tausend Posts abrufen.
+
+<div id="engagement-api-key-characteristics">
+  ### Wichtige Merkmale der Engagement-API
+</div>
+
+- **RESTful-API**, die JSON-Daten bereitstellt und POST-Anfragen mit JSON-Anfragetexten (JSON-Body) unterstützt.
+- **Arten von Anfragen:** Client-Apps können die folgenden Anfragetypen stellen:
+  - **Gesamte Engagements** -- HTTP-POST-Anfrage an den Endpunkt /totals
+  - **Engagements der letzten 28 Stunden** -- HTTP-POST-Anfrage an den Endpunkt /28hr
+  - **Historische Engagements** -- HTTP-POST-Anfrage an den Endpunkt /historical
+- **OAuth-Authentifizierung:**
+  - [OAuth 1.0 User Context](/de/resources/fundamentals/authentication): Alle verfügbaren Metriken sind für Posts verfügbar, die einem Nutzer gehören, der Ihre App mit [3-legged OAuth](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens) autorisiert hat. Sie müssen die Access Tokens dieses Nutzers verwenden, wenn Sie Ihre Anfrage stellen.[](/de/resources/fundamentals/authentication)
+  - [OAuth 2.0 Bearer Token](/de/resources/fundamentals/authentication#oauth-2-0): Ausgewählte Metriken (Retweets, Quote Tweets, Replies, Favorites und Video Views) sind für jeden öffentlichen Post verfügbar.
+- **Anfrage-Metadaten und -Struktur**: Die Anfragedaten sind ein JSON-Objekt, das aus einem Post-ID-Array, einem Array von Engagement-Typen und einer Struktur für die Engagement-Gruppierung besteht.
+- **Posts pro Anfrage:**
+  - Endpunkt /totals: 250 Post-IDs
+  - Endpunkt /28hr: 25 Post-IDs
+  - Endpunkt /historical: 25 Post-IDs
+- **Verfügbarkeit von Engagement-Metriken:**
+  - **/totals** -- Metrik-Gesamtsummen seit Veröffentlichung des Posts. Impressions und Engagements sind für Posts verfügbar, die in den letzten 90 Tagen veröffentlicht wurden, während Retweets, Quote Tweets, Replies, Favorites und Video Views für alle Posts verfügbar sind.
+  - **/28hr** -- Letzte 28 Stunden ab dem Zeitpunkt der Anfrage.
+  - **/historical** -- Beliebiger 28-Tage-Zeitraum beginnend am 1. September 2014.
+- **Metriktypen**: Jede Anfrage enthält ein Array von [Metric Types](http://support.gnip.com/apis/engagement_api/overview.html#EngagementTypes). Deren Verfügbarkeit hängt vom Endpunkt ab und, bei Anfragen an den Endpunkt /totals, davon, ob Posts nutzerautorisiert sind.
+  - Endpunkt /totals:
+    - Alle Posts: Favorites, Retweets, Quote Tweets, Replies und Video Views
+    - Erfordert OAuth 1.0a User Context: Impressions, Engagements, Favorites, Replies und Retweets
+  - Endpunkte /28hr und /historical (erfordert OAuth 1.0a User Context mit Access Token des Post-Eigentümers): Impressions, Engagements, Favorites, Replies, Retweets, URL Clicks, Hashtag Clicks, Detail Click, Permalink Clicks, Media Clicks, App Install Attempts, App Opens, Post Emails, Video Views und Media Views
+- **Engagement-Gruppierungen:** Jede Anfrage enthält ein Array von [Engagement Groupings](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings). Mit diesen Gruppierungen können Sie steuern, wie die zurückgegebenen Metriken organisiert werden. Pro Anfrage können bis zu drei Gruppierungen enthalten sein. Metriken können nach den folgenden Werten organisiert werden:
+  - Alle Endpunkte: Post-ID, Engagement-Typ
+  - Endpunkte /28hr und /historical: Diese Endpunkte liefern Zeitreihen, wenn diese zusätzlichen Gruppierungen angegeben werden: Engagement Day, Engagement Hour
+- **Integrationserwartungen:** Ihr Team ist für Folgendes verantwortlich:
+  - Erstellen und Pflegen einer Client-App, die HTTP-Anfragen an die Engagement-API senden kann und Engagement-Metriken für in der Anfrage enthaltene Post-IDs zurückgibt.
+- **Einschränkungen**
+- Video Views sind nur für Posts verfügbar, die 1.800 Tage oder jünger sind.
+
+<div id="authenticating-with-the-engagement-api">
+  ### Authentifizierung mit der Engagement-API
+</div>
+
+> **Bitte beachten**: 
+>
+> X muss den Zugriff auf die Engagement-API für Ihre Entwickler-App freischalten, bevor Sie die API verwenden können. Teilen Sie dafür die App-ID, die Sie für die Authentifizierung verwenden möchten, Ihrem Account-Manager bzw. Ihrer Account-Managerin oder dem technischen Support-Team mit.
+
+Mit der Engagement-API stehen zwei Authentifizierungsmethoden zur Verfügung: [OAuth 1.0a](/de/resources/fundamentals/authentication#oauth-1-0a-2) und [OAuth 2.0 Bearer Token](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only).
+
+**OAuth 2.0 Bearer Token** (auch „application-only“ genannt) ermöglicht den Zugriff auf öffentlich verfügbare Engagement-Metriken. Diese Authentifizierungsmethode kann verwendet werden, um Gesamtzahlen für Favoriten (Likes), Retweets, Zitat-Posts, Antworten und Videoaufrufe für beliebige öffentlich verfügbare Posts beim Aufruf des [/totals-Endpunkts](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-totals) zu erhalten.
+
+**OAuth 1.0a** (auch „User-Kontext“ genannt) ermöglicht es Ihnen, Anfragen im Namen eines Nutzers zu stellen und auf private Engagement-Metriken des betreffenden Nutzers zuzugreifen.
+
+Diese Authentifizierungsmethode ist erforderlich für:
+
+- Alle Anfragen an den [/28hr-Endpunkt](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-28hr) und den [/historical-Endpunkt](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-historical)
+- Den Zugriff auf die folgenden privaten Metriken: Impressions, Engagements, Media Views, Media Engagements, URL Clicks, Hashtag Clicks, Detail Expands, Permalink Clicks, App Install Attempts, App Opens, Email Post, User Follows und User Profile Clicks
+
+Wenn Sie eine Anfrage mit OAuth 1.0a senden, müssen Sie die Access Tokens (Access Token und Secret) des Nutzers beifügen, dem der Post bzw. die geschützte Ressource gehört. Wenn Sie beim Anfordern geschützter Nutzerdaten nicht die korrekten Access Tokens des Nutzers angeben, gibt die Engagement-API einen `403 Forbidden`-Fehler zurück.
+
+Die Engagement-API erlaubt nicht, Engagement-Daten für [geschützte Posts](https://help.x.com/en/safety-and-security/public-and-protected-tweets) abzurufen, selbst wenn Sie im Namen des Nutzers authentifizieren, dem diese Posts gehören. Ein solcher Versuch führt zu einem `400 Bad Request`-Fehler mit der Meldung „Tweet ID(s) are unavailable“.
+
+Wenn Sie eine Anfrage im Namen Ihres eigenen X-Kontos senden (also des Kontos, dem die Entwickler-App gehört), können Sie die erforderlichen Access Tokens direkt im [Developer-Portal](https://developer.x.com/en/portal/projects-and-apps) unter dem Tab „Keys and tokens“ für die Entwickler-App erzeugen.
+
+Wenn Sie eine Anfrage im Namen eines anderen Nutzers stellen, müssen Sie den 3-legged OAuth-Flow verwenden, um die erforderlichen Access Tokens zu erhalten. Die folgende Dokumentation enthält weitere Informationen dazu: [OAuth 1.0a: how to obtain a user’s access tokens](/de/resources/fundamentals/authentication#oauth-1-0a-2).
+
+Weitere Beispiele, einschließlich der Authentifizierung mit OAuth 1.0a, finden Sie im [Beispiel-Python-Code von X Developers für die Engagement-API](https://github.com/xdevplatform/enterprise-scripts-python/tree/master/Engagement-API).
+
+<div id="recent-changes-to-the-engagement-api">
+  ### Neueste Änderungen an der Engagement-API
+</div>
+
+Die Engagement-API liefert wertvolle Metriken zu Impressionen und Engagement, mit denen Sie die Performance Ihrer Aktivitäten auf X überwachen können. In unserem kontinuierlichen Bestreben, datengestützte Marketingentscheidungen zu ermöglichen, freuen wir uns, jüngste Änderungen an der Engagement-API vorzustellen, die für mehr Konsistenz der Metriken auf ganz X sorgen.  
+
+Kürzlich haben wir Änderungen ausgerollt, um die Engagement-API zu modernisieren und dieselbe Methodik zur Metrikaggregation zu verwenden, die auch vom X-Analytics-Dashboard (analytics.x.com) genutzt wird. Wir sind dabei bedacht vorgegangen, um disruptive API-Änderungen bei der Einführung dieser neuen Metriken zu minimieren, und haben den ersten Satz von Änderungen am 9. Oktober 2017 bereitgestellt. Diese Änderungen verbessern die Konsistenz an all den Stellen, an denen Sie oder Ihre Kunden die Performance auf X überwachen könnten. Nachfolgend finden Sie die detaillierte Übersicht der Änderungen:
+
+|     |     |
+| :--- | :--- |
+| **Metrik** | **Änderung** |
+| engagements | Wir haben die Metriken aktualisiert, die in die Gesamtzahl der Engagements einfließen, um die Konsistenz mit dem Post-Analytics-Dashboard sicherzustellen. Engagements messen „wie oft Personen mit diesem Post interagiert haben“.<br /><br />Bei Posts, die Medien wie ein Video oder ein GIF enthalten, umfasst die Metrik engagements künftig keine Medienaufrufe mehr. Medienaufrufe sind jetzt über eine neue Metrik, _media\_views_, verfügbar. |
+| media\_clicks\* | Diese Metrik wurde durch eine neue Metrik namens „_media\_engagements_“ ersetzt. |
+| video\_views | Seit dem 6. Juli 2018 ist diese Metrik auch für „unowned“-Posts über den [/totals](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)-Endpunkt verfügbar. Das bedeutet, dass Sie die Videoaufrufe für **alle** Posts mithilfe der App-only-Authentifizierung abrufen können. <br /><br />Sie können nur Videoaufrufe anfordern, die jünger als 1.800 Tage sind. Wenn Sie versuchen, Videoaufrufe für einen Post anzufordern, der älter als 1.800 Tage ist, erhalten Sie Folgendes:<br /><br />"unsupported\_for\_video\_views\_tweet\_ids": \["TWEET\_ID"]<br /><br />**Bitte beachten Sie**, dass sie sich von media\_views unterscheidet, da video\_views auf dem MRC-Standard beruht, wonach 50 % des Videos mindestens zwei Sekunden im Sichtfeld sein müssen.  <br /><br />**Außerdem** ist zu beachten, dass es zu Abweichungen zwischen der in den von X betriebenen Plattformen (Mobile-App und Website) angezeigten Metrik für Videoaufrufe und der Zahl kommen kann, die Sie über die Endpunkte /28hr und /historical erhalten.<br /><br />\* Die in der X-Benutzeroberfläche angezeigten Videoaufrufe und die über den /totals-Endpunkt gelieferten Werte zeigen die Videoaufrufe aggregiert über alle Posts, in denen das betreffende Video gepostet wurde. Das bedeutet, dass die in der UI angezeigte Metrik die kombinierten Aufrufe aus allen Fällen einschließt, in denen das Video in separaten Posts retweetet oder erneut gepostet wurde.<br />\* Die über die Endpunkte /28hr und /historical bereitgestellten Videoaufrufe enthalten nur jene Aufrufe, die durch den spezifischen Post generiert wurden, für den Sie Metriken abrufen. |
+| media\_views | Dies umfasst alle Aufrufe (Autoplay und Klick) Ihrer Medien über Videos, Vines, GIFs und Bilder hinweg.<br /><br />**Bitte beachten Sie**, dass Posts mit Bildern im Analytics-Dashboard keine media\_views-Metrik anzeigen, diese jedoch in der Engagement-API zurückgegeben wird. |
+| media\_engagements\* | Dies umfasst die Anzahl der Klicks auf Ihre Medien über Videos, Vines, GIFs und Bilder hinweg. Diese Metrik ersetzt _media\_clicks_. |
+| quote\_tweets | Seit dem 7. Juli 2020 ist diese Metrik auch für „unowned“-Posts über den /totals-Endpunkt verfügbar. Das bedeutet, dass Sie die Anzahl der Quote-Posts für alle Posts mithilfe der App-only-Authentifizierung abrufen können. |
+
+<div id="interpreting-the-metrics">
+  ### Interpretation der Metriken
+</div>
+
+**Hinweis:** Es kann zu Abweichungen zwischen den in einigen X-Web-Dashboards ausgewiesenen Daten und den im Engagement API gemeldeten Daten kommen. Diese Unterschiede entstehen, weil die Web-Dashboards in der Regel nur Engagements und/oder Impressionen anzeigen, die innerhalb des ausgewählten Zeitraums stattgefunden haben. Ein Web-Dashboard kann beispielsweise Engagements für Posts innerhalb eines Kalendermonats anzeigen, während das Engagement API Engagements ausweist, die über diesen Monat hinausgehen, aber innerhalb des angefragten Zeitraums liegen. In diesen Fällen ist das Engagement API als maßgebliche Quelle zu betrachten.
+ 
+
+<div id="impressions-and-engagement-data">
+  #### Impressionen und Engagement-Daten
+</div>
+
+Die Engagement-API liefert **organische** Impressionen und Engagement-Daten.
+
+Impressionen geben an, wie oft ein bestimmter Post in einem organischen Kontext auf der X-Plattform angezeigt wurde. Impressionen aus Posts, die in einem beworbenen oder bezahlten Kontext gesehen werden, sind **nicht** enthalten.
+
+Engagements geben an, wie oft ein bestimmter Post von einem Betrachter sowohl in einem **organischen** als auch in einem **beworbenen** Kontext interagiert wurde. Zu den Engagements zählen unter anderem Retweets, Favoriten, Antworten, URL-Klicks, Hashtag-Klicks, Erwähnungs-Klicks und Medienaufrufe. Die vollständige Liste der erfassten Engagement-Aktionen finden Sie im Abschnitt Engagement-Daten. 
+
+Zur Berechnung einer grundlegenden Engagement-Rate teilen Sie bitte die Gesamtzahl der Engagements durch die Gesamtzahl der Impressionen für einen bestimmten Post im analysierten Zeitraum.
+
+Impressions- und Engagement-Daten können nur für Posts von eigenen @handles oder @handles abgerufen werden, die Ihre Anwendung autorisiert haben, Details zu ihren Posts einzusehen.  Intern verfolgt die Engagement-API die Anzahl der eindeutigen @handles, die im Verhältnis zum vertraglich vereinbarten @handle-Limit abgefragt wurden.  Es wird empfohlen, die Nutzung der @handle-Anfragen auch clientseitig über den Monat hinweg nachzuverfolgen.  
+
+<div id="video-metrics">
+  #### Videomesswerte
+</div>
+
+Es gibt mehrere unterschiedliche Messwerte, die Impressionen von Medien auf X abbilden. Der erste ist unser Messwert für Videoaufrufe, der auf dem MRC-Standard basiert: 50 % des Videos sind mindestens zwei Sekunden im sichtbaren Bereich. Der zweite ist Media Views; dieser umfasst alle Aufrufe (Autoplay und Klick) Ihrer Medien, gezählt über Videos, Vines, GIFs und Bilder hinweg.
+
+Der Messwert für Videoaufrufe ist für eigene Posts über die Endpunkte /28hour und /historical verfügbar sowie für alle nicht eigenen Posts über den Endpunkt /totals.
+
+Obwohl der Messwert für Videoaufrufe in der X-Benutzeroberfläche denselben MRC-Standard verwendet, beachten Sie bitte, dass es zu Abweichungen zwischen dem in den von X betriebenen Plattformen (Mobile App und Website) angezeigten Messwert für Videoaufrufe und der Zahl kommen kann, die Sie über die verschiedenen Engagement-API-Endpunkte erhalten.
+
+- Die Videoaufrufe, die vom Endpunkt /totals und der X-Benutzeroberfläche bereitgestellt werden, zeigen die Videoaufrufe aggregiert über alle Posts an, in denen das betreffende Video veröffentlicht wurde. Das bedeutet, dass der über /totals gelieferte und in der X-UI angezeigte Messwert die kombinierten Aufrufe aus allen Instanzen umfasst, in denen das Video in separaten Posts retweetet oder erneut gepostet wurde.
+- Die Videoaufrufe, die von den Engagement-API-Endpunkten /28hour und /historical bereitgestellt werden, enthalten nur die Aufrufe, die durch den konkreten Post generiert wurden, für den Sie Messwerte abrufen.
+
+Bitte beachten Sie, dass wir keine Videoaufrufe für Posts liefern, die älter als 1.800 Tage sind. Stattdessen liefern wir ein Objekt, das die Posts auflistet, die älter als 1.800 Tage sind. Alle anderen Messwerte für Ihre angeforderten Posts erhalten Sie weiterhin in einem separaten Objekt. Hier ist ein Beispiel für eine Antwort:
+
+```json
+{
+  "unsupported_for_video_views_tweet_ids": [
+    "479311209565413376",
+    "477139122520219648"
+  ],
+  "grouping name": {
+    "479311209565413376": {
+      "favorites": "69",
+      "impressions": "1692",
+      "retweets": "142",
+      "video_views": "0"
+    },
+    "477139122520219648": {
+      "favorites": "10",
+      "impressions": "1023",
+      "retweets": "6",
+      "video_views": "0"
+    },
+    "1397568983931392004": {
+      "favorites": "268",
+      "impressions": "26803",
+      "retweets": "56",
+      "video_views": "17902"
+    }
+  }
+}
+```
+
+Der Messwert Media Views ist nur für eigene Posts über die Endpunkte /28hour und /historical verfügbar.
+
+<div id="engagement-api-groupings">
+  ### Gruppierungen der Engagement-API
+</div>
+
+Gruppierungen ermöglichen eine flexible Organisation der zurückgegebenen Engagement-Metriken. Pro Anfrage können Sie maximal 3 Gruppierungen angeben. Sie können die Metriken nach einem oder mehreren der folgenden Werte gruppieren:
+
+_Alle drei Endpunkte unterstützen:_
+
+- tweet.id
+- engagement.type
+   
+
+_Die Endpunkte `/28hr` und `/historical` können Zeitreihenmetriken liefern und unterstützen daher:_
+
+- engagement.day
+- engagement.hour
+
+Gruppierungen werden in Reihenfolge ausgewertet, sodass Sie das gewünschte Ergebnisformat durch Ändern der Reihenfolge Ihrer `group_by`-Werte steuern können. Gruppierungen mit vier `group_by`-Werten werden nur in einem der folgenden beiden Formate unterstützt:
+ 
+
+```bash
+"group_by": [
+    "tweet.id",
+    "engagement.type",
+    "engagement.day",
+    "engagement.hour"
+  ]
+```
+
+ODER
+
+```bash
+"group_by": [
+    "engagement.type",
+    "tweet.id",
+    "engagement.day",
+    "engagement.hour"
+]
+```
+
+Wenn Sie beispielsweise Gesamtsummen nach Metriktyp erzeugen möchten, fügen Sie die folgende „groupings“-Spezifikation in Ihre Anfrage ein (weitere Informationen zum Zusammenstellen von Anfragen finden Sie in der [API-Referenz](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)):
+ 
+
+```json
+{
+  "engagement_types": [
+    "favorites",
+    "replies",
+    "retweets"
+  ],
+  "groupings": {
+    "Grand Totals": {
+      "group_by": [
+        "engagement.type"
+      ]
+    }
+  }
+}
+```
+
+Mit dieser Gruppierung enthält die JSON-Antwort der Engagement-API ein Attribut auf Root-Ebene `"Grand Totals"`, das Gesamtsummen nach Metriktyp enthält:
+
+```json
+{
+  "Grand Totals": {
+    "favorites": "12",
+    "replies": "2",
+    "retweets": "2"
+  }
+}
+```
+
+Um eine 4-stündige Zeitreihe der Metriken für einen einzelnen Post, gruppiert nach Post-IDs, zu erzeugen, wäre die folgende Gruppierungsspezifikation Teil der Anfrage:
+
+```json
+{
+  "start": "2016-02-10T17:00:00Z",
+  "end": "2016-02-10T21:00:00Z",
+  "tweet_ids": [
+    "697506383516729344"
+  ],
+  "engagement_types": [
+    "impressions",
+    "engagements"
+  ],
+  "groupings": {
+    "Tweets_MetricType_TimeSeries": {
+      "group_by": [
+        "tweet.id",
+        "engagement.type",
+        "engagement.hour"
+      ]
+    }
+  }
+}
+```
+
+Mit dieser Gruppierung enthält die JSON-Antwort der Engagement-API ein Attribut auf Root-Ebene `"Tweets_MetricType_TimeSeries"`, das die Metriken aufgeschlüsselt nach Post-ID, anschließend Metriktyp und der entsprechenden stündlichen Zeitreihe enthält:
+
+```json
+{
+  "Tweets_MetricType_TimeSeries": {
+    "697506383516729344": {
+      "impressions": {
+        "2016-02-10": {
+          "17": "551",
+          "18": "412",
+          "19": "371",
+          "20": "280"
+        }
+      },
+      "engagements": {
+        "2016-02-10": {
+          "17": "8",
+          "18": "6",
+          "19": "3",
+          "20": "0"
+        }
+      }
+    }
+  }
+}
+```
+
+<div id="frequently-asked-questions">
+  ## Häufig gestellte Fragen
+</div>
+
+`Enterprise`
+
+<div id="engagement-api">
+  ### Engagement-API
+</div>
+
+<AccordionGroup>
+  <Accordion title="Wie erhalte ich Zugriff auf die Engagement-API?">
+    Der Zugriff auf die Engagement-API erfolgt über ein Enterprise-Abonnement. Bitte füllen Sie [dieses Formular](/de/x-api/enterprise-gnip-2.0/enterprise-gnip) aus, um mit unserem Vertriebsteam in Kontakt zu treten.
+  </Accordion>
+
+  <Accordion title="Wie wird meine Nutzung nach „@handle“ erfasst?">
+    Wenn Ihr Vertrag ein Limit für die Anzahl eindeutiger Handles vorsieht, die mit der Engagement-API verwendet werden können, verfolgt das interne X-System die Anzahl der authentifizierten Nutzer, denen Posts gehören, die mit der Engagement-API abgefragt werden. Kunden sollten diese eindeutige Zahl ebenfalls clientseitig erfassen. Derzeit gibt es keine Nutzungs-API oder UI, um die @handle-Nutzung für die Engagement-API zu prüfen. Das System blockiert keine Überschreitungen, wenn mehr @handles angefragt werden, als vertraglich vereinbart. Am Ende des Abrechnungsmonats wird die Anzahl der abgefragten eindeutigen @handles mit der vertraglich vereinbarten Menge verglichen, und eine Übernutzungsgebühr wird gemäß den Vertragsbedingungen berechnet.
+  </Accordion>
+
+  <Accordion title="Kann ich meine @handle-Nutzung für die Engagement-API prüfen?">
+    Derzeit gibt es keine Nutzungs-API oder UI, um die @handle-Nutzung für die Engagement-API zu prüfen. Das System blockiert keine Überschreitungen, wenn mehr @handles angefragt werden, als vertraglich vereinbart. Am Ende des Abrechnungsmonats wird die Anzahl der abgefragten eindeutigen @handles mit der vertraglich vereinbarten Menge verglichen, und eine Übernutzungsgebühr wird gemäß den Vertragsbedingungen berechnet.
+
+    **Das in der Payload zurückgegebene Metadatenfeld `engagements` entspricht nicht der Summe aller einzelnen Engagement-Metriken. Warum ist das so?**
+
+    Das ist zu erwarten. Das Metadatenfeld `engagements` korreliert möglicherweise nicht immer mit der Summe aller einzelnen Engagement-Metriken, die von der API zurückgegeben werden. Das liegt daran, dass das Metadatenfeld `engagements` zusätzliche Interaktionen enthalten kann, für die in der Payload keine spezifischen Metriken separat ausgewiesen sind. Anders ausgedrückt: Die Summe aller Engagement-Metriken entspricht möglicherweise nicht dem Wert, den Sie im Metrikfeld `engagements` sehen, das in der Payload zurückgegeben wird.
+
+    Sie können das Metadatenfeld `engagements` als jeden Klick oder jede Interaktion auf dem Post verstehen.
+     
+
+    **Das Feld `url_clicks` in der Payload gibt eine Zahl zurück, obwohl der Post keine URL enthält. Wie ist das möglich?**
+
+    Das kann daran liegen, dass ein Post Elemente wie einen Hashtag enthält (der einen Link zu einer anderen Seite erzeugt) und ein Klick darauf als URL-Klick gezählt wird.
+     
+  </Accordion>
+
+  <Accordion title="Warum erhalte ich für einen bestimmten Post keine Engagement-Daten?">
+    Es gibt verschiedene Gründe, warum Sie für einen bestimmten Post möglicherweise keine Engagement-Daten abrufen können, darunter:
+
+    - Die Post-ID oder -IDs, die Sie angefragt haben, sind auf Basis des Authentifizierungs-Tokens, mit dem Sie Daten im Namen eines Dritten abrufen, nicht verfügbar.
+    - Die Post-ID oder -IDs, die Sie speziell für den Endpoint /totals angefragt haben, sind nicht 90 Tage alt oder jünger und stehen daher nicht für die Rückgabe von Impressions- oder Engagement-Metriken zur Verfügung.
+    - Die Post-ID oder -IDs, die Sie angefragt haben, sind nicht mehr verfügbar, was in der Regel darauf hindeutet, dass sie gelöscht wurden oder aus einem anderen Grund nicht mehr öffentlich verfügbar sind.
+
+    Bitte prüfen Sie die verschiedenen [Fehlermeldungen](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#error-messages), die Sie in den oben genannten Fällen wahrscheinlich erhalten.
+  </Accordion>
+
+  <Accordion title="Wie kann ich Rate Limiting mit der Engagement-API handhaben?">
+    Sie können die Informationen `x-per-minute-limit` und `x-per-minute-remaining`, die vom Response-Header bei einer Anfrage an die Engagement-API zurückgegeben werden, nutzen, um Ihren Verbrauch zu überwachen.
+
+    `x-per-minute-limit` gibt Ihr Kontingent an, und `x-per-minute-remaining` zeigt, wie viele Aufrufe Ihnen noch verbleiben.
+  </Accordion>
+</AccordionGroup>
+
+<div id="error-troubleshooting-guide">
+  ### Leitfaden zur Fehlerbehebung
+</div>
+
+<AccordionGroup>
+  <Accordion title="Ich habe Probleme bei der Authentifizierung">
+    Bitte lesen Sie unsere [Richtlinien zur Authentifizierung](/de/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#authentication) mit der Engagement API.
+  </Accordion>
+
+  <Accordion title="Ich habe den korrekten Consumer Key und das Secret sowie Access Token und Access Token Secret übermittelt, aber der folgende Fehler wird zurückgegeben. Was kann ich tun?">
+    ```bash
+    [
+        Your account could not be authenticated. Reason: Unknown Authorization Type;
+    ]
+    ```
+
+    Stellen Sie sicher, dass Sie keine Access Tokens oder Secrets verwenden, wenn Sie versuchen, sich beim /totals-Endpunkt zu authentifizieren. Wenn Sie diese Tokens angeben und versuchen, Inhalte von einem Post abzurufen, der nicht mit diesen Tokens verknüpft ist, erhalten Sie voraussichtlich einen Fehler wie:
+
+    ```bash
+    [
+        Forbidden to access tweets: 1054424731825229824;
+    ]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<div id="still-cant-find-what-youre-looking-for">
+  ### Sie finden immer noch nicht, wonach Sie suchen?
+</div>
+
+<AccordionGroup>
+  <Accordion title="Ich habe eine Frage, die noch nicht beantwortet wurde">
+    Bitte wenden Sie sich an den technischen Support, wir melden uns umgehend bei Ihnen.
+  </Accordion>
+</AccordionGroup>
+
+<div id="api-reference">
+  ## API-Referenz
+</div>
+
+<div id="post-insightsengagement">
+  ### **POST insights/engagement**
+</div>
+
+<div id="methods">
+  #### **Methoden**
+</div>
+
+| Methode | Beschreibung |
+| :--- | :--- |
+| [POST /insights/engagement/totals](#Totals) | Gesamte Impressionen und Interaktionen für eine Sammlung von Tweets abrufen. |
+| [POST /insights/engagement/historical](#Historical) | Impressionen und Interaktionen für eine Sammlung von Tweets für einen Zeitraum von bis zu 4 Wochen abrufen, rückwirkend bis zum 1. September 2014. |
+| [POST /insights/engagement/28hr](#api-28hr) | Impressionen und Interaktionen für eine Sammlung von Tweets der vergangenen 28 Stunden abrufen. |
+
+<div id="authentication">
+  #### **Authentifizierung**
+</div>
+
+Die Engagement-API erfordert die Verwendung von HTTPS und unterstützt sowohl User Context als auch Application-Only OAuth. Die meisten Anfragen an die Engagement-API erfordern 3‑Legged OAuth (eine spezielle Form des User Context). Das bedeutet, dass Sie den Consumer Key und das Consumer Secret der App verwenden, die von Ihrem Twitter-Account-Manager für den Zugriff auf die Engagement-API registriert und freigeschaltet wurde, sowie das Access Token und das Access Token Secret der jeweiligen Tweet-Inhaber, um den Endpoint aufzurufen. Die folgenden Anfragen erfordern diesen OAuth-Typ:
+
+- Jede Anfrage an /totals, um die Metriktypen Impressions und Engagements zu erhalten, die auf eigene Tweets beschränkt sind
+- Jede Anfrage an /28hr
+- Jede Anfrage an /historical
+
+Einige Anfragen an die Engagement-API können mit Application-Only OAuth durchgeführt werden. In diesem Fall müssen Sie lediglich Ihren Consumer Key und Ihr Consumer Secret oder ein Bearer-Token bereitstellen. Die folgende Anfrage kann mit diesem OAuth-Typ durchgeführt werden:
+
+- Jede Anfrage an /totals, um die Metriktypen Favorites, Replies, Retweets oder Video Views zu erhalten, die für jeden beliebigen Tweet abgerufen werden können
+
+Für jede Anfrage müssen Sie eine Twitter-App und den entsprechenden API-Schlüssel über die App-Verwaltungskonsole unter [developer.x.com](https://developer.x.com/en/portal/dashboard) einrichten.
+
+Bitte beachten Sie: Sie können Ihre bestehenden [Twitter-Apps](/de/resources/fundamentals/developer-apps) über das [Twitter-App-Dashboard](https://developer.x.com/en/apps) anzeigen und bearbeiten, wenn Sie auf developer.x.com in Ihrem Twitter-Konto angemeldet sind.
+
+Sobald Sie Ihre App eingerichtet haben, muss die App-ID von Ihrem Account-Ansprechpartner genehmigt werden, damit Ihre App Anfragen an die Engagement-API stellen kann. Access Tokens müssen verwendet werden, um den „aktuellen Benutzer“ zu repräsentieren, und Anfragen im Namen eines anderen Benutzers müssen mit einem gültigen Token signiert sein. Stellen Sie sicher, dass Sie [reservierte Zeichen](https://tools.ietf.org/html/rfc3986) innerhalb von URLs und POST-Bodies ordnungsgemäß kodieren, bevor Sie OAuth-Signature-Base-Strings vorbereiten.
+
+Weitere Informationen zum Einstieg in OAuth finden Sie unter den folgenden Links:
+
+- [OAuth-Übersicht](/de/resources/fundamentals/authentication)
+- [Verwendung von 3‑Legged OAuth, auch bekannt als User Context](/de/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)
+- [Verwendung von Application-Only OAuth](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)
+
+<div id="post-insightsengagementtotals">
+  #### **POST /insights/engagement/totals**
+</div>
+
+Der Endpoint totals ermöglicht das Abrufen der aktuellen Gesamtzahl von Impressions und Engagements für eine Sammlung von bis zu 250 Tweets auf einmal.
+
+|     |     |
+| :--- | :--- |
+| **Anfragemethode** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/totals` |
+| **Inhaltstyp** | `application/json` |
+| **Komprimierung** | Gzip. Um eine Anfrage mit Gzip-Komprimierung zu stellen, senden Sie in der Verbindungsanfrage einen Accept-Encoding-Header.  <br />Der Header sollte wie folgt aussehen:  <br />  <br />`Accept-Encoding: gzip` |
+| **POST-Format** | Anfragen können als POST gesendet werden, wobei der Body ein JSON-Objekt ist, das eine Sammlung von Tweet-IDs und eine gewünschte Gruppierung enthält. Der POST ist als Array mit den Objekten `tweets`, `engagements` und `groupings` formatiert. Jede Anfrage kann maximal 250 Tweet-IDs enthalten.  <br />  <br />Ein Beispiel für einen POST-Body sieht wie folgt aus:  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />        "Tweet-ID 1",<br />        "Tweet-ID 2",<br />        "Tweet-ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "favorites",<br />        "quote\_tweets"<br />    ],<br />    "groupings": \{<br />      "Gruppierungsname": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    }<br />  } |
+| **Tweet-IDs** | Ein Array, das die Tweet-IDs der Tweets enthält, für die Engagement-Daten abgefragt werden sollen. Bitte beachten Sie, dass Sie nur Daten für Tweets anfordern können, die vom authentifizierenden @Handle erstellt wurden. Pro Anfrage können bis zu 250 Tweets enthalten sein, und Tweet-IDs müssen als Strings angegeben werden. |
+| **Engagement-Typen** | Ein Array, das die Arten von Engagement-Metriken enthält, die abgefragt werden sollen. Der Endpunkt „Totals“ unterstützt nur die folgenden Engagement-Typen: `impressions`, `engagements`, `favorites`, `retweets`, `quote_tweets`, `replies`, `video_views`.  <br />Der Endpunkt `/totals` unterstützt das Abrufen von `impressions` und `engagements` für Tweets, die in den letzten 90 Tagen erstellt wurden, sowie von `favorites`, `retweets`, `quote_tweets`, `replies` und `video_views` für beliebige Tweets. |
+| **Gruppierungen** | Ergebnisse der Engagement-API können in unterschiedlichen Gruppen zurückgegeben werden, um Ihren Anforderungen bestmöglich zu entsprechen. Sie können maximal 3 Gruppierungen pro Anfrage angeben.  <br />  <br />Für jede Gruppierung können Sie einen benutzerdefinierten Gruppierungsnamen definieren, um in Ihrer Anwendung leichter auf diesen Gruppierungstyp zu verweisen.  <br />  <br />Sobald Sie einen Gruppierungsnamen definiert haben, können Sie nach `tweet.id` und/oder `engagement.type` gruppieren.  <br />  <br />Gruppierungen werden der Reihenfolge nach ausgewertet, sodass Sie das gewünschte Ergebnisformat ändern können, indem Sie die Reihenfolge Ihrer `group_by`-Werte anpassen. Eine Beispielgruppierung, die Metriken getrennt nach Tweet-ID und Metriktyp ausgibt, sieht wie folgt aus:  <br />  <br /><br />  "groupings": \{<br />      "mein Gruppierungsname": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    } |
+| **POST-Größenlimit** | Anfragen können für maximal 250 Tweet-IDs gleichzeitig gestellt werden. |
+| **Antwortformat** | JSON. Der Header Ihrer Anfrage sollte JSON als Format für die Antwort angeben. |
+| **Ratenlimit** | Es gilt ein minutenbasiertes Ratenlimit, wie in Ihrem Vertrag entsprechend Ihrer Zugriffsstufe festgelegt. |
+| **Beispielanfrage (öffentliche Metriken)** | curl --request POST <br />  --url https://data-api.x.com/insights/engagement/totals <br />  --header 'accept-encoding: gzip' <br />  --header 'authorization: Bearer ' <br />  --header 'content-type: application/json' <br />  --data '\{<br />                "tweet\_ids": \[<br />                    "1070059276213702656","1021817816134156288","1067094924124872705"<br />                ],<br />                "engagement\_types": \[<br />                    "favorites","retweets","replies","quote\_tweets","video\_views"<br />                ],<br />                "groupings": \{<br />                    "perTweetMetricsUnowned": \{<br />                        "group\_by": \[<br />                            "tweet.id",<br />                            "engagement.type"<br />                        ]<br />                    }<br />                }<br />            } <br />  --verbose <br />  --compressed |
+| **Beispielanfrage** | curl --request POST <br />  --url https://data-api.x.com/insights/engagement/totals <br />  --header 'accept-encoding: gzip' <br />  --header 'authorization: OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  --header 'content-type: application/json' <br />  --data '\{<br />                "tweet\_ids": \[<br />                    "1060976163948904448","1045709644067471360"<br />                ],<br />                "engagement\_types": \[<br />                    "favorites","replies","retweets","video\_views","impressions","engagements"<br />                ],<br />                "groupings": \{<br />                    "perTweetMetricsOwned": \{<br />                        "group\_by": \[<br />                            "tweet.id",<br />                            "engagement.type"<br />                        ]<br />                    }<br />                }<br />            }' <br />  --verbose <br />  --compressed |
+| **Beispielantwort (öffentliche Metriken)** | \{<br />  "perTweetMetricsUnowned": \{<br />    "1021817816134156288": \{<br />      "favorites": "530",<br />      "quote\_tweets": "79",<br />      "replies": "147",<br />      "retweets": "323",<br />      "video\_views": "0"<br />    },<br />    "1067094924124872705": \{<br />      "favorites": "1360",<br />      "quote\_tweets": "29",<br />      "replies": "56",<br />      "retweets": "178",<br />      "video\_views": "5754512"<br />    },<br />    "1070059276213702656": \{<br />      "favorites": "69",<br />      "quote\_tweets": "5",<br />      "replies": "7",<br />      "retweets": "26",<br />      "video\_views": "0"<br />    }<br />  }<br />} |
+| **Beispielantwort** | \{<br />  "perTweetMetricsOwned": \{<br />    "1045709644067471360": \{<br />      "engagements": "2",<br />      "favorites": "0",<br />      "impressions": "47",<br />      "replies": "0",<br />      "retweets": "8",<br />      "quote\_tweets": "5",<br />      "video\_views": "0"<br />    },<br />    "1060976163948904448": \{<br />      "engagements": "4",<br />      "favorites": "0",<br />      "impressions": "148",<br />      "replies": "1",<br />      "retweets": "9",<br />      "quote\_tweets": "2",<br />      "video\_views": "0"<br />    }<br />  }<br />} |
+| **Nicht verfügbare Tweet-IDs** | Für Abfragen, die Tweet-IDs enthalten, die nicht verfügbar gemacht wurden (z. B. gelöscht), werden für alle verfügbaren Tweet-IDs die entsprechenden Daten zurückgegeben; nicht verfügbare Tweet-IDs werden in einem Array namens `unavailable_tweet_ids` aufgeführt. Zum Beispiel:  <br /><br />  \{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:00:00Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": "26",<br />      "quote\_tweets": "2"<br />     }<br />    }<br />  } |
+
+<div id="post-insightsengagement28hr">
+  #### **POST /insights/engagement/28hr**
+</div>
+
+Der 28-Stunden-Endpunkt ermöglicht das Abrufen von Impressions und Engagements für eine Sammlung von bis zu 25 Tweets aus den letzten 28 Stunden. Er bietet außerdem die Möglichkeit, alle unterstützten Einzelmetriken anzufordern. Die vollständige Liste der unterstützten Metriken finden Sie unter [Verfügbarkeit von Metriken](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes).
+
+|     |     |
+| :--- | :--- |
+| **Anfragemethode** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/28hr` |
+| **Inhaltstyp** | `application/json` |
+| **Komprimierung** | Gzip. Um eine Anfrage mit Gzip-Komprimierung zu senden, fügen Sie der Verbindungsanfrage einen Accept-Encoding-Header hinzu.  <br />Der Header sollte wie folgt aussehen:  <br />  <br />`Accept-Encoding: gzip` |
+| **POST-Format** | Anfragen können als POST gesendet werden, wobei der Body ein JSON-Objekt ist, das eine Sammlung von Tweet-IDs und eine gewünschte Gruppierung enthält. Der POST ist als Array mit den Objekten `tweets`, `engagements` und `groupings` formatiert. Jede Anfrage kann maximal 25 Tweet-IDs enthalten.  <br />  <br />Ein Beispiel für einen POST-Body sieht so aus:  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />       "Tweet-ID 1",<br />       "Tweet-ID 2",<br />       "Tweet-ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "Gruppierungsname": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  } |
+| **Tweet-IDs** | Ein Array mit den Tweet-IDs der Tweets, für die Engagement-Daten abgefragt werden sollen. Bitte beachten Sie, dass Sie nur Daten für Tweets anfordern können, die vom authentifizierenden @Handle erstellt wurden. Der 28‑Stunden-Endpunkt unterstützt bis zu maximal 25 Tweets pro Anfrage, und Tweet-IDs müssen als Strings angegeben werden. |
+| **Engagement-Typen** | Ein Array der Typen von Engagement-Metriken, die abgefragt werden sollen.  <br />  <br />Für den 28‑Stunden-Endpunkt sind `impressions`, `engagements` und alle einzelnen Engagement-Typen unterstützte Metriken. Die vollständige Liste der unterstützten Engagement-Metriken finden Sie unter [Engagement Data](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#AvailableData). |
+| **Gruppierungen** | Ergebnisse der Engagement-API können in unterschiedlichen Gruppen zurückgegeben werden, um Ihren Anforderungen bestmöglich zu entsprechen. Sie können maximal 3 Gruppierungen pro Anfrage angeben.  <br />  <br />Für jede Gruppierung können Sie einen benutzerdefinierten Gruppierungsnamen definieren, um die Referenz in Ihrer Anwendung zu erleichtern. Nachdem Sie einen Gruppierungsnamen definiert haben, können Sie nach einem oder mehreren der folgenden Werte gruppieren:  <br />`tweet.id`  <br />`engagement.type`  <br />`engagement.day`  <br />`engagement.hour`  <br />Gruppierungen werden der Reihenfolge nach angewendet, sodass Sie das gewünschte Ergebnisformat ändern können, indem Sie die Reihenfolge Ihrer group\_by-Werte anpassen. Eine Beispielgruppierung, die Metriken getrennt nach Tweet-ID, Metriktyp und Tag zeigt, sieht wie folgt aus:<br /><br />  "groupings": \{<br />    "mein Gruppierungsname": \{<br />      "group\_by": \[<br />        "tweet.id",<br />        "engagement.type",<br />        "engagement.day"<br />      ]<br />    }<br />  }<br /><br />  <br />Gruppierungen mit 4 `group_by`-Elementen sind nur gültig, wenn sie eine der folgenden beiden Reihenfolgen verwenden. Anfragen mit 4 `group_by`-Elementen in einer einzelnen Gruppierung, die nicht einer der folgenden entspricht, führen zu einem Fehler. Außerdem ist pro Anfrage nur eine Gruppierung mit 4 `group_by`-Elementen zulässig.  <br /><br />"group\_by": \[<br />    "tweet.id",<br />    "engagement.type",<br />    "engagement.day",<br />    "engagement.hour"<br />  ]<br /><br />"group\_by": \[<br />    "engagement.type",<br />    "tweet.id",<br />    "engagement.day",<br />    "engagement.hour"<br />  ] |
+| **POST-Größenlimit** | Anfragen können für maximal 25 Tweet-IDs gleichzeitig gestellt werden. |
+| **Antwortformat** | JSON. Der Header Ihrer Anfrage sollte das JSON-Format für die Antwort angeben. |
+| **Rate Limit** | Sie unterliegen einem minutenbasierten Rate Limit, wie in Ihrem Vertrag entsprechend Ihrem Zugriffslevel festgelegt. |
+| **Beispielanfrage** | curl -X POST "https://data-api.x.com/insights/engagement/28hr" <br />  -H 'Accept-Encoding: gzip' <br />  -H 'Authorization OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  -d '\{<br />    "tweet\_ids": \[<br />       "123456789"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements"<br />    ],<br />    "groupings": \{<br />      "hourly-time-series": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.day",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  }' |
+| **Beispielantwort** | \{<br />    "start": "2015-09-14T17:00:00Z",<br />    "end": "2015-09-15T22:00:00Z",<br />    "hourly-time-series": \{<br />      "123456789": \{<br />        "impressions": \{<br />          "2015-09-14": \{<br />            "17": "551",<br />            "18": "412",<br />            "19": "371",<br />            "20": "280",<br />            "21": "100",<br />            "22": "19",<br />            "23": "6"<br />          },<br />          "2015-09-15": \{<br />            "00": "5",<br />            "01": "2",<br />            "02": "7",<br />            "03": "3",<br />            "04": "1",<br />            "05": "0",<br />            "06": "0",<br />            "07": "0",<br />            "08": "0",<br />            "09": "0",<br />            "10": "0",<br />            "11": "0",<br />            "12": "0",<br />            "13": "0",<br />            "14": "0",<br />            "15": "0",<br />            "16": "0",<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0"<br />          }<br />        },<br />        "engagements": \{<br />          "2015-09-14": \{<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0",<br />            "22": "0",<br />            "23": "0"<br />          },<br />          "2015-09-15": \{<br />            "00": "0",<br />            "01": "0",<br />            "02": "0",<br />            "03": "0",<br />            "04": "0",<br />            "05": "0",<br />            "06": "0",<br />            "07": "0",<br />            "08": "0",<br />            "09": "0",<br />            "10": "0",<br />            "11": "0",<br />            "12": "0",<br />            "13": "0",<br />            "14": "0",<br />            "15": "0",<br />            "16": "0",<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0"<br />          }<br />        }<br />      }<br />    }<br />  } |
+| **Nicht verfügbare Tweet-IDs** | Für Abfragen, die Tweet-IDs enthalten, die nicht mehr verfügbar sind (z. B. gelöscht wurden), werden für alle verfügbaren Tweet-IDs die entsprechenden Daten zurückgegeben; nicht verfügbare Tweet-IDs werden in einem Array namens `unavailable_tweet_ids` aufgeführt. Zum Beispiel:  <br /><br />  \{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:00:00Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": 26<br />     }<br />    }<br />  } |
+
+<div id="post-insightsengagementhistorical">
+  #### **POST /insights/engagement/historical**
+</div>
+
+Der historische Endpunkt ermöglicht das Abrufen von Impressions und Engagements für eine Sammlung von bis zu 25 Tweets über einen Zeitraum von bis zu 4 Wochen. Derzeit können über die API keine Daten angefordert werden, die älter als der 1. September 2014 sind. Der historische Endpunkt bietet außerdem die Möglichkeit, Kennzahlen für alle unterstützten Einzelmetriken anzufordern. Die vollständige Liste der unterstützten Metriken finden Sie unter [Metric Availability](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes).
+
+|     |     |
+| :--- | :--- |
+| **Anfragemethode** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/historical` |
+| **Inhaltstyp** | `application/json` |
+| **Komprimierung** | Gzip. Um eine Anfrage mit Gzip-Komprimierung zu stellen, senden Sie einen Accept-Encoding-Header in der Verbindungsanfrage.  <br />Der Header sollte wie folgt aussehen:  <br />  <br />`Accept-Encoding: gzip` |
+| **POST-Format** | Anfragen können als POST gesendet werden, wobei der Body ein JSON-Objekt ist, das eine Sammlung von Tweet-IDs sowie eine gewünschte Gruppierung enthält. Die POST-Nutzlast ist als Array mit den Objekten `tweets`, `engagements` und `groupings` formatiert. Jede Anfrage kann maximal 25 Tweet-IDs enthalten. Für jede Anfrage kann ein benutzerdefinierter Start- und Endzeitpunkt mit einer Dauer von bis zu vier Wochen angegeben werden.  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />       "Tweet-ID 1",<br />       "Tweet-ID 2",<br />       "Tweet-ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  } |
+| **Start- und Enddatum** | Ein benutzerdefiniertes Start- und Enddatum kann mit den Werten `start` und `end` als Teil der Anfrage angegeben werden. Sie müssen ein Start- und Enddatum angeben, die nicht länger als 4 Wochen auseinanderliegen. Das frühestmögliche Startdatum ist der 1. September 2014. Enddaten in der Zukunft werden nicht unterstützt. Wenn kein Start- und Enddatum angegeben sind, verwendet die API standardmäßig die unmittelbar vorherigen 4 Wochen.  <br />  <br />Die geringste Granularität, mit der Daten von der Engagement-API zurückgegeben werden können, ist stündlich. Bei Anfragen mit Start- oder Endwerten, die nicht genau auf eine volle Stunde fallen, wird auf die nächstgelegene einschließende Stunde gerundet. Beispiel: Eine Anfrage mit "start":"2015-07-01T12:24:00Z" und "end":"2015-07-10T08:37:00Z" wird zu "start":"2015-07-01T12:00:00Z","end":"2015-07-10T09:00:00Z". |
+| **Tweet-IDs** | Ein Array, das die Tweet-IDs der Tweets enthält, für die Engagement-Daten abgefragt werden sollen. Bitte beachten Sie, dass Sie nur Daten für Tweets anfordern können, die vom authentifizierenden @handle erstellt wurden. Der 4‑Wochen-Historical-Endpoint unterstützt bis zu maximal 25 Tweets pro Anfrage, und Tweet-IDs müssen als Strings angegeben werden. |
+| **Engagement-Typen** | Ein Array, das die Arten von Engagement-Metriken enthält, die abgefragt werden sollen.  <br />  <br />Für den 4‑Wochen-Historical-Endpoint werden `impressions`, `engagements` und alle einzelnen Engagement-Typen als Metriken unterstützt. Die vollständige Liste der unterstützten Engagement-Metriken finden Sie unter [Engagement Data](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#AvailableData).  <br />  <br />\*\*Hinweis:\*\* Derzeit gibt es drei Metriken, die für Abfragen vor dem 15. September 2015 mit dem Wert null angezeigt werden: `favorites`, `replies` und `retweets`. |
+| **Gruppierungen** | Ergebnisse der Engagement-API können in unterschiedlichen Gruppen zurückgegeben werden, um Ihre Anforderungen bestmöglich zu erfüllen. Pro Anfrage können Sie maximal 3 Gruppierungen angeben.  <br />  <br />Für jede Gruppierung können Sie einen benutzerdefinierten Namen vergeben, um in Ihrer Anwendung leichter auf diesen Gruppierungstyp zu verweisen. Sobald Sie einen Gruppierungsnamen festgelegt haben, können Sie nach einem oder mehreren der folgenden Werte gruppieren:  <br />`tweet.id`  <br />`engagement.type`  <br />`engagement.day`  <br />`engagement.hour`  <br />Gruppierungen werden der Reihe nach angewendet, sodass Sie das gewünschte Ergebnisformat durch Ändern der Reihenfolge Ihrer group\_by-Werte steuern können. Eine Beispielgruppierung, die Metriken getrennt nach Tweet-ID, Metriktyp und Tag anzeigt, sieht wie folgt aus:<br /><br />  "groupings": \{<br />    "mein Gruppierungsname": \{<br />      "group\_by": \[<br />        "tweet.id",<br />        "engagement.type",<br />        "engagement.day"<br />      ]<br />    }<br />  }<br /><br />  <br />Gruppierungen mit 4 `group_by`-Elementen sind nur gültig, wenn sie eine der folgenden beiden Reihenfolgen verwenden. Anfragen mit 4 `group_by`-Elementen in einer einzelnen Gruppierung, die keiner der folgenden Reihenfolgen entsprechen, führen zu einem Fehler. Zudem ist pro Anfrage nur eine Gruppierung mit 4 `group_by`-Elementen zulässig.  <br /><br />"group\_by": \[<br />    "tweet.id",<br />    "engagement.type",<br />    "engagement.day",<br />    "engagement.hour"<br />  ]<br /><br />"group\_by": \[<br />    "engagement.type",<br />    "tweet.id",<br />    "engagement.day",<br />    "engagement.hour"<br />  ] |
+| **POST-Größenlimit** | Pro Anfrage können maximal 25 Tweet-IDs angefordert werden. |
+| **Antwortformat** | JSON. Der Header Ihrer Anfrage sollte JSON als Antwortformat angeben. |
+| **Rate Limit** | Sie werden pro Minute begrenzt, wie in Ihrem Vertrag entsprechend Ihrer Zugriffsstufe festgelegt. |
+| **Beispielanfrage** | curl -XPOST "https://data-api.x.com/insights/engagement/historical" <br />  -H 'Accept-Encoding: gzip' <br />  -H 'Authorization OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  -d '\{<br />    "start": "2015-08-01",<br />    "end": "2015-08-15",<br />    "tweet\_ids": \[<br />       "123456789",<br />       "223456789",<br />       "323456789"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "types-by-tweet-id": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    }<br />  }' |
+| **Beispielantwort** | \{<br />    "start": "2015-08-01T00:00:00Z",<br />    "end": "2015-08-15T00:00:00Z",<br />    "types-by-tweet-id": \{<br />      "123456789": \{<br />        "impressions": "0",<br />        "engagements": "0",<br />        "url\_clicks": "0",<br />        "detail\_expands": "0"<br />      },<br />      "223456789": \{<br />        "impressions": "788",<br />        "engagements": "134",<br />        "url\_clicks": "30",<br />        "detail\_expands": "1323"<br />      },<br />      "323456789": \{<br />        "impressions": "4",<br />        "engagements": "0",<br />        "url\_clicks": "2",<br />        "detail\_expands": "0"<br />      }<br />    }<br />  } |
+| **Nicht verfügbare Tweet-IDs** | Für Abfragen, die Tweet-IDs enthalten, die nicht mehr verfügbar sind (z. B. gelöscht wurden), werden für alle verfügbaren Tweet-IDs die entsprechenden Daten zurückgegeben; nicht verfügbare Tweet-IDs werden in einem Array namens `unavailable_tweet_ids` aufgeführt. Zum Beispiel:<br /><br />\{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:27:50Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": 26<br />     }<br />    }<br />  } |
+
+<div id="response-codes">
+  #### **Antwortcodes**
+</div>
+
+| Status | Text | Beschreibung |
+| :--- | :--- | :--- |
+| 200 | OK  | Die Anfrage war erfolgreich. |
+| 400 | Bad Request | Diese Antwort tritt in der Regel auf, wenn die Anfrage ungültiges JSON enthält oder überhaupt keine JSON-Nutzlast gesendet wurde. |
+| 401 | Unauthorized | Die HTTP-Authentifizierung ist aufgrund ungültiger Anmeldedaten fehlgeschlagen. Überprüfen Sie Ihre OAuth-Schlüssel und -Token. |
+| 404 | Not Found | Die Ressource wurde unter der URL, an die die Anfrage gesendet wurde, nicht gefunden, wahrscheinlich weil eine falsche URL verwendet wurde. |
+| 429 | Too Many Requests | Ihre App hat das Limit für API-Anfragen überschritten. |
+| 500 | Internal Server Error | Auf der Seite von Gnip ist ein Fehler aufgetreten. Versuchen Sie es erneut mit exponentiellem Backoff. |
+| 502 | Proxy Error | Auf der Seite von Gnip ist ein Fehler aufgetreten. Versuchen Sie es erneut mit exponentiellem Backoff. |
+| 503 | Service Unavailable | Auf der Seite von Gnip ist ein Fehler aufgetreten. Versuchen Sie es erneut mit exponentiellem Backoff. |
+
+<div id="error-messages">
+  #### **Fehlermeldungen**
+</div>
+
+In verschiedenen Situationen gibt die Engagement-API spezifische Fehlermeldungen aus, auf die Ihre Anwendung vorbereitet sein sollte. Die Tabelle unten enthält gängige Beispiele dieser Fehlermeldungen und Hinweise, wie sie zu interpretieren sind. Bitte beachten Sie, dass die Engagement-API in vielen Fällen Teilresultate für verfügbare Daten zusammen mit spezifischen Fehlermeldungen als Teil einer 200-OK-Antwort mit weiteren Informationen zurückgibt.
+
+| Error Message | Description |
+| :--- | :--- |
+| `"errors":["Your account could not be authenticated. Reason: Access token not found"]` | Ein Fehler im Authentifizierungsteil der Anfrage. Der „Reason“ sollte Informationen enthalten, die bei der Fehlerbehebung helfen. Falls Sie das Problem nicht lösen können, senden Sie bitte die vollständige Fehlermeldung, einschließlich des „Reason“, an unser Support-Team. |
+| `"errors":["1 Tweet ID(s) are unavailable"],"unavailable_tweet_ids": ["TWEET_IDS"]` | Die von Ihnen angeforderte Tweet-ID bzw. die Tweet-IDs sind nicht mehr verfügbar. Das deutet üblicherweise darauf hin, dass sie gelöscht wurden oder aus einem anderen Grund nicht mehr öffentlich zugänglich sind. |
+| `"errors":["Impressions & engagements for tweets older than 90 days (*TIME_PERIOD*) are not supported"],"unsupported_for_impressions_engagements_tweet_ids":[*TWEET_IDS*]` | Die von Ihnen für den Endpunkt /totals angeforderte(n) Tweet-ID(s) sind nicht 90 Tage alt oder neuer und daher für die Rückgabe der Metriken zu Impressions oder Engagements nicht verfügbar. |
+| `"errors":["Forbidden to access tweets: *TWEET_IDS*"]` | Die von Ihnen angeforderte(n) Tweet-ID(s) sind mit dem Authentifizierungs-Token, das Sie zur Datenerfassung im Auftrag eines Dritten verwenden, nicht zugänglich. |

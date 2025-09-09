@@ -1,0 +1,2704 @@
+---
+title: "X API v2 数据字典"
+---
+
+<div id="object-model">
+  ## 对象模型
+</div>
+
+<div id="tweet">
+  ### 推文
+</div>
+
+推文是 Twitter 上一切内容的基本构件。`Tweet` 对象包含一长串“根级”字段，例如 `id`、`text` 和 `created_at`。`Tweet` 对象也是多个子对象的“父”对象，包括 `user`、`media`、`poll` 和 `place`。在请求 `Tweet` 对象的这些根级字段时，请使用字段参数 `tweet.fields`。
+
+可以在用户资源中找到并展开 `Tweet` 对象。与所请求推文相关的其他推文也可以在推文资源中找到并展开。要仅获取带有默认字段的该对象，可在用户资源中使用 `?expansions=pinned_tweet_id`，或在推文资源中使用 `?expansions=referenced_tweets.id` 进行展开。请求额外字段以补全该对象时，请将该展开与字段参数 `tweet.fields` 结合使用。
+
+| 字段值                 | 类型   | 描述                                                                                                                                 | 使用方式                                                              |
+|:-----------------------|:--------|:---------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------|
+| **id（默认）**      | string | 所请求 Tweet 的唯一标识符。                                                                                                         | 用于以编程方式检索特定 Tweet。                                        |
+| **text（默认）**    | string | Tweet 的实际 UTF-8 文本。有关有效字符的详细信息，请参阅 [twitter-text](https://github.com/twitter/twitter-text/)。                 | 关键词提取与情感分析/分类。                                           |
+| **edit\_history\_tweet\_ids（默认）** | object | 标示某条 Tweet 所有版本的唯一标识符。未被编辑的 Tweet 仅有一个 ID；有编辑历史的 Tweet 会有多个 ID。 | 使用此信息查找某条 Tweet 的编辑历史。                                 |
+| **attachments**       | object | 指定此 Tweet 中存在的附件类型（如果有）。                                                                                           | 理解为所请求扩展返回的对象。                                          |
+| **author\_id**         | string | 发布此 Tweet 的用户唯一标识符。                                                                                                     | 充填 User 对象，分享数据集以供同行评审。                              |
+| **context\_annotations** | array | 包含该 Tweet 的上下文标注。                                                                                                         | 实体识别/抽取、主题分析。                                             |
+| **conversation\_id**   | string | 该会话原始 Tweet 的 Tweet ID（包括直接回复以及对回复的回复）。                                                                      | 用于从一条 Tweet 重建整个会话。                                       |
+| **created\_at**        | date (ISO 8601) | Tweet 的创建时间。                                                                                                            | 有助于时间序列分析并了解 Tweet 的创建时点。                           |
+| **edit\_controls**     | object | 指示该 Tweet 仍可编辑的剩余时间及剩余可编辑次数。                                                                                   | 用于判断某条 Tweet 是否仍可编辑。                                     |
+| **entities**          | object | 从 Tweet 文本中解析出的实体。请参阅 Twitter Objects 中的 entities。                                                                | 提供关于话题标签、URL、提及等的附加信息。                             |
+| **in\_reply\_to\_user\_id** | string | 如果该 Tweet 是回复，此字段包含原始 Tweet 的作者 ID。                                                                              | 判断某条 Tweet 是否为对另一条 Tweet 的回复。                          |
+| **lang**              | string | 若由 Twitter 检测到，则为该 Tweet 的语言。                                                                                          | 按语言对 Tweets 进行分类。                                            |
+| **non\_public\_metrics** | object | 请求时该 Tweet 的非公开互动指标。需要用户上下文认证。                                                                               | 确定该 Tweet 产生的总展示次数。                                       |
+| **organic\_metrics**   | object | 在自然情境中跟踪的、请求时该 Tweet 的互动指标。需要用户上下文认证。                                                                 | 衡量该 Tweet 的自然互动。                                             |
+| **possibly\_sensitive** | boolean | 指示内容是否可能被识别为敏感。                                                                                                     | 研究特定类型内容的传播。                                              |
+| **promoted\_metrics**  | object | 在推广情境中跟踪的、请求时该 Tweet 的互动指标。需要用户上下文认证。                                                                 | 衡量该 Tweet 在推广时的互动。                                         |
+| **public\_metrics**    | object | 请求时该 Tweet 的公开互动指标。                                                                                                     | 衡量 Tweet 的互动情况。                                               |
+| **referenced\_tweets** | array  | 此 Tweet 所引用的 Tweets 列表，例如转发、引用或回复。                                                                                | 理解转发等的对话属性。                                                |
+| **reply\_settings**    | string | 显示谁可以回复该 Tweet。选项为“everyone”“mentioned\_users”“followers”。                                                             | 确定该 Tweet 的会话回复设置。                                         |
+| **withheld**          | object | 包含[受限内容](https://help.x.com/en/rules-and-policies/tweet-withheld-by-country)的屏蔽详情。                                      |                                                                     |
+| **media\_metadata**          | array | 包含该 Tweet 的媒体附件的元数据。     | 获取该 Tweet 媒体附件的 `alt_text` 等附加元数据。 |
+
+**检索 Tweet 对象**
+
+**示例请求**
+
+在以下请求中，我们在 [Tweets lookup](/zh/resources/fundamentals/rate-limits) 端点请求 Tweet 的字段。请务必将 `$BEARER_TOKEN` 替换为你自己生成的 [Bearer Token](/zh/resources/fundamentals/authentication)。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1212092628029698048&tweet.fields=attachments,author_id,context_annotations,created_at,entities,geo,id,in_reply_to_user_id,lang,possibly_sensitive,public_metrics,referenced_tweets,text,withheld&expansions=referenced_tweets.id' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**示例响应**
+
+```
+{
+  "data": [
+    {
+      "text": "我们相信，只有与你们一起共建，才能打造出更好的 API 未来版本。向所有在 Twitter 平台上构建的开发者致敬，期待又一个精彩之年。我们迫不及待想在新的一年里继续与您合作。 https://t.co/yvxdK6aOo2",
+      "edit_history_tweet_ids": [
+        "1212092628029698048"
+      ],
+      "lang": "en",
+      "in_reply_to_user_id": "2244994945",
+      "entities": {
+        "urls": [
+          {
+            "start": 222,
+            "end": 245,
+            "url": "https://t.co/yvxdK6aOo2",
+            "expanded_url": "https://x.com/LovesNandos/status/1211797914437259264/photo/1",
+            "display_url": "pic.x.com/yvxdK6aOo2",
+            "media_key": "16_1211797899316740096"
+          }
+        ],
+        "annotations": [
+          {
+            "start": 42,
+            "end": 44,
+            "probability": 0.5359,
+            "type": "Other",
+            "normalized_text": "API"
+          },
+          {
+            "start": 144,
+            "end": 150,
+            "probability": 0.9832,
+            "type": "Other",
+            "normalized_text": "Twitter"
+          }
+        ]
+      },
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1212092627178287104"
+        }
+      ],
+      "id": "1212092628029698048",
+      "public_metrics": {
+        "retweet_count": 7,
+        "reply_count": 3,
+        "like_count": 38,
+        "quote_count": 1
+      },
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "29",
+            "name": "事件 [实体服务]",
+            "description": "现实世界中的事件。",
+          },
+          "entity": {
+            "id": "1186637514896920576",
+            "name": "除夕夜",
+          }
+        },
+        {
+          "domain": {
+            "id": "29",
+            "name": "事件 [实体服务]",
+            "description": "现实世界中的事件。",
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年快乐：全球各地终于都迎来 2020 年！",
+            "description": "当人们迎接新年时，欣赏全球各地的烟花和其他庆祝活动。\n照片来源：@GettyImages ",
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "节日",
+            "description": "如圣诞节或万圣节等节日",
+          },
+          "entity": {
+            "id": "1186637514896920576",
+            "name": "除夕夜",
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "节日",
+            "description": "如圣诞节或万圣节等节日",
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年快乐：全球各地终于都迎来 2020 年！",
+            "description": "当人们迎接新年时，欣赏全球各地的烟花和其他庆祝活动。\n照片来源：@GettyImages ",
+          }
+        },
+        {
+          "domain": {
+            "id": "30",
+            "name": "实体 [实体服务]",
+            "description": "实体服务的顶级域，实体服务中的所有项目都应归于此域",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "服务",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "品牌",
+            "description": "品牌与公司",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "统一 Twitter 分类法",
+            "description": "用户兴趣的分类法。",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "统一 Twitter 分类法",
+            "description": "用户兴趣的分类法。"
+          },
+          "entity": {
+            "id": "847868745150119936",
+            "name": "家庭与人际关系",
+            "description": "爱好与兴趣"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "Unified Twitter Taxonomy",
+            "description": "用户兴趣分类体系。"
+          },
+          "entity": {
+            "id": "1196446161223028736",
+            "name": "社交媒体"
+          }
+        },
+        {
+          "domain": {
+            "id": "29",
+            "name": "Events [Entity Service]",
+            "description": "现实世界中的事件。"
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年快乐：全球各地终于都迈入了 2020 年！",
+            "description": "当全球各地的人们迎接新年时，来看看烟花和其他庆祝活动。\n照片来源：@GettyImages"
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "Holiday",
+            "description": "如圣诞节或万圣节等节日"
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "新年快乐：全球各地终于都迈入了 2020 年！",
+            "description": "当全球各地的人们迎接新年时，来看看烟花和其他庆祝活动。\n照片来源：@GettyImages"
+          }
+        }
+      ],
+      "created_at": "2019-12-31T19:26:16.000Z",
+      "attachments": {
+        "media_keys": [
+          "16_1211797899316740096"
+        ]
+      },
+      "possibly_sensitive": false
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "text": "如果没有你一路上提供的反馈，这些发布就不可能实现，所以感谢每一位贡献了时间和想法的人。还有更多反馈吗？告诉我们 ⬇️ https://t.co/Vxp4UKnuJ9",
+        "edit_history_tweet_ids": [
+          "1212092627178287104"
+        ],
+        "lang": "en",
+        "in_reply_to_user_id": "2244994945",
+        "entities": {
+          "urls": [
+            {
+              "start": 187,
+              "end": 210,
+              "url": "https://t.co/Vxp4UKnuJ9",
+              "expanded_url": "https://twitterdevfeedback.uservoice.com/forums/921790-twitter-developer-labs",
+              "display_url": "twitterdevfeedback.uservoice.com/forums/921790-…",
+              "status": 200,
+              "title": "我们的反馈渠道更新",
+              "description": "我们在公开的环境下构建开发者平台，并倾听你的意见与反馈。过去一年里，直接聆听你以及你的应用用户的声音，帮助我们打造更契合你所帮助识别的用例的开发者产品。我们希望将此作为我们的产品构建方式。展望未来，我们将整合反馈渠道。与你在所在之处相会 自今日起，我们将停用 UserVoice 反馈渠道，转而通过更为频繁的直接交流来……"
+              "unwound_url": "https://devcommunity.x.com/t/updates-on-our-feedback-channels/169706"
+            }
+          ]
+        },
+        "author_id": "2244994945",
+        "referenced_tweets": [
+          {
+            "type": "replied_to",
+            "id": "1212092626247110657"
+          }
+        ],
+        "id": "1212092627178287104",
+        "public_metrics": {
+          "retweet_count": 2,
+          "reply_count": 1,
+          "like_count": 19,
+          "quote_count": 0
+        },
+        "created_at": "2019-12-31T19:26:16.000Z",
+        "possibly_sensitive": false
+      }
+    ]
+  }
+```
+
+<div id="user">
+  ### 用户
+</div>
+
+`user` 对象包含描述被引用用户的 Twitter 用户账户元数据。`user` 对象是 [users lookup](/zh/x-api/users/lookup/introduction) 端点返回的主要对象。在该端点请求更多用户字段时，只需使用字段参数 `user.fields`。
+
+`user` 对象也可作为子对象出现在 Tweet 对象中，并可被扩展。可通过 `?expansions=author_id` 或 `?expansions=in_reply_to_user_id` 进行扩展，以获取仅包含默认字段的精简对象。若需请求更多字段以补全该对象，请将扩展与字段参数配合使用：`user.fields`。
+ 
+
+| 字段值 | 类型 | 说明 | 使用方式 |
+| :--- | :--- | :--- | :--- |
+| id（默认） | 字符串 | 此用户的唯一标识符。<br /><br />`"id": "2244994945"` | 用于以编程方式检索特定 Twitter 用户的信息。 |
+| name（默认） | 字符串 | 用户在其个人资料中设置的名称。不一定是个人姓名。通常上限为 50 个字符，但可能会调整。<br /><br />`"name": "Twitter Dev"` |     |
+| username（默认） | 字符串 | 该用户用于标识自身的 Twitter 屏幕名、账号或别名。用户名具有唯一性，但可能会更改。通常最长为 15 个字符，但一些历史账号可能更长。<br /><br />`"username": "TwitterDev"` |     |
+| confirmed\_email | 字符串 | 已验证用户的确认邮箱地址。 | |
+| connection\_status | 数组 | 提供正在进行身份验证的用户与被查询用户之间的关系列表，例如：正在关注、被关注、已发送关注请求、已收到关注请求、已拉黑、已静音。<br /><br />"connection\_status": \[  <br />           "follow\_request\_received",  <br />           "follow\_request\_sent",  <br />           "blocking",  <br />           "followed\_by",  <br />           "following",  <br />           "muting"  <br />] | 可用于确定正在进行身份验证的用户与被查询用户之间的连接状态。 |
+| created\_at | 日期（ISO 8601） | 该用户的 Twitter 账户创建时的 UTC 日期时间。<br /><br />`"created_at": "2013-12-14T04:35:55.000Z"` | 可用于判断某人使用 Twitter 的时长。 |
+| description | 字符串 | 此用户的个人资料描述文本（也称为简介），如果用户提供的话。<br /><br />`"description": "The voice of the X Dev team and your official source for updates, news, and events, related to the X API."` |     |
+| entities | object | 包含用户描述中具有特殊含义的文本的详细信息。<br /><br />`"entities": {  <br/>       "url": {  <br/>           "urls": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 23,  <br/>                   "url": "https://t.co/3ZX3TNiZCY",  <br/>                   "expanded_url": "/content/developer-twitter/en/community",  <br/>                   "display_url": "developer.x.com/en/community"  <br/>               }  <br/>           ]  <br/>       },  <br/>       "description": {  <br/>           "urls": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 23,  <br/>                   "url": "https://t.co/3ZX3TNiZCY",  <br/>                   "expanded_url": "/content/developer-twitter/en/community",  <br/>                   "display_url": "developer.x.com/en/community"  <br/>               },  <br/>           "hashtags": [  <br/>               {  <br/>                   "start": 23,  <br/>                   "end": 30,  <br/>                   "tag": "DevRel"  <br/>               },  <br/>               {  <br/>                   "start": 113,  <br/>                   "end": 130,  <br/>                   "tag": "BlackLivesMatter"  <br/>              】,  <br/>           "mentions": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 10,  <br/>                   "tag": "TwitterDev"  <br/>               },  <br/>           "cashtags": [  <br/>               {  <br/>                   "start": 12,  <br/>                   "end": 16,  <br/>                   "tag": "twtr"  <br/>               }  <br/>           ]  <br/>       }  <br/>   }` | Entities 是提供与描述相关的主题标签、URL、用户提及和股票代号等附加信息的 JSON 对象。请参阅各自的实体以了解更多详情。<br /><br />所有用户的 ******start****** 索引为包含式，所有用户的 ******end****** 索引为不包含式。 |
+| location | string | 用户在其个人资料中填写的位置（如已提供）。由于这是自由格式的值，可能并非有效位置，但在使用位置查询进行搜索时可进行模糊匹配。<br /><br />`"location": "127.0.0.1"` |     |
+| pinned\_tweet\_id | string | 此用户置顶推文的唯一标识符。<br /><br />`"pinned_tweet_id": "1255542774432063488"` | 用于确定置顶在用户个人资料顶部的推文，也可用于推断用户的语言。 |
+| profile\_image\_url | string | 该用户个人资料图片的 URL（如其个人资料所示）。<br /><br />`"profile_image_url": "https://pbs.twimg.com/profile_images/1267175364003901441/tBZNFAgA_normal.jpg"` | 可用于下载该用户的个人资料图片。 |
+| protected | boolean | 指示该用户是否选择保护其推文（即该用户的推文是否为私密）。<br /><br />`"protected": false` |     |
+| public\_metrics | object | 包含该用户活动的详细信息。<br /><br />`"public_metrics": {             "followers_count": 507902,             "following_count": 1863,             "tweet_count": 3561,             "listed_count": 1550         }` | 可用于评估 Twitter 用户的触达或影响力、量化其兴趣范围，以及其在 Twitter 上的参与度水平。 |
+| url | string | 如有，则为用户资料中指定的 URL。<br /><br />`"url": "https://t.co/3ZX3TNiZCY"` | 用户在其资料中提供的 URL。可能是主页，但不一定。 |
+| verified | boolean | 指示该用户是否为已认证的 X 用户。<br /><br />`"verified": true` | 表示该 X 用户的账号是否已通过认证。认证账号用于表明具有公共关注度的账号为真实可信。 |
+| withheld | object | 包含[被限制内容](https://help.x.com/en/rules-and-policies/tweet-withheld-by-country)的屏蔽详情（如适用）。 |     |
+
+**检索用户对象**
+
+**示例请求**
+
+在以下请求中，我们通过 [users lookup](/zh/x-api/users/lookup/introduction) 端点请求该用户的字段。请务必将 `$BEARER_TOKEN` 替换为你自己生成的 [Bearer Token](/zh/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)。
+ 
+
+```{
+  curl --request GET 'https://api.x.com/2/users?
+  ids=2244994945&user.fields=created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld&expansions=pinned_tweet_id'
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+  }
+```
+
+**示例响应**
+
+```{
+    "data": [
+        {
+            "id": "2244994945",
+            "name": "Twitter Dev",
+            "username": "TwitterDev",
+            "location": "127.0.0.1",
+            "entities": {
+                "url": {
+                    "urls": [
+                        {
+                            "start": 0,
+                            "end": 23,
+                            "url": "https://t.co/3ZX3TNiZCY",
+                            "expanded_url": "/content/developer-twitter/en/community",
+                            "display_url": "developer.x.com/en/community"
+                        }
+                    ]
+                },
+                "description": {
+                    "hashtags": [
+                        {
+                            "start": 23,
+                            "end": 30,
+                            "tag": "DevRel"
+                        },
+                        {
+                            "start": 113,
+                            "end": 130,
+                            "tag": "BlackLivesMatter"
+                        }
+                    ]
+                }
+            },
+            "verified": true,
+            "description": "The voice of Twitter's #DevRel team, and your official source for updates, news, & events about Twitter's API. \n\n#BlackLivesMatter",
+            "url": "https://t.co/3ZX3TNiZCY",
+            "profile_image_url": "https://pbs.twimg.com/profile_images/1267175364003901441/tBZNFAgA_normal.jpg",
+            "protected": false,
+            "pinned_tweet_id": "1255542774432063488",
+            "created_at": "2013-12-14T04:35:55.000Z"
+        }
+    ],
+    "includes": {
+        "tweets": [
+            {
+                "id": "1255542774432063488",
+                "text": "During these unprecedented times, what’s happening on Twitter can help the world better understand &amp; respond to the pandemic. \n\nWe're launching a free COVID-19 stream endpoint so qualified devs &amp; researchers can study the public conversation in real-time. https://t.co/BPqMcQzhId"
+            }
+        ]
+    }
+}
+```
+
+<div id="space">
+  ### Space
+</div>
+
+Spaces 通过实时音频会话实现表达与互动。Space 数据字典包含有关某个 Space 的相关元数据；所有详细信息都会实时更新。
+
+用户对象可在用户资源中查找并展开。通过在 expansions 查询参数中添加至少一个 host\_ids、creator\_id、speaker\_ids 或 mentioned\_user\_ids，这些对象即可进行扩展。
+
+与推文不同，Space 为临时内容，在结束后或被创建者取消时将不可用。当你的应用处理 Space 数据时，你有责任返回最新信息，并且必须移除平台上已不再可用的数据。[Spaces 查询端点](/zh/x-api/spaces/lookup/introduction)可帮助你确保尊重用户的期望与意图。
+
+| 字段值                 | 类型            | 说明                                                                                                         | 用途                                                     |
+| :-------------------- | :--------------- | :----------------------------------------------------------------------------------------------------------- | :------------------------------------------------------- |
+| id（默认）            | 字符串          | 所请求 Space 的唯一标识符。<br />`"id": "1zqKVXPQhvZJB"`                                                      | 在响应中唯一标识 Space。                                 |
+| state（默认）         | 字符串          | 指示 Space 处于已开始、将开始或已结束状态。<br />`"state": "live"`                                            | 筛选进行中或已排期的 Space。                            |
+| created\_at           | 日期（ISO 8601）| 该 Space 的创建时间。<br />`"created_at": "2021-07-04T23:12:08.000Z"`                                         | 了解创建时间并按时间排序。                               |
+| ended\_at             | 日期（ISO 8601）| Space 的结束时间（如适用）。<br />`"ended_at": "2021-07-04T00:11:44.000Z"`                                     | 确定直播 Space 的结束时间以计算时长。                   |
+| host\_ids             | 数组            | Space 主持人的唯一标识符。<br />`"host_ids": ["2244994945", "6253282"]`                                       | 展开用户对象，了解互动情况。                            |
+| lang                  | 字符串          | Space 的语言（如已检测到）。<br />`"lang": "en"`                                                              | 按语言对 Space 分类。                                   |
+| is\_ticketed          | 布尔值          | 指示该 Space 是否为售票活动。<br />`"is_ticketed": false`                                                     | 突出重点内容。                                          |
+| invited\_user\_ids     | 数组            | 受邀作为发言者的用户 ID 列表。<br />`"invited_user_ids": ["2244994945", "6253282"]`                           | 展开用户对象，了解互动情况。                            |
+| participant\_count    | 整数            | Space 中的用户数量（包含主持人和发言者）。<br />`"participant_count": 420`                                    | 了解互动情况并生成报告。                                |
+| subscriber\_count     | 整数            | 为该 Space 设置提醒的人数。<br />`"subscriber_count": 36`                                                     | 了解活动关注度。                                        |
+| scheduled\_start      | 日期（ISO 8601）| Space 的计划开始时间。<br />`"scheduled_start": "2021-07-14T08:00:00.000Z"`                                   | 与日历通知集成。                                        |
+| speaker\_ids          | 数组            | 任一时间点发言过的用户 ID 列表。<br />`"speaker_ids": ["2244994945", "6253282"]`                              | 展开用户对象，了解互动情况。                            |
+| started\_at           | 日期（ISO 8601）| Space 的实际开始时间。<br />`"started_at": "2021-07-14T08:00:12.000Z"`                                        | 确定 Space 的开始时间。                                 |
+| title                 | 字符串          | Space 的标题。<br />`"title": "Say hello to the Space data object!"`                                          | 提取关键词、话题标签、提及。                            |
+| topic\_ids            | 数组            | 由 Space 创建者选择的主题 ID。<br />`"topic_ids": ["2244994945", "6253282"]`                                  | 提取关键词、话题标签、提及。                            |
+| updated\_at           | 日期（ISO 8601）| Space 元数据的最后更新时间。<br />`"updated_at": "2021-07-11T14:44:44.000Z"`                                   | 保持信息最新。                                          |
+
+\*\*获取 Space 对象\*\*
+
+**示例请求**
+
+在以下请求中，我们将通过 [Spaces 查询端点](/zh/x-api/spaces/lookup/introduction)为该 Space 请求字段。请务必将 `$BEARER_TOKEN` 替换为你自行生成的 [Bearer Token](/zh/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)。
+
+```bash
+curl "https://api.x.com/2/spaces/1DXxyRYNejbKM?space.fields=created_at,creator_id,created_athost_ids,lang,is_ticketed,invited_user_ids,participant_count,scheduled_start,speaker_ids,started_at,state,title,updated_at&expansions=creator_id,host_ids,invited_user_ids,speaker_ids" --header "Authorization: Bearer $BEARER_TOKEN"
+```
+
+\*\* 示例响应 \*\*
+
+```
+{
+  "data": {
+    "id": "1zqKVXPQhvZJB",
+    "state": "live",
+    "created_at": "2021-07-04T23:12:08.000Z",
+    "host_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "lang": "en",
+    "is_ticketed": false,
+    "invited_user_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "participant_count": 420,
+    "scheduled_start": "2021-07-14T08:00:00.000Z",
+    "speaker_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "started_at": "2021-07-14T08:00:12.000Z",
+    "title": "欢迎使用 Space 数据对象！",
+    "updated_at": "2021-07-11T14:44:44.000Z"
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "Twitter Dev",
+        "username": "TwitterDev"
+      },
+      {
+        "id": "6253282",
+        "name": "Twitter API",
+        "username": "TwitterAPI"
+      }
+    ]
+  }
+}
+```
+
+<div id="list">
+  ### 列表
+</div>
+
+List 对象包含描述所引用列表的 [Twitter Lists](https://help.x.com/en/using-twitter/twitter-lists) 元数据。List 对象是 List 查询端点返回的主要对象。在该端点请求额外的 List 字段时，只需使用字段参数 `list.fields`。
+
+List 对象不会作为其他数据对象的子对象出现。不过，User 对象可以在用户资源中查找并展开。通过在 `expansions` 查询参数中添加 `owner_id`，即可展开这些对象。在请求额外字段以完善主 List 对象时，将此展开与 `list.fields` 字段参数一起使用，并使用 `user.fields` 来完善展开的对象。
+
+| 字段值        | 类型            | 说明                                                                                                                                                              | 使用方式                                                                 |
+|:---------------|:-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------|
+| id（默认）     | string          | 此列表的唯一标识符。<br />`"id": "2244994945"`                                                                                                                     | 用于以编程方式检索特定列表的信息。                                       |
+| name（默认）   | string          | 创建列表时定义的列表名称。<br />`"name": "Twitter Lists"`                                                                                                          |                                                                         |
+| created\_at     | date (ISO 8601) | 列表创建时的 UTC 日期时间。<br />`"created_at": "2013-12-14T04:35:55.000Z"`                                                                                        | 用于判断某个列表在 Twitter 上存在了多长时间。                            |
+| description    | string          | 向用户说明该列表的简短描述。<br />`"description": "People that are active members of the Bay area cycling community on Twitter."`                                  |                                                                         |
+| follower\_count | integer         | 关注此列表的用户数量。<br />`"follower_count": 198`                                                                                                                |                                                                         |
+| member\_count   | integer         | 此列表包含的成员数量。<br />`"member_count": 60`                                                                                                                   |                                                                         |
+| private        | boolean         | 指示该列表是否为私密。<br />`"private": false`                                                                                                                     |                                                                         |
+| owner\_id       | string          | 此列表所有者的唯一标识符。<br />`"owner_id": "1255542774432063488"`                                                                                                | 可用于判断该用户是否拥有其他列表，并用于展开 User 对象。                |
+
+**检索 User 对象**
+
+**示例请求**
+
+在以下请求中，我们在 [按 ID 查询列表](/zh/x-api/lists/list-lookup/introduction) 端点为用户请求字段。将 `$BEARER_TOKEN` 替换为你生成的 [Bearer Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+```bash
+curl --request GET 'https://api.x.com/2/lists/1355797419175383040?list.fields=created_at,description,private,follower_count,member_count,owner_id&expansions=owner_id' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**示例响应**
+
+```
+{
+  "data": {
+    "name": "Twitter Comms",
+    "member_count": 60,
+    "id": "1355797419175383040",
+    "private": false,
+    "description": "",
+    "follower_count": 198,
+    "owner_id": "257366942",
+    "created_at": "2021-01-31T08:37:48.000Z"
+  },
+  "includes": {
+    "users": [
+      {
+        "created_at": "2011-02-25T07:51:26.000Z",
+        "name": "Ashleigh Hay 🤸🏼‍♀️",
+        "id": "257366942",
+        "username": "shleighhay",
+        "verified": false
+      }
+    ]
+  }
+}
+```
+
+<div id="media">
+  ### 媒体
+</div>
+
+媒体指附加在推文上的任何图片、GIF 或视频。media 对象不是任何端点上的主对象，但可以在 Tweet 对象中找到并展开。通过 `?expansions=attachments.media_keys` 可展开以仅获取包含默认字段的精简对象。若需请求更多字段以补全对象，请将该扩展与字段参数 `media.fields` 一起使用。
+
+| 字段值                     | 类型    | 描述                                                                                                        | 用途                                                     |
+|:----------------------------|:---------|:--------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------|
+| media\_key（默认）          | string  | 已展开媒体内容的唯一标识符。<br />`"media_key": "13_1263145212760805376"`                 | 可用于以编程方式检索媒体                                  |
+| type（默认）               | string  | 内容类型（animated\_gif、photo、video）。<br />`"type": "video"`                                        | 将媒体归类为照片、GIF 或视频                              |
+| url                        | string  | 指向 Twitter 上媒体文件的直接 URL。                                                                        | 对于照片，返回包含 URL 字段的 Media 对象                  |
+| duration\_ms                | integer | 当类型为 video 时可用。视频时长（毫秒）。<br />`"duration_ms": 46947`               |                                                          |
+| height                     | integer | 此内容的高度（像素）。<br />`"height": 1080`                                                        |                                                          |
+| non\_public\_metrics         | object  | 请求时刻该媒体内容的非公开互动指标。需要用户上下文认证。<br />`"non_public_metrics": { "playback_0_count": 1561, "playback_100_count": 116, "playback_25_count": 559, "playback_50_count": 305, "playback_75_count": 183 }` | 评估视频互动：分别有多少用户观看到各四分位进度。 |
+| organic\_metrics            | object  | 请求时刻在自然场景下跟踪的该媒体内容互动指标。需要用户上下文认证。<br />`"organic_metrics": { "playback_0_count": 1561, "playback_100_count": 116, "playback_25_count": 559, "playback_50_count": 305, "playback_75_count": 183, "view_count": 629 }` | 判断自然场景下的媒体互动。                      |
+| preview\_image\_url          | string  | 此内容的静态占位预览图 URL。<br />`"preview_image_url": "https://pbs.twimg.com/media/EYeX7akWsAIP1_1.jpg"` |                                                          |
+| promoted\_metrics           | object  | 请求时刻在推广场景下跟踪的该媒体内容互动指标。需要用户上下文认证。<br />`"promoted_metrics": { "playback_0_count": 259, "playback_100_count": 15, "playback_25_count": 113, "playback_50_count": 57, "playback_75_count": 25, "view_count": 124 }` | 判断推文推广时的媒体互动。  |
+| public\_metrics             | object  | 请求时刻该媒体内容的公开互动指标。<br />`"public_metrics": { "view_count": 6865141 }` | 用于确定附加在推文上的视频的总观看次数。 |
+| width                      | integer | 此内容的宽度（像素）。<br />`"width": 1920`                                                          |                                                          |
+| alt\_text                   | string  | 图像描述，用于提升无障碍可访问性。最长 1000 个字符。目前仅能为图像添加替代文本。<br />`"alt_text": "Rugged hills along the Na Pali coast on the island of Kauai"` | 可用于在用户视力受损时提供图像的文字描述。 |
+| variants                   | array   | 每个媒体对象可能具有多个显示或播放变体，分辨率或格式各不相同。<br />`"variants": [{ "bit_rate": 632000, "content_type": "video/mp4", "url": "https://video.twimg.com/ext_tw_video/1527322141724532740/pu/vid/320x568/lnBaR2hCqE-R_90a.mp4?tag=12"}]` |                                                          |
+
+**检索媒体对象**
+
+**示例请求**
+
+在以下请求中，我们在 [Tweet lookup](/zh/x-api/posts/lookup/introduction) 端点上请求推文所附媒体对象的字段。由于媒体是推文的子对象，因此必须使用 `attachments.media_keys` 扩展。请务必将 `$BEARER_TOKEN` 替换为你自己生成的 [Bearer Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1263145271946551300&expansions=attachments.media_keys&media.fields=duration_ms,height,media_key,preview_image_url,public_metrics,type,url,width,alt_text' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+```
+{
+  "data": [
+    {
+      "text": "Testing, testing...\n\nA new way to have a convo with exactly who you want. We’re starting with a small % globally, so keep your 👀 out to see it in action. https://t.co/pV53mvjAVT",
+      "id": "1263145271946551300",
+      "attachments": {
+        "media_keys": [
+          "13_1263145212760805376"
+        ]
+      }
+    }
+  ],
+  "includes": {
+    "media": [
+      {
+        "duration_ms": 46947,
+        "type": "video",
+        "height": 1080,
+        "media_key": "13_1263145212760805376",
+        "public_metrics": {
+          "view_count": 6909260
+        },
+        "preview_image_url": "https://pbs.twimg.com/media/EYeX7akWsAIP1_1.jpg",
+        "width": 1920
+      }
+    ]
+  }
+}
+```
+
+<div id="poll">
+  ### 投票
+</div>
+
+推文中包含的投票并不是任何端点的主对象，但可以在推文对象中找到并展开。可通过 `?expansions=attachments.poll_ids` 进行展开，以获取仅包含默认字段的精简对象。若需请求其他字段以完善该对象，请在使用展开参数的同时指定字段参数 `poll.fields`。
+
+| 字段值            | 类型                  | 说明                                                                                                       |
+|:-------------------|:----------------------|:-----------------------------------------------------------------------------------------------------------|
+| id（默认）        | string               | 展开的投票的唯一标识符。                                                                                   |
+|                   |                      | `{"id": "1199786642791452673"}`                                                                           |
+| options（默认）   | array                | 包含描述所引用投票中每个选项的对象。                                                                       |
+|                   |                      | `{"options": [ { "position": 1, "label": "“C Sharp”", "votes": 795 }, { "position": 2, "label": "“C Hashtag”", "votes": 156 } ]}` |
+| duration\_minutes   | integer              | 指定此投票的总持续时间（分钟）。                                                                            |
+|                   |                      | `{"duration_minutes": 1440}`                                                                                |
+| end\_datetime       | date (ISO 8601)     | 指定此投票的结束日期和时间。                                                                               |
+|                   |                      | `{"end_datetime": "2019-11-28T20:26:41.000Z"}`                                                            |
+| voting\_status      | string               | 指示该投票是否仍处于活跃状态并可投票，或投票是否已关闭。                                                   |
+|                   |                      | `{"voting_status": "closed"}`                                                                               |
+
+**检索投票对象**
+
+**示例请求**
+
+在以下请求中，我们在 [Tweets lookup](/zh/x-api/posts/lookup/introduction) 端点上请求附加到该推文的投票对象字段。由于投票是推文的子对象，因此需要使用 `attachments.poll_ids` 展开。请务必将 `$BEARER_TOKEN` 替换为你自己生成的 [Bearer Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1199786642791452673&expansions=attachments.poll_ids&poll.fields=duration_minutes,end_datetime,id,options,voting_status' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**示例响应**
+
+```
+{
+  "data": [
+    {
+      "text": "C#",
+      "id": "1199786642791452673",
+      "attachments": {
+        "poll_ids": [
+          "1199786642468413448"
+        ]
+      }
+    }
+  ],
+  "includes": {
+    "polls": [
+      {
+        "id": "1199786642468413448",
+        "voting_status": "closed",
+        "duration_minutes": 1440,
+        "options": [
+          {
+            "position": 1,
+            "label": "“C Sharp”",
+            "votes": 795
+          },
+          {
+            "position": 2,
+            "label": "“C Hashtag”",
+            "votes": 156
+          }
+        ],
+        "end_datetime": "2019-11-28T20:26:41.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="place">
+  ### 地点
+</div>
+
+在任何端点中，推文中标记的地点并不是主对象，但可以在推文资源中找到并展开。可通过 `?expansions=geo.place_id` 进行扩展，以获取仅包含默认字段的精简对象。若需请求额外字段以补全对象，请在使用扩展的同时添加字段参数 `place.fields`。
+
+| 字段值               | 类型   | 描述                                                                                         | 使用方式                                        |
+|:---------------------|:--------|:----------------------------------------------------------------------------------------------|:------------------------------------------------|
+| full\_name（默认）    | string | 更长、更详尽的地点名称。                                                                     | 按特定地点名称对推文进行分类                    |
+|                     |        | `"full_name": "Manhattan, NY"`                                                             |                                                |
+| id（默认）           | string | 展开后的地点的唯一标识符（当推文中标记的是兴趣点时）。                                      | 以编程方式检索某个地点                          |
+|                     |        | `"id": "01a9a39529b27f36"`                                                                  |                                                |
+| contained\_within    | array  | 返回包含所引用地点的已知地点的标识符。                                                       |                                                |
+| country             | string | 此地点所属国家的全称。                                                                       | 按国家名称对推文进行分类                        |
+|                     |        | `"country": "United States"`                                                                  |                                                |
+| country\_code        | string | 此地点所属国家的 ISO Alpha-2 国家/地区代码。                                                | 按国家/地区代码对推文进行分类                   |
+|                     |        | `"country_code": "US"`                                                                       |                                                |
+| geo                 | object | 以 GeoJSON 格式包含地点详细信息。                                                            |                                                |
+|                     |        | `json                                                                                      |
+|                     |        | "geo":                                                                                     |
+|                     |        |     "type": "Feature",                                                                       |
+|                     |        |     "bbox": [                                                                                |
+|                     |        |         -74.026675,                                                                         |
+|                     |        |         40.683935,                                                                          |
+|                     |        |         -73.910408,                                                                         |
+|                     |        |         40.877483                                                                           |
+|                     |        |     ],                                                                                       |
+|                     |        |     "properties": {}                                                                        |
+|                     |        | }                                                                                             |
+|                     |        | `                                                                                          |                                                |
+| name                | string | 此地点的短名称。                                                                             | 按特定地点名称对推文进行分类                    |
+|                     |        | `"name": "Manhattan"`                                                                       |                                                |
+| place\_type          | string | 指定该地点信息所代表的信息类型，例如城市名称或兴趣点。                                       | 按地点类型对推文进行分类                        |
+|                     |        | `"place_type": "city"`                                                                       |                                                |
+
+**检索地点对象**
+
+**示例请求**
+
+在以下请求中，我们在 [Tweets lookup](/zh/x-api/posts/lookup/introduction) 端点请求附加在推文上的地点对象的字段。由于地点是推文的子对象，因此必须使用 `geo.place_id` 扩展。请务必将 `$BEARER_TOKEN` 替换为你自己生成的 [Bearer Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1136048014974423040&expansions=geo.place_id&place.fields=contained_within,country,country_code,full_name,geo,id,name,place_type' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**示例响应**
+
+```
+{
+  "data": [
+    {
+      "text": "We’re sharing a live demo of the new Twitter Developer Labs program, led by a member of our DevRel team, @jessicagarson #TapIntoTwitter https://t.co/ghv7f4dW5M",
+      "id": "1136048014974423040",
+      "geo": {
+        "place_id": "01a9a39529b27f36"
+      }
+    }
+  ],
+  "includes": {
+    "places": [
+      {
+        "geo": {
+          "type": "Feature",
+          "bbox": [
+            -74.026675,
+            40.683935,
+            -73.910408,
+            40.877483
+          ],
+          "properties": {}
+        },
+        "country_code": "US",
+        "name": "Manhattan",
+        "id": "01a9a39529b27f36",
+        "place_type": "city",
+        "country": "United States",
+        "full_name": "Manhattan, NY"
+      }
+    ]
+  }
+}
+```
+
+<div id="direct-message-events">
+  ### 私信事件
+</div>
+
+私信（DM）会话由事件构成。X API v2 当前支持三种事件类型：MessageCreate、ParticipantsJoin 和 ParticipantsLeave。
+
+DM 事件对象由 [私信查询](/zh/x-api/direct-messages/lookup/introduction) 端点返回；当通过 [管理私信](/zh/x-api/direct-messages/lookup/introduction) 端点成功创建私信时，会生成一个 MessageCreate 事件。
+
+请求 DM 事件时，默认包含三个事件对象属性（字段）：id、event\_type 和 text。若要获取更多事件字段，请使用 [fields](/zh/x-api/fundamentals/fields) 参数 dm\_event.fields 进行选择。其他可用字段包括：dm\_conversation\_id、created\_at、sender\_id、attachments、participant\_ids 和 referenced\_tweets。
+
+其中有若干字段提供与该私信事件相关的其他 X 对象的 ID：
+
+- sender\_id - 发送消息或将参与者邀请至群组会话的账户 ID
+- participant\_ids - 账户 ID 的数组。对于 ParticipantsJoin 和 ParticipantsLeave 事件，此数组仅包含创建该事件的账户的一个 ID
+- attachments - 提供发送方已上传至 X 的内容所对应的媒体 ID
+- referenced\_tweets - 如果在 text 字段中检测到推文 URL，响应中会包含该推文的 ID
+
+可使用 sender\_id、participant\_ids、referenced\_tweets.id 和 attachments.media\_keys 的 [expansions](/zh/x-api/fundamentals/expansions) 来展开这些 X 对象 ID。
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **字段值** | **类型** | **描述** | **使用方式** |
+| id (default) | string | 事件的唯一标识符。<br /><br />"id": "1050118621198921728" | 用于以编程方式检索特定会话事件（可通过 v1.1 端点获取）。 |
+| event\_type (default) | string | 描述事件类型。目前支持三种类型： <br /><br />\* MessageCreate<br />    <br />\* ParticipantsJoin<br />    <br />\* ParticipantsLeave<br />    <br /><br />"event\_type": "MessageCreate" | 在检索会话历史时，用于了解消息创建时间；对于群组会话，用于了解参与者加入和离开的时间。所有 GET 方法均支持使用 event\_type= 查询参数过滤特定事件类型。 . |
+| text (default) | string | 私信的 UTF-8 文本内容。 <br /><br />"text": "Hello, just you!" | 在聊天机器人场景中，可用于分析消息内容并确定自动回复。也可用于构建会话搜索功能。 |
+| sender\_id | string | 创建事件的用户 ID。要在响应中展开此对象，请将 sender\_id 作为 expansion  and use the user.fields query parameter to specify User object attributes of interest.<br /><br />"sender\_id": "906948460078698496" | 检索创建了 MessageCreate 或 ParticipantsJoin 事件的 User 对象。 |
+| participant\_id | array (of strings) | 加入或离开群组会话的参与者 ID；创建新群组会话时也会使用。要在响应中展开此对象，请将 participant\_ids 作为 expansion and use the user.fields query parameter to specify User object attributes of interest.<br /><br />"participant\_ids": \[<br /><br />     "906948460078698496"<br /><br />] | 用于检索加入或离开群组会话的参与者的 User 对象。 |
+| dm\_conversation\_id | string | 该事件所属会话的唯一标识符。<br /><br />"dm\_conversation\_id": "1584988213961031680" | 用于以编程方式从某个会话检索事件，并向该会话添加私信。 |
+| created\_at | date (ISO 8601) | 推文的创建时间（UTC）。<br /><br />"created\_at": "2019-06-04T23:12:08.000Z" | 可用于了解私信的创建时间或会话参与者的加入/离开时间。 |
+| referenced\_tweets | array | 私信文本中提及的任何推文的 ID。要在响应中展开此对象，请将 referenced\_tweets.id 作为 expansion and use the tweet.fields query parameter to specify Tweet object attributes of interest.<br /><br />"referenced\_tweets": \[<br /><br />    <br /><br />"id": "1578868150510456833"<br /><br />    <br /><br />] | 当私信引用推文时，这些 ID 可用于查询该推文的详细信息。 |
+| attachments | object | 对于附带媒体的私信，提供已上传内容（照片、视频或 GIF）的 media key。要在响应中展开此对象，请将 attachments.media\_keys 作为 expansion 并使用 media.fields 查询参数指定感兴趣的 media 对象属性。目前仅支持一个附件。 <br /><br />"attachments": <br /><br />    "media\_keys": \[<br /><br />        "3\_1136048009270239232"<br /><br />    ]<br /><br /> | 用于了解附加在私信上的媒体对象。 |
+
+**检索私信事件对象**
+
+**示例请求**
+
+在此示例中，我们将构建一个请求来检索与一对一会话相关的事件。该请求将返回基本的私信事件字段，以及引用推文及其作者的附加字段。我们将构建一个查询，要求返回以下内容：
+
+- 基本事件属性，例如创建时间以及所属会话（dm\_conversation）。
+- 发送私信者的账号 ID 和简介。
+- 任何被引用推文的文本及其发布时间。
+- 任何被引用推文作者的账号 ID 和简介。
+
+要返回这些属性，你的请求查询应包含以下内容：
+
+`?dm_event.fields=id,sender_id,text,created_at,dm_conversation_id&expansions=sender_id,referenced_tweets.id&tweet.fields=created_at,text,author_id&user.fields=description`
+
+```bash
+      curl --request GET 'https://api.x.com/2/dm_conversations/with/:participant_id/dm_events?tweet.fields=created_at,text,author_id&user.fields=description&expansions=sender_id,participant_ids,referenced_tweets.id&dm_event.fields=id,sender_id,text,participant_ids,created_at,'
+    --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+请务必将 $BEARER\_TOKEN 替换为你自行生成的[Bearer Token](/zh/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token)。
+
+**示例响应**
+
+```
+      {
+	"data": [{
+			"id": "1585047616894574596",
+			"sender_id": "944480690",
+			"text": "Hello, just you!",
+			"created_at": "2022-10-25T23:16:15.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		},
+		{
+			"id": "1581048670673260549",
+			"sender_id": "944480690",
+			"tekst": "Simple Tweet link: https://t.co/IYFbRIdXHg",
+			"referenced_tweets": [{
+				"id": "1578900353814519810"
+			}],
+			"created_at": "2022-10-14T22:25:52.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		},
+		{
+			"id": "1580705121553420292",
+			"sender_id": "944480690",
+			"text": "Adding a new 1-to-1 Direct Message.",
+			"created_at": "2022-10-13T23:40:43.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		}
+	],
+	"includes": {
+		"users": [{
+				"name": "API Demos",
+				"description": "Hosting TwitterDev integrations... @TwitterDev #DevRel",
+				"id": "944480690",
+				"username": "FloodSocial"
+			},
+			{
+				"name": "the SnowBot",
+				"description": "Home of the @TwitterDev SnowBot... Serving snow reports, snow photos, and snow research links... Chatbot is currently being remodeled for Twitter APIv2.",
+				"id": "906948460078698496",
+				"username": "SnowBotDev"
+			}
+		],
+		"tweets": [{
+				"text": "Feeling kind of bad that I didn’t wish everybody a happy new Colorado Water Year…\n\nHappy Water Year to all my Colorado friends and colleagues, new and old… \n\nMay this be a generous water year, although not too generous…",
+				"id": "1578900353814519810",
+				"created_at": "2022-10-09T00:09:13.000Z",
+				"author_id": "944480690",
+				"edit_history_tweet_ids": [
+					"1578900353814519810"
+				]
+			}
+		]
+	},
+	"meta": {
+		"result_count": 3,
+		"next_token": "18LAA581J5II7LA00C00ZZZZ",
+		"previous_token": "1BLC45G1H8CAL5DG0G00ZZZZ"
+	}
+}
+```
+
+<div id="community">
+  ### 社区
+</div>
+
+社区是 X 用户连接、分享，并更贴近其最关心话题讨论的专属空间。
+
+社区中的帖子对所有 X 用户可见，但只有该社区内的成员才能互动并参与讨论。
+
+Community 对象包含关于某个社区的相关元数据。
+
+| 字段值               | 类型               | 描述                                                                                              |                |
+|:----------------------|:--------------------|:--------------------------------------------------------------------------------------------------|:----------------|
+| created\_at           | date (ISO 8601)    | 社区的创建时间。                                                                                  |                |
+| id                   | string             | 社区的唯一标识符。                                                                                |                |
+| name                 | string             | 社区名称。                                                                                        |                |
+| description          | string             | 社区的描述文本（如已提供）。                                                                      |                |
+| access               | string             | 社区的访问级别。<br /><br />可能为：                                                                 |                |
+|                      |                    | - `Public`                                                                                        |                |
+|                      |                    | - `Closed`                                                                                        |                |
+| join\_policy          | string             | 社区的加入策略。<br /><br />可能为：                                                                 |                |
+|                      |                    | - `Open`                                                                                          |                |
+|                      |                    | - `RestrictedJoinRequestsDisabled`                                                                |                |
+|                      |                    | - `RestrictedJoinRequestsRequireAdminApproval`                                                   |                |
+|                      |                    | - `RestrictedJoinRequestsRequireModeratorApproval`                                               |                |
+|                      |                    | - `SuperFollowRequired`                                                                           |                |
+| member\_count         | integer            | 已加入该社区的成员数量。                                                                          |                |
+
+**检索 Community 对象**
+
+**示例请求**
+
+在以下请求中，我们基于提供的关键词搜索社区列表，同时请求特定字段。请将 `$BEARER_TOKEN` 替换为你自己生成的 [Bearer Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+```bash
+curl --location 'https://api.x.com/2/communities/search?query=anime&amp;community.fields=access,created_at,description,id,join_policy,member_count,name' --header 'Authorization: $BEARER_TOKEN'
+```
+
+**示例响应**
+
+```
+{
+  "data": [
+    {
+      "id": "Q29tbXVuaXR5OjE3NTg3NDc4MTc2NDI3MDA5MjI=",
+      "description": "Welcome to the Anime Community! Where anime fans gather to share their favorite shows and discuss everything anime-related.",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 39915,
+      "name": "Anime Community",
+      "created_at": "2024-02-17T06:58:50.000Z"
+    },
+    {
+      "id": "Q29tbXVuaXR5OjE1MDY3OTM5NTMxMDYwNDI4OTE=",
+      "description": "Join and text about anime 🥰",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 26019,
+      "name": "Anime World 🌸",
+      "created_at": "2022-03-24T00:44:07.000Z"
+    },
+    {
+      "id": "Q29tbXVuaXR5OjE0OTY3NzYyMTU5Mzk1MzQ4NDk=",
+      "description": "For all anime lovers and creators!",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 5612,
+      "name": "Anime",
+      "created_at": "2022-02-24T09:17:13.000Z"
+    }
+  ],
+  "meta": {
+    "next_token": "7140dibdnow9c7btw481s8m561gat797rboud5r80xvzm"
+  }
+}
+```
+
+<div id="how-to-use-fields-and-expansions">
+  ## 如何使用 fields 和 expansions
+</div>
+
+默认情况下，当你在请求中未使用 [fields](/zh/x-api/fundamentals/fields) 或 [expansions](/zh/x-api/fundamentals/expansions) 参数时，X API v2 的数据对象只会包含少量默认字段。本指南将演示如何在请求中使用 `fields` 和 `expansions` 查询参数，以在响应中获取更多对象与字段。
+
+在本指南中，我们将基于下方的 Tweet 截图请求若干字段。
+ 
+
+![此图为一条由 @X 发布的 Tweet 截图。你可以看到 Tweet 文本、用户名、发布时间与时间、来源，以及公开指标。截图中还包含一个视频。](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/ScreenShotDataDictionaryGuide.png.twimg.1920.png)
+
+如你在截图中所见，与该 Tweet 相关的可见信息包括 Tweet 作者、Tweet 指标、创建时间戳、视频以及视频观看次数。还有一些数据在截图中不可见，但仍可通过请求获取。 
+
+当你向 API 发起请求时，默认响应较为精简，仅包含默认的 Tweet 字段（id 和 text）。你还只会收到所使用端点返回的主对象，而不会包含任何可能与主对象相关的关联数据对象。
+
+这种精简性与 fields 和 expansions 参数相结合，使你能够根据你的使用场景仅请求所需字段。 
+ 
+
+<div id="requesting-additional-fields-and-objects">
+  #### 请求额外的字段和对象。
+</div>
+
+首先，我们将使用推文 ID 通过 [GET /tweets 端点](/zh/x-api/posts/lookup/introduction)请求一个 [推文对象](/zh/x-api/fundamentals/data-dictionary#tweet)。
+
+请求：
+
+```bash
+curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+返回：
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "别错过别人对你推文的讨论。\n\n现在在 iOS 上，你可以在同一位置查看所有“带评论的转推”。https://t.co/oanjZfzC6y"
+        }
+    ]
+}
+```
+
+以下分步指南将演示如何检索截图中显示的其他数据。
+
+1. 使用我们的[对象模型](/zh/x-api/fundamentals/data-dictionary#tweet)来确定您希望请求的其他字段，或查阅各端点的 API 参考页面中的字段列表。
+
+   在这种情况下，我们将请求以下额外字段：
+   attachments、author\_id、created\_at、public\_metrics。
+
+2. 使用上述字段作为值，构建 `tweet.fields` 查询参数，并以逗号分隔的列表传入：
+   `?tweet.fields=attachments,author_id,created_at,public_metrics`
+
+3. 将查询参数添加到你之前发送的 GET /tweets 请求中。
+
+请求：
+
+`curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics' \   --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+响应：
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "别错过关于你这条推文的讨论。\n\n现在在 iOS 上，你可以在同一处查看带评论的转推。 https://t.co/oanjZfzC6y",
+            "author_id": "783214",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            },
+            "created_at": "2020-05-12T19:44:51.000Z"
+        }
+    ]
+}
+```
+
+4. 接下来，我们将请求与该推文所含视频相关的字段。为此，我们会在请求中使用 `expansions` 参数，并将其值设为 `attachments.media_keys`。
+
+?expansions=attachments.media\_keys
+
+请求：
+
+```bash
+curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+响应，其中媒体对象以 includes 对象中的字段呈现：
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "别错过别人对你这条推文的讨论。\n\niOS 现已支持在同一位置查看带评论的转推。https://t.co/oanjZfzC6y",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "created_at": "2020-05-12T19:44:51.000Z",
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            },
+            "author_id": "783214"
+        }
+    ],
+    "includes": {
+        "media": [
+            {
+                "media_key": "13_1260294804770041858",
+                "type": "video"
+            }
+        ]
+    }
+}
+```
+
+5. 最后，我们将请求该视频的观看次数和时长。这些并非默认字段，因此需要显式指定。在请求中使用 `media.fields` 参数，填写以逗号分隔的取值 `public_metrics` 和 `duration_ms`。
+
+?media.fields=public\_metrics,duration\_ms
+
+请求：
+ 
+
+`curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys&media.fields=duration_ms,public_metrics' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+响应（现已包含推文截图中可见的所有数据）：
+ 
+
+```
+  {
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "Don’t miss the Tweets about your Tweet. \n\nNow on iOS, you can see Retweets with comments all in one place. https://t.co/oanjZfzC6y",
+            "author_id": "783214",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "created_at": "2020-05-12T19:44:51.000Z",
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            }
+        }
+    ],
+    "includes": {
+        "media": [
+            {
+                "duration_ms": 36503,
+                "media_key": "13_1260294804770041858",
+                "public_metrics": {
+                    "view_count": 1534703
+                },
+                "type": "video"
+            }
+        ]
+    }
+}
+```
+
+总体而言，我们在此示例中包含了以下参数：
+
+- ids=1260294888811347969
+- tweet.fields=attachments,author\_id,created\_at,public\_metrics
+- expansions=attachments.media\_keys
+- media.fields=public\_metrics,duration\_ms
+   
+
+将它们组合后，完整的查询字符串如下：
+
+```
+?ids=1260294888811347969&tweet.fields=attachments,author\_id,created\_at,public\_metrics&expansions=attachments.media\_keys&media.fields=public\_metrics,duration\_ms
+```
+
+<div id="x-api-v2-example-payloads">
+  ## X API v2 示例载荷
+</div>
+
+<div id="tweet">
+  ### 推文
+</div>
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1304102743196356610",
+      "id": "1307025659294674945",
+      "possibly_sensitive": false,
+      "public_metrics": {
+        "retweet_count": 11,
+        "reply_count": 2,
+        "like_count": 70,
+        "quote_count": 1
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 74,
+            "end": 97,
+            "url": "https://t.co/oeF3ZHeKQQ",
+            "expanded_url": "https://dev.to/twitterdev/understanding-the-new-tweet-payload-in-the-twitter-api-v2-1fg5",
+            "display_url": "dev.to/twitterdev/und…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1317156296982867969/2uLfv-Bh?format=jpg&name=orig",
+                "width": 1128,
+                "height": 600
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1317156296982867969/2uLfv-Bh?format=jpg&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "解读 X API v2 中新的推文负载"
+            "description": "X 近期宣布了全新的 X API v2，从零开始重构以交付新功能……"
+            "unwound_url": "https://dev.to/twitterdev/understanding-the-new-tweet-payload-in-the-twitter-api-v2-1fg5"
+          }
+        ]
+      },
+      "text": "这是一篇重点介绍推文负载 v2 更新的文章 https://t.co/oeF3ZHeKQQ"
+      "in_reply_to_user_id": "2244994945",
+      "created_at": "2020-09-18T18:36:15.000Z",
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1304102743196356610"
+        }
+      ],
+      "lang": "en"
+      "source": "Twitter 网页应用"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "verified": true,
+        "location": "127.0.0.1",
+        "description": "#TwitterDev 团队的官方之声，为你提供与 #TwitterAPI 相关的更新、新闻和活动信息。"
+        "pinned_tweet_id": "1293593516040269825",
+        "username": "TwitterDev",
+        "public_metrics": {
+          "followers_count": 513961,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "name": "Twitter Dev",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "protected": false
+      }
+    ],
+    "tweets": [
+      {
+        "conversation_id": "1304102743196356610",
+        "id": "1304102743196356610",
+        "possibly_sensitive": false,
+        "public_metrics": {
+          "retweet_count": 31,
+          "reply_count": 12,
+          "like_count": 104,
+          "quote_count": 4
+        },
+        "entities": {
+          "mentions": [
+            {
+              "start": 146,
+              "end": 158,
+              "username": "suhemparack"
+            }
+          ],
+          "urls": [
+            {
+              "start": 237,
+              "end": 260,
+              "url": "https://t.co/CjneyMpgCq",
+              "expanded_url": "https://x.com/TwitterDev/status/1304102743196356610/video/1",
+              "display_url": "pic.x.com/CjneyMpgCq"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 8,
+              "end": 19,
+              "tag": "TwitterAPI"
+            }
+          ]
+        },
+        "attachments": {
+          "media_keys": [
+            "13_1303848070984024065"
+          ]
+        },
+        "text": "全新的 #TwitterAPI 对推文载荷做了一些改进。你可能会想——主要有什么不同？🧐\n\n在这段视频中，@SuhemParack 对比了 v1.1 的推文载荷与使用我们 v2 端点时你会看到的内容。 https://t.co/CjneyMpgCq",
+        "created_at": "2020-09-10T17:01:37.000Z",
+        "author_id": "2244994945",
+        "lang": "en",
+        "source": "Twitter Media Studio"
+      }
+    ]
+  }
+}
+```
+
+<div id="tweet-reply">
+  ### 帖子回复
+</div>
+
+```json
+{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1296887091901718529",
+      "text": "了解 @PennMedCDH 如何利用 Twitter 数据洞察 COVID-19 公共卫生危机 📊\n\nhttps://t.co/1tdA8uDWes",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1296887091901718529"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 30,
+            "end": 36,
+            "probability": 0.6318,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 8,
+            "end": 19,
+            "username": "PennMedCDH"
+          }
+        ],
+        "urls": [
+          {
+            "start": 87,
+            "end": 110,
+            "url": "https://t.co/1tdA8uDWes",
+            "expanded_url": "https://developer.x.com/en/use-cases/success-stories/penn",
+            "display_url": "developer.x.com/en/use-cases/s…",
+            "status": 200,
+            "title": "宾大医学数字健康中心",
+            "description": "宾大医学数字健康中心创建了一个 COVID-19 Twitter 地图，其中包含展示情绪、报告症状、按州拆分的数据切片，以及有关 COVID-19 疫情边界数据的图表。此外，他们的 Penn Med With You 计划利用来自 Twitter 的地区聚合信息，为其网站和短信服务提供支持。该服务据此分发相关且及时的资源。",
+            "unwound_url": "https://developer.x.com/en/use-cases/success-stories/penn"
+          }
+        ]
+      },
+      "id": "1296887316556980230",
+      "public_metrics": {
+        "retweet_count": 9,
+        "reply_count": 3,
+        "like_count": 26,
+        "quote_count": 2
+      },
+      "author_id": "2244994945",
+      "in_reply_to_user_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "品牌类别",
+            "description": "品牌纵向中的类别，用于缩小品牌范围",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "服务",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "品牌",
+            "description": "品牌与公司",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter",
+          }
+        },
+        {
+          "domain": {
+            "id": "123",
+            "name": "持续新闻事件",
+            "description": "如“脱欧”之类的持续新闻事件",
+          },
+          "entity": {
+            "id": "1220701888179359745",
+            "name": "COVID-19",
+          }
+        }
+      ],
+      "source": "Twitter 网页应用",
+      "created_at": "2020-08-21T19:10:05.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community",
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev",
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI",
+              }
+            ]
+          }
+        },
+        "description": "由 #TwitterDev 团队发声，您获取与 #TwitterAPI 相关更新、新闻和活动的官方渠道。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      },
+      {
+        "created_at": "2013-07-23T16:58:03.000Z",
+        "id": "1615654896",
+        "protected": false,
+        "username": "PennMedCDH",
+        "verified": false,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/7eS9RuwIb9",
+                "expanded_url": "http://centerfordigitalhealth.upenn.edu/",
+                "display_url": "centerfordigitalhealth.upenn.edu"
+              }
+            ]
+          },
+          "description": {
+            "mentions": [
+              {
+                "start": 0,
+                "end": 13,
+                "username": "PennMedicine"
+              }
+            ]
+          }
+        },
+        "description": "@PennMedicine 数字健康中心通过研究数字健康技术在医疗领域发展的影响来推动科学进步。",
+        "public_metrics": {
+          "followers_count": 1348,
+          "following_count": 455,
+          "tweet_count": 1288,
+          "listed_count": 92
+        },
+        "location": "宾夕法尼亚州费城",
+        "name": "Penn Med CDH",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1067488849725726723/MoO3FQ44_normal.jpg",
+        "url": "https://t.co/7eS9RuwIb9"
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1296887091901718529",
+        "text": "@RainaMerchant 医生及其在 Penn Medicine CDH 的团队正在助力塑造医疗的未来。\n\n该团队以多种方式利用社交数据洞见——从揭示风险因素到洞察公众情绪。🔎",
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 39,
+              "end": 55,
+              "probability": 0.8274,
+              "type": "Organization",
+              "normalized_text": "Penn Medicine CDH",
+            }
+          ],
+          "mentions": [
+            {
+              "start": 4,
+              "end": 18,
+              "username": "RainaMerchant"
+            }
+          ]
+        },
+        "id": "1296887091901718529",
+        "public_metrics": {
+          "retweet_count": 9,
+          "reply_count": 7,
+          "like_count": 32,
+          "quote_count": 0
+        },
+        "author_id": "2244994945",
+        "source": "Twitter Web App",
+        "created_at": "2020-08-21T19:09:12.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="extended-tweet">
+  ### 扩展推文
+</div>
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1296121314218897408",
+      "id": "1296121314218897408",
+      "possibly_sensitive": false,
+      "public_metrics": {
+        "retweet_count": 54,
+        "reply_count": 9,
+        "like_count": 172,
+        "quote_count": 23
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 192,
+            "end": 215,
+            "url": "https://t.co/khXhTurm9x",
+            "expanded_url": "https://devcommunity.x.com/t/hide-replies-now-available-in-the-new-twitter-api/140996",
+            "display_url": "devcommunity.com/t/hide-replies…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1296121315514957825/3CI24hSI?format=png&name=orig",
+                "width": 400,
+                "height": 400
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1296121315514957825/3CI24hSI?format=png&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "全新 Twitter API 现已支持“隐藏回复”端点"
+            "description": "今天，我们很高兴宣布：全新 Twitter API 的“隐藏回复”端点已全面开放。“隐藏回复”端点允许你构建工具，帮助人们隐藏或取消隐藏其推文的回复。人们管理回复有多种原因，例如减少对辱骂性、分散注意力或误导性评论的关注，或让对话更具吸引力。通过此端点，你可以构建工具，帮助 Twitter 上的人们更快速地隐藏或取消隐藏回复，以及实现更多相关功能。"
+            "unwound_url": "https://devcommunity.x.com/t/hide-replies-now-available-in-the-new-twitter-api/140996"
+          }
+        ],
+        "hashtags": [
+          {
+            "start": 178,
+            "end": 189,
+            "tag": "TwitterAPI"
+          }
+        ]
+      },
+      "text": "“隐藏回复”端点今日上线！\n\n开发者可以隐藏推文的回复——这是使用 #TwitterAPI 改善公共对话健康度的重要方式。\n\nhttps://t.co/khXhTurm9x"
+      "created_at": "2020-08-19T16:26:16.000Z",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "65",
+            "name": "兴趣与爱好纵向"
+            "description": "顶层的兴趣与爱好分组，例如美食或旅行"
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "Technology",
+            "description": "技术与计算"
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "兴趣与爱好类别"
+            "description": "兴趣与爱好实体的分组，例如新奇食品或旅行目的地"
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "计算机编程"
+            "description": "计算机编程"
+          }
+        }
+      ],
+      "author_id": "2244994945",
+      "lang": "en",
+      "source": "Twitter Web App"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "verified": true,
+        "location": "127.0.0.1"
+        "description": "#TwitterDev 团队的声音；获取 #TwitterAPI 相关更新、新闻和活动的官方渠道。",
+        "pinned_tweet_id": "1293593516040269825",
+        "username": "TwitterDev",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "name": "Twitter Dev",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "protected": false
+      }
+    ]
+  }
+}
+```
+
+<div id="tweet-with-media">
+  ### 含媒体的推文
+</div>
+
+```json
+{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1293593516040269825",
+      "text": "终于来了！🥁 向全新的 #TwitterAPI 打个招呼。\n\n我们正从零重构 X API v2，以更好地服务开发者社区。今天的发布只是起点。\n\nhttps://t.co/32VrwpGaJw https://t.co/KaFSbjWUA8",
+      "attachments": {
+        "media_keys": [
+          "7_1293565706408038401"
+        ]
+      },
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 78,
+            "end": 88,
+            "probability": 0.4381,
+            "type": "Product",
+            "normalized_text": "Twitter API"
+          }
+        ],
+        "hashtags": [
+          {
+            "start": 42,
+            "end": 53,
+            "tag": "TwitterAPI"
+          }
+        ],
+        "urls": [
+          {
+            "start": 195,
+            "end": 218,
+            "url": "https://t.co/32VrwpGaJw",
+            "expanded_url": "https://blog.x.com/developer/en_us/topics/tools/2020/introducing_new_twitter_api.html",
+            "display_url": "blog.x.com/developer/en_u…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1336475659279818754/_cmRh7QE?format=jpg&name=orig",
+                "width": 1200,
+                "height": 627
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1336475659279818754/_cmRh7QE?format=jpg&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "全新升级的 X API 介绍",
+            "description": "介绍全新的 X API——自底向上重构，以更快交付新功能，帮助开发者让世界连接到 Twitter 上发生的公共对话。",
+            "unwound_url": "https://blog.x.com/developer/en_us/topics/tools/2020/introducing_new_twitter_api.html"
+          },
+          {
+            "start": 219,
+            "end": 242,
+            "url": "https://t.co/KaFSbjWUA8",
+            "expanded_url": "https://x.com/TwitterDev/status/1293593516040269825/video/1",
+            "display_url": "pic.x.com/KaFSbjWUA8"
+          }
+        ]
+      },
+      "id": "1293593516040269825",
+      "public_metrics": {
+        "retweet_count": 958,
+        "reply_count": 171,
+        "like_count": 2848,
+        "quote_count": 333
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "品牌类别",
+            "description": "品牌纵向领域中的类别，用于缩小品牌范围",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services"
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "品牌",
+            "description": "品牌与公司",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter",
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "兴趣与爱好纵向",
+            "description": "顶层兴趣与爱好分组，例如美食或旅行",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "技术",
+            "description": "技术与计算",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "兴趣与爱好类别",
+            "description": "兴趣与爱好实体的分组，例如新奇美食或目的地",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "计算机编程",
+            "description": "计算机编程",
+          }
+        }
+      ],
+      "source": "Twitter 网页端"
+      "created_at": "2020-08-12T17:01:42.000Z"
+    }
+  ],
+  "includes": {
+    "media": [
+      {
+        "height": 720,
+        "duration_ms": 34875,
+        "media_key": "7_1293565706408038401",
+        "type": "video",
+        "preview_image_url": "https://pbs.twimg.com/ext_tw_video_thumb/1293565706408038401/pu/img/66P2dvbU4a02jYbV.jpg",
+        "public_metrics": {
+          "view_count": 279438
+        },
+        "width": 1280
+      }
+    ],
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev 团队的官方之声，也是您获取 #TwitterAPI 相关更新、新闻和活动信息的权威来源。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev"
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      }
+    ]
+  }
+}`
+
+
+### 转推
+
+      `{
+  "data": [
+    {
+      "public_metrics": {
+        "retweet_count": 19,
+        "reply_count": 0,
+        "like_count": 0,
+        "quote_count": 0
+      },
+      "conversation_id": "1229851574555508737",
+      "id": "1229851574555508737",
+      "entities": {
+        "annotations": [
+          {
+            "start": 28,
+            "end": 38,
+            "probability": 0.261,
+            "type": "Product",
+            "normalized_text": "Alexa Skill"
+          },
+          {
+            "start": 44,
+            "end": 50,
+            "probability": 0.7332,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 3,
+            "end": 15,
+            "username": "suhemparack"
+          }
+        ]
+      },
+      "text": "RT @suhemparack: I built an Alexa Skill for Twitter using APL that allows you to view Tweets and Trends on the echo show!\n\nCheck it out her…",
+      "created_at": "2020-02-18T19:33:59.000Z",
+      "possibly_sensitive": false,
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "retweeted",
+          "id": "1229843515603144704"
+        }
+      ],
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "47",
+            "name": "品牌",
+            "description": "品牌与公司"
+          },
+          "entity": {
+            "id": "10026792024",
+            "name": "Amazon"
+          }
+        },
+        {
+          "domain": {
+            "id": "48",
+            "name": "Product",
+            "description": "由品牌推出的产品。示例：Ford Explorer、Apple iPhone。"
+          },
+          "entity": {
+            "id": "968221983803494400",
+            "name": "Amazon - Alexa",
+            "description": "Alexa"
+          }
+        },
+        {
+          "domain": {
+            "id": "46",
+            "name": "Brand Category",
+            "name": "品牌类别",
+            "description": "品牌纵向中的类别，用于进一步缩小品牌范围"
+          "entity": {
+            "id": "781974596752842752",
+            "name": "服务"
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "description": "Brands and Companies"
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        }
+      ],
+      "source": "Twitter 网页应用"
+      "lang": "en"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "username": "TwitterDev",
+        "name": "Twitter Dev",
+        "location": "127.0.0.1"
+        "url": "https://t.co/3ZX3TNiZCY",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "description": "#TwitterDev 团队的官方之声，也是与你相关的 #TwitterAPI 更新、新闻和活动的权威来源。"
+        "verified": true,
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "pinned_tweet_id": "1293593516040269825",
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "protected": false
+      },
+      {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1230703695051935747/TbQKe91L_normal.jpg",
+        "username": "suhemparack",
+        "name": "Suhem Parack",
+        "location": "Seattle, WA",
+        "url": "https://t.co/8IkCzClPCz",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/8IkCzClPCz",
+                "expanded_url": "https://developer.x.com",
+                "display_url": "developer.x.com"
+              }
+            ]
+          },
+          "description": {
+            "mentions": [
+              {
+                "start": 42,
+                "end": 50,
+                "username": "Twitter"
+              }
+            ]
+          }
+        },
+        "id": "857699969263964161",
+        "description": "负责学术研究的开发者关系 @Twitter。欢迎与我交流基于 Twitter 数据的研究。曾就职：Amazon Alexa。观点仅代表本人"
+        "verified": false,
+        "public_metrics": {
+          "followers_count": 738,
+          "following_count": 512,
+          "tweet_count": 460,
+          "listed_count": 12
+        },
+        "pinned_tweet_id": "1296498078233571329",
+        "created_at": "2017-04-27T20:56:22.000Z",
+        "protected": false
+      }
+    ],
+    "tweets": [
+      {
+        "public_metrics": {
+          "retweet_count": 19,
+          "reply_count": 1,
+          "like_count": 71,
+          "quote_count": 6
+        },
+        "conversation_id": "1229843515603144704",
+        "id": "1229843515603144704",
+        "entities": {
+          "annotations": [
+            {
+              "start": 11,
+              "end": 21,
+              "probability": 0.3342,
+              "type": "Product",
+              "normalized_text": "Alexa Skill"
+            },
+            {
+              "start": 27,
+              "end": 33,
+              "probability": 0.6727,
+              "type": "Product",
+              "normalized_text": "Twitter"
+            }
+          ],
+          "urls": [
+            {
+              "start": 127,
+              "end": 150,
+              "url": "https://t.co/l5J8wq748G",
+              "expanded_url": "https://dev.to/twitterdev/building-an-alexa-skill-for-twitter-using-alexa-presentation-language-1aj0",
+              "display_url": "dev.to/twitterdev/bui…"
+              "status": 200,
+              "unwound_url": "https://dev.to/twitterdev/building-an-alexa-skill-for-twitter-using-alexa-presentation-language-1aj0"
+            }
+          ]
+        },
+        "text": "我用 APL 构建了一个适用于 Twitter 的 Alexa 技能，可在 Echo Show 上查看推文和趋势！\n\n点此查看 👇\n\nhttps://t.co/l5J8wq748G"
+        "created_at": "2020-02-18T19:01:58.000Z",
+        "possibly_sensitive": false,
+        "author_id": "857699969263964161",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "47",
+              "name": "Brand",
+              "description": "Brands and Companies"
+            },
+            "entity": {
+              "id": "10026792024",
+              "name": "Amazon"
+            }
+          },
+          {
+            "domain": {
+              "id": "48",
+              "name": "Product",
+              "description": "Products created by Brands.  Examples: Ford Explorer, Apple iPhone."
+            },
+            "entity": {
+              "id": "968221983803494400",
+              "name": "Amazon - Alexa",
+              "description": "Alexa"
+            }
+          },
+          {
+            "domain": {
+              "id": "46",
+              "name": "Brand Category",
+              "description": "Categories within Brand Verticals that narrow down the scope of Brands"
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "Services"
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "Brand",
+              "description": "Brands and Companies"
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            }
+          }
+        ],
+        "source": "Twitter 网页应用"
+        "lang": "en"
+      }
+    ]
+  }
+}`
+
+
+### 引用推文      `{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1328399838128467969",
+      "text": "按计划，下面提到的 Labs v2 端点现已退役。如有疑问或需要 X API v2 的帮助，请在论坛中告诉我们！https://t.co/JaxttUMmjX",
+      "referenced_tweets": [
+        {
+          "type": "quoted",
+          "id": "1327011423252144128"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 151,
+            "end": 157,
+            "probability": 0.8115,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "urls": [
+          {
+            "start": 167,
+            "end": 190,
+            "url": "https://t.co/JaxttUMmjX",
+            "expanded_url": "https://x.com/TwitterDev/status/1327011423252144128",
+            "display_url": "twitter.com/TwitterDev/sta…"
+            "display_url": "twitter.com/TwitterDev/sta…"
+        ]
+      },
+      "id": "1328399838128467969",
+      "public_metrics": {
+        "retweet_count": 7,
+        "reply_count": 4,
+        "like_count": 29,
+        "quote_count": 1
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "品牌类别",
+            "description": "品牌纵向中的分类，用于进一步缩小品牌范围",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "服务",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "品牌",
+            "description": "品牌与公司",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+            "name": "Twitter",
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "兴趣与爱好纵向",
+            "description": "顶层兴趣与爱好分组，例如美食或旅行",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "技术",
+            "description": "技术与计算",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "兴趣与爱好类别",
+            "description": "兴趣与爱好实体的分组，例如新奇食品或目的地",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "计算机编程",
+            "description": "计算机编程",
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "created_at": "2020-11-16T18:09:36.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev",
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev 团队的官方发声渠道，为您提供与 #TwitterAPI 相关的更新、新闻和活动。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1327011423252144128",
+        "text": "👋 温馨提示：Twitter Developer Labs v2 的“隐藏回复”和“最近搜索”将于下周一（11 月 16 日）退役！我们建议您迁移到 v2 #TwitterAPI 中现已提供的新“隐藏回复”和“最近搜索”端点。详情：https://t.co/r6z6CI7kEy",
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 26,
+              "end": 50,
+              "probability": 0.4387,
+              "type": "Product",
+              "normalized_text": "Twitter Developer Labs v2"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 228,
+              "end": 239,
+              "tag": "TwitterAPI",
+            }
+          ],
+          "urls": [
+            {
+              "start": 250,
+              "end": 273,
+              "url": "https://t.co/r6z6CI7kEy",
+              "expanded_url": "https://devcommunity.x.com/t/retiring-labs-v2-recent-search-and-hide-replies/145795",
+              "display_url": "devcommunity.com/t/retiring-lab…",
+              "images": [
+                {
+                  "url": "https://pbs.twimg.com/news_img/1327011425240313856/PkurOyu1?format=jpg&name=orig",
+                  "width": 1200,
+                  "height": 630
+                },
+                {
+                  "url": "https://pbs.twimg.com/news_img/1327011425240313856/PkurOyu1?format=jpg&name=150x150",
+                  "width": 150,
+                  "height": 150
+                }
+              ],
+              "status": 200,
+              "title": "退役 Labs v2 的最近搜索与隐藏回复",
+              "description": "正如我们在早期访问与“隐藏回复”公告中所述，下列 Twitter Developer Labs v2 端点将于 11 月 16 日退役：Labs v2 最近搜索、Labs v2 隐藏回复。若被调用，这些端点将返回 HTTP 410 状态且不返回数据。基于您在 Labs 中的反馈，我们已将相应功能纳入 X API v2。可通过下方链接查阅相关文档。若尚未申请，请点击此处注册 v2 访问……",
+              "unwound_url": "https://devcommunity.x.com/t/retiring-labs-v2-recent-search-and-hide-replies/145795"
+            }
+          ]
+        },
+        "id": "1327011423252144128",
+        "public_metrics": {
+          "retweet_count": 8,
+          "reply_count": 2,
+          "like_count": 33,
+          "quote_count": 4
+        },
+        "author_id": "2244994945",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "46",
+              "name": "Brand Category",
+              "description": "Categories within Brand Verticals that narrow down the scope of Brands"
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "Services"
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "Brand",
+              "description": "Brands and Companies"
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            "name": "Twitter",
+          },
+          {
+            "domain": {
+              "id": "65",
+            "name": "兴趣与爱好纵向",
+            "description": "顶层兴趣与爱好分组，例如美食或旅行",
+            },
+            "entity": {
+              "id": "848920371311001600",
+            "name": "技术",
+            "description": "技术与计算",
+            }
+          },
+          {
+            "domain": {
+              "id": "66",
+            "name": "兴趣与爱好类别",
+            "description": "兴趣与爱好实体的分组，例如新奇食品或目的地",
+            },
+            "entity": {
+              "id": "848921413196984320",
+            "name": "计算机编程",
+            "description": "计算机编程",
+            }
+          }
+        ],
+        "source": "Twitter Web App"
+        "created_at": "2020-11-12T22:12:32.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="retweeted-quote-tweet">
+  ### 被转推的引用帖子
+</div>
+
+```
+{
+    "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1225470895902412800",
+      "text": "转推 @AureliaSpecker：📣 如果你喜欢我去年11月写的伦敦通勤教程，来看看这个使用……的重构版本吧",
+      "referenced_tweets": [
+        {
+          "type": "retweeted",
+          "id": "1224709550214873090"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 42,
+            "end": 47,
+            "probability": 0.6999,
+            "type": "Place",
+            "normalized_text": "London"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 3,
+            "end": 18,
+            "username": "AureliaSpecker"
+          }
+        ]
+      },
+      "id": "1225470895902412800",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 0,
+        "like_count": 0,
+        "quote_count": 0
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "Brand Category",
+            "description": "品牌垂直领域内的类别，用于进一步缩小品牌范围",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "服务",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "description": "品牌与公司",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter",
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "Interests and Hobbies Vertical",
+            "description": "顶层兴趣与爱好分组，例如美食或旅行",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "技术",
+            "description": "技术与计算",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "Interests and Hobbies Category",
+            "description": "兴趣与爱好实体的分组，例如新奇美食或旅游目的地",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "计算机编程",
+            "description": "计算机编程",
+          }
+        }
+      ],
+      "source": "Twitter for iPhone",
+      "created_at": "2020-02-06T17:26:44.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "#TwitterDev 团队的声音，你获取 #TwitterAPI 相关更新、新闻和活动的官方来源。",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev"
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      },
+      {
+        "created_at": "2013-01-18T23:45:43.000Z",
+        "id": "1102321381",
+        "protected": false,
+        "username": "AureliaSpecker",
+        "verified": false,
+        "entities": {
+          "description": {
+            "mentions": [
+              {
+                "start": 7,
+                "end": 17,
+                "username": "TwitterUK"
+              },
+              {
+                "start": 86,
+                "end": 95,
+                "username": "_dormrod"
+              }
+            ]
+          }
+        },
+        "description": "开发者关系 @TwitterUK • 旅英瑞士人 • 绿植妈妈 • @_dormrod 的专属理发师",
+        "pinned_tweet_id": "1253069421322567681",
+        "public_metrics": {
+          "followers_count": 1036,
+          "following_count": 1330,
+          "tweet_count": 855,
+          "listed_count": 26
+        },
+        "location": "英国伦敦",
+        "name": "Aurelia Specker",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1137517534104772608/8FBYgc6G_normal.jpg",
+        "url": ""
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1224709550214873090",
+        "text": "📣 如果你喜欢我去年11月写的伦敦通勤教程，来看看这个使用 Twitter 全新搜索端点的重构版吧 🚇 https://t.co/87XIPZmZBJ\n\n#DEVcommunity #Pythontutorial @TwitterDev @TwitterAPI https://t.co/dXrJYvn3hY",
+        "referenced_tweets": [
+          {
+            "type": "quoted",
+            "id": "1195000047089389573"
+          }
+        ],
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 22,
+              "end": 27,
+              "probability": 0.7075,
+              "type": "Place",
+              "normalized_text": "London"
+            },
+            {
+              "start": 120,
+              "end": 126,
+              "probability": 0.7355,
+              "type": "Product",
+              "normalized_text": "Twitter"
+            }
+          ],
+          "mentions": [
+            {
+              "start": 206,
+              "end": 217,
+              "username": "TwitterDev"
+            },
+            {
+              "start": 218,
+              "end": 229,
+              "username": "TwitterAPI"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 176,
+              "end": 189,
+              "tag": "DEVcommunity"
+            },
+            {
+              "start": 190,
+              "end": 205,
+              "tag": "Pythontutorial"
+            }
+          ],
+          "urls": [
+            {
+              "start": 151,
+              "end": 174,
+              "url": "https://t.co/87XIPZmZBJ",
+              "expanded_url": "https://bit.ly/2OrnrCC",
+              "display_url": "bit.ly/2OrnrCC",
+              "status": 200,
+              "unwound_url": "https://dev.to/twitterdev/migrate-to-twitter-s-newly-released-labs-recent-search-endpoint-3npe"
+            },
+            {
+              "start": 230,
+              "end": 253,
+              "url": "https://t.co/dXrJYvn3hY",
+              "expanded_url": "https://x.com/AureliaSpecker/status/1195000047089389573",
+              "display_url": "twitter.com/AureliaSpecker…"
+            }
+          ]
+        },
+        "id": "1224709550214873090",
+        "public_metrics": {
+          "retweet_count": 12,
+          "reply_count": 0,
+          "like_count": 43,
+          "quote_count": 2
+        },
+        "author_id": "1102321381",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "46",
+              "name": "品牌类别",
+              "description": "品牌垂直领域中的类别，用于进一步缩小品牌范围",
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "服务",
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "品牌",
+              "description": "品牌与公司",
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            }
+          },
+          {
+            "domain": {
+              "id": "65",
+              "name": "兴趣与爱好纵向",
+              "description": "顶层兴趣与爱好分组，如美食或旅行"
+            },
+            "entity": {
+              "id": "848920371311001600",
+              "name": "科技",
+              "description": "科技与计算机"
+            }
+          },
+          {
+            "domain": {
+              "id": "66",
+              "name": "兴趣与爱好类别",
+              "description": "兴趣与爱好实体的分组，如新奇美食或旅游目的地"
+            },
+            "entity": {
+              "id": "848921413196984320",
+              "name": "计算机编程",
+              "description": "计算机编程"
+            }
+          }
+        ],
+        "source": "Twitter Web App",
+        "created_at": "2020-02-04T15:01:25.000Z"
+      }
+    ]
+  }
+}
+```

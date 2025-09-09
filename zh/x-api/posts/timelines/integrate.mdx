@@ -1,0 +1,157 @@
+---
+title: 集成指南
+sidebarTitle: 集成指南
+---
+
+<div id="how-to-integrate-with-the-timelines-endpoints">
+  ## 如何集成 Timelines 端点
+</div>
+
+本页介绍在将 timelines 端点集成到你的系统时需要了解的多种工具和关键概念。我们将本页划分为以下部分：
+
+- [实用工具](#helpful-tools)
+- 关键概念
+  - [身份验证](#authentication)
+  - [开发者门户、项目与应用](#portal)
+  - [速率限制](#rate-limits)
+  - [字段与扩展](#fields)
+  - [帖子指标](/zh/x-api/posts/timelines#timelines-integration-guide)
+  - [分页](#pagination)
+  - [结果过滤](#filtering)
+  - [帖子上限与返回的帖子数量](#caps)
+  - [编辑帖子](#edits)
+  - [边缘情况](#edge)[](#edge)
+
+<div id="helpful-tools">
+  ### 实用工具
+</div>
+
+在我们讲解一些关键概念之前，建议你先使用以下任一工具或代码示例来测试这些端点的功能。
+
+**代码示例**
+
+想用你熟悉的编程语言，通过代码来集成并调用这些端点吗？我们提供了多种代码示例，可作为起点，见我们的 [GitHub 页面](https://github.com/xdevplatform/Twitter-API-v2-sample-code)。
+
+**库**
+
+利用我们的众多[社区第三方库](/zh/x-api/tools-and-libraries/overview)帮助你快速上手。你可以通过查看合适的版本标签找到与 v2 端点兼容的库。
+
+**Postman**
+
+Postman 是一个非常适合用于测试这些端点的工具。每个 Postman 请求都包含所有路径参数和请求体参数，帮助你快速了解可用内容。要了解更多关于我们的 Postman 集合，请访问[使用 Postman](/zh/tutorials/postman-getting-started)页面。
+
+<div id="key-concepts">
+  ### 关键概念
+</div>
+
+**身份验证**
+
+所有 X API v2 端点都要求使用一组凭证（也称为密钥和令牌）对请求进行[身份验证](/zh/resources/fundamentals/authentication)。你可以使用 OAuth 1.0a 用户上下文或 OAuth 2.0 授权码（含 PKCE）来对这些端点的请求进行身份验证。对于用户帖子时间线和用户提及时间线，你也可以使用 OAuth 2.0 App-Only。
+
+[OAuth 1.0a 用户上下文](/zh/resources/fundamentals/authentication#oauth-1-0a-2)要求你使用 API Key、用户 Access Token，以及少量其他参数来[创建授权头](https://developer-staging.x.com/resources/fundamentals/authentication/authorizing-a-request)，然后随请求一起传递。Access Token 必须与你代表其发起请求的用户关联。如果你想为其他用户生成一组 Access Token，则该用户必须通过[三方 OAuth 流程](https://developer-staging.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens)授权你的 App。
+
+请注意，OAuth 1.0a 可能较难使用。如果你不熟悉此身份验证方式，建议使用一个[库](/zh/x-api/tools-and-libraries/overview)、使用 Postman 等工具，或使用 OAuth 2.0 来对请求进行身份验证。如果你希望从这些端点请求帖子或私有指标，你需要使用 OAuth 1.0a 用户上下文或 OAuth 2.0 授权码（含 PKCE），以确保你拥有内容所有者授予的适当权限。
+
+[OAuth 2.0 App-Only](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)仅要求你在请求中携带一个[OAuth 2.0 App Access Token](/zh/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。你可以直接在开发者 App 中生成 App Access Token，或使用 [POST oauth2/token](/zh/resources/fundamentals/authentication#post-oauth2-token) 端点生成。它适用于用户帖子时间线或用户提及时间线。
+
+[OAuth 2.0 授权码（含 PKCE）](/zh/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3)可对应用的权限范围（scope）以及跨设备的授权流程进行更细粒度的控制。OAuth 2.0 允许你选择特定的细粒度 scope，以代表用户授予精确的权限。
+
+要在你的 App 中启用 OAuth 2.0，需在开发者门户的 App 设置中的身份验证设置里开启它。
+
+<Info>
+  **请注意**
+
+  如果你请求以下[字段](/zh/x-api/fundamentals/fields)，则需要使用 OAuth 1.0a 用户上下文或 OAuth 2.0 授权码：
+
+  - `tweet.fields.non_public_metrics`
+  - `tweet.fields.promoted_metrics`
+  - `tweet.fields.organic_metrics`
+  - `media.fields.non_public_metrics`
+  - `media.fields.promoted_metrics`
+  - `media.fields.organic_metrics`
+</Info>
+
+**[](/zh/x-api/fundamentals/pagination)开发者门户、项目与应用，以及开发者 App**
+
+要使用任何 X API v2 端点，你必须[注册开发者账号](https://developer.x.com/en/portal/petition/essential/basic-info)、在该账号下设置一个[项目](/zh/resources/fundamentals/projects)，并在该项目中创建一个[开发者 App](/zh/resources/fundamentals/developer-apps)。该开发者 App 中的密钥和令牌可用于这些时间线端点。
+
+**速率限制**
+
+每天都有成千上万的开发者向 X API 发起请求。为帮助管理请求量，我们对每个端点施加了[速率限制](/zh/x-api/fundamentals/rate-limits)，以限制每位开发者在代表某个应用或代表已认证用户时可发起的请求数量。
+
+根据所使用的身份验证方法不同，这些端点适用的速率限制也不同。应用级速率限制适用于使用 OAuth 2.0 App-Only 发起请求的 App，而用户级速率限制适用于使用 OAuth 1.0a 用户上下文代表特定授权用户发起的请求。这两类速率限制均基于 15 分钟时间窗内的请求频率。
+
+例如，一个应用在这两个时间线端点上都使用 OAuth 2.0 App-Only 认证，在 15 分钟内可以对用户帖子时间线发出 1500 次请求（包括分页请求），对用户提及时间线发出 450 次请求（包括分页请求）。同一应用在相同的 15 分钟时间内，如果有两个不同的已授权用户（使用 OAuth 1.0a User Context），则可以为每个已认证用户对用户帖子时间线发出 900 次请求（包括分页请求），并对用户提及时间线发出 180 次请求（包括分页请求）。
+
+按时间倒序的首页时间线在每个用户的每 15 分钟窗口内的速率限制为 180 次请求。通过此端点，你可以返回过去 7 天内时间线上创建的所有帖子，以及不论创建日期的最近 800 条帖子。
+
+**字段与扩展**
+
+X API v2 允许你使用[字段](/zh/x-api/fundamentals/fields)和[扩展](/zh/x-api/fundamentals/expansions)精确选择希望从 API 返回的数据。expansions 参数允许展开载荷中被引用的对象。例如，此端点允许你通过 expansions 参数请求投票、地点、媒体等对象。
+
+fields 参数允许你精确选择不同数据对象中的具体字段。默认情况下，这些端点返回的主要帖子对象包含 id 和 text 字段。若要接收其他字段（如 author\_id 或 public\_metrics），你必须使用 fields 参数显式请求。在你的集成中，值得考虑的一些重要字段包括投票数据、[指标](/zh/x-api/fundamentals/metrics)、[帖子批注](/zh/x-api/fundamentals/post-annotations)以及[会话 ID](/zh/x-api/fundamentals/conversation-id)。
+
+我们在[X API v2 数据字典](/zh/x-api/fundamentals/data-dictionary)中新增了关于[如何结合使用字段与扩展](/zh/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)的指南。
+
+**帖子指标**
+
+X API v2 端点允许你直接从返回的帖子对象请求帖子指标，前提是你在请求中传递了正确的字段。
+
+帖子指标存在一些限制需要注意，尤其与用户隐私以及以下响应字段相关：
+
+- `tweet.fields.non_public_metrics`
+- `tweet.fields.promoted_metrics`
+- `tweet.fields.organic_metrics`
+- `media.fields.non_public_metrics`
+- `media.fields.promoted_metrics`
+- `media.fields.organic_metrics`
+
+上述字段包含私有指标数据。这意味着在使用用户帖子时间线端点时，你必须获得帖子的发布者授权，才能代表他们检索这些数据，因此你必须使用 [OAuth 1.0a User Context](/zh/resources/fundamentals/authentication) 或 [OAuth 2.0 Authorization Code Flow with PKCE](/zh/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3)。
+
+例如，若要在用户 ID 1234 的用户帖子时间线上获取 `non_public_metrics`，你需要在请求中包含与该用户关联的访问令牌。你可以使用[三方 OAuth 流程](/zh/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)让用户授权你的应用，并获取与其关联的一组访问令牌。
+
+如果你使用的是用户提及时间线，除非提及的作者已授权你的应用访问其私有指标数据，并且你在使用 OAuth 1.0a User Context 发起请求时使用该用户的访问令牌，否则上述字段将不可用。
+
+所有 `non_public_metrics`、organic\_metrics 和 promoted\_metrics 仅适用于过去 30 天内创建的帖子。这意味着当你请求上述字段时，结果将自动仅包含过去 30 天内的帖子。
+
+如果请求了上述字段，则只会返回由已认证用户创作的帖子，其他所有帖子都会返回错误信息。
+
+**分页**
+
+这些端点使用分页以便快速返回响应。当结果数量超过单个响应可返回的数量（时间线端点最多 100 条帖子）时，需要进行分页。使用 max\_results 参数指定每页返回的结果数量，使用 pagination\_token 参数获取下一页结果。你可以通过查看我们的[分页指南](/zh/x-api/fundamentals/pagination)了解更多信息。
+
+**筛选结果**
+
+这些端点包含多个参数，可用于筛选结果。使用 start\_date 和 end\_date，您可以将结果限定在特定时间范围内。如果您更倾向于用帖子 ID 来选取特定的一组帖子，可以使用 since\_id 和 until\_id。用户帖子时间线还提供 exclude 参数，可将转发和回复从结果中排除。
+
+**帖子上限和返回的帖子数量**
+
+用户帖子时间线和用户提及时间线端点在单个自然月内可返回的帖子数量有限制。按时间倒序的首页时间线端点不受此限制。
+
+无论使用哪个时间线端点，返回的帖子都会计入项目级别的[推文上限（帖子上限）](/zh/x-api/fundamentals/post-cap)。用量会显示在开发者门户中，“月度”从您在[开发者门户仪表板](https://developer.x.com/en/portal/dashboard)上显示的订阅续费日开始计算。
+
+用户帖子时间线端点只会返回发布到某个用户时间线上的最近 3200 条帖子。如果将 start\_time 和 end\_time 设置为包含超出这 3200 条最近帖子之外的时间段，您会收到成功的响应，但不会返回任何帖子。
+
+还需注意的是，如果在用户帖子时间线请求中传入 excludes=replies，则只会返回最近的 800 条帖子。
+
+用户提及时间线端点只会返回最近的 800 条被提及帖子。
+
+按时间倒序的首页时间线端点会返回最近的 3200 条帖子。
+
+**帖子编辑**
+
+符合编辑条件的帖子可在原始帖子发布后的 30 分钟内最多编辑五次。搜索端点将始终提供帖子的最新版本。如果您仅请求发布于 30 分钟或更早之前的帖子，您将始终收到该帖子的最终版本。然而，如果您的用例接近实时，且查询的是过去 30 分钟内发布的帖子，那么这些帖子可能会在您接收后被编辑。您可以通过搜索或帖子查找端点重新回补这些帖子，以确认其最终状态。要了解帖子编辑的工作方式，请参阅[编辑帖子基础](/zh/x-api/fundamentals/edit-posts)页面。
+
+**边缘情况**
+
+- 在用户帖子时间线端点上为超过 30 天的帖子请求非公开指标时，响应中可能会出现 next\_token，但结果计数为 0。为避免此问题，请确保使用 non\_public\_metrics 参数请求的时间范围在最近 30 天内。此外，max\_results 的最小值应为 10。这些做法或可降低出现该情况的概率，但仍可能发生。
+- 为未投放推广的帖子请求推广指标会返回空响应，而非帖子数据。我们的团队正在修复此问题。
+- 对于转发中帖子正文文本长度超过 140 个字符的情况，text 字段会被截断，而不会返回完整文本。短期变通方法是展开被引用的帖子，并从扩展中获取完整文本。这是一个缺陷，我们将在未来修复。
+
+**下一步**
+
+\[向时间线端点发出您的第一个请求]/x-api/posts/timelines#getting-started-with-reverse-chronological-home-timeline "向时间线端点发出您的第一个请求")
+
+[在我们的 API 参考页面查看完整的参数、字段列表等](/zh/x-api/posts/timelines#api-reference-index)
+
+[获取支持或排查错误](https://developer.x.com/en/support/x-api)

@@ -1,0 +1,164 @@
+---
+title: Créer une signature
+sidebarTitle: Créer une signature
+---
+
+import { Button } from "/snippets/fr/button.mdx";
+
+<div id="creating-a-signature">
+  ### Création d’une signature
+</div>
+
+Cette page explique comment générer une signature OAuth 1.0a HMAC-SHA1 pour une requête HTTP. Cette signature est destinée à être transmise à l’API X dans le cadre d’une requête autorisée, comme décrit dans [autoriser une requête.](/fr/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request)
+
+La requête utilisée pour illustrer la signature est une requête POST vers https://api.x.com/1.1/statuses/update.json. La requête brute ressemble à ceci :
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+**Collecte de la méthode et de l’URL de la requête**
+
+Pour produire une signature, commencez par déterminer la méthode HTTP et l’URL de la requête. Ces deux éléments sont connus au moment de créer la requête, ils sont donc faciles à obtenir.
+
+La méthode de la requête sera presque toujours GET ou POST pour les requêtes à l’API X.
+
+|     |     |
+| :--- | :--- |
+| Méthode HTTP | POST |
+
+L’URL de base est l’URL vers laquelle la requête est envoyée, sans la chaîne de requête ni les paramètres de fragment. Il est important d’utiliser le protocole approprié ; assurez-vous donc que la partie « https:// » de l’URL correspond bien à la requête effectivement envoyée à l’API.
+
+|     |     |
+| :--- | :--- |
+| URL de base | https://api.x.com/1.1/statuses/update.json |
+
+<div id="collecting-parameters">
+  #### Collecte des paramètres
+</div>
+
+Ensuite, rassemblez tous les paramètres inclus dans la requête. Il existe deux emplacements pour ces paramètres supplémentaires : l’URL (dans la chaîne de requête) et le corps de la requête. L’exemple de requête inclut un seul paramètre dans les deux emplacements :
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+Une requête HTTP comporte des paramètres encodés dans l’URL, mais vous devez recueillir les valeurs brutes. En plus des paramètres de requête, chaque paramètre oauth\_\* doit être inclus dans la signature ; collectez-les également. Voici les paramètres issus de [l’autorisation d’une requête](/fr/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request) :
+
+|     |     |
+| :--- | :--- |
+| status | Hello Ladies + Gentlemen, a signed OAuth request! |
+| include\_entities | true |
+| oauth\_consumer\_key | xvz1evFS4wEEPTGEFPHBog |
+| oauth\_nonce | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg |
+| oauth\_signature\_method | HMAC-SHA1 |
+| oauth\_timestamp | 1318622958 |
+| oauth\_token | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+| oauth\_version | 1.0 |
+
+Ces valeurs doivent être encodées dans une chaîne unique, qui sera utilisée ultérieurement. Le processus de construction de cette chaîne est très précis :
+
+1. [Encodage en pourcentage](/fr/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) de chaque clé et valeur qui sera signée.
+2. Triez la liste des paramètres par ordre alphabétique [\[1\]](/fr/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature) selon la clé encodée [\[2\]](/fr/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature).
+3. Pour chaque paire clé/valeur :
+4. Ajoutez la clé encodée à la chaîne de sortie.
+5. Ajoutez le caractère « = » à la chaîne de sortie.
+6. Ajoutez la valeur encodée à la chaîne de sortie.
+7. S’il reste d’autres paires clé/valeur, ajoutez le caractère « & » à la chaîne de sortie.
+
+\[1] La spécification OAuth indique de trier lexicographiquement, ce qui correspond au tri alphabétique par défaut de nombreuses bibliothèques.
+
+\[2] En cas de deux paramètres avec la même clé encodée, la spécification OAuth indique de poursuivre le tri sur la base de la valeur. Toutefois, X n’accepte pas les clés en double dans les requêtes d’API
+
+**Chaîne de paramètres**
+
+La chaîne de paramètres suivante sera produite en répétant ces étapes avec les paramètres collectés ci-dessus :
+
+| status                   | Hello Ladies + Gentlemen, a signed OAuth request!  |
+|:--------------------------|:----------------------------------------------------|
+| `include_entities`       | true                                               |
+| `oauth_consumer_key`     | xvz1evFS4wEEPTGEFPHBog                             |
+| `oauth_nonce`            | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg         |
+| `oauth_signature_method` | HMAC-SHA1                                          |
+| `oauth_timestamp`        | 1318622958                                         |
+| `oauth_token`            | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+| `oauth_version`          | 1.0                                                |
+
+<div id="creating-the-signature-base-string">
+  #### Création de la chaîne de base de la signature
+</div>
+
+Les trois valeurs collectées jusqu’à présent doivent être concaténées pour former une seule chaîne, à partir de laquelle la signature sera générée. La spécification OAuth appelle cela la **chaîne de base de la signature**.
+
+Pour encoder la méthode HTTP, l’URL de base et la chaîne de paramètres en une seule chaîne :
+
+1. Convertissez la méthode HTTP en majuscules et définissez la chaîne de sortie sur cette valeur.
+2. Ajoutez le caractère « & » à la chaîne de sortie.
+3. [Encodez en pourcentage](/fr/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) l’URL et ajoutez-la à la chaîne de sortie.
+4. Ajoutez le caractère « & » à la chaîne de sortie.
+5. [Encodez en pourcentage](/fr/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) la chaîne de paramètres et ajoutez-la à la chaîne de sortie.
+
+Cela produira la _chaîne de base de la signature_ suivante :
+
+```
+POST&https%3A%2F%2Fapi.x.com%2F1.1%2Fstatuses%2Fupdate.json&include\_entities%3Dtrue%26oauth\_consumer\_key%3Dxvz1evFS4wEEPTGEFPHBog%26oauth\_nonce%3DkYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg%26oauth\_signature\_method%3DHMAC-SHA1%26oauth\_timestamp%3D1318622958%26oauth\_token%3D370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb%26oauth_version%3D1.0%26status%3DHello%2520Ladies%2520%252B%2520Gentlemen%252C%2520a%2520signed%2520OAuth%2520request%2521
+```
+
+Assurez-vous d’encoder en pourcentage la chaîne de paramètres. La chaîne de base de la signature doit contenir exactement 2 esperluettes « & ». Les caractères pourcentage « % » dans la chaîne de paramètres doivent être encodés en %25 dans la chaîne de base de la signature.
+ 
+
+<div id="getting-a-signing-key">
+  #### Obtention d’une clé de signature
+</div>
+
+Les dernières données à collecter sont des secrets qui identifient l’[application X](/fr/resources/fundamentals/developer-apps) effectuant la requête, ainsi que l’utilisateur au nom duquel la requête est effectuée. Il est très important de noter que ces valeurs sont extrêmement sensibles et ne doivent jamais être partagées.
+
+La valeur qui identifie votre application auprès de X s’appelle le **consumer secret** et se trouve dans le [portail développeur](/fr/resources/fundamentals/developer-portal) en consultant la [page de détails de l’application](/fr/resources/fundamentals/developer-apps). Cette valeur est la même pour chaque requête envoyée par votre application X.
+
+|     |     |
+| :--- | :--- |
+| Consumer secret | kAcSOqF21Fu85e7zjz7ZN2U4ZRhfV3WpwPAoE3Z7kBw |
+
+La valeur qui identifie le compte pour le compte duquel votre application agit s’appelle le **secret du jeton OAuth**. Cette valeur peut être obtenue de plusieurs manières, toutes décrites dans [Obtention de jetons d’accès](/fr/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens).
+
+|     |     |
+| :--- | :--- |
+| Secret du jeton OAuth | LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE |
+
+Encore une fois, il est très important de garder ces valeurs confidentielles au sein de votre application. Si vous pensez qu’elles ont été compromises, régénérez vos jetons (les jetons de cette page ont été marqués comme invalides pour des requêtes réelles).
+
+Ces deux valeurs doivent être combinées pour former une **clé de signature** qui sera utilisée pour générer la signature. La clé de signature est simplement le secret du jeton [encodé en pourcentage](/fr/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) :
+
+Notez qu’il existe certains parcours, comme lors de l’obtention d’un [jeton de requête](/fr/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens), où le secret du jeton n’est pas encore connu. Dans ce cas, la clé de signature doit se composer du **consumer secret** [encodé en pourcentage](/fr/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) suivi du caractère esperluette « & ».
+
+|     |     |
+| :--- | :--- |
+| Clé de signature | kAcSOqF21Fu85e7zjz7ZN2U4ZRhfV3WpwPAoE3Z7kBw\&LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE |
+
+<div id="calculating-the-signature">
+  #### Calcul de la signature
+</div>
+
+Enfin, la signature est calculée en passant la chaîne de base de signature et la clé de signature à l’algorithme de hachage HMAC-SHA1. Les détails de l’algorithme sont expliqués dans la description de la fonction hash\_hmac.
+
+La sortie de la fonction de signature HMAC est une chaîne binaire. Celle-ci doit être encodée en base64 pour produire la chaîne de signature. Par exemple, la sortie, étant donné la chaîne de base et la clé de signature fournies sur cette page, est 2E CF 77 84 98 99 6D 0D DA 90 5D C7 17 7C 75 07 3F 3F CD 4E. Cette valeur, une fois convertie en base64, constitue la signature OAuth pour cette requête :
+
+|     |     |
+| :--- | :--- |
+| Signature OAuth | Ls93hJiZbQ3akF3HF3x1Bz8/zU4= |

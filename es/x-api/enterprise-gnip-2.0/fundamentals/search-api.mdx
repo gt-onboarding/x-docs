@@ -1,0 +1,1620 @@
+---
+title: "Search API: Enterprise"
+sidebarTitle: Search API
+---
+
+> **Tenga en cuenta:**
+>
+> Hemos publicado una nueva versión de [búsqueda de publicaciones](/es/x-api/posts/search/introduction) y de [recuento de publicaciones](/es/x-api/posts/counts/introduction) en la [API de X v2](/es/x-api/getting-started/about-x-api). Le recomendamos [consultar las novedades](/es/x-api/migrate/overview) de la API de X v2.
+>
+> Estos endpoints se han actualizado para incluir metadatos de edición de publicaciones. Obtenga más información sobre estos metadatos en la página de conceptos básicos ["Editar publicaciones"](/es/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets). 
+
+<div id="overview">
+  ## Descripción general
+</div>
+
+`Enterprise`
+
+_Las API de Enterprise están disponibles únicamente dentro de nuestros niveles de acceso gestionados. Para usar estas API, primero debe configurar una cuenta con nuestro equipo de ventas para Enterprise. Para obtener más información, consulte [AQUÍ](https://developer.x.com/en/products/x-api/enterprise)._
+
+_Puede consultar todas las ofertas de búsqueda de publicaciones de la API de X [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api)._
+
+Hay dos API de búsqueda de Enterprise:
+
+1. La API de búsqueda de 30 días proporciona datos de los 30 días anteriores.
+2. La API de búsqueda de archivo completo proporciona acceso completo e instantáneo al corpus total de datos de X desde la primera Publicación de marzo de 2006.
+
+Estas API RESTful admiten una única consulta de hasta 2.048 caracteres por solicitud. Las consultas se escriben con la sintaxis de reglas de PowerTrack; consulte [Reglas y filtrado](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#getting-started-with-enterprise-rules-and-queries) para más detalles. Los usuarios pueden especificar cualquier periodo de tiempo, con granularidad de un minuto. Sin embargo, las respuestas se limitarán al menor entre su maxResults especificado o 31 días, e incluirán un token next para paginar el siguiente conjunto de resultados. Si no se especifican parámetros de tiempo, la API devolverá datos coincidentes de los 30 días más recientes.
+
+Las API de búsqueda de Enterprise proporcionan acceso de baja latencia y fidelidad completa al archivo de Publicaciones basado en consultas, con granularidad de un minuto. Los datos de Publicaciones se entregan en orden cronológico inverso, comenzando por la Publicación más reciente que coincida con su consulta. Las Publicaciones están disponibles desde la API de búsqueda aproximadamente 30 segundos después de su publicación.
+
+Estos endpoints de búsqueda proporcionan metadatos de Publicaciones editadas. Todos los objetos de Publicaciones creadas desde el 29 de septiembre de 2022 incluyen metadatos de edición de Publicación, incluso si la Publicación nunca fue editada. Cada vez que se edita una Publicación, se crea un nuevo ID de Publicación. El historial de ediciones de una Publicación se documenta mediante un array de IDs de Publicación, comenzando por el ID original.
+
+Estos endpoints siempre devolverán la edición más reciente, junto con cualquier historial de ediciones. Cualquier Publicación recopilada después de su ventana de edición de 30 minutos representará su versión final. Para obtener más información sobre los metadatos de edición de Publicaciones, consulte la página [Aspectos fundamentales de Editar Publicaciones](/es/x-api/fundamentals/edit-posts).
+
+Las solicitudes incluyen un parámetro maxResults que especifica la cantidad máxima de Publicaciones a devolver por respuesta de la API. Si hay más Publicaciones asociadas a la consulta que esta cantidad máxima por respuesta, se incluye un token next en la respuesta. Estos tokens next se usan en solicitudes posteriores para paginar todo el conjunto de Publicaciones asociadas con la consulta.
+
+Estas API de búsqueda de Enterprise proporcionan un endpoint de _counts_ que permite solicitar el volumen de datos asociado con su consulta. 
+
+<div id="request-types">
+  ### Tipos de solicitudes
+</div>
+
+Las API de búsqueda para empresas admiten dos tipos de solicitudes:
+
+<div id="search-requests-data">
+  #### Solicitudes de búsqueda (datos)
+</div>
+
+Las solicitudes de búsqueda a las APIs de búsqueda para empresas permiten recuperar hasta 500 resultados por respuesta dentro de un periodo determinado, con la posibilidad de paginar para obtener datos adicionales. Con el parámetro maxResults, puedes especificar tamaños de página más pequeños para casos de uso de visualización (permitiendo que el usuario solicite más resultados según sea necesario) o tamaños de página más grandes (hasta 500) para extracciones de datos de mayor volumen. Los datos se entregan en orden cronológico inverso y están en cumplimiento en el momento de la entrega.
+
+<div id="counts-requests-post-count">
+  #### Solicitudes de conteos (Conteo de publicaciones)
+</div>
+
+Las solicitudes de conteos permiten recuperar conteos de actividad histórica, que reflejan la cantidad de actividades que coincidieron con una consulta determinada durante el periodo solicitado. La respuesta, en esencia, le proporcionará un histograma de conteos, agrupado por día, hora o minuto (el agrupamiento predeterminado es _hora_). Es importante tener en cuenta que los resultados de conteos no siempre reflejan eventos de cumplimiento (por ejemplo, eliminaciones de publicaciones) que ocurren mucho después (más de 7 días) de que se publica una publicación; por lo tanto, es de esperar que la métrica de conteos no siempre coincida con la de una solicitud de datos para la misma consulta.
+
+Nota de facturación: cada solicitud —_incluidas las solicitudes de paginación_— realizada a los endpoints de datos y de conteos se contabiliza como una solicitud facturable. Por lo tanto, si hay varias páginas de resultados para una sola consulta, recorrer las X páginas de resultados equivaldría a X solicitudes para la facturación.
+
+<div id="available-operators">
+  ### Operadores disponibles
+</div>
+
+Las APIs de búsqueda empresariales admiten reglas de hasta 2,048 caracteres. Las APIs de búsqueda empresariales admiten los operadores que se enumeran a continuación. Para descripciones detalladas, consulte [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators).
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Coincidencia en el contenido de la publicación:** | **Coincidencia en cuentas de interés:** | **Atributos de la publicación:** | **Operadores geoespaciales:** |
+| \* keyword<br />\* “quoted phrase”<br />\* “keyword1 keyword2”~N<br />\* #<br />\* @<br />\* $<br />\* url:<br />\* lang: | \* from:<br />\* to:<br />\* retweets\_of: | \* is:retweet  <br />    <br />\* has:mentions<br />\* has:hashtags<br />\* has:media<br />\* has:videos<br />\* has:images<br />\* has:links<br />\* has:symbols<br />\* is:verified  <br />    <br />\* -is:nullcast (operador solo de negación) | \* bounding\_box:\[west\_long south\_lat east\_long north\_lat]<br />\* point\_radius:\[lon lat radius]<br />\* has:geo<br />\* place:<br />\* place\_country:<br />\* has:profile\_geo<br />\* profile\_country:<br />\* profile\_region:<br />\* profile\_locality: |
+
+Notas: No inserte ni anide operadores. "#cats" se interpretará como cats con las APIs de búsqueda. El operador ‘lang:’ y todos los operadores ‘is:’ y ‘has:’ no se pueden usar de forma independiente y deben combinarse con otra cláusula (p. ej., @XDevelopers has:links).
+
+Las APIs de búsqueda usan un conjunto limitado de operadores debido a la funcionalidad de tokenización y coincidencia. Las APIs empresariales en tiempo real y los lotes históricos proporcionan operadores adicionales. Consulte [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product) para más detalles.
+
+Para más información, consulte la guía [Introducción a los operadores](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries).
+
+<div id="data-availability-important-date">
+  ### Disponibilidad de datos / fecha importante
+</div>
+
+Al usar la API de Búsqueda de archivo completo, tenga en cuenta que la plataforma X ha seguido evolucionando desde 2006. A medida que se agregaron nuevas funciones, a los objetos JSON subyacentes se les añadieron nuevos metadatos. Por ese motivo, es importante entender cuándo se agregaron los atributos de Publicación en los que coinciden los operadores de búsqueda. A continuación se muestran algunas de las fechas de “nacimiento” más fundamentales de grupos importantes de metadatos. Para obtener más información sobre cuándo se introdujeron por primera vez los atributos de Publicación, consulte [esta guía](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#full-archive-search-metadata-timeline).
+
+- Primera publicación: 21/3/2006
+- Primeros retuits nativos: 6/11/2009
+- Primera publicación con etiqueta geográfica: 19/11/2009
+- URL indexadas por primera vez para filtrado: 27/8/2011
+- Metadatos mejorados de expansión de URL (títulos y descripciones de sitios web): 1/12/2014
+- Metadatos y filtrado de enriquecimiento de perfil geográfico: 17/2/2015
+
+<div id="data-updates-and-mutability">
+  ### Actualizaciones de datos y mutabilidad
+</div>
+
+Con las API de búsqueda para empresas, parte de los datos dentro de una Publicación son mutables; es decir, pueden actualizarse o cambiar después del archivado inicial.
+
+Estos datos mutables se dividen en dos categorías:
+
+- Metadatos del objeto de usuario:
+  - @handle del usuario (el ID numérico nunca cambia)
+  - Descripción de la biografía
+  - Recuentos: publicaciones, seguidores, seguidos, favoritos, listas
+  - Ubicación del perfil
+  - Otros detalles como zona horaria e idioma
+- Estadísticas de la Publicación, es decir, cualquier elemento que pueda cambiar en la plataforma mediante acciones de los usuarios (ejemplos a continuación):
+  - Recuento de favoritos
+  - Recuento de retuits
+
+En la mayoría de estos casos, las API de búsqueda devolverán los datos tal como existen en la plataforma en el _momento de la consulta_, en lugar del momento de generación de la Publicación. Sin embargo, en el caso de consultas que utilizan operadores select (por ejemplo, from, to, @, is:verified), esto puede no ser así. Los datos se actualizan en nuestro índice de forma regular, con mayor frecuencia para los periodos más recientes. Como resultado, en algunos casos, los datos devueltos pueden no coincidir exactamente con los datos actuales tal como se muestran en X.com, sino con los datos del momento en que se indexaron por última vez.
+
+Tenga en cuenta que este problema de inconsistencia solo se aplica a consultas en las que el operador actúa sobre datos mutables. Un ejemplo es filtrar por nombres de usuario; la mejor solución alternativa sería usar IDs numéricos de usuario en lugar de @handles para estas consultas.
+
+<div id="single-vs-multi-threaded-requests">
+  ### Solicitudes de un solo hilo vs. de múltiples hilos
+</div>
+
+Cada cliente tiene un límite de tasa definido para su endpoint de búsqueda. El límite de tasa predeterminado por minuto para la Búsqueda de archivo completo es de 120 solicitudes por minuto, con un promedio de 2 consultas por segundo (QPS). Este QPS promedio significa que, en teoría, se pueden hacer 2 solicitudes a la API cada segundo. Dada la función de paginación del producto, si una consulta de un año tiene un millón de publicaciones asociadas, distribuidas uniformemente a lo largo del año, se requerirían más de 2,000 solicitudes (asumiendo un ‘maxResults’ de 500) para recibir todos los datos. Suponiendo que toma dos segundos por respuesta, eso son 4,000 segundos (o poco más de una hora) para extraer todos esos datos de forma secuencial a través de un solo hilo (1 solicitud por segundo usando el token “next” de la respuesta anterior). ¡Nada mal!
+
+Ahora considere la situación en la que se usan doce hilos en paralelo para recibir datos. Suponiendo una distribución uniforme del millón de publicaciones durante el período de un año, podría dividir las solicitudes en doce hilos paralelos (multihilo) y utilizar más del límite por segundo para el “trabajo” único. En otras palabras, podría ejecutar un hilo por cada mes de interés y, al hacerlo, los datos podrían recuperarse 12 veces más rápido (o ~6 minutos).
+
+Este ejemplo multihilo se aplica igualmente bien al endpoint de conteos. Por ejemplo, si quisiera recibir conteos de publicaciones para un período de dos años, podría hacer una solicitud de un solo hilo y retroceder por las páginas de conteos de 31 días a la vez. Suponiendo que toma 2 segundos por respuesta, tomaría aproximadamente 48 segundos realizar las 24 solicitudes a la API y recuperar el conjunto completo de conteos. Sin embargo, también tiene la opción de hacer múltiples solicitudes de un mes a la vez. Al realizar 12 solicitudes por segundo, el conjunto completo de conteos podría recuperarse en aproximadamente 2 segundos.
+
+<div id="retry-logic">
+  ### Lógica de reintentos
+</div>
+
+Si encuentra un error 503 con las API de búsqueda empresariales, probablemente sea transitorio y pueda resolverse reintentando la solicitud poco tiempo después.
+
+Si la solicitud falla 4 veces seguidas y ha esperado al menos 10 minutos entre intentos, siga estos pasos para diagnosticar el problema:
+
+- Vuelva a intentar la solicitud tras reducir el período de tiempo que abarca. Repita esto hasta llegar a una ventana de 6 horas si no tiene éxito.
+- Si está combinando un gran número de términos con OR, divídalos en reglas separadas y vuelva a intentar cada una por separado.
+- Si está utilizando muchas exclusiones en su regla, reduzca el número de términos negados y vuelva a intentarlo.
+
+<div id="quick-start">
+  ## Comienzo rápido
+</div>
+
+<div id="getting-started-with-enterprise-search-posts-30-day-api">
+  ### Introducción a enterprise Search Posts: 30-Day API
+</div>
+
+La enterprise Search Posts: 30-Day API le proporciona publicaciones realizadas en los últimos 30 días. Las publicaciones se hacen coincidir y se le devuelven según la consulta que especifique en su solicitud. Una consulta es una regla en la que define qué debe contener la publicación que recibe. En este tutorial, buscaremos publicaciones originadas en la cuenta de X @XDevelopers en inglés.
+
+Las publicaciones que recibe en su payload pueden estar en formato data, que le proporciona el payload completo de la publicación, o en formato counts, que le ofrece datos numéricos del recuento de las publicaciones coincidentes. Usaremos cURL para realizar solicitudes a los endpoints de data y de counts.
+
+Necesitará lo siguiente:
+
+- \[Cuenta enterprise]https://developer.x.com/en/products/x-api/enterprise
+- Su nombre de usuario, contraseña y nombre de cuenta
+- Etiqueta asociada con su endpoint de búsqueda, tal como se muestra en console.gnip.com
+
+<div id="accessing-the-data-endpoint">
+  #### Acceso al endpoint de datos
+</div>
+
+El endpoint de datos nos proporcionará el payload completo de las Publicaciones coincidentes. Usaremos los operadores `from:` y `lang:` para encontrar publicaciones de @XDevelopers en inglés. Para ver más operadores, [haz clic aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators).
+
+<Tabs>
+  <Tab title="cURL">
+    cURL es una herramienta de línea de comandos para obtener o enviar archivos usando la sintaxis de URL.
+
+    Copia la siguiente solicitud cURL en tu línea de comandos después de hacer los siguientes cambios:
+
+    - **Nombre de usuario** `<USERNAME>`, p. ej., `email@domain.com`
+
+    - **Nombre de la cuenta** `<ACCOUNT-NAME>`, p. ej., `john-doe`
+
+    - **Etiqueta** `<LABEL>`, p. ej., `prod`
+
+    - **fromDate y toDate**, p. ej., `"fromDate":"201811010000", "toDate":"201811122359"`
+
+    Después de enviar tu solicitud, se te pedirá la contraseña.
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/30day/accounts/<ACCOUNT-NAME>/<LABEL>.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    ```bash
+    Este es un ejemplo de solicitud cURL. Si intentas ejecutarla, no funcionará.
+
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/30day/accounts/john-doe/prod.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"201811100000","toDate":"201812012359"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="data-endpoint-response-payload">
+  #### Carga útil de la respuesta del endpoint de datos
+</div>
+
+La carga útil que se devuelve en la respuesta a tu solicitud a la API aparecerá en formato JSON, como se muestra a continuación.
+
+```json
+{
+	"results": [
+		{
+			"created_at": "Fri Nov 02 17:18:31 +0000 2018",
+			"id": 1058408022936977409,
+			"id_str": "1058408022936977409",
+			"text": "RT @harmophone: \"El innovador crowdsourcing que hace posible la colaboración entre Tagboard, Twitter y TEGNA está sacando a la luz conversaciones relevantes a nivel local conv…",
+			"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+			"truncated": false,
+			"in_reply_to_status_id": null,
+			"in_reply_to_status_id_str": null,
+			"in_reply_to_user_id": null,
+			"in_reply_to_user_id_str": null,
+			"in_reply_to_screen_name": null,
+			"user": {
+				"id": 2244994945,
+				"id_str": "2244994945",
+				"name": "Twitter Dev",
+				"screen_name": "TwitterDev",
+				"location": "Internet",
+				"url": "https:\/\/developer.x.com\/",
+				"description": "Tu fuente oficial de noticias, actualizaciones y eventos de la Plataforma de Twitter. ¿Necesitas ayuda técnica? Visita https:\/\/devcommunity.com\/ ⌨️ #TapIntoTwitter",
+				"translator_type": "null",
+				"protected": false,
+				"verified": true,
+				"followers_count": 503828,
+				"friends_count": 1477,
+				"listed_count": 1437,
+				"favourites_count": 2199,
+				"statuses_count": 3380,
+				"created_at": "Sat Dec 14 04:35:55 +0000 2013",
+				"utc_offset": null,
+				"time_zone": null,
+				"geo_enabled": true,
+				"lang": "en",
+				"contributors_enabled": false,
+				"is_translator": false,
+				"profile_background_color": "null",
+				"profile_background_image_url": "null",
+				"profile_background_image_url_https": "null",
+				"profile_background_tile": null,
+				"profile_link_color": "null",
+				"profile_sidebar_border_color": "null",
+				"profile_sidebar_fill_color": "null",
+				"profile_text_color": "null",
+				"profile_use_background_image": null,
+				"profile_image_url": "null",
+				"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/880136122604507136\/xHrnqf1T_normal.jpg",
+				"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/2244994945\/1498675817",
+				"default_profile": false,
+				"default_profile_image": false,
+				"following": null,
+				"follow_request_sent": null,
+				"notifications": null
+			},
+			"geo": null,
+			"coordinates": null,
+			"place": null,
+			"contributors": null,
+			"retweeted_status": {
+				"created_at": "Tue Oct 30 21:30:25 +0000 2018",
+				"id": 1057384253116289025,
+				"id_str": "1057384253116289025",
+				"text": "\"El innovador crowdsourcing que hace posible la colaboración entre Tagboard, Twitter y TEGNA está sacando a la luz conversaciones relev… https:\/\/t.co\/w46U5TRTzQ",
+				"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+				"truncated": true,
+				"in_reply_to_status_id": null,
+				"in_reply_to_status_id_str": null,
+				"in_reply_to_user_id": null,
+				"in_reply_to_user_id_str": null,
+				"in_reply_to_screen_name": null,
+				"user": {
+					"id": 175187944,
+					"id_str": "175187944",
+					"name": "Tyler Singletary",
+					"screen_name": "harmophone",
+					"location": "San Francisco, CA",
+					"url": "http:\/\/medium.com\/@harmophone",
+					"description": "SVP de Producto en @Tagboard. Trabajé en datos, negocio y producto en @Klout y para @LithiumTech; miembro del consejo de @BBI; asesor en @Insightpool. El peor usuario de pizarras del mundo.",
+					"translator_type": "null",
+					"protected": false,
+					"verified": false,
+					"followers_count": 1982,
+					"friends_count": 1877,
+					"listed_count": 245,
+					"favourites_count": 23743,
+					"statuses_count": 12708,
+					"created_at": "Thu Aug 05 22:59:29 +0000 2010",
+					"utc_offset": null,
+					"time_zone": null,
+					"geo_enabled": false,
+					"lang": "en",
+					"contributors_enabled": false,
+					"is_translator": false,
+					"profile_background_color": "null",
+					"profile_background_image_url": "null",
+					"profile_background_image_url_https": "null",
+					"profile_background_tile": null,
+					"profile_link_color": "null",
+					"profile_sidebar_border_color": "null",
+					"profile_sidebar_fill_color": "null",
+					"profile_text_color": "null",
+					"profile_use_background_image": null,
+					"profile_image_url": "null",
+					"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/719985428632240128\/WYFHcK-m_normal.jpg",
+					"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/175187944\/1398653841",
+					"default_profile": false,
+					"default_profile_image": false,
+					"following": null,
+					"follow_request_sent": null,
+					"notifications": null
+				},
+				"geo": null,
+				"coordinates": null,
+				"place": null,
+				"contributors": null,
+				"is_quote_status": false,
+				"extended_tweet": {
+					"full_text": "\"El innovador crowdsourcing que hace posible la colaboración entre Tagboard, Twitter y TEGNA está sacando a la luz conversaciones relevantes a nivel local en tiempo real y permite que los votantes hagan preguntas durante los debates\", — @adamostrow, @TEGNA\nMás información: https:\/\/t.co\/ivAFtanfje",
+					"display_text_range": [
+						0,
+						259
+					],
+					"entities": {
+						"hashtags": [],
+						"urls": [
+							{
+								"url": "https:\/\/t.co\/ivAFtanfje",
+								"expanded_url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+								"display_url": "blog.tagboard.com\/twitter-and-ta…",
+								"unwound": {
+									"url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+									"status": 200,
+									"title": "Twitter y Tagboard colaboran para llevar el mejor contenido electoral a los medios de noticias con Tagboard…",
+									"description": "Por Tyler Singletary, Director de Producto, Tagboard"
+								},
+								"indices": [
+									236,
+									259
+								]
+							}
+						],
+						"user_mentions": [
+							{
+								"screen_name": "adamostrow",
+								"name": "Adam Ostrow",
+								"id": 5695942,
+								"id_str": "5695942",
+								"indices": [
+									204,
+									215
+								]
+							},
+							{
+								"screen_name": "TEGNA",
+								"name": "TEGNA",
+								"id": 34123003,
+								"id_str": "34123003",
+								"indices": [
+									217,
+									223
+								]
+							}
+						],
+						"symbols": []
+					}
+				},
+				"quote_count": 0,
+				"reply_count": 1,
+				"retweet_count": 6,
+				"favorite_count": 19,
+				"entities": {
+					"hashtags": [],
+					"urls": [
+						{
+							"url": "https:\/\/t.co\/w46U5TRTzQ",
+							"expanded_url": "https:\/\/twitter.com\/i\/web\/status\/1057384253116289025",
+							"display_url": "twitter.com\/i\/web\/status\/1…",
+							"indices": [
+								117,
+								140
+							]
+						}
+					],
+					"user_mentions": [],
+					"symbols": []
+				},
+				"favorited": false,
+				"retweeted": false,
+				"possibly_sensitive": false,
+				"filter_level": "low"
+				"lang": "en"
+			},
+			"is_quote_status": false,
+			"quote_count": 0,
+			"reply_count": 0,
+			"retweet_count": 0,
+			"favorite_count": 0,
+			"entities": {
+				"hashtags": [],
+				"urls": [],
+				"user_mentions": [
+					{
+						"screen_name": "harmophone",
+						"name": "Tyler Singletary",
+						"id": 175187944,
+						"id_str": "175187944",
+						"indices": [
+							3,
+							14
+						]
+					}
+				],
+				"symbols": []
+			},
+			"favorited": false,
+			"retweeted": false,
+			"filter_level": "low",
+			"lang": "en",
+			"matching_rules": [
+				{
+					"tag": null
+				}
+			]
+		}
+	],
+	"requestParameters": {
+		"maxResults": 100,
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+<div id="accessing-the-counts-endpoint">
+  #### Acceso al endpoint de conteos
+</div>
+
+Con el endpoint de conteos, obtendremos la cantidad de publicaciones originadas desde la cuenta @XDevelopers en inglés, agrupadas por `day`.
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL es una herramienta de línea de comandos para obtener o enviar archivos usando la sintaxis de URL._
+
+    Copia la siguiente solicitud cURL en tu línea de comandos después de realizar cambios en lo siguiente:
+
+    - **Username** `<USERNAME>`, p. ej., `email@domain.com`
+
+    - **Account name** `<ACCOUNT-NAME>`, p. ej., `john-doe`
+
+    - **Label** `<LABEL>`, p. ej., `prod`
+
+    - **fromDate y toDate**, p. ej., `"fromDate":"201811010000", "toDate":"201811122359"`
+
+    _Después de enviar tu solicitud, se te solicitará tu contraseña._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/30day/accounts/<ACCOUNT-NAME>/<LABEL>/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>","bucket":"day"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    _Este es un ejemplo de solicitud cURL. Si intentas ejecutarla, no funcionará._
+
+    ```bash
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/30day/accounts/john-doe/prod/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"201811100000","toDate":"201812012359","bucket":"day"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="counts-endpoint-response-payload">
+  #### Carga útil de la respuesta del endpoint de conteos
+</div>
+
+La carga útil que obtienes de tu solicitud a la API aparecerá en formato JSON, como se muestra a continuación.
+
+```json
+{
+	"results": [
+		{
+			"timePeriod": "201811010000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811020000",
+			"count": 1
+		},
+		{
+			"timePeriod": "201811030000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811040000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811050000",
+			"count": 0
+		}
+	],
+	"totalCount": 1,
+	"requestParameters": {
+		"bucket": "day",
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+¡Buen trabajo! Ahora has accedido correctamente a la API empresarial Search Posts: 30-Day.
+
+<div id="referenced-articles">
+  ##### **Artículos de referencia**
+</div>
+
+- [Introducción a los objetos de publicación](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)
+- [Operadores de búsqueda](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)
+- [Objetos de publicación y cargas útiles](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#post-object)
+
+<div id="getting-started-with-enterprise-search-posts-full-archive-api">
+  ### Introducción a enterprise Search Posts: Full-Archive API
+</div>
+
+La enterprise Search Posts: Full-Archive API le proporciona publicaciones desde la primera de 2006. Las publicaciones se identifican y se le devuelven según la consulta que especifique en su solicitud. Una consulta es una regla en la que define qué debe contener la publicación que reciba. En este tutorial, buscaremos publicaciones originadas en la cuenta de X @XDevelopers en inglés.
+
+Las publicaciones que reciba en su payload pueden estar en un formato de datos, que le proporciona el payload completo de la publicación, o en un formato de conteos, que le brinda datos numéricos sobre la cantidad de publicaciones coincidentes. Usaremos cURL para realizar solicitudes a los endpoints de datos y de conteos.
+
+Necesitará lo siguiente:
+
+- \[Una cuenta enterprise]https://developer.x.com/en/products/x-api/enterprise
+- Su nombre de usuario, contraseña y nombre de la cuenta
+- Etiqueta asociada con su endpoint de búsqueda, tal como se muestra en console.gnip.com
+
+<div id="accessing-the-data-endpoint">
+  #### Acceso al endpoint de datos
+</div>
+
+El endpoint de datos nos proporcionará el payload completo de las Publicaciones que coincidan. Usaremos los operadores `from:` y `lang:` para encontrar Publicaciones originadas desde @XDevelopers en inglés. Para ver más operadores, [haga clic aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators).
+
+- [cURL](#tab1)
+- [Ejemplo de cURL](#tab2)
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL es una herramienta de línea de comandos para obtener o enviar archivos usando la sintaxis de URL._
+
+    Copie la siguiente solicitud cURL en su línea de comandos después de realizar cambios en lo siguiente:
+
+    - **Nombre de usuario** `<USERNAME>` p. ej., `email@domain.com`
+
+    - **Nombre de la cuenta** `<ACCOUNT-NAME>` p. ej., `john-doe`
+
+    - **Etiqueta** `<LABEL>` p. ej., `prod`
+
+    - **fromDate y toDate** p. ej., `"fromDate":"201802010000", "toDate":"201802282359"`
+
+    _Después de enviar su solicitud, se le pedirá su contraseña._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/fullarchive/accounts/<ACCOUNT-NAME>/<LABEL>.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    _Este es un ejemplo de solicitud cURL. Si intenta ejecutarla, no funcionará._
+
+    ```bash
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/fullarchive/accounts/john-doe/prod.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"201802010000","toDate":"201802282359"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="data-endpoint-response-payload">
+  ##### Carga útil de la respuesta del endpoint de datos
+</div>
+
+La carga útil que reciba de su solicitud a la API se mostrará en formato JSON, como se indica a continuación.
+
+```json
+{
+	"results": [
+		{
+			"created_at": "Fri Nov 02 17:18:31 +0000 2018",
+			"id": 1058408022936977409,
+			"id_str": "1058408022936977409",
+			"text": "RT @harmophone: \"El innovador crowdsourcing que permite la colaboración entre Tagboard, Twitter y TEGNA está sacando a la luz conversaciones relevantes a nivel local conv…",
+			"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+			"truncated": false,
+			"in_reply_to_status_id": null,
+			"in_reply_to_status_id_str": null,
+			"in_reply_to_user_id": null,
+			"in_reply_to_user_id_str": null,
+			"in_reply_to_screen_name": null,
+			"user": {
+				"id": 2244994945,
+				"id_str": "2244994945",
+				"name": "Twitter Dev",
+				"screen_name": "TwitterDev",
+				"location": "Internet",
+				"url": "https:\/\/developer.x.com\/",
+				"description": "Tu fuente oficial de noticias, actualizaciones y eventos de la Plataforma de Twitter. ¿Necesitas ayuda técnica? Visita https:\/\/devcommunity.com\/ ⌨️ #TapIntoTwitter",
+				"translator_type": "null",
+				"protected": false,
+				"verified": true,
+				"followers_count": 503828,
+				"friends_count": 1477,
+				"listed_count": 1437,
+				"favourites_count": 2199,
+				"statuses_count": 3380,
+				"created_at": "Sat Dec 14 04:35:55 +0000 2013",
+				"utc_offset": null,
+				"time_zone": null,
+				"geo_enabled": true,
+				"lang": "en",
+				"contributors_enabled": false,
+				"is_translator": false,
+				"profile_background_color": "null",
+				"profile_background_image_url": "null",
+				"profile_background_image_url_https": "null",
+				"profile_background_tile": null,
+				"profile_link_color": "null",
+				"profile_sidebar_border_color": "null",
+				"profile_sidebar_fill_color": "null",
+				"profile_text_color": "null",
+				"profile_use_background_image": null,
+				"profile_image_url": "null",
+				"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/880136122604507136\/xHrnqf1T_normal.jpg",
+				"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/2244994945\/1498675817",
+				"default_profile": false,
+				"default_profile_image": false,
+				"following": null,
+				"follow_request_sent": null,
+				"notifications": null
+			},
+			"geo": null,
+			"coordinates": null,
+			"place": null,
+			"contributors": null,
+			"retweeted_status": {
+				"created_at": "Tue Oct 30 21:30:25 +0000 2018",
+				"id": 1057384253116289025,
+				"id_str": "1057384253116289025",
+				"text": "\"El innovador crowdsourcing que permite la colaboración entre Tagboard, Twitter y TEGNA está sacando a la luz conv… https:\/\/t.co\/w46U5TRTzQ",
+				"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+				"truncated": true,
+				"in_reply_to_status_id": null,
+				"in_reply_to_status_id_str": null,
+				"in_reply_to_user_id": null,
+				"in_reply_to_user_id_str": null,
+				"in_reply_to_screen_name": null,
+				"user": {
+					"id": 175187944,
+					"id_str": "175187944",
+					"name": "Tyler Singletary",
+					"screen_name": "harmophone",
+					"location": "San Francisco, CA",
+					"url": "http:\/\/medium.com\/@harmophone",
+					"description": "SVP de Producto en @Tagboard. Trabajé en datos, negocio y producto en @Klout y para @LithiumTech; miembro del consejo de @BBI; asesor en @Insightpool. El peor con la pizarra del mundo.",
+					"translator_type": "null",
+					"protected": false,
+					"verified": false,
+					"followers_count": 1982,
+					"friends_count": 1877,
+					"listed_count": 245,
+					"favourites_count": 23743,
+					"statuses_count": 12708,
+					"created_at": "Thu Aug 05 22:59:29 +0000 2010",
+					"utc_offset": null,
+					"time_zone": null,
+					"geo_enabled": false,
+					"lang": "en",
+					"contributors_enabled": false,
+					"is_translator": false,
+					"profile_background_color": "null",
+					"profile_background_image_url": "null",
+					"profile_background_image_url_https": "null",
+					"profile_background_tile": null,
+					"profile_link_color": "null",
+					"profile_sidebar_border_color": "null",
+					"profile_sidebar_fill_color": "null",
+					"profile_text_color": "null",
+					"profile_use_background_image": null,
+					"profile_image_url": "null",
+					"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/719985428632240128\/WYFHcK-m_normal.jpg",
+					"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/175187944\/1398653841",
+					"default_profile": false,
+					"default_profile_image": false,
+					"following": null,
+					"follow_request_sent": null,
+					"notifications": null
+				},
+				"geo": null,
+				"coordinates": null,
+				"place": null,
+				"contributors": null,
+				"is_quote_status": false,
+				"extended_tweet": {
+					"full_text": "\"El crowdsourcing innovador que posibilita la colaboración entre Tagboard, Twitter y TEGNA está sacando a la luz conversaciones relevantes a nivel local en tiempo real y permite que los votantes formulen preguntas durante los debates\", — @adamostrow, @TEGNA\nMás información: https:\/\/t.co\/ivAFtanfje",
+					"display_text_range": [
+						0,
+						259
+					],
+					"entities": {
+						"hashtags": [],
+						"urls": [
+							{
+								"url": "https:\/\/t.co\/ivAFtanfje",
+								"expanded_url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+								"display_url": "blog.tagboard.com\/twitter-and-ta…",
+								"unwound": {
+									"url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+									"status": 200,
+									"title": "Twitter y Tagboard colaboran para llevar el mejor contenido electoral a los medios informativos con Tagboard…",
+									"description": "Por Tyler Singletary, director de Producto, Tagboard"
+								},
+								"indices": [
+									236,
+									259
+								]
+							}
+						],
+						"user_mentions": [
+							{
+								"screen_name": "adamostrow",
+								"name": "Adam Ostrow",
+								"id": 5695942,
+								"id_str": "5695942",
+								"indices": [
+									204,
+									215
+								]
+							},
+							{
+								"screen_name": "TEGNA",
+								"name": "TEGNA",
+								"id": 34123003,
+								"id_str": "34123003",
+								"indices": [
+									217,
+									223
+								]
+							}
+						],
+						"symbols": []
+					}
+				},
+				"quote_count": 0,
+				"reply_count": 1,
+				"retweet_count": 6,
+				"favorite_count": 19,
+				"entities": {
+					"hashtags": [],
+					"urls": [
+						{
+							"url": "https:\/\/t.co\/w46U5TRTzQ",
+							"expanded_url": "https:\/\/twitter.com\/i\/web\/status\/1057384253116289025",
+							"display_url": "twitter.com\/i\/web\/status\/1…",
+							"indices": [
+								117,
+								140
+							]
+						}
+					],
+					"user_mentions": [],
+					"symbols": []
+				},
+				"favorited": false,
+				"retweeted": false,
+				"possibly_sensitive": false,
+				"filter_level": "bajo",
+				"lang": "es"
+			},
+			"is_quote_status": false,
+			"quote_count": 0,
+			"reply_count": 0,
+			"retweet_count": 0,
+			"favorite_count": 0,
+			"entities": {
+				"hashtags": [],
+				"urls": [],
+				"user_mentions": [
+					{
+						"screen_name": "harmophone",
+						"name": "Tyler Singletary",
+						"id": 175187944,
+						"id_str": "175187944",
+						"indices": [
+							3,
+							14
+						]
+					}
+				],
+				"symbols": []
+			},
+			"favorited": false,
+			"retweeted": false,
+			"filter_level": "low",
+			"lang": "en",
+			"matching_rules": [
+				{
+					"tag": null
+				}
+			]
+		}
+	],
+	"requestParameters": {
+		"maxResults": 100,
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+<div id="accessing-the-counts-endpoint">
+  #### Acceso al endpoint de conteos
+</div>
+
+Con el endpoint de conteos, recuperaremos la cantidad de Publicaciones originadas desde la cuenta @XDevelopers en inglés, agrupadas por `day`.
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL es una herramienta de línea de comandos para obtener o enviar archivos usando la sintaxis de URL._
+
+    Copie la siguiente solicitud cURL en su línea de comandos después de realizar cambios en lo siguiente:
+
+    - **Nombre de usuario** `<USERNAME>`, p. ej., `email@domain.com`
+
+    - **Nombre de la cuenta** `<ACCOUNT-NAME>`, p. ej., `john-doe`
+
+    - **Etiqueta** `<LABEL>`, p. ej., `prod`
+
+    - **fromDate y toDate**, p. ej., `"fromDate":"201802010000", "toDate":"201802282359"`
+
+    _Después de enviar su solicitud, se le solicitará la contraseña._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/fullarchive/accounts/<ACCOUNT-NAME>/<LABEL>/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>","bucket":"day"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    ```bash
+    _Este es un ejemplo de solicitud cURL. Si intenta ejecutarlo, no funcionará._
+
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/fullarchive/accounts/john-doe/prod/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"201802010000","toDate":"201802282359","bucket":"day"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="counts-endpoint-response-payload">
+  #### Carga útil de la respuesta del endpoint de conteos
+</div>
+
+La carga útil que recibas de tu solicitud a la API aparecerá en formato JSON, como se muestra a continuación.
+
+```json
+{
+	"results": [
+		{
+			"timePeriod": "201811010000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811020000",
+			"count": 1
+		},
+		{
+			"timePeriod": "201811030000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811040000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811050000",
+			"count": 0
+		}
+	],
+	"totalCount": 1,
+	"requestParameters": {
+		"bucket": "day",
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+¡Buen trabajo! Has accedido correctamente a la API empresarial Búsqueda de publicaciones: Archivo completo.
+
+##### Artículos de referencia
+
+- [Introducción a los objetos de publicación](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)
+- [Operadores de búsqueda](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)
+- [Objetos y cargas útiles de publicación](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#post-object)
+
+<div id="guides">
+  ## Guías
+</div>
+
+<div id="building-search-queries">
+  ### Creación de consultas de búsqueda
+</div>
+
+<div id="enterprise-operators">
+  ### Operadores empresariales
+</div>
+
+A continuación se muestra una lista de todos los operadores admitidos en las API de búsqueda empresariales de X:
+
+- **Enterprise** API de búsqueda de 30 días
+- **Enterprise** API de búsqueda de archivo completo
+
+Para una comparación en paralelo de los operadores disponibles por producto, consulte [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product).
+
+|Operador|Descripción|
+|:--------|:------------------|
+| keyword      | Coincide con una palabra clave tokenizada dentro del cuerpo o las URL de una Publicación. Es una coincidencia tokenizada, lo que significa que tu cadena de palabra clave se comparará con el texto tokenizado del cuerpo de la Publicación; la tokenización se basa en caracteres del plano básico Unicode de puntuación, símbolos y separadores. Por ejemplo, una Publicación con el texto “I like coca-cola” se dividiría en los siguientes tokens: I, like, coca, cola. Estos tokens se compararían con la cadena de palabra clave usada en tu regla. Para hacer coincidir cadenas que contengan puntuación (por ejemplo, coca-cola), símbolos o caracteres separadores, debes usar una coincidencia exacta entre comillas como se describe a continuación.<br /><br />**Nota:** Con la API de Búsqueda, los caracteres acentuados y especiales se normalizan a caracteres latinos estándar, lo que puede cambiar el significado en otros idiomas o devolver resultados inesperados:<br />Por ejemplo, "músic" coincidirá con “music” y viceversa.<br />Por ejemplo, frases comunes como "¡Feliz Año Nuevo!" en español se indexarán como "Feliz Ano Nuevo", lo que cambia el significado de la frase.<br /><br />**Nota:** Este operador coincidirá tanto en URL como en URL desplegadas dentro de una Publicación.                |
+|emoji|Coincide con un emoji dentro del cuerpo de una Publicación. Los emojis se comparan mediante coincidencia tokenizada, lo que significa que tu emoji se contrastará con el texto tokenizado del cuerpo de la Publicación; la tokenización se basa en caracteres del plano básico Unicode de puntuación, símbolos/emoji y separadores. Por ejemplo, una Publicación con el texto “I like <Icon icon="pizza-slice" iconType="solid" />” se dividiría en los siguientes tokens: I, like, <Icon icon="pizza-slice" iconType="solid" />. Estos tokens luego se compararían con el emoji usado en tu regla. Ten en cuenta que si un emoji tiene una variante, debes usar “comillas” para añadirlo a una regla. |
+|"exact phrase match" |Coincide con la frase tokenizada y en el mismo orden dentro del cuerpo o las URL de una Publicación. Es una coincidencia tokenizada, lo que significa que tu cadena de palabra clave se comparará con el texto tokenizado del cuerpo de la Publicación; la tokenización se basa en caracteres del plano básico Unicode de puntuación, símbolos y separadores. <br /><br />**Nota:** La puntuación no se tokeniza y se trata como espacios en blanco.<br />Por ejemplo, “#hashtag” entre comillas coincidirá con “hashtag” pero no con #hashtag (usa el operador de hashtag # sin comillas para coincidir con hashtags reales).<br />Por ejemplo, “$cashtag” entre comillas coincidirá con “cashtag” pero no con $cashtag (usa el operador de cashtag $ sin comillas para coincidir con cashtags reales).<br />Por ejemplo, "Love Snow" coincidirá con "#love #snow".<br />Por ejemplo, "#Love #Snow" coincidirá con "love snow".<br /><br />**Nota:** Este operador coincidirá tanto en URL como en URL desplegadas dentro de una Publicación.|
+|"keyword1 keyword2"~N|Conocido como operador de proximidad, coincide con una Publicación en la que las palabras clave están a no más de N tokens entre sí. <br /><br />Si las palabras clave están en orden inverso, no pueden estar a más de N-2 tokens entre sí. Puede incluir cualquier número de palabras clave entre comillas. N no puede ser mayor que 6.<br /><br />Ten en cuenta que este operador solo está disponible en las API de búsqueda de `enterprise`.|
+|from:| Coincide con cualquier Publicación de un usuario específico.<br />El valor debe ser el ID numérico de la Cuenta de X del usuario o el nombre de usuario (sin el carácter @). Consulta [AQUÍ](/es/x-api/users/lookup/introduction) o [AQUÍ](http://gettwitterid.com/) para métodos de búsqueda de IDs numéricos de Cuentas de X.|
+|to:|Coincide con cualquier Publicación que sea una respuesta a un usuario en particular.<br /><br />El valor debe ser el ID numérico de la Cuenta del usuario o el nombre de usuario (sin el carácter @). Consulta [AQUÍ](/es/x-api/users/lookup/introduction) para métodos de búsqueda de IDs numéricos de Cuentas de X.|
+|url:|Realiza una coincidencia tokenizada (palabra/frase) en las URL expandidas de una Publicación (similar a url\_contains). Los tokens y las frases que contengan signos de puntuación o caracteres especiales deben ir entre comillas dobles. Por ejemplo, url:"/developer". Aunque generalmente no se recomienda, si desea hacer coincidir un protocolo específico, colóquelo entre comillas dobles: url:"https://developer.x.com".<br />**Nota:** Al usar PowerTrack o Historical PowerTrack, este operador coincidirá con las URL incluidas en la Publicación original de una Publicación con cita. Por ejemplo, si su regla incluye url:"developer.x.com" y una Publicación contiene esa URL, cualquier Publicación con cita de esa Publicación se incluirá en los resultados. Esto no ocurre cuando se usa la Search API.|
+|#|Hace coincidir cualquier Publicación con el hashtag indicado.<br /><br />Este operador realiza una coincidencia exacta, NO una coincidencia tokenizada, lo que significa que la regla “2016” coincidirá con publicaciones con el hashtag exacto “2016”, pero no con aquellas con el hashtag “2016election”.<br /><br />Nota: el operador de hashtag se basa en la extracción de entidades de X para identificar hashtags, en lugar de extraer el hashtag del cuerpo del texto. Consulte [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#hashtags) para obtener más información sobre los atributos JSON de X Entities.|
+|@|Hace coincidir cualquier Publicación que mencione el nombre de usuario indicado.<br />El operador to: devuelve un subconjunto de coincidencias del operador de mención @.|
+|$|Hace coincidir cualquier Publicación que contenga el “cashtag” especificado (donde el primer carácter del token es “$”).<br /><br />Tenga en cuenta que el operador de cashtag se basa en la extracción de la entidad “symbols” de X para identificar cashtags, en lugar de intentar extraer el cashtag del cuerpo del texto. Consulte [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#symbols) para obtener más información sobre los atributos JSON de X Entities.<br /><br />Tenga en cuenta que este operador solo está disponible en las API de búsqueda de nivel `enterprise`.<br /><br />|
+|retweets\_of:|_Alias disponible_: retweets\_of\_user:<br />Hace coincidir Publicaciones que son retuits de un usuario especificado. Acepta tanto nombres de usuario como ID numéricos de cuentas de X (NO IDs de estado de Publicación). Consulte [AQUÍ](/es/x-api/users/lookup/introduction) los métodos para buscar IDs numéricos de cuentas de X.|
+|lang:|Hace coincidir Publicaciones que X haya clasificado como de un idioma en particular (solo si la Publicación ha sido clasificada). Es importante señalar que cada Publicación actualmente solo se clasifica en un idioma, por lo que combinar múltiples idiomas con AND no arrojará resultados.<br /><br />**Nota:** si no puede determinarse una clasificación de idioma, el valor devuelto es “und” (indefinido).<br /><br />La lista a continuación representa los idiomas actualmente admitidos y su correspondiente identificador de idioma BCP 47:<br />|
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Amhárico: am | Alemán: de | Malabar: ml | Eslovaco: sk |
+| Árabe: ar | Griego: el | Maldivo: dv | Esloveno: sl |
+| Armenio: hy | Criollo haitiano: ht | Nepalí: ne | Español: es |
+| Bengalí: bn | Hebreo: iw | Noruego: no | Sueco: sv |
+| Bosnio: bs | Hindi: hi | Oriya: or | Tagalo: tl |
+| Búlgaro: bg | Hindi latinizado: hi-Latn | Panyabí: pa | Tamil: ta |
+| Birmano: my | Húngaro: hu | Pastún: ps | Telugu: te |
+| Croata: hr | Islandés: is | Persa: fa | Tailandés: th |
+| Catalán: ca | Indonesio: in | Polaco: pl | Tibetano: bo |
+| Checo: cs | Italiano: it | Portugués: pt | Chino tradicional: zh-TW |
+| Danés: da | Japonés: ja | Rumano: ro | Turco: tr |
+| Neerlandés: nl | Canarés: kn | Ruso: ru | Ucraniano: uk |
+| Inglés: en | Jemer: km | Serbio: sr | Urdu: ur |
+| Estonio: et | Coreano: ko | Chino simplificado: zh-CN | Uigur: ug |
+| Finés: fi | Lao: lo | Sindhi: sd | Vietnamita: vi |
+| Francés: fr | Letón: lv | Cingalés: si | Galés: cy |
+| Georgiano: ka | Lituano: lt |     |
+
+|||
+|:----|:---|
+|place:|Coincide con publicaciones etiquetadas con la ubicación especificada o el ID de lugar de X (consulta los ejemplos). Los nombres de lugares con varias palabras (“New York City”, “Palo Alto”) deben ir entre comillas.<br /><br />**Nota:** Consulta el endpoint público [GET geo/search](https://developer.x.com/en/docs/x-api/v1/geo/place-information/overview) para saber cómo obtener IDs de lugares de X.<br /><br />**Nota:** Este operador no hará coincidencia en los Retuits, ya que los lugares de los Retuits están asociados a la publicación original. Tampoco coincidirá con lugares asociados a la publicación original de un tuit con cita.|
+|place\_country:|Coincide con publicaciones donde el código de país asociado con un [lugar](https://developer.x.com/en/docs/x-api/v1/geo/place-information/overview) etiquetado coincide con el código ISO alfa-2 proporcionado.<br /><br />Los códigos ISO válidos se pueden encontrar aquí: [http://en.wikipedia.org/wiki/ISO\_3166-1\_alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)<br /><br />**Nota:** Este operador no hará coincidencia en los Retuits, ya que los lugares de los Retuits están asociados a la publicación original. Tampoco coincidirá con lugares asociados a la publicación original de un tuit con cita.|
+|point\_radius:\[lon lat radius]|Coincide con la ubicación exacta (x, y) de la publicación cuando esté presente y, en X, con un polígono geográfico “Place”, donde el Place esté completamente contenido dentro de la región definida.<br /><br />\* Las unidades de radio admitidas son millas (mi) y kilómetros (km).<br />\* El radio debe ser menor que 25 mi.<br />\* La longitud está en el rango de ±180.<br />\* La latitud está en el rango de ±90.<br />\* Todas las coordenadas están en grados decimales.<br />\* Los argumentos de la regla van entre corchetes, separados por espacios.<br /><br />**Nota:** Este operador no hará coincidencia en los Retuits, ya que los lugares de los Retuits están asociados a la publicación original. Tampoco coincidirá con lugares asociados a la publicación original de un tuit con cita.|
+|bounding\_box:\[west\_long south\_lat east\_long north\_lat]|_Alias disponible_: geo\_bounding\_box:<br /><br />Coincide con la ubicación exacta (long, lat) de la publicación cuando esté presente y, en X, con un polígono geográfico “Place”, donde el Place esté completamente contenido dentro de la región definida.<br /><br />\* west\_long y south\_lat representan la esquina suroeste del cuadro delimitador, donde west\_long es la longitud de ese punto y south\_lat es la latitud.<br />\* east\_long y north\_lat representan la esquina noreste del cuadro delimitador, donde east\_long es la longitud de ese punto y north\_lat es la latitud.<br />\* El ancho y la altura del cuadro delimitador deben ser menores que 25 mi.<br />\* La longitud está en el rango de ±180.<br />\* La latitud está en el rango de ±90.<br />\* Todas las coordenadas están en grados decimales.<br />\* Los argumentos de la regla van entre corchetes, separados por espacios.<br />**Nota:** Este operador no hará coincidencia en los Retuits, ya que los lugares de los Retuits están asociados a la publicación original. Tampoco coincidirá con lugares asociados a la publicación original de un tuit con cita.
+|profile\_country:|Coincidencia exacta con el campo “countryCode” del objeto “address” en el enriquecimiento de Perfil Geo.<br />Usa un conjunto normalizado de códigos de país de dos letras, basado en la especificación ISO‑3166‑1‑alpha‑2. Este operador se ofrece en lugar de un operador para el campo “country” del objeto “address” para ser más conciso.|
+|profile\_region:|Coincide con el campo “region” del objeto “address” en el enriquecimiento de Perfil Geo.<br /><br />Es una coincidencia exacta de la cadena completa. No es necesario escapar caracteres con una barra invertida. Por ejemplo, si se hace coincidir algo con una barra, usa “one/two”, no “one\\/two”. Usa comillas dobles para hacer coincidir subcadenas que contengan espacios en blanco o signos de puntuación.|
+|profile\_locality:|Coincide con el campo “locality” del objeto “address” en el enriquecimiento de Perfil Geo.<br /><br />Es una coincidencia exacta de la cadena completa. No es necesario escapar caracteres con una barra invertida. Por ejemplo, si se hace coincidir algo con una barra, usa “one/two”, no “one\\/two”. Usa comillas dobles para hacer coincidir subcadenas que contengan espacios en blanco o signos de puntuación.|
+
+<Info>
+  **NOTA:** Los operadores is: y has: no pueden usarse de forma independiente en la Search API; deben combinarse con otra cláusula.
+
+  Por ejemplo, @XDeevelopers has:links
+</Info>
+
+|     |     |
+| :--- | :--- |
+| has:geo | Coincide con publicaciones que tienen datos de geolocalización específicos de la publicación proporcionados por X. Esto puede ser “geo” con coordenadas de latitud-longitud, o una “ubicación” en forma de un [“Place”](https://dev.x.com/overview/api/places) de X, con el nombre para mostrar correspondiente, polígono geográfico y otros campos.<br /><br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:profile\_geo | _Alias disponible_: has:derived\_user\_geo<br /><br />Coincide con publicaciones que tienen cualquier metadato de [Profile Geo](http://support.gnip.com/enrichments/profile_geo.html), sin importar el valor real.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:links | Este operador coincide con publicaciones que contienen enlaces en el cuerpo del mensaje.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| is:retweet | Entrega solo retuits explícitos que coincidan con una regla. También puede negarse para excluir retuits que coincidan con una regla y entregar solo contenido original.<br /><br />Este operador busca únicamente retuits verdaderos, que usan la funcionalidad de retuit de X. Los tuits citados y las publicaciones modificadas que no usan la funcionalidad de retuit de X no coincidirán con este operador.<br /><br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| is:reply | Operador para filtrar publicaciones según si son o no respuestas a publicaciones. Entrega solo respuestas explícitas que coincidan con una regla. También puede negarse para excluir respuestas que coincidan con una regla de la entrega.<br /><br />Tenga en cuenta que este operador está disponible para la búsqueda premium y empresarial de pago y no está disponible en entornos de desarrollo Sandbox.<br /><br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| is:quote | Entrega solo tuits citados, o publicaciones que hacen referencia a otra publicación, según lo identificado por "is\_quote\_status":true en las cargas útiles de la publicación. También puede negarse para excluir tuits citados.  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| is:verified | Entrega solo publicaciones cuyo autor está “verificado” por X. También puede negarse para excluir publicaciones cuyo autor esté verificado.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:mentions | Coincide con publicaciones que mencionan a otro usuario de X.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:hashtags | Coincide con publicaciones que contienen un hashtag.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:media | _Alias disponible_: has:media\_link<br /><br />Coincide con publicaciones que contienen una URL de medios clasificada por X. Por ejemplo, pic.x.com.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:images | Coincide con publicaciones que contienen una URL de medios clasificada por X. Por ejemplo, pic.x.com.  <br />  <br /><br />**Nota:** Al usar la API de Búsqueda, este operador debe usarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:videos | _Alias disponible_: has:video\_link<br /><br />Coincide con publicaciones que contienen videos nativos de X, cargados directamente en X. No coincidirá con videos creados con Vine, Periscope ni con publicaciones con enlaces a otros sitios de alojamiento de videos.  <br />  <br /><br />**Nota:** Al usar la API de búsqueda, este operador debe utilizarse junto con otros operadores que no incluyan `is:` o `has:`. |
+| has:symbols | Coincide con publicaciones que contienen un cashtag (con un carácter “$” inicial; por ejemplo, $tag). Tenga en cuenta que este operador solo está disponible en las API de búsqueda de `enterprise`.  <br />  <br /><br />**Nota:** Al usar la API de búsqueda, este operador debe utilizarse junto con otros operadores que no incluyan `is:` o `has:`. |
+
+<div id="product-overview">
+  ### Descripción del producto
+</div>
+
+La Búsqueda de archivo completo de nivel enterprise se lanzó en agosto de 2015 y la versión de nivel premium en febrero de 2018. Estos productos de búsqueda permiten a los clientes acceder de inmediato a cualquier Publicación disponible públicamente. Con la Búsqueda de archivo completo, envía una única consulta y recibe una respuesta en el estilo REST clásico. La Búsqueda de archivo completo implementa paginación de hasta 500 publicaciones por respuesta y admite hasta 60 solicitudes por minuto (rpm) para premium y 120 rpm para enterprise. Dado lo anterior, la Búsqueda de archivo completo puede utilizarse para recuperar Publicaciones rápidamente y a gran escala usando solicitudes concurrentes.
+
+A diferencia de Historical PowerTrack, cuyo archivo se basa en un conjunto de archivos planos de Publicaciones en disco, el archivo de Publicaciones de la Búsqueda de archivo completo se asemeja más a una base de datos en línea. Como en todas las bases de datos, admite realizar consultas sobre su contenido. También utiliza un índice para habilitar la recuperación de datos de alto rendimiento. Con los endpoints de la Búsqueda de archivo completo, el lenguaje de consulta está compuesto por Operadores de PowerTrack, y cada uno de estos Operadores corresponde a un atributo JSON de la Publicación que está indexado.
+
+Asimismo, como en Historical PowerTrack, hay atributos de la Publicación que reflejan el estado actual en el momento en que se realiza una consulta. Por ejemplo, si hoy utiliza la Search API para acceder a una Publicación publicada en 2010, la descripción del perfil del usuario, la ubicación “principal” de la cuenta, el nombre para mostrar y las métricas de la Publicación para los recuentos de Favoritos y Retuits se actualizarán a los valores actuales y no a los que tenía en 2010. 
+
+<div id="metadata-timelines">
+  ### Cronologías de metadatos
+</div>
+
+A continuación se muestra una cronología de cuándo los operadores del endpoint de Búsqueda de archivo completo comienzan a aplicar coincidencias. En algunos casos, la coincidencia por operador comenzó bastante después de que una “convención de comunicación” se volviera común en X. Por ejemplo, las @respuestas surgieron como una convención de uso en 2006, pero no se convirtieron en un _objeto de primera clase_ o _evento_ con JSON “de soporte” hasta principios de 2007. En consecuencia, hacer coincidir @respuestas en 2006 requiere examinar el cuerpo de la publicación, en lugar de depender de los operadores de PowerTrack `to:` e `in_reply_to_status_id:`.
+
+Los detalles proporcionados aquí se generaron utilizando la Búsqueda de archivo completo (resultado de cientos de búsquedas). Esta cronología no es 100% completa ni precisa. Si identifica otra “fecha de nacimiento” de filtrado/metadatos fundamental para su caso de uso, háganoslo saber.
+
+Tenga en cuenta que el índice de Búsqueda subyacente puede reconstruirse. En consecuencia, estos detalles de la cronología están sujetos a cambios.
+
+<div id="2006">
+  #### 2006
+</div>
+
+- 26 de marzo - `lang:`. Un ejemplo de metadatos de publicación que se rellenan retrospectivamente mientras se genera el índice de búsqueda.
+- 13 de julio - `has:mentions` comienza a hacer coincidencias.
+- 6 de octubre - `has:symbols`. Los $cashtags (o símbolos) para hablar de símbolos bursátiles no se vuelven comunes hasta principios de 2009. Hasta entonces, la mayoría de los usos probablemente eran jerga (p. ej., $slang).
+- 26 de octubre - `has:links` comienza a hacer coincidencias.
+- 23 de noviembre - `has:hashtags` comienza a hacer coincidencias.
+
+<div id="2007">
+  #### 2007
+</div>
+
+- 30 de enero - Primera @reply de primera clase (in\_reply\_to\_user\_id); `reply_to_status_id:` empieza a coincidir.
+- 23 de agosto - Los hashtags surgen como convención común para organizar temas y conversaciones. Primer uso real una semana después.
+
+<div id="2009">
+  #### 2009
+</div>
+
+- 15 de mayo - `is:retweet`. Tenga en cuenta que este operador comienza a coincidir con el lanzamiento beta de los Retweets oficiales y su patrón “Via @”. Durante este período beta, el verbo de la publicación es “post” y la publicación original no se incluye en la carga útil.
+- 13 de agosto - Se lanza la versión final de los Retweets oficiales con el patrón “RT @”, el verbo establecido en “share”, y el atributo “retweet\_status” que contiene la publicación original (lo que aproximadamente duplica el tamaño de la carga útil JSON).
+
+<div id="2010">
+  #### 2010
+</div>
+
+- 6 de marzo: Los operadores geográficos `has:geo`, `bounding_box:` y `point_radius:` comienzan a aplicar coincidencias.
+- 28 de agosto: `has:videos` (Hasta febrero de 2015, este operador hace coincidir publicaciones con enlaces a determinados sitios de alojamiento de video como youtube.com, vimeo.com y vivo.com).
+
+<div id="2011">
+  #### 2011
+</div>
+
+- 20 de julio: `has:media` y `has:images` empiezan a hacer coincidencia. Las fotos nativas se anunciaron oficialmente el 9 de agosto de 2010.
+
+<div id="2014">
+  #### 2014
+</div>
+
+- 3 de diciembre: (aproximadamente) _algunos_ [metadatos de URL mejorados](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) con título y descripción HTML comienzan a aparecer en las cargas útiles. Los metadatos mejorados se consolidaron más plenamente en mayo de 2016.
+
+<div id="2015">
+  #### 2015
+</div>
+
+- 10 de febrero: `has:videos` coincide con videos “nativos” de X.
+- 17 de febrero: `has:profile_geo`, `profile_country:`, `profile_region:`, `profile_locality:` los operadores de [Profile Geo](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#profile-geo) comienzan a hacer coincidencias.
+- 17 de febrero: `place_country:` y `place:` los operadores de geoubicación de publicaciones comienzan a hacer coincidencias.
+
+<div id="2016">
+  #### 2016
+</div>
+
+- 1 de mayo: [Metadatos de URL mejorados](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) disponibles de forma más amplia y anunciados oficialmente como parte del [lanzamiento de Gnip 2.0 en agosto de 2016](https://blog.x.com/2016/gnip-2-is-here). No hay operadores asociados para estos metadatos en las API de búsqueda.
+
+<div id="2017">
+  #### 2017
+</div>
+
+- 22 de febrero: los metadatos de encuestas están disponibles en un formato nativo enriquecido. No hay operadores asociados para estos metadatos.
+
+<div id="2022">
+  #### 2022
+</div>
+
+- 27 de septiembre: todos los objetos de publicación creados desde esta fecha tienen metadatos de publicación editada disponibles. Todos los endpoints de Enterprise que proporcionan objetos de publicación se actualizaron para ofrecer estos metadatos a partir de esta fecha. Los metadatos de edición proporcionados incluyen los objetos edit\_history y edit\_controls. Estos metadatos no se devolverán para publicaciones creadas antes del 27 de septiembre de 2022. Actualmente, no hay operadores de Enterprise disponibles que coincidan con estos metadatos. Para obtener más información sobre los metadatos de publicación editada, consulta la página [Fundamentos de publicaciones editadas](/es/x-api/fundamentals/edit-posts).
+
+<div id="2022">
+  #### 2022
+</div>
+
+- 29 de septiembre: todos los objetos de Publicación creados desde esta fecha tienen disponibles los metadatos de Publicación editada. Todos los endpoints Enterprise que proporcionan objetos de Publicación se actualizaron para incluir estos metadatos a partir de esta fecha. Los metadatos de edición proporcionados incluyen los objetos `edit_history` y `edit_controls`. Estos metadatos no se devolverán para Publicaciones creadas antes del 27 de septiembre de 2022. Actualmente, no hay operadores de Enterprise disponibles que correspondan con estos metadatos. Para obtener más información sobre los metadatos de Publicaciones editadas, consulta la página [Fundamentos de publicaciones editadas](/es/x-api/fundamentals/edit-posts).
+
+<div id="filtering-tips">
+  ### Consejos de filtrado
+</div>
+
+Dada toda la información de la cronología anterior, está claro que hay muchos detalles que considerar al escribir filtros para las API de Búsqueda. Hay dos aspectos clave a tener en cuenta:
+
+- Algunos metadatos tienen fechas de “creación”, por lo que los filtros pueden producir _falsos negativos_. Estas búsquedas incluyen operadores que dependen de metadatos que no existían durante todo o parte del período de búsqueda. Por ejemplo, si busca publicaciones con el operador `has:images`, no habrá coincidencias en períodos anteriores a julio de 2011. Esto se debe a que ese operador coincide con fotos _nativas_ (adjuntas a una publicación mediante la interfaz de usuario de X). Para obtener un conjunto de datos más completo de publicaciones de intercambio de fotos, los filtros anteriores a julio de 2011 tendrían que incluir cláusulas de reglas que coincidan con URL comunes de alojamiento de fotos.
+- Algunos metadatos se han rellenado retrospectivamente con información de un momento _posterior_ al de la publicación en X.
+
+Existen varios tipos de atributos en los que comúnmente se pone el foco al crear consultas de PowerTrack:
+
+- Perfiles de X
+- Publicaciones originales o compartidas
+- Clasificación del idioma de la publicación
+- Publicaciones con georreferenciación
+- Medios en enlaces compartidos
+
+Algunos de estos tienen un comportamiento específico del producto, mientras que otros se comportan de manera idéntica. Consulte a continuación para más detalles.
+
+<div id="x-profiles">
+  #### Perfiles de X
+</div>
+
+Las APIs de búsqueda devuelven publicaciones históricas con los datos del perfil del usuario tal como están en el momento de la recuperación. Si solicita una publicación de 2014, los metadatos del perfil del usuario reflejarán su estado en el momento de la consulta.
+
+<div id="original-posts-and-retweets">
+  #### Publicaciones originales y Retuits
+</div>
+
+El operador de PowerTrack `_is:retweet_` permite incluir o excluir Retuits. Quienes usen este operador deben aplicar dos estrategias para identificar (o no) Retuits en datos anteriores a agosto de 2009. Antes de esa fecha, se debe revisar el contenido de la publicación usando coincidencia de frase exacta para detectar el patrón “@RT ” (de hecho, si filtra Retuits entre mayo y agosto de 2009, debería incluir también el patrón “Via @”). Para periodos posteriores a agosto de 2009, el operador _is:retweet_ está disponible.
+
+<div id="post-language-classifications">
+  #### Clasificaciones de idioma de las publicaciones
+</div>
+
+Para filtrar por la clasificación de idioma de una publicación, los productos históricos de X difieren considerablemente. Cuando se construyó el archivo de búsqueda, todas las publicaciones se rellenaron retroactivamente con la clasificación de idioma de X. Por lo tanto, el operador lang: está disponible para todo el archivo de publicaciones.
+
+<div id="geo-referencing-posts">
+  #### Georreferenciación de publicaciones
+</div>
+
+Hay tres formas principales de georreferenciar publicaciones:
+
+- **Referencias geográficas en el contenido de la publicación.** Hacer coincidir referencias geográficas en el contenido de la publicación, aunque a menudo es el método más desafiante porque depende del conocimiento local, es una opción para todo el archivo de publicaciones. [Aquí](https://x.com/biz/statuses/28311) hay un ejemplo de coincidencia georreferenciada de 2006 para el área de San Francisco basada en un filtro de “golden gate”.
+
+- **Publicaciones geolocalizadas por el usuario.** Con las API de búsqueda, la capacidad de empezar a hacer coincidencias en publicaciones usando algunos Operadores Geo comenzó en marzo de 2010 y con otros en febrero de 2015:
+
+  - 6 de marzo de 2010: `has:geo`, `bounding_box:` y `point_radius:`
+  - 17 de febrero de 2015: `place_country:` y `place:`
+
+- **Ubicación “home” del perfil de la cuenta definida por el usuario.** Los Operadores Geo de Perfil están disponibles tanto en Historical PowerTrack como en las API de búsqueda. Con las API de búsqueda, estos metadatos de Geo de Perfil están disponibles a partir de febrero de 2015. Para publicaciones anteriores a la disponibilidad de los metadatos de Geo de Perfil, está disponible el operador `bio_location:`, que se puede usar para hacer coincidencias con entrada de usuario no normalizada.
+
+<div id="shared-links-and-media">
+  #### Enlaces compartidos y contenido multimedia
+</div>
+
+En marzo de 2012 se introdujo el enriquecimiento de URL expandida. Antes de esa fecha, las cargas útiles de la Publicación incluían solo la URL tal como la proporcionaba el usuario. Por lo tanto, si el usuario incluía una URL acortada, puede ser difícil hacer coincidir las URL (expandidas) de interés. Con las API de Búsqueda, estos metadatos están disponibles a partir de marzo de 2012.
+
+En julio de 2016 se introdujo el enriquecimiento de URL mejoradas. Esta versión mejorada incorpora el título y la descripción HTML de un sitio web en la carga útil de la Publicación, junto con operadores para hacer coincidencias con ellos. Estos metadatos comienzan a aparecer en diciembre de 2014.
+
+En septiembre de 2016, X introdujo los “adjuntos nativos”, donde un enlace compartido al final no cuenta para el límite de 140 caracteres de la Publicación. Ambos enriquecimientos de URL siguen aplicándose a estos enlaces compartidos.
+
+A continuación se indica cuándo los operadores de búsqueda relacionados comienzan a coincidir:
+
+- 2006 octubre 26 - `has:links`
+- 2011 julio 20 - `has:images` y `has:media`
+- 2011 agosto - `url:` con el [enriquecimiento de URLs expandidas](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments). Ya en septiembre de 2006, `(url:"spotify.com" OR url:gnip OR url:microsoft OR url:google OR url:youtube)` coincide con http://x.com/Adam/statuses/16602, aunque no haya metadatos urls\[] en twitter\_entities ni en los objetos gnip. “youtube.com” es un ejemplo de contenido del mensaje que, sin ningún metadato urls\[], coincide con url:youtube.
+- 2015 febrero 10 - `has:videos` para videos nativos. Entre 2010/08/28 y 2015/02/10, este operador coincide con Publicaciones con enlaces a sitios de alojamiento de video seleccionados como youtube.com, vimeo.com y vivo.com.
+- 2016 mayo 1 - `url_title:` y `url_description:`, basados en el [enriquecimiento de URLs mejoradas](/es/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments), disponible de forma general. Los primeros metadatos de URL mejoradas comenzaron a aparecer en diciembre de 2014.
+
+<div id="frequently-asked-questionsfaq">
+  ## Preguntas frecuentes (FAQ)
+</div>
+
+<div id="general-search-post-api-questions">
+  ### Preguntas generales sobre la API de búsqueda de publicaciones
+</div>
+
+<AccordionGroup>
+  <Accordion title="The number of Posts I receive with the data endpoint doesn't match the number of Posts identified by the counts endpoint. Why is this the case?">
+    Existe una diferencia conocida entre los resultados que proporciona el endpoint de conteos y los del endpoint de datos. Es posible que observe una discrepancia en sus resultados porque el endpoint de conteos es previo al cumplimiento (es decir, no contempla elementos como publicaciones eliminadas, geo depurado, etc.), mientras que el endpoint de datos cumple con el cumplimiento en el momento de la entrega y considera todos los eventos de cumplimiento.
+  </Accordion>
+
+  <Accordion title="I didn't receive a Post that should match my query. Why?">
+    Hay varias razones por las que esto podría haber ocurrido, entre ellas:
+
+    1. la publicación que esperabas ver proviene de una cuenta protegida
+    2. el endpoint de datos contempla todos los eventos de cumplimiento (lo que significa que las publicaciones eliminadas, las geolocalizaciones depuradas, etc., no se incluirán en la respuesta).
+  </Accordion>
+
+  <Accordion title="My query matched a Post but includes a keyword that I negated. Why is this happening?">
+    Esto probablemente se deba a un uso incorrecto de nuestras reglas y del filtrado premium. Revisa nuestra documentación [aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering) y asegúrate de entender las restricciones para crear reglas.
+  </Accordion>
+
+  <Accordion title="Are there any libraries that I can use to get started using the Search Post APIs?">
+    Sí, hay varias, entre ellas:
+
+    - [Tweepy](http://www.tweepy.org/) - ideal para usar el producto estándar de búsqueda/publicaciones (Python)
+    - [X API](https://github.com/geduldig/TwitterAPI) - ideal para usar las API estándar de búsqueda de publicaciones (Python)
+    - [Search Posts Python](https://github.com/xdevplatform/search-tweets-python) y [Search Posts Ruby](https://github.com/xdevplatform/search-tweets-ruby) - dos herramientas muy útiles que pueden usarse con las API de búsqueda de publicaciones para enterprise (¡y v2!)
+
+    Todas las bibliotecas que admitimos directamente se encuentran en nuestra página de GitHub de xdevplatform: [https://github.com/xdevplatform](https://github.com/xdevplatform).
+
+    Hay [otras bibliotecas de terceros](/es/resources/fundamentals/authentication#oauth-1-0a-2) que también pueden ser útiles; sin embargo, tenga en cuenta que algunas pueden no funcionar con nuestros productos premium y empresariales.
+  </Accordion>
+
+  <Accordion title="Will I ever receive less volume of Posts than the value I set as the `maxResults` in my request to the data endpoint?">
+    Sí. Nuestro endpoint de datos pagina según el `maxResults` especificado o después de 30 días.
+
+    Por ejemplo, si tienes 800 publicaciones en un periodo de 30 días, tendrás que hacer dos solicitudes para obtener todos los resultados, porque el número máximo de publicaciones que se puede devolver por solicitud es 500 (`maxResults`). Y si solo tienes 400 publicaciones en el primer mes y luego 100 en el segundo, también tendrás que hacer dos solicitudes para obtener todos los resultados, porque la paginación se produce tras un periodo de 30 días incluso si la primera solicitud devuelve menos publicaciones que el `maxResults` especificado.
+  </Accordion>
+
+  <Accordion title="In what order are the matching Posts returned?">
+    Las publicaciones se devuelven en orden cronológico inverso. Por ejemplo, la primera página de resultados mostrará las publicaciones más recientes que coincidan con la consulta, y la paginación continuará hasta que las fechas de publicación de los resultados lleguen al `fromDate` solicitado inicialmente.
+  </Accordion>
+
+  <Accordion title="How do Edit Posts impact my usage and billing?">
+    Solo la publicación original contará a efectos de facturación. Cualquier edición posterior se ignorará y no se sumará a tu recuento total de actividad.
+
+    `Enterprise`
+  </Accordion>
+
+  <Accordion title="I'm interested in learning more about the pricing of the enterprise Search Post API and in applying for this offering. How can I do this?">
+    Nuestras soluciones empresariales se personalizan con precios predecibles para satisfacer las necesidades de su empresa. Solicite más información [aquí](/es/x-api/enterprise-gnip-2.0/enterprise-gnip).
+  </Accordion>
+
+  <Accordion title="How do I build a rule set that matches my use case?">
+    - Consulte la documentación de nuestras API empresariales de búsqueda de publicaciones [aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-search-apis)
+    - Puede encontrar información útil sobre reglas y filtrado [aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators)
+    - Puede encontrar información útil sobre el endpoint de datos [aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#data-endpoint)
+    - Puede encontrar información útil sobre el endpoint de conteos [aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#counts-endpoint)
+    - Puede encontrar una lista de operadores disponibles [aquí](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators)
+  </Accordion>
+
+  <Accordion title="I have exceeded my request caps/limits for the month, but I need to access more data - what can I do?">
+    Por favor, póngase en contacto con su Gerente de Cuenta en X, quien podrá ayudarle con esto.
+  </Accordion>
+</AccordionGroup>
+
+<div id="error-troubleshooting-guide">
+  ### Guía de solución de errores
+</div>
+
+**Código 404 - No encontrado**
+
+1. Asegúrese de usar los parámetros correctos para cada endpoint (p. ej., el campo `buckets` solo puede usarse con el endpoint de counts, no con el de data).
+2. Verifique nuevamente que los campos `:product`, `:account_name` y `:label` sean correctos. Puede encontrar su `:label` en la GNIP Console (solo para clientes empresariales).
+
+<div id="api-reference">
+  ## Referencia de API
+</div>
+
+<div id="enterprise-search-apis">
+  ### APIs de búsqueda para empresas
+</div>
+
+Hay dos APIs de búsqueda para empresas:
+
+- API de Búsqueda de 30 días: proporciona tuits publicados en los últimos 30 días.
+- API de Búsqueda de Archivo completo: proporciona tuits desde 2006, comenzando con el primer tuit publicado en marzo de 2006.
+
+Estas APIs de búsqueda comparten un diseño común y la documentación a continuación se aplica a ambas. Tenga en cuenta que, para los tuits creados a partir del 29 de septiembre de 2022, los objetos de tuit incluirán metadatos de edición que describen su historial de ediciones. Consulte la página de fundamentos ["Editar tuits"](/es/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets) para más detalles.
+
+A continuación encontrará detalles importantes necesarios al integrarse con las APIs de búsqueda para empresas:
+
+- Métodos para solicitar datos y recuentos de tuits
+- Autenticación
+- Paginación
+- Parámetros de solicitud de la API y solicitudes de ejemplo
+- Cargas JSON de respuesta de la API y respuestas de ejemplo
+- Códigos de respuesta HTTP
+
+Las APIs para empresas proporcionan acceso al archivo de tuits con baja latencia, fidelidad total y basado en consultas. La única diferencia entre las dos APIs es el período de tiempo que se puede buscar: los 30 días anteriores o desde 2006. Los períodos de tiempo pueden especificarse con granularidad de minutos. Los datos de tuits se entregan en orden cronológico inverso, comenzando por el tuit más reciente que coincida con su consulta. Los tuits están disponibles en la API de búsqueda aproximadamente 30 segundos después de publicarse.
+
+<div id="methods">
+  #### Métodos
+</div>
+
+El URI base para la búsqueda empresarial es `https://gnip-api.x.com/search/`.
+
+| Método | Descripción |
+| :--- | :--- |
+| [POST /search/:product/accounts/:account\_name/:label](#SearchRequests) | Recupera los tuits de los últimos 30 días que coinciden con la regla PowerTrack especificada. |
+| [POST /search/:product/accounts/:account\_name/:label/counts](#CountRequests) | Recupera la cantidad de tuits de los últimos 30 días que coinciden con la regla PowerTrack especificada. |
+
+Donde:
+
+- `:product` indica el endpoint de búsqueda al que realizas solicitudes, ya sea `30day` o `fullarchive`.
+- `:account_name` es el nombre (sensible a mayúsculas y minúsculas) asociado con tu cuenta, tal como se muestra en console.gnip.com.
+- `:label` es la etiqueta (sensible a mayúsculas y minúsculas) asociada con tu endpoint de búsqueda, tal como se muestra en console.gnip.com.
+
+Por ejemplo, si la cuenta TwitterDev tiene el producto de búsqueda de 30 días con una etiqueta 'prod' (abreviatura de producción), los endpoints de búsqueda serían:
+
+- Endpoint de datos: [https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod.json](https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod.json)
+- Endpoint de conteos: [https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod/counts.json](https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod/counts.json)
+
+Tu endpoint completo de la API de búsqueda empresarial se muestra en [https://console.gnip.com](https://console.gnip.com).
+
+A continuación se muestran varias solicitudes de ejemplo usando una utilidad HTTP simple llamada curl. Estos ejemplos usan URL con `:product`, `:account_name` y `:label`. Para usar estos ejemplos, asegúrate de actualizar las URL con tus datos.
+
+<div id="authentication">
+  #### Autenticación
+</div>
+
+Todas las solicitudes a las API de búsqueda para empresas deben usar la autenticación básica de HTTP, creada a partir de una combinación válida de dirección de correo electrónico y contraseña utilizada para iniciar sesión en su cuenta en [https://console.gnip.com](https://console.gnip.com). Las credenciales deben incluirse en el encabezado Authorization de cada solicitud.
+
+<div id="requestresponse-behavior">
+  #### Comportamiento de solicitud/respuesta
+</div>
+
+Con los parámetros `fromDate` y `toDate`, puede solicitar cualquier periodo que admita la API. La API de búsqueda de 30 días proporciona publicaciones de los 31 días más recientes (aunque se denomine API de “30 días”, ofrece 31 días para permitir solicitudes de mes completo). La API de búsqueda de archivo completo proporciona publicaciones hasta el primer tuit (21 de marzo de 2006). Sin embargo, una única respuesta estará limitada al menor valor entre el `maxResults` especificado o 31 días. Si los datos coincidentes o su intervalo de tiempo superan el `maxResults` especificado o los 31 días, recibirá un token `next` que debe usar para paginar el resto del intervalo especificado.
+
+Por ejemplo, suponga que está usando la búsqueda de archivo completo y quiere todas las publicaciones que coincidan con su consulta desde el 1 de enero de 2017 hasta el 30 de junio de 2017. Especificará ese periodo completo de seis meses en su solicitud usando los parámetros `fromDate` y `toDate`. La API de búsqueda responderá con la primera “página” de publicaciones, con la cantidad de publicaciones que coincidan con su parámetro `maxResults` (que por defecto es 100). Suponiendo que hay más resultados (y lo más probable es que los haya), la API también proporcionará un token `next` que le permitirá solicitar la siguiente “página” de datos. Este proceso se repite hasta que la API ya no devuelva un token `next`. Consulte la siguiente sección para más detalles.
+
+<div id="pagination">
+  #### Paginación
+</div>
+
+Al realizar solicitudes tanto de datos como de conteo, es probable que haya más información de la que se puede devolver en una sola respuesta. En ese caso, la respuesta incluirá un token ‘next’. El token ‘next’ se proporciona como un atributo JSON en el nivel raíz. Siempre que se proporcione un token ‘next’, habrá datos adicionales que recuperar, por lo que deberá seguir realizando solicitudes a la API.
+
+**Nota:** El comportamiento del token ‘next’ difiere ligeramente entre las solicitudes de datos y las de conteo, y ambos se describen a continuación con respuestas de ejemplo en la sección de Referencia de la API.
+
+<div id="data-pagination">
+  ##### Paginación de datos
+</div>
+
+Es probable que las solicitudes de datos generen más información de la que puede devolverse en una sola respuesta. Cada solicitud incluye un parámetro que establece la cantidad máxima de Tweets a devolver por petición. Este parámetro `maxResults` tiene como valor predeterminado 100 y puede configurarse en un rango de 10 a 500. Si tu consulta devuelve más Tweets de los indicados por el parámetro 'maxResults' usado en la solicitud, la respuesta incluirá un token 'next' (como un atributo JSON de nivel raíz). Este token 'next' se utiliza en la solicitud siguiente para recuperar el siguiente conjunto de Tweets que coinciden con esa consulta (es decir, la siguiente "página"). Se seguirán proporcionando tokens 'next' hasta que llegues a la última "página" de resultados de esa consulta, momento en el cual no se proporcionará ningún token 'next'.
+
+Para solicitar la siguiente "página" de datos, debes realizar exactamente la misma consulta que la original, incluidos los parámetros `query`, `toDate` y `fromDate`, si se usaron, y también incluir un parámetro de solicitud 'next' establecido con el valor de la respuesta anterior. Esto puede utilizarse con una solicitud GET o POST. Sin embargo, el parámetro 'next' debe ir codificado en la URL en el caso de una solicitud GET.
+
+Puedes seguir pasando el elemento 'next' de tu consulta anterior hasta que hayas recibido todos los Tweets del período cubierto por tu consulta. Cuando recibas una respuesta que no incluya un elemento 'next', significa que has llegado a la última página y no hay datos adicionales disponibles para la consulta y el intervalo de tiempo especificados.
+
+<div id="counts-pagination">
+  ##### Paginación de recuentos
+</div>
+
+El endpoint 'counts' proporciona volúmenes de tuits asociados a una consulta con granularidad diaria, por hora o por minuto. El endpoint de la API 'counts' devolverá un arreglo con marcas de tiempo para un máximo de 31 días de recuentos. Si solicita más de 31 días de recuentos, se le proporcionará un token 'next'. Al igual que con los tokens 'next' de datos, debe realizar exactamente la misma consulta que la original e incluir además un parámetro de solicitud 'next' establecido con el valor de la respuesta anterior.
+
+Además de solicitar más de 31 días de recuentos, hay otro escenario en el que se proporciona un token 'next'. En consultas de mayor volumen, es posible que la generación de recuentos tarde lo suficiente como para activar un tiempo de espera de la respuesta. Cuando esto ocurra, recibirá menos de 31 días de recuentos, pero se le proporcionará un token 'next' para continuar realizando solicitudes hasta obtener la carga completa de recuentos. **_Importante:_** Los tiempos de espera solo devuelven “cubos” completos; por ejemplo, 2,5 días resultarían en 2 “cubos” de día completos.
+
+<div id="additional-notes">
+  ##### Notas adicionales
+</div>
+
+- Al usar fromDate o toDate en una solicitud de búsqueda, solo obtendrás resultados dentro de tu intervalo de tiempo. Cuando alcances el último grupo de resultados dentro de ese intervalo, no recibirás un token "next".
+- El elemento "next" puede usarse con cualquier valor de maxResults entre 10 y 500 (siendo 100 el valor predeterminado). El parámetro maxResults determina cuántos tuits se devuelven en cada respuesta, pero no impide que eventualmente obtengas todos los resultados.
+- El elemento "next" no caduca. Varias solicitudes que usen la misma consulta "next" recibirán los mismos resultados, independientemente de cuándo se realice la solicitud.
+- Al paginar los resultados usando el parámetro "next", puedes encontrar duplicados en los límites de la consulta. Tu aplicación debe tolerar estos casos.
+
+<div id="data-endpoint">
+  #### Extremo de datos
+</div>
+
+<div id="post-searchproductlabel">
+  ##### POST /search/:product/:label
+</div>
+
+<div id="endpoint-pattern">
+  ###### Patrón del endpoint:
+</div>
+
+Este endpoint devuelve datos para la consulta y el período de tiempo especificados. Si no se establece un período de tiempo, los parámetros de tiempo se configurarán por defecto a los últimos 30 días. Nota: Esta funcionalidad también puede lograrse usando una solicitud GET, en lugar de POST, codificando en la URL los parámetros descritos a continuación.
+
+<div id="data-request-parameters">
+  ##### Parámetros de la solicitud de datos
+</div>
+
+| Parámetros | Descripción | Requerido | Valor de ejemplo |
+| :--- | :--- | :--- | :--- |
+| query | Equivale a una regla de PowerTrack, con hasta 2.048 caracteres (sin límites en el número de cláusulas positivas o negativas).  <br />  <br />Este parámetro debe incluir TODAS las partes de la regla de PowerTrack, incluidos todos los operadores; no se deben separar partes de la regla en otros parámetros de la consulta.  <br />  <br />**Nota:** No todos los operadores de PowerTrack están admitidos. Los operadores admitidos se enumeran [AQUÍ](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators). | Sí | (snow OR cold OR blizzard) weather |
+| tag | Las etiquetas pueden usarse para separar reglas y sus datos coincidentes en distintos grupos lógicos. Si se proporciona una etiqueta de regla, esta se incluirá en el atributo 'matching\_rules'.  <br />  <br />Se recomienda asignar UUID específicos de la regla a las etiquetas y mantener los mapeos deseados del lado del cliente. | No  | 8HYG54ZGTU |
+| fromDate | La marca de tiempo UTC más antigua (hasta el 21/03/2006 con Búsqueda de archivo completo) a partir de la cual se proporcionarán los tuits. La marca de tiempo tiene granularidad de minutos y es inclusiva (p. ej., 12:00 incluye el minuto 00).  <br />  <br />_Especificado:_ Usar solo fromDate sin el parámetro toDate entregará resultados para la consulta retrocediendo desde now( ) hasta fromDate.  <br />  <br />_No especificado:_ Si no se especifica fromDate, la API entregará todos los resultados de los 30 días previos a now( ) o a toDate (si se especifica).  <br />  <br />Si no se usa ni fromDate ni toDate, la API entregará todos los resultados de los 30 días más recientes, comenzando en el momento de la solicitud y retrocediendo. | No  | 201207220000 |
+| toDate | La marca de tiempo UTC más reciente hasta la cual se proporcionarán los tuits. La marca de tiempo tiene granularidad de minutos y no es inclusiva (p. ej., 11:59 no incluye el minuto 59 de la hora).  <br />  <br />_Especificado:_ Usar solo toDate sin el parámetro fromDate entregará los 30 días más recientes de datos previos a toDate.  <br />  <br />_No especificado:_ Si no se especifica toDate, la API entregará todos los resultados desde now( ) para la consulta retrocediendo hasta fromDate.  <br />  <br />Si no se usa ni fromDate ni toDate, la API entregará todos los resultados para todo el índice de 30 días, comenzando en el momento de la solicitud y retrocediendo. | No  | 201208220000 |
+| maxResults | El número máximo de resultados de búsqueda que se devolverán en una solicitud. Un número entre 10 y el límite del sistema (actualmente 500). De forma predeterminada, la respuesta de una solicitud devolverá 100 resultados. | No  | 500 |
+| next | Este parámetro se usa para obtener la siguiente “página” de resultados, como se describe [AQUÍ](#Pagination). El valor usado con el parámetro se extrae directamente de la respuesta de la API y no debe modificarse. | No  | NTcxODIyMDMyODMwMjU1MTA0 |
+
+<div id="additional-details">
+  ###### Detalles adicionales
+</div>
+
+|     |     |
+| :--- | :--- |
+| **Periodo de disponibilidad** | 30 días: últimos 31 días  <br />Archivo completo: 21 de marzo de 2006 - presente |
+| **Formato de consulta** | Equivalente a una regla de PowerTrack, con hasta 2.048 caracteres (sin límites en la cantidad de cláusulas positivas y negativas).  <br />  <br />**Nota:** No todos los operadores de PowerTrack están disponibles. Consulta [Operadores disponibles](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) para ver la lista de operadores compatibles. |
+| **Límite de frecuencia** | Los partners estarán sujetos a límites de frecuencia tanto por minuto como por segundo, a nivel de granularidad. El límite por minuto variará por partner según lo especificado en su contrato. Sin embargo, estos límites por minuto no están pensados para usarse en un solo pico. Independientemente de su límite por minuto, todos los partners estarán limitados a un máximo de 20 solicitudes por segundo, agregadas entre todas las solicitudes de datos y/o conteos. |
+| **Cumplimiento** | Todos los datos entregados a través de la API de búsqueda de archivo completo cumplen en el momento de la entrega. |
+| **Disponibilidad en tiempo real** | Los datos están disponibles en el índice dentro de los 30 segundos de su generación en la plataforma de Twitter. |
+
+<div id="example-data-requests-and-responses">
+  ##### Ejemplos de solicitudes y respuestas de datos
+</div>
+
+<div id="example-post-request">
+  ###### Ejemplo de solicitud POST
+</div>
+
+- Los parámetros de una solicitud POST se envían en un cuerpo con formato JSON, como se muestra a continuación.
+- Todas las partes de la regla de PowerTrack que se consulten (p. ej., palabras clave u otros operadores como bounding\_box:) deben incluirse en el parámetro 'query'.
+- No separe partes de la regla como parámetros independientes en la URL de la consulta.
+
+A continuación se muestra un comando POST de ejemplo (usando cURL) para realizar una solicitud inicial de datos:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label.json" -d '{"query":"from:twitterDev","maxResults":500,"fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm"}'
+```
+
+Si la respuesta de la API incluye un token 'next', a continuación se muestra una solicitud posterior que replica la original, con el parámetro 'next' establecido en el token proporcionado:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label.json" -d '{"query":"from:twitterDev","maxResults":500,"fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm",
+    "next":"NTcxODIyMDMyODMwMjU1MTA0"}'
+```
+
+<div id="example-get-request">
+  ###### Ejemplo de solicitud GET
+</div>
+
+- Los parámetros de una solicitud GET se codifican en la URL, usando la codificación URL estándar.
+- Todas las partes de la regla de PowerTrack que se consultan (p. ej., palabras clave u otros operadores como bounding\_box:) deben incluirse en el parámetro 'query'.
+- No separe partes de la regla como parámetros independientes en la URL de consulta.
+
+Aquí tienes un ejemplo de comando GET (con cURL) para realizar una solicitud inicial de datos:
+
+```bash
+    curl -u<username> "http://gnip-api.x.com/search/:product/accounts/:account_name/:label.json?query=from%3Atwitterdev&maxResults=500&fromDate=yyyymmddhhmm&toDate=yyyymmddhhmm"
+```
+
+<div id="example-data-responses">
+  ###### Ejemplos de respuestas de datos
+</div>
+
+Tenga en cuenta que, para los Tweets creados a partir del 29 de septiembre de 2022, los objetos de Tweet incluirán metadatos de edición que describen su historial de ediciones. Consulte la página de fundamentos ["Edit Tweets"](/es/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets) para más detalles.
+
+A continuación se muestra un ejemplo de respuesta a una consulta de datos. Este ejemplo supone que había más Tweets que 'maxResults' disponibles, por lo que se proporciona un token 'next' para solicitudes posteriores. Si 'maxResults' o menos Tweets están asociados con su consulta, no se incluirá un token 'next' en la respuesta.
+El valor del elemento 'next' cambiará con cada consulta y debe tratarse como una cadena opaca. El elemento 'next' tendrá el siguiente aspecto en el cuerpo de la respuesta:
+
+```json
+{
+    "results":
+      [
+            {--Tweet 1--},
+            {--Tweet 2--},
+            ...
+            {--Tweet 500--}
+      ],
+    "next":"NTcxODIyMDMyODMwMjU1MTA0",
+    "requestParameters":
+      {
+        "maxResults":500,
+        "fromDate":"201101010000",
+        "toDate":"201201010000"
+      }
+  }
+```
+
+La respuesta a una solicitud posterior podría verse como la siguiente (observe los nuevos Tweets y el valor distinto de 'next'):
+
+```json
+{
+      "results":
+      [
+            {--Tweet 501--},
+            {--Tweet 502--},
+            ...
+            {--Tweet 1000--}
+      ],
+      "next":"R2hCDbpBFR6eLXGwiRF1cQ",
+      "requestParameters":
+      {
+        "maxResults":500,
+        "fromDate":"201101010000",
+        "toDate":"201201010000"
+      }
+  }
+```
+
+Puede seguir pasando el elemento 'next' de su consulta anterior hasta recibir todos los Tweets del período cubierto por su consulta. Cuando reciba una respuesta que no incluya un elemento 'next', significará que ha alcanzado la última página y no hay datos adicionales disponibles en su rango de tiempo.
+
+<div id="counts-endpoint">
+  #### Endpoint de recuentos
+</div>
+
+<div id="searchstreamcounts">
+  ##### /search/:stream/counts
+</div>
+
+<div id="endpoint-pattern">
+  ###### Patrón del endpoint:
+</div>
+
+`/search/fullarchive/accounts/:account_name/:label/counts.json`
+
+Este endpoint devuelve datos de recuentos (volúmenes de datos) para la consulta especificada. Si no se especifica un período, los parámetros de tiempo tendrán como valor predeterminado los últimos 30 días. Los volúmenes de datos se devuelven como un arreglo con marcas de tiempo de forma diaria, por hora (predeterminado) o por minuto.
+
+**Nota:** Esta funcionalidad también puede realizarse con una solicitud GET, en lugar de POST, codificando en la URL los parámetros descritos a continuación.
+
+<div id="counts-request-parameters">
+  ##### Parámetros de la solicitud de recuentos
+</div>
+
+| Parámetros | Descripción | Requerido | Valor de ejemplo |
+| :--- | :--- | :--- | :--- |
+| query | El equivalente a una regla de PowerTrack, con hasta 2.048 caracteres (y sin límites en la cantidad de cláusulas positivas y negativas).  <br />  <br />Este parámetro debe incluir TODAS las partes de la regla de PowerTrack, incluidos todos los operadores; no se deben separar partes de la regla en otros parámetros de la consulta.  <br />  <br />**Nota:** No todos los operadores de PowerTrack son compatibles. Consulta [Available operators](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) para ver la lista de operadores compatibles. | Sí | (snow OR cold OR blizzard) weather |
+| fromDate | La marca de tiempo UTC más antigua (hasta el 21/03/2006) a partir de la cual se proporcionarán los Tweets. La marca de tiempo tiene granularidad de minuto y es inclusiva (es decir, 12:00 incluye el minuto 00).  <br />  <br />_Especificado:_ Usar solo fromDate sin el parámetro toDate hará que la API entregue datos de recuentos (volúmenes de datos) de la consulta retrocediendo en el tiempo desde ahora hasta fromDate. Si fromDate es anterior a 31 días desde ahora (), recibirás un token next para paginar tu solicitud.  <br />  <br />_No especificado:_ Si no se especifica fromDate, la API entregará recuentos (volúmenes de datos) correspondientes a los 30 días previos a ahora () o a toDate (si se especifica).  <br />  <br />Si no se usa ni el parámetro fromDate ni toDate, la API entregará recuentos (volúmenes de datos) de los 30 días más recientes, comenzando en el momento de la solicitud y yendo hacia atrás. | No  | 201207220000 |
+| toDate | La marca de tiempo UTC más reciente hasta la cual se proporcionarán los Tweets. La marca de tiempo tiene granularidad de minuto y no es inclusiva (es decir, 11:59 no incluye el minuto 59 de la hora).  <br />  <br />_Especificado:_ Usar solo toDate sin el parámetro fromDate entregará los recuentos (volúmenes de datos) más recientes correspondientes a los 30 días anteriores a toDate.  <br />  <br />_No especificado:_ Si no se especifica toDate, la API entregará recuentos (volúmenes de datos) para la consulta retrocediendo en el tiempo hasta fromDate. Si fromDate es más de 31 días desde ahora (), recibirás un token next para paginar tu solicitud.  <br />  <br />Si no se usa ni el parámetro fromDate ni toDate, la API entregará recuentos (volúmenes de datos) de los 30 días más recientes, comenzando en el momento de la solicitud y yendo hacia atrás. | No  | 201208220000 |
+| bucket | La unidad de tiempo para la que se proporcionarán los datos de recuento. Los datos de recuento pueden devolverse para cada día, hora o minuto en el período solicitado. De forma predeterminada, se proporcionarán recuentos por hora. Opciones: 'day', 'hour', 'minute' | No  | minute |
+| next | Este parámetro se utiliza para obtener la siguiente “página” de resultados, como se describe [HERE](#Pagination). El valor utilizado con el parámetro se toma directamente de la respuesta proporcionada por la API y no debe modificarse. | No  | NTcxODIyMDMyODMwMjU1MTA0 |
+
+<div id="additional-details">
+  ###### Detalles adicionales
+</div>
+
+|     |     |
+| :--- | :--- |
+| **Periodo de disponibilidad** | 30 días: últimos 31 días  <br />Archivo completo: 21 de marzo de 2006 - presente |
+| **Formato de consulta** | Equivale a una regla de PowerTrack, con hasta 2.048 caracteres.  <br />  <br />**Nota:** No todos los operadores de PowerTrack son compatibles. Consulta [Operadores disponibles](/es/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) para ver la lista de operadores admitidos. |
+| **Límite de frecuencia** | Los partners estarán sujetos a límites tanto por minuto como por segundo. El límite por minuto variará según el partner, según lo especificado en su contrato. Sin embargo, estos límites por minuto no están pensados para utilizarse en una sola ráfaga. Independientemente de su límite por minuto, todos los partners estarán limitados a un máximo de 20 solicitudes por segundo, agregado entre todas las solicitudes de datos y/o de conteo. |
+| **Precisión del conteo** | Los conteos proporcionados por este endpoint reflejan la cantidad de Tweets que ocurrieron y no reflejan eventos de cumplimiento posteriores (eliminaciones, scrub geos). Algunos Tweets contabilizados pueden no estar disponibles mediante el endpoint de datos debido a acciones de cumplimiento de los usuarios. |
+
+<div id="example-counts-requests-and-responses">
+  ##### Ejemplos de solicitudes y respuestas de recuentos
+</div>
+
+<div id="example-post-request">
+  ###### Ejemplo de solicitud POST
+</div>
+
+- Los parámetros de una solicitud POST se envían en un cuerpo con formato JSON, como se muestra a continuación.
+- Todas las partes de la regla de PowerTrack que se consultan (p. ej., palabras clave u otros operadores como bounding\_box:) deben incluirse en el parámetro 'query'.
+- No separe partes de la regla como parámetros independientes en la URL de la consulta.
+
+Aquí tienes un comando POST de ejemplo (usando cURL) para realizar una solicitud inicial de recuentos:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label/counts.json" -d '{"query":"TwitterDev","fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm","bucket":"day"}'
+```
+
+Si la respuesta de recuentos de la API incluye un token 'next', a continuación se muestra una solicitud posterior que consiste en la solicitud original, con el parámetro 'next' establecido en el token proporcionado:
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label/counts.json" -d '{"query":"TwitterDev","fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm","bucket":"day",
+    "next":"YUcxO87yMDMyODMwMjU1MTA0"}'
+```
+
+<div id="example-get-request">
+  ###### Ejemplo de solicitud GET
+</div>
+
+- Los parámetros de una solicitud GET se codifican en la URL mediante la codificación URL estándar.
+- Todas las partes de la regla de PowerTrack que se consultan (p. ej., palabras clave u otros operadores como bounding\_box:) deben colocarse en el parámetro query.
+- No separe partes de la regla como parámetros independientes en la URL de la consulta.
+
+A continuación se muestra un ejemplo de comando GET (con cURL) para realizar una solicitud inicial de conteos:
+
+```bash
+    curl -u<username> "http://gnip-api.x.com/search/fullarchive/accounts/:account_name/:label/counts.json?query=TwitterDev&bucket=day&fromDate=yyyymmddhhmm&toDate=yyyymmddhhmm"
+```
+
+<div id="example-counts-responses">
+  #### Ejemplos de respuestas de conteos
+</div>
+
+A continuación se muestra un ejemplo de respuesta a una consulta de conteos (volumen de datos). Esta respuesta de ejemplo incluye un token 'next', lo que significa que la solicitud de conteos abarcó más de 31 días o que la consulta enviada tenía un volumen lo suficientemente grande como para activar una respuesta parcial.
+
+El valor del elemento 'next' cambiará con cada consulta y debe tratarse como una cadena opaca. El elemento 'next' tendrá el siguiente aspecto en el cuerpo de la respuesta:
+
+```json
+    {
+      "results": [
+        { "timePeriod": "201101010000", "count": 32 },
+        { "timePeriod": "201101020000", "count": 45 },
+        { "timePeriod": "201101030000", "count": 57 },
+        { "timePeriod": "201101040000", "count": 123 },
+        { "timePeriod": "201101050000", "count": 134 },
+        { "timePeriod": "201101060000", "count": 120 },
+        { "timePeriod": "201101070000", "count": 43 },
+        { "timePeriod": "201101080000", "count": 65 },
+        { "timePeriod": "201101090000", "count": 85 },
+        { "timePeriod": "201101100000", "count": 32 },
+        { "timePeriod": "201101110000", "count": 23 },
+        { "timePeriod": "201101120000", "count": 85 },
+        { "timePeriod": "201101130000", "count": 32 },
+        { "timePeriod": "201101140000", "count": 95 },
+        { "timePeriod": "201101150000", "count": 109 },
+        { "timePeriod": "201101160000", "count": 34 },
+        { "timePeriod": "201101170000", "count": 74 },
+        { "timePeriod": "201101180000", "count": 24 },
+        { "timePeriod": "201101190000", "count": 90 },
+        { "timePeriod": "201101200000", "count": 85 },
+        { "timePeriod": "201101210000", "count": 93 },
+        { "timePeriod": "201101220000", "count": 48 },
+        { "timePeriod": "201101230000", "count": 37 },
+        { "timePeriod": "201101240000", "count": 54 },
+        { "timePeriod": "201101250000", "count": 52 },
+        { "timePeriod": "201101260000", "count": 84 },
+        { "timePeriod": "201101270000", "count": 120 },
+        { "timePeriod": "201101280000", "count": 34 },
+        { "timePeriod": "201101290000", "count": 83 },
+        { "timePeriod": "201101300000", "count": 23 },
+        { "timePeriod": "201101310000", "count": 12 }
+       ],
+      "totalCount":2027,
+      "next":"NTcxODIyMDMyODMwMjU1MTA0",
+      "requestParameters":
+        {
+          "bucket":"day",
+          "fromDate":"201101010000",
+          "toDate":"201201010000"
+        }
+    }
+```
+
+La respuesta a una solicitud posterior podría verse como la siguiente (observe la nueva cronología de conteos y el diferente valor de 'next'):
+
+```json
+    {
+      "results": [
+        { "timePeriod": "201102010000", "count": 45 },
+        { "timePeriod": "201102020000", "count": 76 },
+         ....
+        { "timePeriod": "201103030000", "count": 13 }
+     ],
+     "totalCount":3288,
+     "next":"WE79fnakFanyMDMyODMwMjU1MTA0",
+     "requestParameters":
+        {
+          "bucket":"day",
+          "fromDate":"201101010000",
+          "toDate":"201201010000"
+        }
+    }
+```
+
+Puede seguir pasando el elemento 'next' de su consulta anterior hasta que haya recibido todos los conteos del período de tiempo consultado. Cuando reciba una respuesta que no incluya un elemento 'next', significa que ha llegado a la última página y no hay conteos adicionales disponibles en su rango temporal.
+
+<div id="http-response-codes">
+  #### Códigos de respuesta HTTP
+</div>
+
+| Estado | Texto | Descripción |
+| :--- | :--- | :--- |
+| 200 | OK  | La solicitud se realizó correctamente. La respuesta JSON será similar a lo siguiente: |
+| 400 | Bad Request | Generalmente, esta respuesta ocurre por la presencia de JSON no válido en la solicitud o porque la solicitud no envió ningún cuerpo JSON. |
+| 401 | Unauthorized | La autenticación HTTP falló debido a credenciales no válidas. Inicie sesión en console.gnip.com con sus credenciales para asegurarse de que las está usando correctamente en su solicitud. |
+| 404 | Not Found | No se encontró el recurso en la URL a la que se envió la solicitud, probablemente porque se usó una URL incorrecta. |
+| 422 | Unprocessable Entity | Se devuelve debido a parámetros no válidos en la consulta; por ejemplo, reglas de PowerTrack no válidas. |
+| 429 | Unknown Code | Su aplicación ha excedido el límite de solicitudes de conexión. El mensaje JSON correspondiente tendrá un aspecto similar a lo siguiente: |
+| 500 | Internal Server Error | Se produjo un error en el servidor. Vuelva a intentar su solicitud usando un patrón de reintentos con backoff exponencial. |
+| 502 | Proxy Error | Se produjo un error en el servidor. Vuelva a intentar su solicitud usando un patrón de reintentos con backoff exponencial. |
+| 503 | Service Unavailable | Se produjo un error en el servidor. Vuelva a intentar su solicitud usando un patrón de reintentos con backoff exponencial. |

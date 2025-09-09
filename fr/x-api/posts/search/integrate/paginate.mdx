@@ -1,0 +1,128 @@
+---
+title: Pagination
+sidebarTitle: Pagination
+---
+
+<div id="recent-search-pagination">
+  ### Pagination de la recherche récente
+</div>
+
+<div id="introduction">
+  #### Introduction
+</div>
+
+Les requêtes de recherche correspondent généralement à plus de Posts qu’il n’est possible d’inclure dans une seule réponse d’API. Dans ce cas, les données sont renvoyées sous forme de « pages ». La pagination désigne les méthodes permettant de demander toutes les pages afin de récupérer l’ensemble du jeu de données.
+
+Voici les éléments fondamentaux de la pagination pour la recherche récente :
+
+- Les endpoints de recherche récente renvoient au moins une page et fournissent un next\_token dans la réponse JSON si d’autres pages sont disponibles. Pour récupérer tous les Posts correspondants, répétez l’opération jusqu’à ce qu’aucun token ne soit présent dans la réponse.
+
+- Le next\_token n’expire pas. Plusieurs requêtes utilisant la même valeur de next\_token recevront les mêmes résultats, quel que soit le moment où la requête est effectuée.
+
+- Les Posts sont renvoyés par ordre antéchronologique, en fuseau horaire UTC. Cela vaut au sein de chaque page, comme à travers plusieurs pages :
+  - Le premier Post de la première réponse sera le plus récent correspondant à votre requête.
+  - Le dernier Post de la dernière réponse sera le plus ancien correspondant à votre requête.
+
+- Le paramètre de requête max\_results vous permet de définir le nombre de Posts renvoyés par réponse. La valeur par défaut est de 10 Posts, avec un maximum de 100.
+
+- Toute implémentation de pagination consiste à extraire les next\_tokens de la charge utile de la réponse, puis à les inclure dans la requête de recherche de la « page suivante ». Voir ci-dessous pour plus de détails sur la construction de ces requêtes de « page suivante ».
+
+L’endpoint de recherche récente a été conçu pour prendre en charge deux modes d’utilisation fondamentaux :
+
+- **Historique** - Demander les Posts correspondant à une période donnée. Il s’agit généralement de requêtes ponctuelles à des fins de recherche historique. Les requêtes peuvent être basées sur les paramètres start\_time et end\_time. L’endpoint de recherche récente répond avec des Posts renvoyés par ordre antéchronologique, en commençant par le Post correspondant le plus récent.
+
+- **Polling** - Demander les Posts correspondants publiés depuis le dernier Post reçu. Ces cas d’usage sont souvent quasi temps réel et se caractérisent par des requêtes fréquentes, qui « écoutent » l’arrivée de nouveaux Posts pertinents. L’endpoint de recherche récente fournit le paramètre since\_id pour prendre en charge le modèle de « polling ». Pour faciliter la navigation par identifiants de Posts, le paramètre until\_id est également disponible.
+
+Nous aborderons ensuite le mode historique. Il s’agit du mode par défaut de l’endpoint de recherche récente et il illustre les principes de base de la pagination. Nous présenterons ensuite des exemples de cas d’usage de polling. Lorsque le polling entraîne une pagination, une étape supplémentaire est nécessaire pour gérer les requêtes de recherche.
+ 
+
+<div id="retrieving-historical-data">
+  #### Récupération de données historiques
+</div>
+
+Cette section explique comment récupérer des Posts sur une période donnée (actuellement limitée aux sept derniers jours) à l’aide des paramètres de requête start\_time et end\_time. Les requêtes historiques sont généralement des requêtes ponctuelles destinées à la recherche et à l’analyse.
+
+La demande d’une période de données est le mode par défaut de l’endpoint de recherche récente. Si une requête de recherche ne spécifie pas de paramètre start\_time, end\_time ou since\_id, end\_time prendra par défaut la valeur « maintenant » (en réalité 30 secondes avant l’heure de la requête) et start\_time celle de sept jours plus tôt.
+
+L’endpoint répond avec la première « page » de Posts en ordre antéchronologique, en commençant par le plus récent. La charge utile JSON de la réponse inclut également un next\_token s’il existe des pages supplémentaires. Pour collecter l’ensemble des Posts correspondants, quel que soit le nombre de pages, il faut effectuer des requêtes jusqu’à ce qu’aucun next\_token ne soit renvoyé.
+
+Par exemple, voici une requête initiale pour des Posts contenant le mot-clé snow sur la dernière semaine :
+
+https://api.x.com/2/tweets/search/recent?query=snow
+
+La réponse inclut les 10 Posts les plus récents, ainsi que les attributs « meta » suivants dans la réponse JSON :
+
+```
+"meta": {
+        "newest_id": "1204860593741553664",
+        "oldest_id": "1204860580630278147",
+        "next_token": "b26v89c19zqg8o3fobd8v73egzbdt3qao235oql",
+        "result_count": 10
+    }
+```
+
+Pour récupérer les 10 Posts suivants, ajoutez ce next\_token à la requête initiale. La requête sera :
+
+https://api.x.com/2/tweets/search/recent?query=snow\&next\_token=b26v89c19zqg8o3fobd8v73egzbdt3qao235oql
+
+Le fait de rechercher un next\_token et de l’inclure dans une requête suivante peut être répété jusqu’à ce que tous les Posts (ou un certain nombre) aient été collectés, ou jusqu’à atteindre un nombre spécifié de requêtes. Si la fidélité des données (collecter toutes les correspondances de votre requête) est essentielle à votre cas d’usage, une simple logique « répéter jusqu’à ce que request.next\_token soit nul » suffira. 
+ 
+
+<div id="polling-and-listening-use-cases">
+  #### Cas d’usage de sondage et d’écoute
+</div>
+
+Cette section explique comment récupérer des Posts récents en sondant l’endpoint de recherche récente avec le paramètre de requête since\_id.
+
+Dans les cas d’usage de sondage, des requêtes du type « Des nouveaux Posts d’intérêt ? » sont effectuées de manière continue et fréquente. Contrairement aux cas d’usage historiques, qui basent les requêtes sur le temps, les cas d’usage de sondage les basent généralement sur des IDs de Post.
+
+Au cœur du modèle de sondage se trouve le fait que chaque nouveau Post possède un [ID unique](/fr/resources/fundamentals/x-ids) qui est « émis » par la plateforme X, généralement par ordre croissant. Si un Post a un ID plus petit qu’un autre, cela signifie qu’il a été publié plus tôt.
+
+L’endpoint de recherche récente permet de parcourir l’archive des Posts par ID de Post. Les réponses de l’endpoint incluent les IDs oldest\_id et newest\_id. En mode sondage, les requêtes sont effectuées avec since\_id défini sur l’ID le plus grand/le plus récent reçu jusqu’à présent.
+
+Par exemple, supposons qu’une requête pour de nouveaux Posts sur la neige soit effectuée toutes les cinq minutes, et que le dernier Post reçu ait un ID de Post de 10000. Lorsque vient le moment de sonder, la requête ressemble à ceci :
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=10000
+
+Ensuite, disons que sept Posts ont été publiés depuis notre dernière requête. Comme tous tiennent sur une seule « page » de données, il n’y a pas de next\_token. La réponse fournit l’ID du Post le plus récent (newest) :
+
+```
+"meta": {
+        "newest_id": "12000",
+        "oldest_id": "10005",
+        "result_count": 7
+    }
+```
+
+Pour effectuer la prochaine requête de sondage, cette valeur newest\_id est utilisée pour définir le prochain paramètre since\_id :
+
+`https://api.x.com/2/tweets/search/recent?query=snow&since_id=12000`
+
+Lorsqu’il y a davantage de données disponibles et que des next tokens sont fournis, seule la valeur newest\_id de la première page de résultats est nécessaire. Chaque page de données inclura des valeurs newest\_id et oldest\_id, mais la valeur fournie dans la première page est la seule requise pour la prochaine requête de sondage planifiée. Ainsi, si vous implémentez un modèle de sondage, ou recherchez des Posts par plage d’ID, la logique de pagination est légèrement plus complexe.
+
+Supposons maintenant qu’il y ait 18 Posts correspondants supplémentaires. L’endpoint répondrait d’abord avec une page de données complète et un next\_token pour demander la page suivante de données pour cette période de cinq minutes. Il inclurait également l’ID du Post le plus récent nécessaire pour le prochain intervalle de sondage dans cinq minutes.
+
+```
+"meta": {
+        "newest_id": "13800",
+        "oldest_id": "12500",
+        "next_token": "fnsih9chihsnkjbvkjbsc",
+        "result_count": 10
+    }
+```
+
+Pour collecter toutes les données correspondantes pour cette période de cinq minutes, transmettez le next\_token dans votre prochaine requête, avec la même valeur since\_id que la requête précédente.
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=12000\&next\_token=fnsih9chihsnkjbvkjbsc
+
+```
+"meta": {
+        "newest_id": "12300",
+        "oldest_id": "12010",
+        "result_count": 8
+    }
+```
+
+Cette deuxième réponse fournit les huit Posts restants, et aucun next\_token. Notez que nous ne mettons pas à jour notre valeur newest\_id (12300) et que nous basons plutôt notre prochaine requête since\_id sur la valeur newest\_id de la première réponse :
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=13800

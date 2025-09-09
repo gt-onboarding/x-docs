@@ -1,0 +1,450 @@
+---
+title: 컴플라이언스 파이어호스 API
+---
+
+> **유의사항**
+>
+> X API v2에 [배치 컴플라이언스](/ko/x-api/compliance/batch-compliance)라는 새로운 컴플라이언스 도구를 출시했습니다. 이 도구를 사용하면 대규모 게시물 또는 사용자 ID 데이터셋을 업로드해 컴플라이언스 상태를 조회하고, 데이터셋을 컴플라이언스 기준에 맞추기 위해 어떤 데이터에 조치가 필요한지 판단할 수 있습니다.
+
+> 또한 배치 컴플라이언스와 컴플라이언스 파이어호스 모두 게시물 편집을 지원하도록 업데이트되었습니다. 컴플라이언스 파이어호스에는 새로운 'tweet\_edit' 이벤트가 추가되었습니다. 자세한 내용은 [컴플라이언스 데이터 오브젝트](/ko/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects) 문서를 참조하세요. [게시물 편집 기본 사항](/ko/x-api/fundamentals/edit-posts) 페이지에서 게시물 편집 메타데이터가 어떻게 작동하는지 자세히 알아보세요.
+
+<div id="overview">
+  ## 개요
+</div>
+
+`Enterprise`
+
+X의 핵심 가치 중 하나는 사용자의 목소리를 보호하고 존중하는 것입니다. 여기에는 사용자가 X에서 공유하기로 선택한 콘텐츠를 삭제, 수정 또는 편집할 때 그들의 기대와 의도를 존중하는 것이 포함됩니다. 이는 세계에서 가장 큰 공개 실시간 정보 플랫폼 중 하나의 장기적 건전성에 매우 중요하다고 믿습니다. X는 사용자에게 제어 권한을 부여하여 개인이 자신의 X 이용 경험을 직접 관리할 수 있도록 합니다. X 데이터를 제공받는 비즈니스 고객 또한 최종 사용자의 기대와 의도를 존중할 책임이 있다고 믿습니다.
+
+X 플랫폼에서 가능한 컴플라이언스 이벤트 유형에 대한 자세한 내용은 [X에서 사용자 의도 존중하기](/ko/x-api/enterprise-gnip-2.0/fundamentals/firehouse#honoring-user-intent-on-twitter) 문서를 참고하세요.
+
+API를 통해 X 데이터를 소비하는 모든 개발자와 회사는 사용자 콘텐츠의 변경 사항을 존중하기 위해 합리적으로 가능한 모든 노력을 기울일 의무가 있습니다. 이 의무는 삭제, 수정, 공유 옵션 변경(예: 콘텐츠가 보호되거나 보류됨)과 같은 사용자 이벤트에도 적용됩니다. 사용자가 자신의 게시물을 편집하는 경우도 포함됩니다. 이 의무가 X 데이터 사용에 어떤 영향을 미치는지 이해하려면 [Developer Policy](https://developer.x.com/en/developer-terms/policy) 및/또는 X Data Agreement의 관련 조항을 참고하세요.
+
+X는 이러한 사용자 컴플라이언스 이벤트와 특정 게시물 또는 사용자가 공개적으로 이용 가능한지 여부에 관한 정보를 제공하는 다음 솔루션을 제공합니다. 각 솔루션의 간략한 개요와 일반적인 통합 패턴은 아래에 설명되어 있습니다:
+
+<div id="get-statuseslookup-and-get-userslookup">
+  #### GET statuses/lookup 및 GET users/lookup
+</div>
+
+- 형식: REST API. 참고: [GET statuses/lookup](https://developer.x.com/en/docs/x-api/v1/tweets/post-and-engage/api-reference/get-statuses-lookup) 및 [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup).
+
+- 이 엔드포인트는 항상 게시물 편집의 최신 버전을 반환합니다. 편집 기능 도입 이후에 생성된 게시물을 설명하는 모든 게시물 객체에는 게시물 편집 메타데이터가 포함되며, 이는 편집되지 않은 게시물에도 적용됩니다.
+
+- 모든 게시물에 대해, 생성 후 30분이 지난 시점에 이루어진 요청은 해당 게시물의 최종 상태를 반환합니다.
+
+- API 요청 시 호출자가 지정한 특정 게시물 또는 사용자의 가용성 정보를 제공합니다.
+
+- 특정 게시물/사용자 그룹의 현재 가용 상태를 임시로 점검(ad hoc 스팟 체크)하는 데 사용할 수 있습니다.
+
+- 특정 시점에 특정 게시물 또는 사용자의 현재 상태를 확인해야 하는 고객에게 적합합니다.
+
+- 이 API는 고객이 콘텐츠의 가용성을 확인해야 하는 다음과 같은 상황에서 유용한 메커니즘을 제공합니다. 예:
+  1. 게시물 표시
+  2. 게시물 또는 사용자와의 1:1 상호작용
+  3. 허용된 파일 다운로드를 통해 제3자에게 X 콘텐츠 배포
+  4. 게시물을 장기간 저장
+
+<div id="compliance-firehose-enterprise-only">
+  #### 컴플라이언스 파이어호스(엔터프라이즈 전용)
+</div>
+
+- 형식: 스트리밍 API 참고: [Compliance Firehose](/ko/x-api/enterprise-gnip-2.0/fundamentals/firehouse#api-reference).
+- X의 [컴플라이언스 활동](/ko/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects)을 실시간 스트림으로 제공합니다. 여기에는 게시물 편집 시점 등이 포함됩니다.
+- 플랫폼에서 새로운 컴플라이언스 이벤트가 발생할 때 저장된 데이터 집합 전반의 컴플라이언스 상태를 유지하는 데 사용할 수 있습니다.
+- 장기간 대규모 X 데이터를 수집·저장하는 고객에게 적합합니다.
+
+<div id="guides">
+  ## 가이드
+</div>
+
+<div id="compliance-best-practices">
+  ### **컴플라이언스 권장 사례**
+</div>
+
+<div id="recommendations-best-practices">
+  #### **권장 사항 및 모범 사례**
+</div>
+
+- **숫자형 Post ID와 User ID를 저장하는 데이터 저장 스키마 구축**: 사용자 관련 메시지는 해당 사용자의 모든 게시물에 대해 조치가 필요합니다. 따라서 모든 컴플라이언스 메시지가 숫자형 ID로만 전달되므로, 숫자형 ID를 기반으로 게시물과 사용자 간의 관계를 유지하도록 저장 스키마를 설계하는 것이 중요합니다. 데이터 소비자는 Post ID와 User ID 모두를 기준으로 컴플라이언스 이벤트를 모니터링하고 로컬 데이터 저장소를 적절히 업데이트할 수 있어야 합니다.
+
+- **모든 컴플라이언스 상태를 다루는 스키마 구축**: 다양한 애플리케이션에서 컴플라이언스 활동을 처리하는 방식에 따라 데이터 저장소에 추가 메타데이터가 필요할 수 있습니다. 예를 들어, 데이터 소비자는 status\_withheld 메시지의 영향을 받는 국가에서 콘텐츠 노출을 제한하기 위해 기존 데이터베이스에 메타데이터를 추가할 수 있습니다.
+
+- **리트윗 삭제 처리**: 리트윗은 원본 메시지가 리트윗 내부의 객체에 중첩되어 있는 특수한 유형의 게시물입니다. 이 경우 리트윗에는 두 개의 Post ID가 참조됩니다. 리트윗의 ID와 원본 메시지의 ID(중첩 객체에 포함됨)입니다. 원본 메시지가 삭제되면 원본 ID에 대해 게시물 삭제 메시지가 발행됩니다. 게시물 삭제 이벤트는 일반적으로 모든 리트윗에 대한 삭제 이벤트를 트리거합니다. 다만 일부 경우에는 모두 전송되지 않을 수 있으므로, 클라이언트 시스템은 불완전한 리트윗 삭제를 허용하도록 설계되어야 합니다. 원본 ID의 삭제만으로도 이후의 모든 리트윗을 삭제하기에 충분해야 합니다. 리트윗을 저장할 때는 원본 Post ID를 참조하고, 게시물 삭제 이벤트를 수신하면 참조된 모든 리트윗을 삭제하는 것이 모범 사례입니다.
+
+<div id="compliance-data-objects">
+  ### 컴플라이언스 데이터 객체
+</div>
+
+<div id="compliance-firehose-api">
+  #### **컴플라이언스 파이어호스 API**
+</div>
+
+가능한 컴플라이언스 이벤트 유형에는 Post(또는 “status”) 이벤트와 User 이벤트가 포함되며, 각각에 대해 아래에 여러 하위 유형이 설명되어 있습니다.  
+
+유의사항:
+
+- User 상태에 대한 자세한 내용은 [여기](https://support.x.com/articles/14016), 삭제된 Posts에 대한 개발자 정책은 [여기](https://dev.x.com/overview/terms/policy#3.Update_Respect_Users_Control_and_Privacy)에서 확인하세요.
+- 컴플라이언스 파이어호스가 'tweet\_edit' 이벤트를 제공하도록 업데이트되었습니다. 
+- 여러 사용자 삭제, 보호 및 정지 이벤트는 반드시 영구적이지 않으며 상태가 무기한 전환될 수 있습니다. 여기에는 user\_delete, user\_undelete, user\_protect, user\_unprotect, user\_suspend, user\_unsuspend가 포함됩니다.
+- user\_delete 이후 사용자가 계정을 user\_undelete로 복구하지 않은 경우에만 30일 후 status\_delete가 뒤따릅니다. 사용자가 user\_delete를 되돌릴 수 있으므로, 30일 후 해당 사용자의 모든 Post에 대한 삭제가 발생하지 않을 수 있습니다.
+- user\_suspend는 사용자가 user\_unsuspend 이벤트의 대상이 되지 않는 한 계속 유효한 조치입니다. 이는 30일 기간과는 무관하게 변경되지 않습니다.
+
+최종 사용자의 프라이버시와 의도를 존중하기 위해 각 이벤트 유형을 처리하는 방법은 ‘권장 조치’ 열을 참조하세요.
+
+| 원본 메시지 유형 | 오브젝트 | 영구적 (예/아니오) | 권장 조치 |
+| :--- | :--- | :--- | :--- |
+| delete | Status | 예 | 관련 Post를 삭제합니다. |
+| status\_withheld | Status | 예 | status\_withheld 메시지에 명시된 특정 국가에서 관련 Post를 숨깁니다. |
+| drop | Status | 아니오  | Post를 공개 보기에서 제거합니다. |
+| undrop | Status | 아니오  | Status를 다시 표시하고 공개로 취급할 수 있습니다. |
+| tweet\_edit | Status | 예 | 수정 사항을 반영하고, 필요한 경우 이를 표시합니다. |
+| user\_delete | User | 아니오  | 해당 사용자의 모든 Post를 숨기거나 삭제합니다. |
+| user\_undelete | User | 아니오  | 해당 사용자의 모든 Post를 다시 표시하고 공개로 취급할 수 있습니다. |
+| user\_protect | User | 아니오  | 해당 사용자의 모든 Post를 숨기거나 삭제합니다. |
+| user\_unprotect | User | 아니오  | 해당 사용자의 모든 Post를 다시 표시하고 공개로 취급할 수 있습니다. |
+| user\_suspend | User | 아니오  | 해당 사용자의 모든 Post를 숨기거나 삭제합니다. |
+| user\_unsuspend | User | 아니오  | 해당 사용자의 모든 Post를 다시 표시하고 공개로 취급할 수 있습니다. |
+| scrub\_geo | User | 예 | scrub\_geo 메시지에 지정된 Post 이전에 해당 사용자가 작성한 모든 Post에 대해 X가 제공한 모든 위치 데이터를 삭제합니다. 이후 Post에는 사용할 수 있는 위치 데이터가 포함될 수 있습니다. |
+| user\_withheld | User | 예 | user\_withheld 메시지에 명시된 특정 국가에서 해당 사용자의 Post를 숨깁니다. |
+| delete | Favorite | 예 | 관련 좋아요/즐겨찾기를 삭제합니다. |
+
+<div id="payload-examples">
+  #### **페이로드 예시**
+</div>
+
+위 표에 설명된 각 컴플라이언스 이벤트의 페이로드 예시는 아래를 참고하세요.
+
+**게시물 편집**
+
+```json
+{"tweet_edit":
+   {
+     "id": "1557445923210514432"
+     "initial_tweet_id": "1557433858676740098",
+     "edit_tweet_ids": ["1557433858676740098", "1557445923210514432"],
+     "timestamp_ms": "1660155761384"
+   }
+ }
+```
+
+<div id="post-delete">
+  ##### 포스트 삭제
+</div>
+
+```json
+{
+  "delete": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220608",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="post-withheld">
+  ##### 게시물 보류
+</div>
+
+```json
+{
+  "status_withheld": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220608",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "withheld_in_countries": [
+      "XY"
+    ],
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="drop">
+  ##### 드롭
+</div>
+
+```json
+{
+  "drop": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220600",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="undrop">
+  ##### 삭제 취소
+</div>
+
+```json
+{
+  "undrop": {
+    "status": {
+      "id": 601430178305220600,
+      "id_str": "601430178305220600",
+      "user_id": 3198576760,
+      "user_id_str": "3198576760"
+    },
+    "timestamp_ms": "1432228155593"
+  }
+}
+```
+
+<div id="scrub-geo">
+  #### 위치 정보 정리
+</div>
+
+```json
+{
+  "scrub_geo": {
+    "user_id": 519761961,
+    "up_to_status_id": 411552403083628540,
+    "up_to_status_id_str": "411552403083628544",
+    "user_id_str": "519761961",
+    "timestamp_ms": "1432228180345"
+  }
+}
+```
+
+<div id="user-delete">
+  ##### 사용자 삭제
+</div>
+
+```json
+{
+  "user_delete": {
+    "id": 771136850,
+    "timestamp_ms": "1432228153548"
+  }
+}
+```
+
+<div id="user-undelete">
+  ##### 사용자 계정 복구
+</div>
+
+```json
+{
+  "user_undelete": {
+    "id": 796250066,
+    "timestamp_ms": "1432228149062"
+  }
+}
+```
+
+<div id="user-withheld">
+  ##### 사용자 보류
+</div>
+
+```json
+{
+  "user_withheld": {
+    "user": {
+      "id": 1375036644,
+      "id_str": "1375036644"
+    },
+    "withheld_in_countries": [
+      "XY"
+    ],
+    "timestampMs": "2014-08-27T23:49:41.839+00:00"
+  }
+}
+```
+
+<div id="user-protect">
+  ##### 사용자 보호
+</div>
+
+```json
+{
+  "user_protect": {
+    "id": 3182003550,
+    "timestamp_ms": "1432228177137"
+  }
+}
+```
+
+<div id="user-unprotect">
+  ##### 사용자 보호 해제
+</div>
+
+```json
+{
+  "user_unprotect": {
+    "id": 2911076065,
+    "timestamp_ms": "1432228180113"
+  }
+}
+```
+
+<div id="user-suspend">
+  ##### 사용자 정지
+</div>
+
+```json
+{
+  "user_suspend": {
+    "id": 3120539094,
+    "timestamp_ms": "1432228194217"
+  }
+}
+```
+
+<div id="user-unsuspend">
+  ##### 사용자 정지 해제
+</div>
+
+```json
+{
+  "user_unsuspend": {
+    "id": 3293130873,
+    "timestamp_ms": "1432228193828"
+  }
+}
+```
+
+<div id="integrating-compliance-firehose">
+  ### Compliance Firehose 통합
+</div>
+
+Compliance Firehose는 X 플랫폼에서 발생하는 컴플라이언스 이벤트를 실시간으로 전달하는 스트리밍 API입니다. 컴플라이언스 이벤트와 X에서 해당 이벤트가 생성되는 방식에 대해 이해하려면 다음 문서를 참조하세요: [X에서 사용자 의도 존중하기](/ko/x-api/enterprise-gnip-2.0/fundamentals/firehouse#honoring-user-intent-on-twitter).
+
+Post 이벤트와 User 이벤트는 서로 독립적으로 전달되며, 각각 독립적으로 처리해야 합니다(예: Post 삭제가 User 이벤트를 의미하지 않으며, 그 반대도 마찬가지입니다). 여러 User 이벤트는 영구적이지 않을 수 있으며 상태가 무기한 전환될 수 있습니다. 여기에는 다음이 포함됩니다: user\_delete, user\_undelete, user\_protect, user\_unprotect, user\_suspend, user\_unsuspend.
+
+user\_delete 이후 30일이 지나도 사용자가 계정을 user\_undelete하지 않은 경우에만 status\_delete가 발생합니다. 사용자가 user\_delete를 되돌린 경우, 30일 후 해당 사용자의 모든 Post에 대한 삭제가 발생하지 않을 수 있습니다.
+
+user\_suspend는 사용자가 user\_unsuspend 이벤트의 대상이 되지 않는 한 계속 유효한 조치입니다. 이는 30일의 유예 기간과는 무관하게 변경되지 않습니다.
+
+컴플라이언스 이벤트를 귀사의 소프트웨어 사용자에게 직접 표시하거나, 제품 또는 고객 경험에 통합하는 것은 바람직하지 않습니다. 이 이벤트는 오직 컴플라이언스 준수와 X 사용자의 조치를 존중하기 위한 목적에만 사용되어야 합니다.
+
+<div id="integrating-with-the-compliance-firehose">
+  #### **컴플라이언스 파이어호스 통합**
+</div>
+
+컴플라이언스 파이어호스를 시스템에 통합하려면 다음을 수행할 수 있는 연동을 구축해야 합니다:
+
+1. 컴플라이언스 파이어호스의 각 스트리밍 API 파티션에 스트리밍 연결을 설정합니다
+2. 대용량 데이터를 처리합니다 — 비동기 프로세스를 사용해 스트림 수집을 후속 처리와 분리합니다
+3. 어떤 이유로든 연결이 끊어지면 스트림 파티션에 자동으로 재연결합니다
+4. 위의 지침에 따라 저장해 둔 게시물 및 사용자 데이터와 관련된 컴플라이언스 이벤트를 처리합니다
+
+<div id="honoring-user-intent-on-twitter">
+  ### X에서 사용자의 의도를 존중하기
+</div>
+
+우리는 X 사용자의 프라이버시와 의도를 존중하는 것이 세계에서 가장 큰 공개 실시간 정보 플랫폼 중 하나의 장기적 건전성에 결정적으로 중요하다고 믿습니다. X는 프라이버시 제어권을 사용자에게 맡겨 각 개인이 자신의 X 이용 경험을 스스로 관리할 수 있도록 합니다. X 데이터의 비즈니스 소비자로서 우리는 신뢰와 존중의 환경을 유지하기 위해 최종 사용자의 프라이버시와 행동을 존중할 공동의 책임이 있습니다.
+
+플랫폼에서의 표시 방식에 영향을 미칠 수 있는 게시물과 사용자 계정에 대한 다양한 변화가 발생할 수 있습니다. 프라이버시와 의도에 영향을 주는 조치는 게시물(상태)과 사용자 두 수준에서 정의됩니다. 이러한 조치에는 다음이 포함됩니다:
+
+<div id="user">
+  #### 사용자
+</div>
+
+| 작업 | 설명 |
+| :--- | :--- |
+| 계정 보호 | X 사용자는 언제든지 계정을 보호하거나 해제할 수 있습니다. 보호된 계정의 게시물을 볼 수 있는 사람은 모두 사용자가 수동으로 승인해야 합니다.   <br />자세한 내용은 [공개 및 보호된 게시물에 대하여](https://support.x.com/articles/14016-about-public-and-protected-tweets)를 참조하세요. |
+| 계정 삭제 | X 사용자는 언제든지 계정과 관련된 모든 게시물을 포함해 계정을 삭제할 수 있습니다. 사용자가 삭제를 취소해 계정을 다시 활성화하려는 경우에 대비하여, X는 삭제 후 30일 동안 계정 정보를 보관합니다. |
+| 위치 정보 삭제 | X 사용자는 언제든지 과거 게시물에서 모든 위치 데이터를 제거할 수 있습니다. 이를 “scrub geo”라고 합니다. |
+| 계정 정지 | X는 X 규칙을 위반했거나 계정이 해킹 또는 침해되었다고 의심되는 경우 계정을 정지할 권리가 있습니다. 계정 정지는 X만 해제(정지 해제)할 수 있습니다. |
+| 계정 제한(국가별 차단) | X는 때때로 특정 국가에서 특정 콘텐츠에 대한 접근을 제한할 권리가 있습니다. 제한된 계정은 X만 제한 해제할 수 있습니다.   <br />자세한 내용은 [국가별 차단된 콘텐츠](https://support.x.com/articles/20169222-country-withheld-content)를 참조하세요. |
+
+<div id="status">
+  #### 상태
+</div>
+
+| 작업 | 설명 |
+| :--- | :--- |
+| 상태 삭제 | X 사용자는 언제든지 상태를 삭제할 수 있습니다. 삭제된 상태는 되돌릴 수 없으며 영구적으로 삭제됩니다. |
+| 상태 보류 | X는 필요 시 특정 국가에서 특정 콘텐츠에 대한 접근을 제한(보류)할 권리를 보유합니다. 보류된 상태는 X만 보류 해제할 수 있습니다.   <br />자세한 내용은 [국가별 보류 콘텐츠](https://support.x.com/articles/20169222-country-withheld-content)를 참조하세요. |
+
+<div id="keeping-track-of-user-and-status-changes">
+  #### 사용자 및 상태 변경 추적
+</div>
+
+위의 작업 중 하나로 인해 사용자(User) 또는 상태(Status)의 상태는 언제든지 변경될 수 있으며, 이는 X 데이터를 사용하는 측에서 모든 관련 콘텐츠의 가용성과 프라이버시를 취급하는 방식에 영향을 줍니다. 이러한 작업이 발생하면 상태(Status) 또는 사용자(User)의 상태가 변경되었음을 나타내는 해당 컴플라이언스 메시지가 전송됩니다.
+
+<div id="api-reference">
+  ## API 참조
+</div>
+
+<div id="get-compliancefirehose">
+  ### **GET compliance/firehose**
+</div>
+
+<div id="methods">
+  #### 메서드
+</div>
+
+| 메서드 | 설명 |
+| :--- | :--- |
+| [GET /compliance/:stream](#Connect) | 데이터 스트림에 연결하기 |
+
+<div id="authentication">
+  #### 인증
+</div>
+
+Compliance Firehose API에 대한 모든 요청은 HTTP 기본 인증을 사용해야 하며, console.gnip.com에서 계정에 로그인할 때 사용하는 유효한 이메일 주소와 비밀번호 조합으로 구성해야 합니다. 각 요청마다 자격 증명은 Authorization 헤더로 전달되어야 합니다.
+
+<div id="get-compliancestream">
+  #### GET /compliance/:stream
+</div>
+
+Compliance 파이어호스 데이터 스트림에 지속 연결을 설정하며, 이를 통해 컴플라이언스 이벤트가 전달됩니다.
+
+|     |     |
+| :--- | :--- |
+| **Request Method** | HTTP GET |
+| **Connection Type** | Keep-Alive |
+| **URL** | 대시보드의 스트림 API 도움말 페이지에서 확인할 수 있으며, 다음과 같은 구조와 유사합니다:  <br />  <br /><br />[https://gnip-stream.x.com/stream/compliance/accounts/:account\_name/publishers/twitter/:stream\_label.json?partition=1](https://gnip-stream.x.com/stream/compliance/accounts/:account_name/publishers/twitter/:stream_label.json?partition=1)<br /><br />**참고:** "partition" 매개변수는 필수입니다. 전체 스트림을 수집하려면 총 8개 파티션에 모두 연결해야 하며, 각 파티션은 전체 볼륨의 12.5%씩을 포함합니다. |
+| **Compression** | Gzip. Gzip 압축을 사용해 스트림에 연결하려면 연결 요청에 Accept-Encoding 헤더를 추가하세요. 헤더 예시는 다음과 같습니다:  <br />  <br />Accept-Encoding: gzip |
+| **Character Encoding** | UTF-8 |
+| **Response Format** | JSON. 요청 헤더에서 응답 형식으로 JSON을 지정해야 합니다. |
+| **Rate Limit** | 60초당 10회 요청 |
+| **Read Timeout** | 클라이언트에 읽기 타임아웃을 설정하고, 30초를 초과하는 값으로 지정하세요. |
+| **Support for Tweet edits** | 모든 트윗 편집은 "tweet\_edit" 컴플라이언스 이벤트를 트리거합니다. 자세한 내용은 [Compliance Data Objects](/ko/x-api/enterprise-gnip-2.0/fundamentals/firehouse#compliance-data-objects) 문서를 참조하세요. |
+
+**Example Curl Request**
+
+다음 예시 요청은 명령줄에서 cURL을 사용하여 수행됩니다:
+
+```bash
+curl --compressed -v -uexample@customer.com "https://gnip-stream.x.com/stream/compliance/accounts/:account_name/publishers/twitter/:stream_label.json?partition=1"
+```
+
+_참고:_ 위 요청은 Compliance 파이어호스의 `partition=1`에만 연결합니다. 이 스트림 전체를 수집하려면 8개 파티션 모두에 연결해야 합니다.
+
+<div id="response-codes">
+  #### 응답 코드
+</div>
+
+다음 응답이 해당 요청에 대해 API에서 반환될 수 있습니다. 대부분의 오류 코드는 본문에 추가 세부 정보가 담긴 문자열과 함께 반환됩니다. 200이 아닌 응답의 경우 클라이언트는 재연결을 시도해야 합니다.
+
+| 상태 | 텍스트 | 정의 |
+| :--- | :--- | :--- |
+| 200 | 성공 | 연결이 성공적으로 열렸으며 새 활동은 도착하는 대로 전송됩니다. |
+| 401 | 인증 실패 | 잘못된 자격 증명으로 인해 HTTP 인증에 실패했습니다. 요청에서 자격 증명을 올바르게 사용하고 있는지 확인하려면 console.gnip.com에 로그인하세요. |
+| 406 | 허용되지 않음 | 일반적으로 클라이언트가 스트림에서 gzip 인코딩을 수락하기 위한 헤더를 제대로 포함하지 않았을 때 발생하지만, 다른 상황에서도 발생할 수 있습니다. 다음과 유사한 JSON 메시지를 포함합니다: "이 연결에는 압축이 필요합니다. 압축을 활성화하려면 요청에 'Accept-Encoding: gzip' 헤더를 보내고, 클라이언트 측에서 스트림을 읽을 때 압축 해제할 준비를 하세요." |
+| 429 | 요청 한도 초과 | 앱이 연결 요청 한도를 초과했습니다. |
+| 503 | 서비스 사용 불가 | Twitter 서버 문제입니다. 지수적 백오프 패턴으로 재연결하세요. 이 문제에 대한 공지가 [X API Status Page](https://api.twitterstat.us/)에 게시되지 않았다면 지원팀에 문의하세요. |
+
+<div id="other-recommendations-best-practices">
+  #### 기타 권장 사항 및 모범 사례
+</div>
+
+- **숫자형 Tweet ID와 User ID를 저장하는 데이터 저장 스키마 구축**: 사용자 메시지는 해당 사용자의 모든 트윗에 대한 조치를 요구합니다. 따라서 모든 컴플라이언스 메시지는 숫자 ID로만 전달되므로, 숫자 ID를 기준으로 트윗과 사용자 간의 관계를 유지하는 저장 스키마를 설계하는 것이 중요합니다. 데이터 소비자는 Tweet ID와 User ID 각각에 대한 컴플라이언스 이벤트를 모니터링하고 로컬 데이터 저장소를 적절히 업데이트할 수 있어야 합니다.
+
+- **모든 컴플라이언스 상태를 처리하는 스키마 구축**: 다양한 애플리케이션에서 컴플라이언스 활동을 처리하는 방식에 따라 데이터 저장소에 추가 메타데이터가 필요할 수 있습니다. 예를 들어, 데이터 소비자는 status\_withheld 메시지의 영향을 받는 국가에서 콘텐츠 표시를 제한하기 위해 기존 데이터베이스에 메타데이터를 추가할 수 있습니다.
+
+- **리트윗 삭제 처리**: 리트윗은 원본 메시지가 리트윗 내부 객체에 중첩된 특수한 유형의 트윗입니다. 이 경우 리트윗에는 두 개의 Tweet ID가 참조됩니다. 즉, 리트윗의 ID와(중첩 객체에 포함된) 원본 메시지의 ID입니다. 원본 메시지가 삭제되면 원본 ID에 대해 트윗 삭제 메시지가 발행됩니다. 이후 모든 리트윗에 대해 별도의 삭제 메시지는 발행되지 않습니다. 원본 ID 삭제만으로 이후의 모든 리트윗을 삭제하기에 충분합니다.

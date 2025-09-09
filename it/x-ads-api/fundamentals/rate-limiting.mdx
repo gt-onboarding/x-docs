@@ -1,0 +1,80 @@
+---
+title: Limitazione della frequenza
+---
+
+L’API Advertiser è soggetta a limitazioni della frequenza in modo analogo alla REST API v1.1, come documentato qui: [REST API Rate Limiting in v1.1](https://developer.x.com/content/developer-twitter/en/docs/basics/rate-limits). A differenza della REST API v1.1, non esiste un indice programmatico dei limiti per endpoint. I limiti per endpoint e le finestre di reset sono comunicati tramite le intestazioni della risposta HTTP. Tutte le limitazioni della frequenza nell’API Ads utilizzano OAuth 1.0A.
+
+<div id="user-level-and-ad-account-level-limits">
+  ## Limiti a livello di utente e a livello di account pubblicitario
+</div>
+
+Esistono due tipi di limiti di frequenza: a livello di token utente e a livello di account pubblicitario. Un sottoinsieme di endpoint è abilitato per utilizzare il rate limiting a livello di account pubblicitario. Un token utente è il [token di accesso OAuth](/it/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) che utilizzi per autenticarti e chiamare l’API X Ads. Ogni token utente può avere accesso a uno o più account pubblicitari.
+
+Gli sviluppatori dovrebbero utilizzare il limite a livello di account pubblicitario quando questo viene restituito nelle intestazioni di risposta, e ricorrere al limite a livello di utente solo quando il limite dell’account pubblicitario non è presente.
+
+I limiti a livello di utente sono espressi tramite queste intestazioni: **x-rate-limit-limit**, **x-rate-limit-remaining** e **x-rate-limit-reset**.
+
+Per gli endpoint con rate limiting a livello di account pubblicitario abilitato, i limiti sono espressi tramite queste intestazioni: **x-account-rate-limit-limit**, **x-account-rate-limit-remaining** e **x-account-rate-limit-reset**.
+
+I limiti a livello di account pubblicitario sono forniti solo per gli endpoint GET, per consentire alle applicazioni di sincronizzare i dati delle entità (ad esempio oggetti campagna o line item) da un singolo token utente che accede a più account pubblicitari. Le azioni di scrittura non garantiscono l’uso degli stessi limiti a livello di account pubblicitario.
+
+Per gli endpoint con limite a livello di account pubblicitario, il limite a livello di utente è impostato su un valore elevato che rappresenta una quota globale per l’intera applicazione. Quando disponibile, il limite a livello di account pubblicitario dovrebbe avere la precedenza nel controllare il volume delle richieste.
+
+<div id="best-practices">
+  ## Best practice
+</div>
+
+1. Salva nel database un timestamp dell’ultima sincronizzazione e, quando pertinente, richiedi i dati con l’opzione `sort_by=updated_at-desc` così da poter interrompere il processo di sync una volta raggiunti dati più vecchi dell’ultimo timestamp sincronizzato. In questo modo eviterai sincronizzazioni ridondanti degli stessi dati.
+
+2. Richiedi più entità in un’unica chiamata: alcuni endpoint consentono di specificare un elenco di valori separati da virgole per recuperare più dati simili. Questo può ridurre il numero totale di chiamate e sfruttare più efficacemente i limiti di rate.
+
+3. Richiedi il valore massimo di “count” nelle chiamate: per alcuni endpoint, come [GET accounts/:account\_id/targeting\_criteria](/it/x-ads-api/campaign-management#targeting-criteria), è fortemente consigliato usare il valore massimo di count per ottenere 1000 oggetti invece del valore predefinito di 200.
+
+<div id="analytics-syncing">
+  ## Sincronizzazione dell’analisi
+</div>
+
+Consulta la [guida al rate limiting dell’analisi](/it/x-ads-api/analytics#best-practices) per ulteriori informazioni sui limiti di frequenza degli endpoint di analisi.
+
+<div id="faqs">
+  ## Domande frequenti
+</div>
+
+_È possibile aumentare i limiti di rate per un determinato account pubblicitario o per la nostra applicazione?_
+
+In generale non possiamo aumentare i limiti di rate, che sono configurati per supportare anche gli account pubblicitari più grandi. Come primo passo, applicate le Best Practices elencate in questo documento e, se i limiti continuano a incidere sulla vostra capacità di scalare o di raggiungere gli obiettivi aziendali, contattate i vostri referenti dell’API X Ads fornendo tutti i dettagli sul caso d’uso e sulle richieste in questione.
+
+<div id="scopes-of-rate-limiting">
+  ## Ambiti del rate limit
+</div>
+
+<div id="scopes-for-this-doc">
+  ### Ambiti per questo documento
+</div>
+
+- Categoria: tutti gli endpoint che rientrano nella categoria indicata sono soggetti a limitazione della frequenza, condividendo un unico limite assegnato per finestra.
+- Endpoint: ogni endpoint ha un proprio limite assegnato e distinto per finestra.
+
+<div id="ads-api-rate-limit-chart">
+  ## Tabella dei limiti di frequenza dell'API X Ads
+</div>
+
+<div id="ads-api-rate-limits">
+  ### Limiti di rate dell'API Ads
+</div>
+
+| Tipo di endpoint | Ambito per endpoint o categoria | Limite di rate per finestra di 1 minuto |
+| :--- | :--- | :--- |
+| Operazioni di scrittura (POST, PUT, DELETE) | Categoria | 450 |
+| Audience | Endpoint | 1500 |
+
+| Tipo di endpoint | Ambito per endpoint o categoria | Limite di rate per finestra di 15 minuti |
+| :--- | :--- | :--- |
+| Analisi (sincrone) | Categoria | 250 |
+| Letture delle entità core (Line Items, Campaigns, ecc.)<br /><br />Altre letture dell’account (altri endpoint GET con :account\_id) | Endpoint (livello Ad Account)<br /><br />Endpoint (livello parziale Ad Account) | 10,000<br /><br />2000 |
+| Criteri di targeting (tranne quanto segue) | Categoria | 400 |
+| Criteri di targeting (tv\_markets, tv\_shows) | Endpoint | 2000 |
+| Insight sul pubblico | Categoria | 400 |
+| Insight sulle keyword | Categoria | 500 |
+| Letture globali (endpoint GET senza :account\_id) | Endpoint | 5   |
+| Conversioni | Endpoint | 60,000 |

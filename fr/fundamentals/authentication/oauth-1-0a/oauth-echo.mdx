@@ -1,0 +1,47 @@
+---
+title: OAuth Echo
+sidebarTitle: OAuth Echo
+---
+
+import { Button } from "/snippets/fr/button.mdx";
+
+
+<div id="oauth-echo">
+  ### OAuth Echo
+</div>
+
+OAuth Echo est un moyen de déléguer en toute sécurité une autorisation OAuth à un tiers tout en interagissant avec une API.
+
+Quatre parties sont impliquées dans cette interaction :
+
+* **l’Utilisateur** qui utilise X via une application X spécifique et autorisée
+* **le Consommateur**, c’est-à-dire l’application X qui tente d’interagir avec le fournisseur de médias tiers (p. ex. un site de partage de photos)
+* **le Délégateur**, c’est-à-dire le fournisseur de médias tiers
+* **le Fournisseur de services**, alias X lui-même
+     
+
+En substance, préparez une requête que le délégateur enverra à l’API X au nom d’une application et d’un utilisateur. Placez ce qui serait autrement une requête OAuth signée dans un en-tête HTTP et demandez au délégateur d’envoyer cette requête à X après avoir effectué l’opération intermédiaire.
+
+Voici un exemple : l’Utilisateur souhaite téléverser une photo. Le Consommateur va appeler l’endpoint d’upload du Délégateur avec un POST. Le POST doit contenir l’image, mais aussi deux éléments supplémentaires sous forme d’en-têtes HTTP :
+
+* `x-auth-service-provider` — en pratique, c’est le domaine (realm) vers lequel la délégation d’identité doit être envoyée — dans le cas de X, définissez-le sur https://api.x.com/1.1/account/verify_credentials.json. Les intégrations X basées sur iOS5 ajouteront un paramètre supplémentaire application_id à cette URL, qui sera également utilisé pour calculer la oauth_signature utilisée dans x-verify-credentials-authorization.
+* `x-verify-credentials-authorization` — le Consommateur doit créer tous les paramètres OAuth nécessaires pour pouvoir appeler https://api.x.com/1.1/account/verify_credentials.json en utilisant OAuth dans l’en-tête HTTP (p. ex. il doit ressembler à OAuth oauth_consumer_key=”...”, oauth_token=”...”, oauth_signature_method=”...”, oauth_signature=”...”, oauth_timestamp=”...”, oauth_nonce=”...”, oauth_version=”...” ).
+     
+
+Gardez à l’esprit que l’ensemble de la transaction doit s’effectuer dans un délai pendant lequel le `oauth_timestamp` est toujours valide.
+
+Sinon, au lieu d’envoyer ces deux paramètres dans l’en-tête, ils peuvent être envoyés dans le POST sous la forme x_auth_service_provider et x_verify_credentials_authorization — dans ce cas, n’oubliez pas d’échapper les paramètres et de les inclure dans la chaîne de base de la signature OAuth — comme pour l’encodage des paramètres dans toute requête. Il est préférable d’utiliser des en-têtes HTTP afin de séparer au mieux les opérations.
+
+L’objectif du Délégateur, à ce stade, est de vérifier que l’Utilisateur est bien celui qu’il prétend être avant d’enregistrer le média. Une fois que le Délégateur a reçu toutes les données ci-dessus via sa méthode d’upload, il doit stocker temporairement l’image, puis construire un appel vers le point de terminaison spécifié dans l’en-tête x-auth-service-provider — en l’occurrence https://api.x.com/1.1/account/verify_credentials.json — en utilisant le même en-tête d’authentification OAuth fourni par le Consommateur dans l’en-tête x-verify-credentials-authorization.
+ 
+
+<div id="oauth-echo-best-practices">
+  #### Bonnes pratiques OAuth Echo
+</div>
+
+Utilisez l’URL fournie par `x-auth-service-provider` pour effectuer la requête, et non une valeur codée en dur. Apple iOS, par exemple, ajoute un paramètre supplémentaire application_id à toutes les requêtes OAuth, et sa présence doit être conservée à chaque étape d’OAuth Echo.
+
+Pour la partie autorisation OAuth, prenez la valeur de l’en-tête x-verify-credentials-authorization et placez-la dans un en-tête Authorization dédié pour l’appel au fournisseur de services. Par précaution, vérifiez que la valeur de `x-auth-service-provider` est correcte.
+
+* Si le fournisseur de services renvoie un HTTP 200, parfait. Le délégant doit stocker l’image de façon permanente, générer une URL et la renvoyer.
+* Si le fournisseur de services ne renvoie pas un HTTP 200, supprimez l’image, puis renvoyez une erreur au Consommateur.

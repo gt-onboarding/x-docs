@@ -1,0 +1,1623 @@
+---
+title: "API de recherche : Entreprise"
+sidebarTitle: API de recherche
+---
+
+> **Veuillez noter :**
+>
+> Nous avons publié une nouvelle version de la [recherche de posts](/fr/x-api/posts/search/introduction) et du [dénombrement des posts](/fr/x-api/posts/counts/introduction) dans l’[API X v2](/fr/x-api/getting-started/about-x-api). Nous vous invitons à [découvrir les nouveautés](/fr/x-api/migrate/overview) de l’API X v2.
+>
+> Ces endpoints ont été mis à jour pour inclure les métadonnées d’édition de post. Pour en savoir plus, consultez la page des fondamentaux [« Modifier des posts »](/fr/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets). 
+
+<div id="overview">
+  ## Aperçu
+</div>
+
+`Enterprise`
+
+_Les API Enterprise sont disponibles uniquement dans nos niveaux d’accès gérés. Pour utiliser ces API, vous devez d’abord créer un compte avec notre équipe commerciale Enterprise. Pour en savoir plus, consultez [ICI](https://developer.x.com/en/products/x-api/enterprise)._
+
+_Vous pouvez consulter l’ensemble des offres de recherche de Posts de l’API X [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api)._
+
+Il existe deux API de recherche Enterprise :
+
+1. L’API de recherche sur 30 jours fournit des données des 30 derniers jours.
+2. L’API de recherche sur l’archive complète offre un accès complet et instantané à l’intégralité du corpus de données X, remontant jusqu’au premier Post en mars 2006.
+
+Ces API RESTful acceptent une seule requête par appel, jusqu’à 2 048 caractères. Les requêtes utilisent la syntaxe de règles PowerTrack – voir [Règles et filtrage](/fr/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#getting-started-with-enterprise-rules-and-queries) pour plus de détails. Les utilisateurs peuvent spécifier n’importe quelle période, à la granularité de la minute. Toutefois, les réponses seront limitées au plus petit de votre maxResults spécifié OU 31 jours et incluront un jeton next pour paginer vers le prochain ensemble de résultats. Si les paramètres temporels ne sont pas spécifiés, l’API renverra les données correspondantes des 30 derniers jours.
+
+Les API de recherche Enterprise offrent un accès à faible latence, fidèle et basé sur des requêtes à l’archive des Posts, avec une granularité à la minute. Les données de Post sont renvoyées dans l’ordre chronologique inverse, en commençant par le Post le plus récent correspondant à votre requête. Les Posts sont disponibles via l’API de recherche environ 30 secondes après leur publication.
+
+Ces endpoints de recherche fournissent des métadonnées d’édition de Post. Tous les objets pour les Posts créés depuis le 29 septembre 2022 incluent des métadonnées d’édition, même si le Post n’a jamais été modifié. Chaque fois qu’un Post est édité, un nouvel ID de Post est créé. L’historique d’édition d’un Post est consigné dans un tableau d’ID de Post, en commençant par l’ID d’origine.
+
+Ces endpoints renverront toujours la version la plus récente, ainsi que tout l’historique d’édition. Tout Post collecté après sa fenêtre d’édition de 30 minutes représentera sa version finale. Pour en savoir plus sur les métadonnées d’édition de Post, consultez la page [Principes des Posts édités](/fr/x-api/fundamentals/edit-posts).
+
+Les requêtes incluent un paramètre maxResults qui précise le nombre maximal de Posts à renvoyer par réponse de l’API. Si plus de Posts sont associés à la requête que ce maximum par réponse, un jeton next est inclus dans la réponse. Ces jetons next sont utilisés dans les requêtes suivantes pour parcourir l’ensemble des Posts associés à la requête.
+
+Ces API de recherche Enterprise fournissent un endpoint _counts_ qui permet de demander le volume de données associé à une requête. 
+
+<div id="request-types">
+  ### Types de requêtes
+</div>
+
+Les API de recherche pour les entreprises prennent en charge deux types de requêtes :
+
+<div id="search-requests-data">
+  #### Requêtes de recherche (données)
+</div>
+
+Les requêtes de recherche adressées aux API de recherche Enterprise permettent de récupérer jusqu’à 500 résultats par réponse sur une période donnée, avec la possibilité de paginer pour obtenir des données supplémentaires. À l’aide du paramètre maxResults, vous pouvez définir des tailles de page plus petites pour des cas d’usage d’affichage (permettant à vos utilisateurs de demander davantage de résultats au besoin) ou des tailles de page plus grandes (jusqu’à 500) pour des extractions de données plus volumineuses. Les données sont renvoyées dans l’ordre chronologique inverse et sont conformes au moment de leur livraison.
+
+<div id="counts-requests-post-count">
+  #### Requêtes de comptage (Nombre de posts)
+</div>
+
+Les requêtes de comptage permettent de récupérer des décomptes d’activité historiques, qui reflètent le nombre d’activités correspondant à une requête donnée pendant la période demandée. La réponse vous fournit essentiellement un histogramme des décomptes, regroupés par jour, par heure ou par minute (le regroupement par défaut est l’_heure_). Il est important de noter que les résultats de comptage ne reflètent pas toujours les événements de conformité (par exemple, les suppressions de posts) qui surviennent bien après (7+ jours) la publication d’un post ; il est donc attendu que la mesure de comptage ne corresponde pas toujours à celle d’une requête de données pour la même requête.
+
+**Note de facturation :** chaque requête – _y compris les requêtes de pagination_ – effectuée sur les endpoints de données et de comptage est comptabilisée comme une requête facturée. Par conséquent, s’il y a plusieurs pages de résultats pour une seule requête, parcourir les X pages de résultats équivaut à X requêtes facturées.
+
+<div id="available-operators">
+  ### Opérateurs disponibles
+</div>
+
+Les API de recherche Enterprise acceptent des règles allant jusqu’à 2 048 caractères. Elles prennent en charge les opérateurs listés ci-dessous. Pour des descriptions détaillées, voir [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators).
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Correspondance sur le contenu des posts :** | **Correspondance sur les comptes d’intérêt :** | **Attributs du post :** | **Opérateurs géospatiaux :** |
+| \* keyword<br />\* “quoted phrase”<br />\* “keyword1 keyword2”~N<br />\* #<br />\* @<br />\* $<br />\* url:<br />\* lang: | \* from:<br />\* to:<br />\* retweets\_of: | \* is:retweet  <br />    <br />\* has:mentions<br />\* has:hashtags<br />\* has:media<br />\* has:videos<br />\* has:images<br />\* has:links<br />\* has:symbols<br />\* is:verified  <br />    <br />\* -is:nullcast (opérateur uniquement en négation) | \* bounding\_box:\[west\_long south\_lat east\_long north\_lat]<br />\* point\_radius:\[lon lat radius]<br />\* has:geo<br />\* place:<br />\* place\_country:<br />\* has:profile\_geo<br />\* profile\_country:<br />\* profile\_region:<br />\* profile\_locality: |
+
+Remarques : N’imbriquez pas les opérateurs (« #cats ») sera interprété comme cats par les API de recherche. L’opérateur « lang: » ainsi que tous les opérateurs « is: » et « has: » ne peuvent pas être utilisés seuls et doivent être combinés avec une autre clause (p. ex. @XDevelopers has:links).
+
+Les API de recherche utilisent un ensemble limité d’opérateurs en raison de la tokenisation et des règles de correspondance. Les API Enterprise temps réel et historiques par lots offrent des opérateurs supplémentaires. Voir [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product) pour plus de détails.
+
+Pour plus d’informations, consultez le guide [Prise en main des opérateurs](/fr/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#building-rules-and-queries).
+
+<div id="data-availability-important-date">
+  ### Disponibilité des données / date importante
+</div>
+
+Lorsque vous utilisez l’API de recherche sur l’archive complète, gardez à l’esprit que la plateforme X n’a cessé d’évoluer depuis 2006. Au fil de l’ajout de nouvelles fonctionnalités, de nouvelles métadonnées ont été intégrées aux objets JSON sous-jacents. Il est donc important de savoir quand des attributs de Post, sur lesquels s’appuient les opérateurs de recherche, ont été introduits. Vous trouverez ci-dessous quelques dates de référence (« born on ») pour des groupes importants de métadonnées. Pour en savoir plus sur la première apparition des attributs de Post, consultez [ce guide](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#full-archive-search-metadata-timeline).
+
+- Premier Post : 21/3/2006
+- Premiers Retweets natifs : 6/11/2009
+- Premier Post géolocalisé : 19/11/2009
+- Premières URL indexées pour le filtrage : 27/8/2011
+- Métadonnées enrichies d’expansion d’URL (titres et descriptions de sites web) : 1/12/2014
+- Métadonnées et filtrage d’enrichissement de géolocalisation de profil : 17/2/2015
+
+<div id="data-updates-and-mutability">
+  ### Mises à jour des données et mutabilité
+</div>
+
+Avec les API de recherche Enterprise, certaines données d’un Post sont mutables, c’est-à-dire qu’elles peuvent être mises à jour ou modifiées après l’archivage initial.
+
+Ces données mutables se répartissent en deux catégories :
+
+- Métadonnées de l’objet User :
+  - @handle de l’utilisateur (l’ID numérique ne change jamais)
+  - Description de la bio
+  - Compteurs : statuses, followers, friends, favorites, lists
+  - Localisation du profil
+  - Autres détails tels que le fuseau horaire et la langue
+- Statistiques du Post — c’est-à-dire tout ce qui peut être modifié sur la plateforme par des actions des utilisateurs (exemples ci-dessous) :
+  - Nombre de favoris
+  - Nombre de retweets
+
+Dans la plupart des cas, les API de recherche renverront les données telles qu’elles existent sur la plateforme au moment de la requête, plutôt qu’au moment de la génération du Post. Toutefois, pour les requêtes utilisant des opérateurs de sélection (par ex. from, to, @, is:verified), ce n’est pas forcément le cas. Les données sont mises à jour régulièrement dans notre index, avec une fréquence accrue pour les périodes les plus récentes. Par conséquent, dans certains cas, les données renvoyées peuvent ne pas correspondre exactement aux données actuelles affichées sur X.com, mais à celles en vigueur lors de leur dernière indexation.
+
+Notez que ce problème d’incohérence ne concerne que les requêtes où l’opérateur s’applique à des données mutables. Un exemple est le filtrage par nom d’utilisateur ; la meilleure solution de contournement consiste à utiliser les IDs numériques des utilisateurs plutôt que leurs @handles pour ces requêtes.
+
+<div id="single-vs-multi-threaded-requests">
+  ### Requêtes monothread vs multithread
+</div>
+
+Chaque client dispose d’une limite de débit définie pour son endpoint de recherche. La limite par minute par défaut pour la recherche sur l’archive complète est de 120 requêtes par minute, soit une moyenne de 2 requêtes par seconde (QPS). Cette moyenne de QPS signifie que, en théorie, 2 requêtes peuvent être envoyées à l’API chaque seconde. Étant donné la pagination du produit, si une requête sur un an comporte un million de posts associés, répartis uniformément sur l’année, plus de 2 000 requêtes seraient nécessaires (en supposant un maxResults de 500) pour récupérer toutes les données. En supposant qu’il faille deux secondes par réponse, cela représente 4 000 secondes (soit un peu plus d’une heure) pour extraire toutes ces données de manière sérielle/séquentielle via un seul thread (1 requête par seconde en utilisant le jeton next de la réponse précédente). Pas mal !
+
+Considérons maintenant le cas où douze threads parallèles sont utilisés pour récupérer les données. En supposant une répartition uniforme du million de posts sur la période d’un an, vous pourriez répartir les requêtes en douze threads parallèles (multithread) et exploiter davantage la limite de débit par seconde pour un seul « job ». En d’autres termes, vous pourriez exécuter un thread par mois visé et, ce faisant, récupérer les données 12× plus vite (environ 6 minutes).
+
+Cet exemple multithread s’applique tout aussi bien à l’endpoint des décomptes. Par exemple, si vous souhaitez obtenir les décomptes de posts sur une période de deux ans, vous pouvez effectuer une requête monothread et remonter dans le temps par tranches de 31 jours. En supposant qu’il faille 2 secondes par réponse, il faudrait environ 48 secondes pour effectuer les 24 requêtes API et récupérer l’ensemble des décomptes. Cependant, vous avez aussi la possibilité d’effectuer plusieurs requêtes d’un mois en parallèle. En envoyant 12 requêtes par seconde, l’ensemble des décomptes pourrait être récupéré en environ 2 secondes.
+
+<div id="retry-logic">
+  ### Logique de nouvelle tentative
+</div>
+
+Si vous rencontrez une erreur 503 avec les API de recherche Enterprise, il s’agit probablement d’une erreur transitoire qui peut être résolue en réessayant la requête peu de temps après.
+
+Si la requête échoue 4 fois d’affilée et que vous avez attendu au moins 10 minutes entre chaque échec, procédez comme suit pour le dépannage :
+
+- Réessayez la requête après avoir réduit la période couverte. Répétez jusqu’à une fenêtre de 6 heures si nécessaire.
+- Si vous combinez un grand nombre de termes avec l’opérateur OR, scindez-les en règles distinctes et réessayez chacune séparément.
+- Si votre règle comporte un grand nombre d’exclusions, réduisez le nombre de termes négatifs dans la règle et réessayez.
+
+<div id="quick-start">
+  ## Prise en main
+</div>
+
+<div id="getting-started-with-enterprise-search-posts-30-day-api">
+  ### Prise en main de l’API Entreprise Search Posts : 30 jours
+</div>
+
+L’API Entreprise Search Posts : 30 jours vous fournit les posts publiés au cours des 30 derniers jours. Les posts sont identifiés et renvoyés en fonction de la requête que vous indiquez dans votre demande. Une requête est une règle qui définit ce que les posts renvoyés doivent contenir. Dans ce tutoriel, nous allons rechercher des posts en anglais provenant du compte X @XDevelopers.
+
+Les posts renvoyés dans votre réponse peuvent être au format data, qui fournit la charge utile complète du post, ou au format counts, qui fournit des données chiffrées de comptage des posts correspondants. Nous utiliserons cURL pour effectuer des requêtes vers les endpoints data et counts.
+
+Vous aurez besoin des éléments suivants :
+
+- Un compte Entreprise — https://developer.x.com/en/products/x-api/enterprise
+- Votre nom d’utilisateur, votre mot de passe et le nom du compte
+- Le label associé à votre endpoint de recherche, tel qu’affiché sur console.gnip.com
+
+<div id="accessing-the-data-endpoint">
+  #### Accéder à l’endpoint de données
+</div>
+
+L’endpoint de données nous fournira la charge utile complète des Posts correspondants. Nous utiliserons les opérateurs `from:` et `lang:` pour trouver les Posts publiés par @XDevelopers en anglais. Pour davantage d’opérateurs, [cliquez ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators).
+
+<Tabs>
+  <Tab title="cURL">
+    cURL est un outil en ligne de commande permettant de récupérer ou d’envoyer des fichiers via la syntaxe d’URL.
+
+    Copiez la requête cURL suivante dans votre terminal après avoir modifié les éléments suivants :
+
+    - **Nom d’utilisateur** `<USERNAME>` p. ex. `email@domain.com`
+
+    - **Nom du compte** `<ACCOUNT-NAME>` p. ex. `john-doe`
+
+    - **Label** `<LABEL>` p. ex. `prod`
+
+    - **fromDate et toDate** p. ex. `"fromDate":"201811010000", "toDate":"201811122359"`
+
+    Après l’envoi de votre requête, votre mot de passe vous sera demandé.
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/30day/accounts/<ACCOUNT-NAME>/<LABEL>.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    ```bash
+    Ceci est un exemple de requête cURL. Si vous essayez de l’exécuter, cela ne fonctionnera pas.
+
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/30day/accounts/john-doe/prod.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"201811100000","toDate":"201812012359"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="data-endpoint-response-payload">
+  #### Charge utile de la réponse de l’endpoint de données
+</div>
+
+La charge utile renvoyée par votre requête à l’API sera au format JSON, comme illustré ci-dessous.
+
+```json
+{
+	"results": [
+		{
+			"created_at": "Fri Nov 02 17:18:31 +0000 2018",
+			"id": 1058408022936977409,
+			"id_str": "1058408022936977409",
+			"text": "RT @harmophone: « Le crowdsourcing innovant rendu possible par la collaboration entre Tagboard, Twitter et TEGNA met en lumière des conversations pertinentes à l’échelle locale…",
+			"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+			"truncated": false,
+			"in_reply_to_status_id": null,
+			"in_reply_to_status_id_str": null,
+			"in_reply_to_user_id": null,
+			"in_reply_to_user_id_str": null,
+			"in_reply_to_screen_name": null,
+			"user": {
+				"id": 2244994945,
+				"id_str": "2244994945",
+				"name": "Twitter Dev",
+				"screen_name": "TwitterDev",
+				"location": "Internet",
+				"url": "https:\/\/developer.x.com\/",
+				"description": "Votre source officielle pour les actualités, mises à jour et événements de la plateforme Twitter. Besoin d’aide technique ? Rendez-vous sur https:\/\/devcommunity.com\/ ⌨️ #TapIntoTwitter",
+				"translator_type": "null",
+				"protected": false,
+				"verified": true,
+				"followers_count": 503828,
+				"friends_count": 1477,
+				"listed_count": 1437,
+				"favourites_count": 2199,
+				"statuses_count": 3380,
+				"created_at": "Sat Dec 14 04:35:55 +0000 2013",
+				"utc_offset": null,
+				"time_zone": null,
+				"geo_enabled": true,
+				"lang": "en",
+				"contributors_enabled": false,
+				"is_translator": false,
+				"profile_background_color": "null",
+				"profile_background_image_url": "null",
+				"profile_background_image_url_https": "null",
+				"profile_background_tile": null,
+				"profile_link_color": "null",
+				"profile_sidebar_border_color": "null",
+				"profile_sidebar_fill_color": "null",
+				"profile_text_color": "null",
+				"profile_use_background_image": null,
+				"profile_image_url": "null",
+				"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/880136122604507136\/xHrnqf1T_normal.jpg",
+				"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/2244994945\/1498675817",
+				"default_profile": false,
+				"default_profile_image": false,
+				"following": null,
+				"follow_request_sent": null,
+				"notifications": null
+			},
+			"geo": null,
+			"coordinates": null,
+			"place": null,
+			"contributors": null,
+			"retweeted_status": {
+				"created_at": "Tue Oct 30 21:30:25 +0000 2018",
+				"id": 1057384253116289025,
+				"id_str": "1057384253116289025",
+				"text": "« Le crowdsourcing innovant rendu possible par la collaboration entre Tagboard, Twitter et TEGNA met en lumière des conversations pertinentes à l’échelle locale… https:\/\/t.co\/w46U5TRTzQ",
+				"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+				"truncated": true,
+				"in_reply_to_status_id": null,
+				"in_reply_to_status_id_str": null,
+				"in_reply_to_user_id": null,
+				"in_reply_to_user_id_str": null,
+				"in_reply_to_screen_name": null,
+				"user": {
+					"id": 175187944,
+					"id_str": "175187944",
+					"name": "Tyler Singletary",
+					"screen_name": "harmophone",
+					"location": "San Francisco, CA",
+					"url": "http:\/\/medium.com\/@harmophone",
+					"description": "SVP Produit chez @Tagboard. A fait de la data, du business et du produit chez @Klout et pour @LithiumTech ; membre du conseil @BBI ; conseiller @Insightpool. Le pire utilisateur de tableau blanc au monde.",
+					"translator_type": "null",
+					"protected": false,
+					"verified": false,
+					"followers_count": 1982,
+					"friends_count": 1877,
+					"listed_count": 245,
+					"favourites_count": 23743,
+					"statuses_count": 12708,
+					"created_at": "Thu Aug 05 22:59:29 +0000 2010",
+					"utc_offset": null,
+					"time_zone": null,
+					"geo_enabled": false,
+					"lang": "en",
+					"contributors_enabled": false,
+					"is_translator": false,
+					"profile_background_color": "null",
+					"profile_background_image_url": "null",
+					"profile_background_image_url_https": "null",
+					"profile_background_tile": null,
+					"profile_link_color": "null",
+					"profile_sidebar_border_color": "null",
+					"profile_sidebar_fill_color": "null",
+					"profile_text_color": "null",
+					"profile_use_background_image": null,
+					"profile_image_url": "null",
+					"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/719985428632240128\/WYFHcK-m_normal.jpg",
+					"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/175187944\/1398653841",
+					"default_profile": false,
+					"default_profile_image": false,
+					"following": null,
+					"follow_request_sent": null,
+					"notifications": null
+				},
+				"geo": null,
+				"coordinates": null,
+				"place": null,
+				"contributors": null,
+				"is_quote_status": false,
+				"extended_tweet": {
+					"full_text": "\"Le recours innovant au crowdsourcing rendu possible par la collaboration entre Tagboard, Twitter et TEGNA met en avant en temps réel des conversations localement pertinentes et permet aux électeurs de poser des questions pendant les débats.” — @adamostrow, @TEGNA\nEn savoir plus : https:\/\/t.co\/ivAFtanfje",
+					"display_text_range": [
+						0,
+						259
+					],
+					"entities": {
+						"hashtags": [],
+						"urls": [
+							{
+								"url": "https:\/\/t.co\/ivAFtanfje",
+								"expanded_url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+								"display_url": "blog.tagboard.com\/twitter-and-ta…",
+								"unwound": {
+									"url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+									"status": 200,
+									"title": "Twitter et Tagboard collaborent pour proposer le meilleur contenu électoral aux médias avec Tagboard…",
+									"description": "Par Tyler Singletary, Head of Product, Tagboard",
+								},
+								"indices": [
+									236,
+									259
+								]
+							}
+						],
+						"user_mentions": [
+							{
+								"screen_name": "adamostrow",
+								"name": "Adam Ostrow",
+								"id": 5695942,
+								"id_str": "5695942",
+								"indices": [
+									204,
+									215
+								]
+							},
+							{
+								"screen_name": "TEGNA",
+								"name": "TEGNA",
+								"id": 34123003,
+								"id_str": "34123003",
+								"indices": [
+									217,
+									223
+								]
+							}
+						],
+						"symbols": []
+					}
+				},
+				"quote_count": 0,
+				"reply_count": 1,
+				"retweet_count": 6,
+				"favorite_count": 19,
+				"entities": {
+					"hashtags": [],
+					"urls": [
+						{
+							"url": "https:\/\/t.co\/w46U5TRTzQ",
+							"expanded_url": "https:\/\/twitter.com\/i\/web\/status\/1057384253116289025",
+							"display_url": "twitter.com\/i\/web\/status\/1…",
+							"indices": [
+								117,
+								140
+							]
+						}
+					],
+					"user_mentions": [],
+					"symbols": []
+				},
+				"favorited": false,
+				"retweeted": false,
+				"possibly_sensitive": false,
+				"filter_level": "faible"
+				"lang": "en"
+			},
+			"is_quote_status": false,
+			"quote_count": 0,
+			"reply_count": 0,
+			"retweet_count": 0,
+			"favorite_count": 0,
+			"entities": {
+				"hashtags": [],
+				"urls": [],
+				"user_mentions": [
+					{
+						"screen_name": "harmophone",
+						"name": "Tyler Singletary",
+						"id": 175187944,
+						"id_str": "175187944",
+						"indices": [
+							3,
+							14
+						]
+					}
+				],
+				"symbols": []
+			},
+			"favorited": false,
+			"retweeted": false,
+			"filter_level": "low",
+			"lang": "en",
+			"matching_rules": [
+				{
+					"tag": null
+				}
+			]
+		}
+	],
+	"requestParameters": {
+		"maxResults": 100,
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+<div id="accessing-the-counts-endpoint">
+  #### Accéder à l’endpoint counts
+</div>
+
+Avec l’endpoint counts, nous allons récupérer le nombre de posts provenant du compte @XDevelopers en anglais, regroupés par `day`.
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL est un outil en ligne de commande permettant de recevoir ou d’envoyer des fichiers en utilisant la syntaxe des URL._
+
+    Copiez la requête cURL suivante dans votre terminal après avoir modifié les éléments suivants :
+
+    - **Nom d’utilisateur** `<USERNAME>` p. ex. `email@domain.com`
+
+    - **Nom du compte** `<ACCOUNT-NAME>` p. ex. `john-doe`
+
+    - **Label** `<LABEL>` p. ex. `prod`
+
+    - **fromDate et toDate** p. ex. `"fromDate":"201811010000", "toDate":"201811122359"`
+
+    _Après l’envoi de votre requête, votre mot de passe vous sera demandé._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/30day/accounts/<ACCOUNT-NAME>/<LABEL>/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>","bucket":"day"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    _Ceci est un exemple de requête cURL. Si vous essayez de l’exécuter, elle ne fonctionnera pas._
+
+    ```bash
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/30day/accounts/john-doe/prod/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"201811100000","toDate":"201812012359","bucket":"day"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="counts-endpoint-response-payload">
+  #### Charge utile de la réponse de l’endpoint Counts
+</div>
+
+La charge utile renvoyée par votre requête d’API est au format JSON, comme illustré ci-dessous.
+
+```json
+{
+	"results": [
+		{
+			"timePeriod": "201811010000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811020000",
+			"count": 1
+		},
+		{
+			"timePeriod": "201811030000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811040000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811050000",
+			"count": 0
+		}
+	],
+	"totalCount": 1,
+	"requestParameters": {
+		"bucket": "day",
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+Bravo ! Vous avez maintenant réussi à accéder à l’API Enterprise Search Posts : 30-Day.
+
+<div id="referenced-articles">
+  ##### **Articles référencés**
+</div>
+
+- [Introduction aux objets Post](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)
+- [Opérateurs de recherche](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)
+- [Objets Post et payloads](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#post-object)
+
+<div id="getting-started-with-enterprise-search-posts-full-archive-api">
+  ### Premiers pas avec Search Posts Entreprise : API de recherche sur l’archive complète
+</div>
+
+L’API Search Posts Entreprise : recherche sur l’archive complète vous donne accès aux posts depuis le tout premier publié en 2006. Les posts sont identifiés et renvoyés en fonction de la requête que vous spécifiez dans votre demande. Une requête est une règle qui définit ce que le post renvoyé doit contenir. Dans ce tutoriel, nous allons rechercher des posts en anglais provenant du compte X @XDevelopers.
+
+Les posts que vous recevez dans votre charge utile peuvent être au format data, qui vous fournit le contenu complet du post, ou au format counts, qui vous donne des données numériques de comptage des posts correspondants. Nous utiliserons cURL pour effectuer des requêtes vers les endpoints data et counts.
+
+Vous aurez besoin des éléments suivants :
+
+- \[Un compte Enterprise]https://developer.x.com/en/products/x-api/enterprise
+- Votre nom d’utilisateur, votre mot de passe et le nom de votre compte
+- Le label associé à votre endpoint de recherche, tel qu’affiché sur console.gnip.com
+
+<div id="accessing-the-data-endpoint">
+  #### Accéder au point de terminaison de données
+</div>
+
+Le point de terminaison de données nous fournira la charge utile complète des Posts correspondant aux critères. Nous utiliserons les opérateurs `from:` et `lang:` pour trouver les Posts provenant de @XDevelopers en anglais. Pour en savoir plus sur les opérateurs, [cliquez ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators).
+
+- [cURL](#tab1)
+- [Exemple cURL](#tab2)
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL est un outil en ligne de commande permettant de récupérer ou d’envoyer des fichiers à l’aide de la syntaxe d’URL._
+
+    Copiez la requête cURL suivante dans votre terminal après avoir modifié les éléments suivants :
+
+    - **Nom d’utilisateur** `<USERNAME>` p. ex. `email@domain.com`
+
+    - **Nom du compte** `<ACCOUNT-NAME>` p. ex. `john-doe`
+
+    - **Label** `<LABEL>` p. ex. `prod`
+
+    - **fromDate et toDate** p. ex. `"fromDate":"201802010000", "toDate":"201802282359"`
+
+    _Après l’envoi de votre requête, votre mot de passe vous sera demandé._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/fullarchive/accounts/<ACCOUNT-NAME>/<LABEL>.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    _Ceci est un exemple de requête cURL. Si vous tentez de l’exécuter, elle n’aboutira pas._
+
+    ```bash
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/fullarchive/accounts/john-doe/prod.json" -d '{"query":"from:TwitterDev lang:en","maxResults":"500","fromDate":"201802010000","toDate":"201802282359"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="data-endpoint-response-payload">
+  ##### Charge utile de la réponse du point de terminaison de données
+</div>
+
+La charge utile renvoyée par votre requête d’API sera au format JSON, comme illustré ci-dessous.
+
+```json
+{
+	"results": [
+		{
+			"created_at": "Fri Nov 02 17:18:31 +0000 2018",
+			"id": 1058408022936977409,
+			"id_str": "1058408022936977409",
+			"text": "RT @harmophone: « Le crowdsourcing innovant permis par la collaboration entre Tagboard, Twitter et TEGNA fait émerger des conversations pertinentes au niveau local…",
+			"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+			"truncated": false,
+			"in_reply_to_status_id": null,
+			"in_reply_to_status_id_str": null,
+			"in_reply_to_user_id": null,
+			"in_reply_to_user_id_str": null,
+			"in_reply_to_screen_name": null,
+			"user": {
+				"id": 2244994945,
+				"id_str": "2244994945",
+				"name": "Twitter Dev",
+				"screen_name": "TwitterDev",
+				"location": "Internet",
+				"url": "https:\/\/developer.x.com\/",
+				"description": "Votre source officielle pour les actualités, mises à jour et événements de la plateforme Twitter. Besoin d’aide technique ? Rendez-vous sur https:\/\/devcommunity.com\/ ⌨️ #TapIntoTwitter",
+				"translator_type": "null",
+				"protected": false,
+				"verified": true,
+				"followers_count": 503828,
+				"friends_count": 1477,
+				"listed_count": 1437,
+				"favourites_count": 2199,
+				"statuses_count": 3380,
+				"created_at": "Sat Dec 14 04:35:55 +0000 2013",
+				"utc_offset": null,
+				"time_zone": null,
+				"geo_enabled": true,
+				"lang": "en",
+				"contributors_enabled": false,
+				"is_translator": false,
+				"profile_background_color": "null",
+				"profile_background_image_url": "null",
+				"profile_background_image_url_https": "null",
+				"profile_background_tile": null,
+				"profile_link_color": "null",
+				"profile_sidebar_border_color": "null",
+				"profile_sidebar_fill_color": "null",
+				"profile_text_color": "null",
+				"profile_use_background_image": null,
+				"profile_image_url": "null",
+				"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/880136122604507136\/xHrnqf1T_normal.jpg",
+				"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/2244994945\/1498675817",
+				"default_profile": false,
+				"default_profile_image": false,
+				"following": null,
+				"follow_request_sent": null,
+				"notifications": null
+			},
+			"geo": null,
+			"coordinates": null,
+			"place": null,
+			"contributors": null,
+			"retweeted_status": {
+				"created_at": "Tue Oct 30 21:30:25 +0000 2018",
+				"id": 1057384253116289025,
+				"id_str": "1057384253116289025",
+				"text": "« Le crowdsourcing innovant permis par la collaboration entre Tagboard, Twitter et TEGNA fait émerger des convers… https:\/\/t.co\/w46U5TRTzQ",
+				"source": "<a href=\"http:\/\/twitter.com\" rel=\"nofollow\">Twitter Web Client<\/a>",
+				"truncated": true,
+				"in_reply_to_status_id": null,
+				"in_reply_to_status_id_str": null,
+				"in_reply_to_user_id": null,
+				"in_reply_to_user_id_str": null,
+				"in_reply_to_screen_name": null,
+				"user": {
+					"id": 175187944,
+					"id_str": "175187944",
+					"name": "Tyler Singletary",
+					"screen_name": "harmophone",
+					"location": "San Francisco, CA",
+					"url": "http:\/\/medium.com\/@harmophone",
+					"description": "SVP Product chez @Tagboard. A fait des données, du business et du produit chez @Klout et pour @LithiumTech ; membre du conseil @BBI ; conseiller @Insightpool. Le pire utilisateur de tableau blanc au monde.",
+					"translator_type": "null",
+					"protected": false,
+					"verified": false,
+					"followers_count": 1982,
+					"friends_count": 1877,
+					"listed_count": 245,
+					"favourites_count": 23743,
+					"statuses_count": 12708,
+					"created_at": "Thu Aug 05 22:59:29 +0000 2010",
+					"utc_offset": null,
+					"time_zone": null,
+					"geo_enabled": false,
+					"lang": "en",
+					"contributors_enabled": false,
+					"is_translator": false,
+					"profile_background_color": "null",
+					"profile_background_image_url": "null",
+					"profile_background_image_url_https": "null",
+					"profile_background_tile": null,
+					"profile_link_color": "null",
+					"profile_sidebar_border_color": "null",
+					"profile_sidebar_fill_color": "null",
+					"profile_text_color": "null",
+					"profile_use_background_image": null,
+					"profile_image_url": "null",
+					"profile_image_url_https": "https:\/\/pbs.twimg.com\/profile_images\/719985428632240128\/WYFHcK-m_normal.jpg",
+					"profile_banner_url": "https:\/\/pbs.twimg.com\/profile_banners\/175187944\/1398653841",
+					"default_profile": false,
+					"default_profile_image": false,
+					"following": null,
+					"follow_request_sent": null,
+					"notifications": null
+				},
+				"geo": null,
+				"coordinates": null,
+				"place": null,
+				"contributors": null,
+				"is_quote_status": false,
+				"extended_tweet": {
+					"full_text": "« Le crowdsourcing innovant rendu possible par la collaboration entre Tagboard, Twitter et TEGNA met en lumière en temps réel des conversations pertinentes localement et permet aux électeurs de poser des questions pendant les débats », — @adamostrow, @TEGNA\nEn savoir plus : https:\/\/t.co\/ivAFtanfje",
+					"display_text_range": [
+						0,
+						259
+					],
+					"entities": {
+						"hashtags": [],
+						"urls": [
+							{
+								"url": "https:\/\/t.co\/ivAFtanfje",
+								"expanded_url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+								"display_url": "blog.tagboard.com\/twitter-and-ta…",
+								"unwound": {
+									"url": "https:\/\/blog.tagboard.com\/twitter-and-tagboard-collaborate-to-bring-best-election-content-to-news-outlets-with-tagboard-e85fc864bcf4",
+									"status": 200,
+									"title": "Twitter et Tagboard collaborent pour proposer le meilleur contenu électoral aux médias avec Tagboard…",
+									"description": "Par Tyler Singletary, directeur produit, Tagboard",
+								},
+								"indices": [
+									236,
+									259
+								]
+							}
+						],
+						"user_mentions": [
+							{
+								"screen_name": "adamostrow",
+								"name": "Adam Ostrow",
+								"id": 5695942,
+								"id_str": "5695942",
+								"indices": [
+									204,
+									215
+								]
+							},
+							{
+								"screen_name": "TEGNA",
+								"name": "TEGNA",
+								"id": 34123003,
+								"id_str": "34123003",
+								"indices": [
+									217,
+									223
+								]
+							}
+						],
+						"symbols": []
+					}
+				},
+				"quote_count": 0,
+				"reply_count": 1,
+				"retweet_count": 6,
+				"favorite_count": 19,
+				"entities": {
+					"hashtags": [],
+					"urls": [
+						{
+							"url": "https:\/\/t.co\/w46U5TRTzQ",
+							"expanded_url": "https:\/\/twitter.com\/i\/web\/status\/1057384253116289025",
+							"display_url": "twitter.com\/i\/web\/status\/1…",
+							"indices": [
+								117,
+								140
+							]
+						}
+					],
+					"user_mentions": [],
+					"symbols": []
+				},
+				"favorited": false,
+				"retweeted": false,
+				"possibly_sensitive": false,
+				"filter_level": "faible"
+				"lang": "en"
+			},
+			"is_quote_status": false,
+			"quote_count": 0,
+			"reply_count": 0,
+			"retweet_count": 0,
+			"favorite_count": 0,
+			"entities": {
+				"hashtags": [],
+				"urls": [],
+				"user_mentions": [
+					{
+						"screen_name": "harmophone",
+						"name": "Tyler Singletary",
+						"id": 175187944,
+						"id_str": "175187944",
+						"indices": [
+							3,
+							14
+						]
+					}
+				],
+				"symbols": []
+			},
+			"favorited": false,
+			"retweeted": false,
+			"filter_level": "low",
+			"lang": "en",
+			"matching_rules": [
+				{
+					"tag": null
+				}
+			]
+		}
+	],
+	"requestParameters": {
+		"maxResults": 100,
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+<div id="accessing-the-counts-endpoint">
+  #### Accéder au point de terminaison des décomptes
+</div>
+
+Avec le point de terminaison des décomptes, nous allons récupérer le nombre de Posts provenant du compte @XDevelopers en anglais, regroupés par `day`.
+
+<Tabs>
+  <Tab title="cURL">
+    _cURL est un outil en ligne de commande permettant de récupérer ou d’envoyer des fichiers en utilisant la syntaxe d’URL._
+
+    Copiez la requête cURL suivante dans votre terminal après avoir modifié les éléments suivants :
+
+    - **Nom d’utilisateur** `<USERNAME>` p. ex. `email@domain.com`
+
+    - **Nom du compte** `<ACCOUNT-NAME>` p. ex. `john-doe`
+
+    - **Label** `<LABEL>` p. ex. `prod`
+
+    - **fromDate et toDate** p. ex. `"fromDate":"201802010000", "toDate":"201802282359"`
+
+    _Après l’envoi de votre requête, votre mot de passe vous sera demandé._
+
+    ```bash
+    curl -X POST -u<USERNAME> "https://gnip-api.x.com/search/fullarchive/accounts/<ACCOUNT-NAME>/<LABEL>/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"<yyyymmddhhmm>","toDate":"<yyyymmddhhmm>","bucket":"day"}'
+    ```
+  </Tab>
+
+  <Tab title="cURL example">
+    ```bash
+    _Ceci est un exemple de requête cURL. Si vous tentez de l’exécuter, elle ne fonctionnera pas._
+
+    curl -X POST -uemail@domain.com "https://gnip-api.x.com/search/fullarchive/accounts/john-doe/prod/counts.json" -d '{"query":"from:TwitterDev lang:en","fromDate":"201802010000","toDate":"201802282359","bucket":"day"}'
+    ```
+  </Tab>
+</Tabs>
+
+<div id="counts-endpoint-response-payload">
+  #### Charge utile de la réponse de l’endpoint Counts
+</div>
+
+La charge utile renvoyée par votre requête API sera au format JSON, comme indiqué ci‑dessous.
+
+```json
+{
+	"results": [
+		{
+			"timePeriod": "201811010000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811020000",
+			"count": 1
+		},
+		{
+			"timePeriod": "201811030000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811040000",
+			"count": 0
+		},
+		{
+			"timePeriod": "201811050000",
+			"count": 0
+		}
+	],
+	"totalCount": 1,
+	"requestParameters": {
+		"bucket": "day",
+		"fromDate": "201811010000",
+		"toDate": "201811060000"
+	}
+}
+```
+
+Bravo ! Vous avez maintenant réussi à accéder à l’API d’entreprise Search Posts : Full‑Archive.
+
+<div id="referenced-articles">
+  ##### Articles de référence
+</div>
+
+- [Introduction aux objets Post](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)
+- [Opérateurs de recherche](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-operators)
+- [Objets Post et payloads](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#post-object)
+
+<div id="guides">
+  ## Guides
+</div>
+
+<div id="building-search-queries">
+  ### Créer des requêtes de recherche
+</div>
+
+<div id="enterprise-operators">
+  ### Opérateurs pour l’Enterprise
+</div>
+
+Vous trouverez ci-dessous la liste de tous les opérateurs pris en charge par les API de recherche Enterprise de X :
+
+- API de recherche **Enterprise** sur 30 jours
+- API de recherche **Enterprise** sur l’archive complète
+
+Pour une comparaison côte à côte des opérateurs disponibles par produit, voir [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product).
+
+|Opérateur|Description|
+|:--------|:------------------|
+| mot-clé      | Fait correspondre un mot-clé tokenisé dans le corps ou les URL d’un Post. Il s’agit d’une correspondance tokenisée, ce qui signifie que votre chaîne de mots-clés sera comparée au texte tokenisé du corps du Post — la tokenisation est basée sur les caractères Unicode de ponctuation, de symboles et de séparateurs du plan de base. Par exemple, un Post avec le texte « I like coca-cola » serait découpé en jetons comme suit : I, like, coca, cola. Ces jetons seraient ensuite comparés à la chaîne de mots-clés utilisée dans votre règle. Pour faire correspondre des chaînes contenant de la ponctuation (par exemple coca-cola), des symboles ou des caractères séparateurs, vous devez utiliser une correspondance exacte entre guillemets, comme décrit ci-dessous.<br /><br />Note : Avec l’API de recherche, les caractères accentués et spéciaux sont normalisés en caractères latins standard, ce qui peut changer le sens dans certaines langues ou renvoyer des résultats inattendus :<br />Par exemple, « músic » correspondra à « music » et inversement.<br />Par exemple, des expressions courantes comme « Feliz Año Nuevo! » en espagnol seraient indexées comme « Feliz Ano Nuevo », ce qui change le sens de l’expression.<br /><br />Note : Cet opérateur fait correspondre à la fois les URL et les URL « déroulées » (unwound) dans un Post.                |
+|emoji|Fait correspondre un emoji dans le corps d’un Post. Les emojis relèvent d’une correspondance tokenisée, ce qui signifie que votre emoji sera comparé au texte tokenisé du corps du Post — la tokenisation est basée sur la ponctuation, les symboles/emoji et les caractères séparateurs du plan Unicode de base. Par exemple, un Post avec le texte « I like <Icon icon="pizza-slice" iconType="solid" /> » serait découpé en jetons comme suit : I, like, <Icon icon="pizza-slice" iconType="solid" />. Ces jetons seraient ensuite comparés à l’emoji utilisé dans votre règle. Notez que si un emoji possède une variante, vous devez utiliser des « guillemets » pour l’ajouter à une règle. |
+|"correspondance exacte de phrase" |Fait correspondre la phrase tokenisée et ordonnée dans le corps ou les URL d’un Post. Il s’agit d’une correspondance tokenisée, ce qui signifie que votre chaîne de mots-clés sera comparée au texte tokenisé du corps du Post — la tokenisation est basée sur les caractères Unicode de ponctuation, de symboles et de séparateurs du plan de base. <br /><br />Note : La ponctuation n’est pas tokenisée et est traitée comme un espace blanc.<br />Par exemple, « #hashtag » entre guillemets correspondra à « hashtag » mais pas à #hashtag (utilisez l’opérateur # hashtag sans guillemets pour faire correspondre de vrais hashtags).<br />Par exemple, « $cashtag » entre guillemets correspondra à « cashtag » mais pas à $cashtag (utilisez l’opérateur $ cashtag sans guillemets pour faire correspondre de vrais cashtags).<br />Par exemple, « Love Snow » correspondra à « #love #snow »<br />Par exemple, « #Love #Snow » correspondra à « love snow »<br /><br />Note : Cet opérateur fait correspondre à la fois les URL et les URL « déroulées » (unwound) dans un Post.|
+|"motclé1 motclé2"~N|Couramment appelé opérateur de proximité, il fait correspondre un Post où les mots-clés sont séparés d’au plus N jetons. <br /><br />Si les mots-clés sont dans l’ordre inverse, ils ne peuvent pas être séparés de plus de N-2 jetons. Peut contenir n’importe quel nombre de mots-clés entre guillemets. N ne peut pas être supérieur à 6.<br /><br />Notez que cet opérateur est uniquement disponible dans les API de recherche Enterprise.|
+|from:| Fait correspondre tout Post provenant d’un utilisateur spécifique.<br />La valeur doit être l’ID de compte numérique X de l’utilisateur ou son nom d’utilisateur (sans le caractère @). Voir [ICI](/fr/x-api/users/lookup/introduction) ou [ICI](http://gettwitterid.com/) pour des méthodes permettant de rechercher des ID de compte numériques X.|
+|to:|Fait correspondre tout Post qui est une réponse à un utilisateur particulier.<br /><br />La valeur doit être l’ID de compte numérique de l’utilisateur ou son nom d’utilisateur (sans le caractère @). Voir [ICI](/fr/x-api/users/lookup/introduction) pour des méthodes permettant de rechercher des ID de compte numériques X.|
+|url:|Effectue une correspondance tokenisée (mot-clé/phrase) sur les URL développées d’un Post (similaire à url\_contains). Les jetons et les expressions contenant de la ponctuation ou des caractères spéciaux doivent être entre guillemets doubles. Par exemple, url:"/developer". Bien que généralement déconseillé, si vous souhaitez faire correspondre un protocole précis, placez-le entre guillemets doubles : url:"https://developer.x.com".<br />**Remarque :** Lors de l’utilisation de PowerTrack ou de Historical PowerTrack, cet opérateur fera correspondre les URL présentes dans le Post d’origine d’un Post cité. Par exemple, si votre règle inclut url:"developer.x.com" et qu’un Post contient cette URL, tous les Quote Tweets de ce Post seront inclus dans les résultats. Ce n’est pas le cas avec la Search API.|
+|#|Fait correspondre tout Post contenant le hashtag indiqué.<br /><br />Cet opérateur effectue une correspondance exacte, PAS une correspondance tokenisée, ce qui signifie que la règle « 2016 » fera correspondre les posts avec le hashtag exact « 2016 », mais pas ceux avec le hashtag « 2016election ».<br /><br />Remarque : l’opérateur de hashtag s’appuie sur l’extraction d’entités de X pour identifier les hashtags, plutôt que d’extraire le hashtag du texte lui-même. Voir [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#hashtags) pour plus d’informations sur les attributs JSON des entités X.|
+|@|Fait correspondre tout Post qui mentionne le nom d’utilisateur indiqué.<br />L’opérateur to: renvoie un sous-ensemble de correspondances de l’opérateur @mention.|
+|$|Fait correspondre tout Post contenant le « cashtag » spécifié (où le premier caractère du jeton est « $ »).<br /><br />Notez que l’opérateur de cashtag s’appuie sur l’extraction de l’entité « symbols » de X pour faire correspondre les cashtags, plutôt que d’essayer d’extraire le cashtag du texte lui-même. Voir [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#symbols) pour plus d’informations sur les attributs JSON des entités X.<br /><br />Notez que cet opérateur n’est disponible que dans les API de recherche `enterprise`.<br /><br />|
+|retweets\_of:|_Alias disponible_ : retweets\_of\_user:<br />Fait correspondre les Posts qui sont des retweets d’un utilisateur donné. Accepte à la fois les noms d’utilisateur et les identifiants numériques de compte X (PAS les identifiants de statut de Post). Voir [ICI](/fr/x-api/users/lookup/introduction) pour les méthodes de recherche des identifiants numériques de compte X.|
+|lang:|Fait correspondre les Posts que X a classés dans une langue particulière (si, et seulement si, le post a été classé). Il est important de noter que chaque Post n’est actuellement classé que dans une seule langue, donc appliquer un ET logique sur plusieurs langues ne renverra aucun résultat.<br /><br />**Remarque :** si aucune classification de langue ne peut être effectuée, le résultat renvoyé est « und » (pour undefined/indéfini).<br /><br />La liste ci-dessous présente les langues actuellement prises en charge et leur identifiant de langue BCP 47 correspondant :<br />
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Amharique : am | Allemand : de | Malayalam : ml | Slovaque : sk |
+| Arabe : ar | Grec : el | Maldivien : dv | Slovène : sl |
+| Arménien : hy | Gujarati : gu | Marathi : mr | Kurde sorani : ckb |
+| Basque : eu | Créole haïtien : ht | Népali : ne | Espagnol : es |
+| Bengali : bn | Hébreu : iw | Norvégien : no | Suédois : sv |
+| Bosniaque : bs | Hindi : hi | Oriya : or | Tagalog : tl |
+| Bulgare : bg | Hindi latinisé : hi-Latn | Pendjabi : pa | Tamoul : ta |
+| Birman : my | Hongrois : hu | Pachtou : ps | Télougou : te |
+| Croate : hr | Islandais : is | Persan : fa | Thaï : th |
+| Catalan : ca | Indonésien : in | Polonais : pl | Tibétain : bo |
+| Tchèque : cs | Italien : it | Portugais : pt | Chinois traditionnel : zh-TW |
+| Danois : da | Japonais : ja | Roumain : ro | Turc : tr |
+| Néerlandais : nl | Kannada : kn | Russe : ru | Ukrainien : uk |
+| Anglais : en | Khmèr : km | Serbe : sr | Ourdou : ur |
+| Estonien : et | Coréen : ko | Chinois simplifié : zh-CN | Ouïghour : ug |
+| Finnois : fi | Lao : lo | Sindhi : sd | Vietnamien : vi |
+| Français : fr | Letton : lv | Sinhala : si | Gallois : cy |
+| Géorgien : ka | Lituanien : lt |     |
+
+|||
+|:----|:---|
+|place:|Fait correspondre les Posts étiquetés avec l’emplacement spécifié ou l’ID de lieu X (voir exemples). Les noms de lieux composés de plusieurs mots (« New York City », « Palo Alto ») doivent être mis entre guillemets.<br /><br />**Remarque :** Consultez le point de terminaison public [GET geo/search](https://developer.x.com/en/docs/x-api/v1/geo/place-information/overview) pour savoir comment obtenir des ID de lieu X.<br /><br />**Remarque :** Cet opérateur ne correspond pas aux Retweets, car les lieux des Retweets sont rattachés au Post d’origine. Il ne correspond pas non plus aux lieux rattachés au Post d’origine d’un Quote Tweet.|
+|place\_country:|Fait correspondre les Posts dont le code pays associé à un [lieu](https://developer.x.com/en/docs/x-api/v1/geo/place-information/overview) étiqueté correspond au code ISO alpha-2 fourni.<br /><br />Les codes ISO valides sont disponibles ici : [http://en.wikipedia.org/wiki/ISO\_3166-1\_alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)<br /><br />**Remarque :** Cet opérateur ne correspond pas aux Retweets, car les lieux des Retweets sont rattachés au Post d’origine. Il ne correspond pas non plus aux lieux rattachés au Post d’origine d’un Quote Tweet.|
+|point\_radius:\[lon lat radius]|Fait correspondre l’emplacement exact (x, y) du Post lorsqu’il est présent et, sur X, un polygone géographique « Place », lorsque le lieu est entièrement contenu dans la région définie.<br /><br />\* Les unités de rayon prises en charge sont les miles (mi) et les kilomètres (km).<br />\* Le rayon doit être inférieur à 25 mi.<br />\* La longitude est comprise entre ±180.<br />\* La latitude est comprise entre ±90.<br />\* Toutes les coordonnées sont en degrés décimaux.<br />\* Les arguments de règle sont placés entre crochets et séparés par des espaces.<br /><br />**Remarque :** Cet opérateur ne correspond pas aux Retweets, car les lieux des Retweets sont rattachés au Post d’origine. Il ne correspond pas non plus aux lieux rattachés au Post d’origine d’un Quote Tweet.|
+|bounding\_box:\[west\_long south\_lat east\_long north\_lat]|Alias disponible : geo\_bounding\_box:<br /><br />Fait correspondre l’emplacement exact (long, lat) du Post lorsqu’il est présent et, sur X, un polygone géographique « Place », lorsque le lieu est entièrement contenu dans la région définie.<br /><br />\* west\_long et south\_lat représentent le coin sud-ouest de la boîte englobante, où west\_long est la longitude de ce point et south\_lat la latitude.<br />\* east\_long et north\_lat représentent le coin nord-est de la boîte englobante, où east\_long est la longitude de ce point et north\_lat la latitude.<br />\* La largeur et la hauteur de la boîte englobante doivent être inférieures à 25 mi.<br />\* La longitude est comprise entre ±180.<br />\* La latitude est comprise entre ±90.<br />\* Toutes les coordonnées sont en degrés décimaux.<br />\* Les arguments de règle sont placés entre crochets et séparés par des espaces.<br />**Remarque :** Cet opérateur ne correspond pas aux Retweets, car les lieux des Retweets sont rattachés au Post d’origine. Il ne correspond pas non plus aux lieux rattachés au Post d’origine d’un Quote Tweet.
+|profile\_country:|Correspondance exacte avec le champ « countryCode » de l’objet « address » dans l’enrichissement Profile Geo.<br />Utilise un ensemble normalisé de codes pays à deux lettres, basé sur la spécification ISO‑3166‑1‑alpha‑2. Cet opérateur est fourni à la place d’un opérateur pour le champ « country » de l’objet « address » afin d’être concis.|
+|profile\_region:|Fait correspondre le champ « region » de l’objet « address » dans l’enrichissement Profile Geo.<br /><br />Il s’agit d’une correspondance exacte sur la chaîne complète. Il n’est pas nécessaire d’échapper les caractères avec une barre oblique inverse. Par exemple, pour faire correspondre une valeur contenant une barre oblique, utilisez « one/two », et non « one\\/two ». Utilisez des guillemets doubles pour faire correspondre des sous-chaînes contenant des espaces ou de la ponctuation.|
+|profile\_locality:|Fait correspondre le champ « locality » de l’objet « address » dans l’enrichissement Profile Geo.<br /><br />Il s’agit d’une correspondance exacte sur la chaîne complète. Il n’est pas nécessaire d’échapper les caractères avec une barre oblique inverse. Par exemple, pour faire correspondre une valeur contenant une barre oblique, utilisez « one/two », et non « one\\/two ». Utilisez des guillemets doubles pour faire correspondre des sous-chaînes contenant des espaces ou de la ponctuation.|
+
+<Info>
+  **REMARQUE :** les opérateurs is: et has: ne peuvent pas être utilisés seuls avec l’API de recherche et doivent être combinés à une autre clause.
+
+  Par exemple, @XDeevelopers has:links
+</Info>
+
+|     |     |
+| :--- | :--- |
+| has:geo | Correspond aux Posts qui contiennent des données de géolocalisation spécifiques au Post fournies par X. Il peut s’agir soit de coordonnées « geo » (latitude/longitude), soit d’un « location » sous la forme d’un [« Place »](https://dev.x.com/overview/api/places) X, avec nom d’affichage associé, polygone géographique et autres champs.<br /><br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:profile\_geo | _Alias disponible_ : has:derived\_user\_geo<br /><br />Correspond aux Posts qui contiennent des métadonnées [Profile Geo](http://support.gnip.com/enrichments/profile_geo.html), quelle qu’en soit la valeur.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:links | Cet opérateur correspond aux Posts qui contiennent des liens dans le corps du message.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| is:retweet | Ne renvoie que les retweets explicites qui correspondent à une règle. Peut également être utilisé en négation pour exclure les retweets correspondant à une règle et ne livrer que le contenu original.<br /><br />Cet opérateur recherche uniquement de vrais retweets, qui utilisent la fonctionnalité de retweet de X. Les Tweets cités et les Posts modifiés qui n’utilisent pas la fonctionnalité de retweet de X ne seront pas pris en compte par cet opérateur.<br /><br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| is:reply | Opérateur permettant de filtrer les Posts selon qu’ils sont ou non des réponses à des Posts. Ne renvoie que les réponses explicites qui correspondent à une règle. Peut également être utilisé en négation pour exclure les réponses correspondant à une règle.<br /><br />Notez que cet opérateur est disponible pour la recherche premium payante et entreprise, et n’est pas disponible dans les environnements Sandbox de développement.<br /><br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| is:quote | Ne renvoie que les Tweets cités, ou les Posts qui référencent un autre Post, identifiés par "is\_quote\_status":true dans les charges utiles des Posts. Peut également être utilisé en négation pour exclure les Tweets cités.  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| is:verified | Ne renvoie que les Posts dont l’auteur est « vérifié » par X. Peut également être utilisé en négation pour exclure les Posts dont l’auteur est vérifié.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:mentions | Correspond aux Posts qui mentionnent un autre utilisateur X.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:hashtags | Correspond aux Posts qui contiennent un hashtag.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:media | _Alias disponible_ : has:media\_link<br /><br />Correspond aux Posts qui contiennent une URL de média classée par X. Par exemple, pic.x.com.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:images | Correspond aux Posts qui contiennent une URL de média classée par X. Par exemple, pic.x.com.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé conjointement avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:videos | _Alias disponible_ : has:video\_link<br /><br />Correspond aux posts qui contiennent des vidéos natives X, téléversées directement sur X. Cela n’inclut pas les vidéos créées avec Vine ou Periscope, ni les posts contenant des liens vers d’autres plateformes d’hébergement vidéo.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+| has:symbols | Correspond aux posts qui contiennent un cashtag (avec un caractère « $ » en préfixe, par exemple $tag). Notez que cet opérateur n’est disponible que dans les API de recherche `enterprise`.  <br />  <br /><br />**Remarque :** Lors de l’utilisation de l’API de recherche, cet opérateur doit être utilisé avec d’autres opérateurs qui n’incluent pas `is:` ou `has:`. |
+
+<div id="product-overview">
+  ### Présentation du produit
+</div>
+
+La Recherche sur l’archive complète pour l’offre entreprise a été lancée en août 2015, et la version pour l’offre premium en février 2018. Ces produits de recherche permettent aux clients d’accéder immédiatement à n’importe quel Post public. Avec la Recherche sur l’archive complète, vous soumettez une requête unique et recevez une réponse dans le style REST classique. La Recherche sur l’archive complète met en œuvre une pagination jusqu’à 500 Posts par réponse et prend en charge une limite de débit jusqu’à 60 requêtes par minute (rpm) pour l’offre premium et 120 rpm pour l’offre entreprise. Compte tenu de ces paramètres, la Recherche sur l’archive complète permet de récupérer rapidement des Posts, et à grande échelle via des requêtes concurrentes.
+
+Contrairement à Historical PowerTrack, dont l’archive repose sur un ensemble de fichiers plats de Posts sur disque, l’archive de Posts de la Recherche sur l’archive complète s’apparente davantage à une base de données en ligne. Comme toute base de données, elle prend en charge l’exécution de requêtes sur son contenu. Elle utilise également un index afin de permettre une récupération de données hautes performances. Avec les endpoints de la Recherche sur l’archive complète, le langage de requête est composé d’opérateurs PowerTrack, et chacun de ces opérateurs correspond à un attribut JSON de Post qui est indexé.
+
+Comme pour Historical PowerTrack, certains attributs de Post sont actualisés au moment où une requête est effectuée. Par exemple, si vous utilisez l’API Search pour accéder aujourd’hui à un Post publié en 2010, la description du profil de l’utilisateur, l’emplacement « domicile » du compte, le nom d’affichage et les métriques du Post pour les favoris et les retweets seront mis à jour avec les valeurs actuelles plutôt que celles de 2010. 
+
+<div id="metadata-timelines">
+  ### Chronologies des métadonnées
+</div>
+
+Ci-dessous, une chronologie indiquant à partir de quand les opérateurs de l’endpoint de Recherche sur l’archive complète commencent à faire correspondre. Dans certains cas, la mise en correspondance par les opérateurs a commencé bien après qu’une « convention de communication » est devenue courante sur X. Par exemple, les @Replies ont émergé comme convention d’usage en 2006, mais ne sont devenues un _objet de première classe_ ou un _événement_ avec un JSON « pris en charge » qu’au début de 2007. En conséquence, faire correspondre les @Replies en 2006 nécessite d’examiner le corps du Post, plutôt que de s’appuyer sur les opérateurs PowerTrack `to:` et `in_reply_to_status_id:`.
+
+Les détails fournis ici ont été générés à l’aide de la Recherche sur l’archive complète (résultat de centaines de recherches). Cette chronologie n’est pas complète ni précise à 100 %. Si vous identifiez une autre « date d’apparition » de filtrage/métadonnées fondamentale pour votre cas d’usage, veuillez nous en informer.
+
+Notez que l’index de recherche sous-jacent peut être reconstruit. En conséquence, ces détails de chronologie sont susceptibles d’évoluer.
+
+<div id="2006">
+  #### 2006
+</div>
+
+- 26 mars - `lang:`. Exemple de métadonnées de Post « rétroremplies » lors de la génération de l’index de recherche.
+- 13 juillet - `has:mentions` commence à correspondre.
+- 6 octobre - `has:symbols`. Les $cashtags (ou « symbols ») pour évoquer des symboles boursiers ne deviennent courants qu’au début de 2009. D’ici là, la plupart des usages étaient probablement de l’argot (p. ex., $slang).
+- 26 octobre - `has:links` commence à correspondre.
+- 23 novembre - `has:hashtags` commence à correspondre.
+
+<div id="2007">
+  #### 2007
+</div>
+
+- 30 janvier - Première @reply de « premier ordre » (in\_reply\_to\_user\_id), `reply_to_status_id:` commence à faire correspondre.
+- 23 août - Les hashtags émergent comme convention courante pour organiser les sujets et les conversations. Première utilisation réelle une semaine plus tard.
+
+<div id="2009">
+  #### 2009
+</div>
+
+- 15 mai - `is:retweet`. Notez que cet opérateur commence à s’appliquer avec la version « bêta » des Retweets officiels et son motif « Via @ ». Pendant cette période bêta, le verbe du Post est « post » et le Post d’origine n’est pas inclus dans le payload.
+- 13 août - La version finale des Retweets officiels est publiée avec le motif « RT @ », un verbe défini sur « share », et l’attribut « retweet\_status » contenant le Post d’origine (ce qui double approximativement la taille du payload JSON).
+
+<div id="2010">
+  #### 2010
+</div>
+
+- 6 mars - Les opérateurs géo `has:geo`, `bounding_box:` et `point_radius:` commencent à faire correspondre des résultats.
+- 28 août - `has:videos` (Jusqu’en février 2015, cet opérateur fait correspondre les Posts contenant des liens vers certains sites d’hébergement vidéo comme youtube.com, vimeo.com et vivo.com).
+
+<div id="2011">
+  #### 2011
+</div>
+
+- 20 juillet - `has:media` et `has:images` commencent à faire correspondre. Les photos natives sont officiellement annoncées le 9 août 2010.
+
+<div id="2014">
+  #### 2014
+</div>
+
+- 3 décembre - (Environ) _certaines_ [métadonnées d’URL enrichies](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) avec titre et description HTML commencent à apparaître dans les charges utiles. Les métadonnées enrichies se sont pleinement imposées en mai 2016.
+
+<div id="2015">
+  #### 2015
+</div>
+
+- 10 février - `has:videos` correspond aux vidéos « natives » de X.
+- 17 février - `has:profile_geo`, `profile_country:`, `profile_region:`, `profile_locality:` Les opérateurs [Profile Geo](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#profile-geo) commencent à faire correspondre.
+- 17 février - `place_country:` et `place:` Les opérateurs de géolocalisation des posts commencent à faire correspondre.
+
+<div id="2016">
+  #### 2016
+</div>
+
+- 1er mai - [Métadonnées d’URL améliorées](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) plus largement disponibles et officiellement annoncées dans le cadre du [lancement de Gnip 2.0 en août 2016](https://blog.x.com/2016/gnip-2-is-here). Aucun opérateur associé pour ces métadonnées avec les API de recherche.
+
+<div id="2017">
+  #### 2017
+</div>
+
+- 22 février - Les métadonnées de sondage sont disponibles dans un format natif enrichi. Aucun opérateur associé pour ces métadonnées.
+
+<div id="2022">
+  #### 2022
+</div>
+
+- 27 septembre - Tous les objets Post créés depuis cette date disposent de métadonnées de post modifié. Tous les endpoints Enterprise qui renvoient des objets Post ont été mis à jour à compter de cette date pour inclure ces métadonnées. Les métadonnées fournies incluent les objets `edit_history` et `edit_controls`. Ces métadonnées ne seront pas renvoyées pour les posts créés avant le 27 septembre 2022. Actuellement, aucun opérateur Enterprise n’est disponible pour cibler ces métadonnées. Pour en savoir plus sur les métadonnées d’édition de posts, consultez la page [Principes fondamentaux de l’édition de posts](/fr/x-api/fundamentals/edit-posts).
+
+<div id="2022">
+  #### 2022
+</div>
+
+- 29 septembre - Tous les objets Post créés depuis cette date disposent des métadonnées de Post modifié. Tous les endpoints Enterprise qui renvoient des objets Post ont été mis à jour à partir de cette date pour inclure ces métadonnées. Les métadonnées d’édition fournies incluent les objets edit\_history et edit\_controls. Ces métadonnées ne seront pas renvoyées pour les Posts créés avant le 27 septembre 2022. Actuellement, aucun opérateur Enterprise ne correspond à ces métadonnées. Pour en savoir plus sur les métadonnées de Post modifié, consultez la page [Principes de base des Posts modifiés](/fr/x-api/fundamentals/edit-posts).
+
+<div id="filtering-tips">
+  ### Conseils de filtrage
+</div>
+
+Compte tenu de toutes les informations de chronologie ci-dessus, il est clair qu’il y a de nombreux détails à prendre en compte lors de la rédaction de filtres pour les API de recherche. Deux éléments clés sont à considérer :
+
+- Certaines métadonnées ont des dates d’introduction, ce qui peut entraîner des _faux négatifs_. Cela concerne les recherches utilisant des opérateurs dépendant de métadonnées qui n’existaient pas pendant toute ou partie de la période recherchée. Par exemple, si vous recherchez des Posts avec l’opérateur `has:images`, vous n’aurez aucune correspondance pour les périodes antérieures à juillet 2011. Cela s’explique par le fait que cet opérateur correspond aux photos _natives_ (jointes à un Post via l’interface utilisateur X). Pour un ensemble de données plus complet de Posts de partage de photos, les filtres appliqués avant juillet 2011 devraient inclure des clauses de règle correspondant aux URL d’hébergeurs de photos courants.
+- Certaines métadonnées ont été complétées a posteriori avec des informations provenant d’une période _postérieure_ à la publication sur X.
+
+Plusieurs types d’attributs sont fréquemment ciblés lors de la création de requêtes PowerTrack :
+
+- Profils X
+- Posts originaux ou partagés
+- Classification de la langue du Post
+- Géoréférencement des Posts
+- Médias des liens partagés
+
+Certains de ces attributs ont un comportement spécifique au produit, tandis que d’autres ont un comportement identique. Voir ci-dessous pour plus de détails.
+
+<div id="x-profiles">
+  #### Profils X
+</div>
+
+Les API de recherche renvoient des posts historiques avec les données de profil utilisateur telles qu’elles sont au moment de la récupération. Si vous demandez un post de 2014, les métadonnées du profil de l’utilisateur refléteront l’état du profil au moment de la requête.
+
+<div id="original-posts-and-retweets">
+  #### Posts originaux et Retweets
+</div>
+
+L’opérateur PowerTrack `_is:retweet_` permet d’inclure ou d’exclure les Retweets. Les utilisateurs de cet opérateur doivent appliquer deux stratégies de correspondance (ou non-correspondance) des Retweets pour les données antérieures à août 2009. Avant août 2009, il faut vérifier le contenu du Post lui‑même, en utilisant une correspondance d’expression exacte, afin de détecter le motif « @RT » (en pratique, si vous filtrez des Retweets entre mai et août 2009, le motif « Via @ » doit être inclus). Pour les périodes postérieures à août 2009, l’opérateur _is:retweet_ est disponible.
+
+<div id="post-language-classifications">
+  #### Classifications linguistiques des posts
+</div>
+
+Pour filtrer selon la classification linguistique d’un post, les produits historiques de X diffèrent sensiblement. Lors de la création de l’archive de recherche, tous les posts ont été complétés rétroactivement avec la classification linguistique de X. Par conséquent, l’opérateur lang: est disponible pour l’ensemble de l’archive des posts.
+
+<div id="geo-referencing-posts">
+  #### Géoréférencement des posts
+</div>
+
+Il existe trois principales façons de géoréférencer des posts :
+
+- **Références géographiques dans le message du post.** Faire correspondre des références géographiques présentes dans le message du post, bien que souvent la méthode la plus difficile puisqu’elle dépend de connaissances locales, est possible sur l’ensemble de l’archive de posts. [Voici](https://x.com/biz/statuses/28311) un exemple de correspondance géoréférencée datant de 2006 pour la zone de San Francisco, basé sur un filtre « golden gate ».
+
+- **Posts géolocalisés par l’utilisateur.** Avec les API de recherche, la possibilité de commencer à faire correspondre des posts à l’aide de certains opérateurs géographiques a débuté en mars 2010, et avec d’autres en février 2015 :
+
+  - 6 mars 2010 : `has:geo`, `bounding_box:` et `point_radius:`
+  - 17 février 2015 : `place_country:` et `place:`
+
+- **Lieu « domicile » du profil du compte défini par l’utilisateur.** Les opérateurs géographiques de profil sont disponibles à la fois dans Historical PowerTrack et dans les API de recherche. Avec les API de recherche, ces métadonnées géographiques de profil sont disponibles à partir de février 2015. Pour les posts publiés avant la disponibilité des métadonnées de profil, l’opérateur `bio_location:` est disponible et peut être utilisé pour faire correspondre des saisies utilisateur non normalisées.
+
+<div id="shared-links-and-media">
+  #### Liens partagés et médias
+</div>
+
+En mars 2012, l’enrichissement « URL étendue » a été introduit. Avant cette date, les payloads de Post ne contenaient que l’URL telle que fournie par l’utilisateur. Ainsi, si l’utilisateur incluait une URL raccourcie, il devenait difficile d’établir une correspondance avec les URL (étendues) d’intérêt. Avec les API de recherche, ces métadonnées sont disponibles à partir de mars 2012.
+
+En juillet 2016, l’enrichissement « URL améliorée » a été introduit. Cette version fournit le titre et la description HTML d’un site web dans le payload du Post, ainsi que des opérateurs pour effectuer des correspondances sur ces éléments. Ces métadonnées commencent à apparaître en décembre 2014.
+
+En septembre 2016, X a introduit les « pièces jointes natives » : un lien partagé terminal n’est pas comptabilisé dans la limite de 140 caractères d’un Post. Les deux enrichissements d’URL s’appliquent toujours à ces liens partagés.
+
+Voici à partir de quand les opérateurs de recherche associés commencent à donner des correspondances :
+
+- 26 octobre 2006 - `has:links`
+- 20 juillet 2011 - `has:images` et `has:media`
+- Août 2011 - `url:` avec l’[enrichissement des URL étendues](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments) Dès septembre 2006, `(url:"spotify.com" OR url:gnip OR url:microsoft OR url:google OR url:youtube)` correspond à http://x.com/Adam/statuses/16602, même s’il n’existe aucune métadonnée urls\[] dans twitter\_entities et les objets gnip. « youtube.com » est un exemple de contenu de message qui, sans métadonnées urls\[], correspond à url:youtube.
+- 10 février 2015 - `has:videos` pour les vidéos natives. Entre le 28/08/2010 et le 10/02/2015, cet opérateur correspond aux Posts contenant des liens vers certains sites d’hébergement vidéo tels que youtube.com, vimeo.com et vivo.com.
+- 1er mai 2016 - `url_title:` et `url_description:`, basés sur l’[enrichissement des URL améliorées](/fr/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments), généralement disponibles. Les premières métadonnées d’URL améliorées commencent à apparaître en décembre 2014.
+
+<div id="frequently-asked-questionsfaq">
+  ## Foire aux questions (FAQ)
+</div>
+
+<div id="general-search-post-api-questions">
+  ### Questions générales sur l’API de recherche de posts
+</div>
+
+<AccordionGroup>
+  <Accordion title="The number of Posts I receive with the data endpoint doesn't match the number of Posts identified by the counts endpoint. Why is this the case?">
+    Il existe une différence connue entre les résultats fournis par le point de terminaison de comptage et celui de données. Vous pouvez constater un écart dans vos résultats, car le point de terminaison de comptage est pré-conformité (c’est-à-dire qu’il ne tient pas compte d’éléments comme les posts supprimés, le « scrub\_geo », etc.), tandis que le point de terminaison de données est conforme au moment de la livraison et prend en compte tous les événements de conformité.
+  </Accordion>
+
+  <Accordion title="I didn't receive a Post that should match my query. Why?">
+    Il existe plusieurs raisons pour lesquelles cela a pu se produire, notamment :
+
+    1. le post que vous vous attendiez à voir provient d’un compte protégé
+    2. le point de terminaison de données tient compte de tous les événements de conformité (ce qui signifie que les posts supprimés, les géolocalisations épurées, etc., ne seront pas inclus dans la réponse).
+  </Accordion>
+
+  <Accordion title="My query matched a Post but includes a keyword that I negated. Why is this happening?">
+    Cela est probablement dû à une utilisation incorrecte de nos règles et filtres premium. Veuillez consulter notre documentation [ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering) et vous assurer de bien comprendre les restrictions liées à la création de règles.
+  </Accordion>
+
+  <Accordion title="Are there any libraries that I can use to get started using the Search Post APIs?">
+    Oui, il y en a, notamment :
+
+    - [Tweepy](http://www.tweepy.org/) - utile pour utiliser le produit de recherche standard/Posts (Python)
+    - [X API](https://github.com/geduldig/TwitterAPI) - utile pour utiliser les API standard de recherche de posts (Python)
+    - [Search Posts Python](https://github.com/xdevplatform/search-tweets-python) et [Search Posts Ruby](https://github.com/xdevplatform/search-tweets-ruby) - deux bons outils pouvant être utilisés avec les API de recherche de posts pour l’entreprise (y compris v2)
+
+    Toutes les bibliothèques que nous prenons directement en charge se trouvent sur notre page GitHub xdevplatform : [https://github.com/xdevplatform](https://github.com/xdevplatform).
+
+    Il existe [d’autres bibliothèques tierces](/fr/resources/fundamentals/authentication#oauth-1-0a-2) qui peuvent également être utiles ; toutefois, veuillez noter que certaines peuvent ne pas fonctionner avec nos produits premium et entreprise.
+  </Accordion>
+
+  <Accordion title="Will I ever receive less volume of Posts than the value I set as the `maxResults` in my request to the data endpoint?">
+    Oui. Notre point de terminaison de données pagine soit au `maxResults` spécifié, soit après 30 jours.
+
+    Par exemple, si vous avez 800 Posts sur une période de 30 jours donnée, vous devrez effectuer deux requêtes pour récupérer l’ensemble des résultats, car le nombre maximal de Posts pouvant être renvoyés par requête est de 500 (`maxResults`). Et si vous n’avez que 400 Posts le premier mois, puis 100 Posts le deuxième mois, vous devrez également utiliser deux requêtes pour récupérer l’ensemble des résultats, car la pagination intervient après une période de 30 jours, même si la première requête renvoie moins de Posts que le `maxResults` spécifié.
+  </Accordion>
+
+  <Accordion title="In what order are the matching Posts returned?">
+    Les Posts sont renvoyés par ordre antichronologique. Par exemple, la première page de résultats affichera les Posts les plus récents correspondant à la requête, et la pagination se poursuivra jusqu’à ce que les dates des résultats atteignent le `fromDate` demandé initialement.
+  </Accordion>
+
+  <Accordion title="How do Edit Posts impact my usage and billing?">
+    Seul le post original sera pris en compte à des fins de facturation. Toute modification ultérieure sera ignorée et ne sera pas comptabilisée dans votre activité globale.
+
+    `Enterprise`
+  </Accordion>
+
+  <Accordion title="I'm interested in learning more about the pricing of the enterprise Search Post API and in applying for this offering. How can I do this?">
+    Nos solutions d’entreprise sont personnalisées, avec une tarification prévisible, pour répondre aux besoins de votre activité. Veuillez faire une demande [ici](/fr/x-api/enterprise-gnip-2.0/enterprise-gnip) pour plus d’informations.
+  </Accordion>
+
+  <Accordion title="How do I build a rule set that matches my use case?">
+    - Veuillez consulter la documentation de nos API d’entreprise Search Post [ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#enterprise-search-apis)
+    - Des informations utiles sur les règles et le filtrage sont disponibles [ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators)
+    - Des informations utiles sur l’utilisation du point de terminaison de données sont disponibles [ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#data-endpoint)
+    - Des informations utiles sur l’utilisation du point de terminaison des décomptes sont disponibles [ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#counts-endpoint)
+    - Une liste des opérateurs disponibles est accessible [ici](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators)
+  </Accordion>
+
+  <Accordion title="I have exceeded my request caps/limits for the month, but I need to access more data - what can I do?">
+    Veuillez contacter votre responsable de compte chez X, qui pourra vous aider à ce sujet.
+  </Accordion>
+</AccordionGroup>
+
+<div id="error-troubleshooting-guide">
+  ### Guide de dépannage des erreurs
+</div>
+
+**Code 404 - Non trouvé**
+
+1. Assurez-vous d’utiliser les bons paramètres pour chaque endpoint (par exemple, le champ `buckets` ne peut être utilisé qu’avec l’endpoint de comptage, pas avec l’endpoint de données).
+2. Vérifiez à nouveau que les champs `:product`, `:account_name` et `:label` sont corrects. Vous pouvez trouver votre champ `:label` dans la console GNIP (clients entreprise uniquement).
+
+<div id="api-reference">
+  ## Référence de l’API
+</div>
+
+<div id="enterprise-search-apis">
+  ### API de recherche Enterprise
+</div>
+
+Il existe deux API de recherche Enterprise :
+
+- 30-Day Search API - fournit les Tweets publiés au cours des 30 derniers jours.
+- Full-Archive Search API - fournit des Tweets remontant jusqu’à 2006, en commençant par le premier Tweet publié en mars 2006.
+
+Ces API de recherche partagent une conception commune et la documentation ci-dessous s’applique aux deux. Notez que pour les Tweets créés à partir du 29 septembre 2022, les objets Tweet incluent des métadonnées d’édition décrivant leur historique de modifications. Consultez la page des fondamentaux ["Edit Tweets"](/fr/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets) pour plus de détails.
+
+Ci-dessous, vous trouverez des informations importantes nécessaires pour l’intégration avec les API de recherche Enterprise :
+
+- Méthodes pour demander des données et des décomptes de Tweets
+- Authentification
+- Pagination
+- Paramètres de requête API et exemples de requêtes
+- Charges utiles JSON de réponse et exemples de réponses
+- Codes de réponse HTTP
+
+Les API Enterprise offrent un accès à faible latence, fidèle et basé sur requêtes à l’archive des Tweets. La seule différence entre les deux API est la période sur laquelle vous pouvez effectuer des recherches, soit les 30 jours précédents, soit depuis 2006. Les périodes peuvent être précisées à la minute près. Les données de Tweets sont renvoyées par ordre chronologique inverse, en commençant par le Tweet le plus récent correspondant à votre requête. Les Tweets sont disponibles via l’API de recherche environ 30 secondes après leur publication.
+
+<div id="methods">
+  #### Méthodes
+</div>
+
+L’URI de base pour la recherche entreprise est `https://gnip-api.x.com/search/`.
+
+| Méthode | Description |
+| :--- | :--- |
+| [POST /search/:product/accounts/:account\_name/:label](#SearchRequests) | Récupère les Tweets des 30 derniers jours correspondant à la règle PowerTrack spécifiée. |
+| [POST /search/:product/accounts/:account\_name/:label/counts](#CountRequests) | Récupère le nombre de Tweets des 30 derniers jours correspondant à la règle PowerTrack spécifiée. |
+
+Où :
+
+- `:product` indique le point de terminaison de recherche auquel vous envoyez des requêtes, soit `30day`, soit `fullarchive`.
+- `:account_name` est le nom (sensible à la casse) associé à votre compte, tel qu’affiché sur console.gnip.com
+- `:label` est le libellé (sensible à la casse) associé à votre point de terminaison de recherche, tel qu’affiché sur console.gnip.com
+
+Par exemple, si le compte TwitterDev dispose du produit de recherche 30 jours avec le libellé « prod » (abréviation de production), les points de terminaison de recherche seraient :
+
+- Point de terminaison des données : [https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod.json](https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod.json)
+- Point de terminaison des décomptes : [https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod/counts.json](https://gnip-api.x.com/search/30day/accounts/TwitterDev/prod/counts.json)
+
+Votre point de terminaison complet de l’API de recherche entreprise est affiché sur [https://console.gnip.com](https://console.gnip.com).
+
+Ci-dessous figurent plusieurs exemples de requêtes utilisant un utilitaire HTTP simple appelé curl. Ces exemples utilisent des URL avec `:product`, `:account_name` et `:label`. Pour utiliser ces exemples, veillez à mettre à jour les URL avec vos informations.
+
+<div id="authentication">
+  #### Authentification
+</div>
+
+Toutes les requêtes adressées aux API de recherche Enterprise doivent utiliser l’_authentification HTTP Basic_, construite à partir d’une adresse e‑mail et d’un mot de passe valides utilisés pour vous connecter à votre compte sur [https://console.gnip.com](https://console.gnip.com). Les identifiants doivent être transmis dans l’en‑tête _Authorization_ pour chaque requête.
+
+<div id="requestresponse-behavior">
+  #### Comportement des requêtes/réponses
+</div>
+
+En utilisant les paramètres `fromDate` et `toDate`, vous pouvez demander n’importe quelle période prise en charge par l’API. L’API de recherche 30-Day fournit des tweets des 31 derniers jours (bien qu’elle soit appelée « 30-Day », elle met 31 jours à disposition afin de permettre des requêtes couvrant un mois complet). L’API de recherche Full-Archive fournit des tweets remontant jusqu’au tout premier tweet (21 mars 2006). Toutefois, une seule réponse sera limitée à la valeur la plus faible entre votre « maxResults » spécifié et 31 jours. Si les données correspondantes ou votre plage temporelle dépassent votre « maxResults » spécifié ou 31 jours, vous recevrez un jeton « next » que vous devrez utiliser pour paginer le reste de la plage temporelle spécifiée.
+
+Par exemple, supposons que vous utilisiez la recherche Full-Archive et que vous souhaitiez tous les tweets correspondant à votre requête du 1er janvier 2017 au 30 juin 2017. Vous indiquerez cette période complète de six mois dans votre requête en utilisant les paramètres `fromDate` et `toDate`. L’API de recherche répondra avec la première « page » de tweets, avec un nombre de tweets correspondant à votre paramètre `maxResults` (qui vaut 100 par défaut). En supposant qu’il y ait davantage de tweets (ce qui est très probable), l’API fournira également un jeton « next » qui vous permettra d’effectuer une requête pour la « page » suivante de données. Ce processus est répété jusqu’à ce que l’API ne renvoie plus de jeton « next ». Voir la section suivante pour plus de détails.
+
+<div id="pagination">
+  #### Pagination
+</div>
+
+Lorsque vous effectuez des requêtes de données comme de comptage, il est probable qu’il y ait plus de données que ce qu’une seule réponse peut renvoyer. Dans ce cas, la réponse inclut un jeton « next ». Ce jeton « next » est fourni comme attribut JSON au niveau racine. Chaque fois qu’un jeton « next » est présent, des données supplémentaires sont disponibles ; vous devrez donc poursuivre vos requêtes à l’API.
+
+Remarque : Le comportement du jeton « next » diffère légèrement entre les requêtes de données et de comptage. Les deux sont décrits ci-dessous, avec des exemples de réponses dans la section Référence de l’API.
+
+<div id="data-pagination">
+  ##### Pagination des données
+</div>
+
+Les requêtes de données génèrent généralement plus d’informations que ce qui peut être renvoyé dans une seule réponse. Chaque requête inclut un paramètre qui définit le nombre maximal de Tweets à renvoyer par requête. Ce paramètre `maxResults` est par défaut à 100 et peut être fixé entre 10 et 500. Si votre requête correspond à plus de Tweets que la valeur de « maxResults » utilisée, la réponse inclura un jeton « next » (en tant qu’attribut JSON au niveau racine). Ce jeton « next » est utilisé dans la requête suivante pour récupérer la portion suivante des Tweets correspondants pour cette requête (c’est-à-dire la « page » suivante). Des jetons « next » continueront d’être fournis jusqu’à ce que vous atteigniez la dernière « page » de résultats pour cette requête, auquel cas aucun jeton « next » n’est renvoyé.
+
+Pour demander la « page » suivante de données, vous devez effectuer exactement la même requête que l’originale, y compris les paramètres `query`, `toDate` et `fromDate`, le cas échéant, et inclure également un paramètre de requête « next » défini sur la valeur renvoyée dans la réponse précédente. Cela peut être utilisé avec une requête GET ou POST. Toutefois, le paramètre « next » doit être encodé dans l’URL dans le cas d’une requête GET.
+
+Vous pouvez continuer à transmettre l’élément « next » de votre requête précédente jusqu’à ce que vous ayez reçu tous les Tweets de la période couverte par votre requête. Lorsque vous recevez une réponse qui n’inclut pas d’élément « next », cela signifie que vous avez atteint la dernière page et qu’aucune donnée supplémentaire n’est disponible pour la requête et la plage temporelle spécifiées.
+
+<div id="counts-pagination">
+  ##### Pagination des décomptes
+</div>
+
+L’endpoint « counts » fournit les volumes de Tweets associés à une requête, à la journée, à l’heure ou à la minute. L’endpoint d’API « counts » renvoie un tableau horodaté de décomptes couvrant au maximum 31 jours. Si vous demandez plus de 31 jours de décomptes, un jeton « next » vous sera fourni. Comme pour les jetons « next » de données, vous devez effectuer exactement la même requête que l’originale et inclure également un paramètre de requête « next » défini sur la valeur renvoyée par la réponse précédente.
+
+Au-delà d’une demande dépassant 31 jours de décomptes, un autre scénario peut aussi fournir un jeton « next ». Pour les requêtes à volume élevé, la génération des décomptes peut prendre suffisamment de temps pour déclencher un délai d’expiration de la réponse. Dans ce cas, vous recevrez moins de 31 jours de décomptes, mais un jeton « next » vous sera fourni pour poursuivre les requêtes jusqu’à obtention de l’ensemble du jeu de décomptes. Important : les délais d’expiration ne renvoient que des « compartiments » complets — ainsi, 2,5 jours donneraient 2 compartiments journaliers complets.
+
+<div id="additional-notes">
+  ##### Notes supplémentaires
+</div>
+
+- Lorsque vous utilisez fromDate ou toDate dans une requête de recherche, vous n’obtenez que des résultats compris dans votre plage temporelle. Lorsque vous atteignez le dernier groupe de résultats de cette plage, vous ne recevez pas de jeton « next ».
+- L’élément « next » peut être utilisé avec n’importe quelle valeur maxResults entre 10 et 500 (valeur par défaut : 100). Le paramètre maxResults détermine le nombre de Tweets renvoyés dans chaque réponse, mais ne vous empêche pas d’obtenir l’ensemble des résultats au final.
+- L’élément « next » n’expire pas. Plusieurs requêtes utilisant la même valeur « next » recevront les mêmes résultats, quelle que soit la date d’exécution de la requête.
+- Lors de la pagination des résultats à l’aide du paramètre « next », vous pouvez rencontrer des doublons aux limites de la requête. Votre application doit les tolérer.
+
+<div id="data-endpoint">
+  #### Point de terminaison des données
+</div>
+
+<div id="post-searchproductlabel">
+  ##### POST /search/:product/:label
+</div>
+
+<div id="endpoint-pattern">
+  ###### Modèle d’endpoint :
+</div>
+
+Cet endpoint renvoie les données pour la requête et la période indiquées. Si aucune période n’est fournie, les paramètres temporels prennent par défaut les 30 derniers jours. Remarque : cette fonctionnalité peut également être obtenue avec une requête GET, au lieu d’une requête POST, en encodant dans l’URL les paramètres décrits ci‑dessous.
+
+<div id="data-request-parameters">
+  ##### Paramètres de requête de données
+</div>
+
+| Paramètres | Description | Obligatoire | Valeur d’exemple |
+| :--- | :--- | :--- | :--- |
+| query | L’équivalent d’une règle PowerTrack, jusqu’à 2 048 caractères (sans limite quant au nombre de clauses positives et négatives).  <br />  <br />Ce paramètre doit inclure TOUTES les parties de la règle PowerTrack, y compris tous les opérateurs ; aucune partie de la règle ne doit être déplacée dans d’autres paramètres de la requête.  <br />  <br />**Remarque :** Tous les opérateurs PowerTrack ne sont pas pris en charge. Les opérateurs pris en charge sont listés [ICI](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators). | Oui | (snow OR cold OR blizzard) weather |
+| tag | Les tags peuvent être utilisés pour séparer les règles et leurs données correspondantes en différents groupes logiques. Si un tag de règle est fourni, il est inclus dans l’attribut matching\_rules.  <br />  <br />Il est recommandé d’assigner des UUID spécifiques aux règles comme tags et de maintenir les correspondances souhaitées côté client. | Non  | 8HYG54ZGTU |
+| fromDate | L’horodatage UTC le plus ancien (jusqu’au 21/03/2006 avec la recherche sur l’archive complète) à partir duquel les Tweets seront fournis. L’horodatage est à la granularité de la minute et est inclusif (p. ex. 12:00 inclut la minute 00).  <br />  <br />_Spécifié :_ Utiliser uniquement fromDate sans paramètre toDate renverra les résultats pour la requête en remontant dans le temps depuis now( ) jusqu’à fromDate.  <br />  <br />_Non spécifié :_ Si aucun fromDate n’est spécifié, l’API renverra tous les résultats des 30 jours précédant now( ) ou toDate (s’il est spécifié).  <br />  <br />Si ni fromDate ni toDate n’est utilisé, l’API renverra tous les résultats des 30 derniers jours, à partir du moment de la requête, en remontant dans le temps. | Non  | 201207220000 |
+| toDate | L’horodatage UTC le plus récent jusqu’auquel les Tweets seront fournis. L’horodatage est à la granularité de la minute et n’est pas inclusif (p. ex. 11:59 n’inclut pas la 59e minute de l’heure).  <br />  <br />_Spécifié :_ Utiliser uniquement toDate sans paramètre fromDate renverra les 30 jours de données les plus récents avant toDate.  <br />  <br />_Non spécifié :_ Si aucun toDate n’est spécifié, l’API renverra tous les résultats à partir de now( ) pour la requête en remontant dans le temps jusqu’à fromDate.  <br />  <br />Si ni fromDate ni toDate n’est utilisé, l’API renverra tous les résultats pour l’intégralité de l’index de 30 jours, à partir du moment de la requête, en remontant dans le temps. | Non  | 201208220000 |
+| maxResults | Le nombre maximal de résultats de recherche renvoyés par une requête. Une valeur entre 10 et la limite du système (actuellement 500). Par défaut, la réponse renverra 100 résultats. | Non  | 500 |
+| next | Ce paramètre est utilisé pour obtenir la « page » suivante de résultats comme décrit [ICI](#Pagination). La valeur utilisée avec ce paramètre est directement extraite de la réponse fournie par l’API et ne doit pas être modifiée. | Non  | NTcxODIyMDMyODMwMjU1MTA0 |
+
+<div id="additional-details">
+  ###### Détails supplémentaires
+</div>
+
+|     |     |
+| :--- | :--- |
+| **Période disponible** | 30 jours : 31 derniers jours  <br />Archive complète : 21 mars 2006 - présent |
+| **Format de requête** | L’équivalent d’une règle PowerTrack, jusqu’à 2 048 caractères (sans limite quant au nombre de clauses positives et négatives).  <br />  <br />**Remarque :** tous les opérateurs PowerTrack ne sont pas pris en charge. Consultez la page [Opérateurs disponibles](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) pour la liste des opérateurs pris en charge. |
+| **Limite de débit** | Les partenaires seront soumis à des limites de débit à la minute et à la seconde. La limite par minute varie selon le partenaire, comme spécifié dans votre contrat. Toutefois, ces limites par minute ne sont pas destinées à être utilisées en un seul pic. Quelle que soit votre limite par minute, tous les partenaires sont limités à un maximum de 20 requêtes par seconde, agrégées sur l’ensemble des requêtes de données et/ou de décomptes. |
+| **Conformité** | Toutes les données livrées via l’API de recherche sur l’archive complète sont conformes au moment de la livraison. |
+| **Disponibilité en temps réel** | Les données sont disponibles dans l’index dans les 30 secondes suivant leur génération sur la plateforme X. |
+
+<div id="example-data-requests-and-responses">
+  ##### Exemples de requêtes et de réponses
+</div>
+
+<div id="example-post-request">
+  ###### Exemple de requête POST
+</div>
+
+- Les paramètres d’une requête POST sont envoyés dans un corps au format JSON, comme indiqué ci-dessous.
+- Toutes les parties de la règle PowerTrack faisant l’objet de la requête (p. ex. mots-clés, autres opérateurs comme bounding\_box:) doivent être placées dans le paramètre 'query'.
+- Ne séparez pas des parties de la règle en paramètres distincts dans l’URL de requête.
+
+Voici un exemple de commande POST (avec cURL) pour effectuer une première requête de données :
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label.json" -d '{"query":"from:twitterDev","maxResults":500,"fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm"}'
+```
+
+Si la réponse de l’API inclut un jeton 'next', voici une requête suivante qui reprend la requête d’origine, avec le paramètre 'next' défini sur le jeton fourni :
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label.json" -d '{"query":"from:twitterDev","maxResults":500,"fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm",
+    "next":"NTcxODIyMDMyODMwMjU1MTA0"}'
+```
+
+<div id="example-get-request">
+  ###### Exemple de requête GET
+</div>
+
+- Les paramètres d’une requête GET sont encodés dans l’URL en utilisant l’encodage standard des URL.
+- Toutes les parties de la règle PowerTrack faisant l’objet de la requête (p. ex. mots-clés, autres opérateurs comme bounding\_box:) doivent être placées dans le paramètre « query ».
+- Ne séparez pas des parties de la règle en paramètres distincts dans l’URL de requête.
+
+Voici un exemple de commande GET (avec cURL) pour effectuer une première requête de données :
+
+```bash
+    curl -u<username> "http://gnip-api.x.com/search/:product/accounts/:account_name/:label.json?query=from%3Atwitterdev&maxResults=500&fromDate=yyyymmddhhmm&toDate=yyyymmddhhmm"
+```
+
+<div id="example-data-responses">
+  ###### Exemples de réponses de données
+</div>
+
+Notez que pour les Tweets créés à partir du 29 septembre 2022, les objets Tweet incluront des métadonnées d’édition décrivant leur historique de modification. Consultez la page des fondamentaux ["Modifier des Tweets"](/fr/x-api/enterprise-gnip-2.0/fundamentals/edit-tweets) pour plus de détails.
+
+Ci-dessous figure un exemple de réponse à une requête de données. Cet exemple suppose qu’il y avait plus de Tweets disponibles que la valeur de « maxResults », de sorte qu’un jeton « next » est fourni pour les requêtes suivantes. Si « maxResults » ou moins de Tweets sont associés à votre requête, aucun jeton « next » ne sera inclus dans la réponse.
+La valeur de l’élément « next » changera à chaque requête et doit être traitée comme une chaîne opaque. L’élément « next » apparaîtra comme suit dans le corps de la réponse :
+
+```json
+{
+    "results":
+      [
+            {--Tweet 1--},
+            {--Tweet 2--},
+            ...
+            {--Tweet 500--}
+      ],
+    "next":"NTcxODIyMDMyODMwMjU1MTA0",
+    "requestParameters":
+      {
+        "maxResults":500,
+        "fromDate":"201101010000",
+        "toDate":"201201010000"
+      }
+  }
+```
+
+La réponse à une requête suivante pourrait ressembler à ce qui suit (notez les nouveaux Tweets et la valeur « next » différente) :
+
+```json
+{
+      "results":
+      [
+            {--Tweet 501--},
+            {--Tweet 502--},
+            ...
+            {--Tweet 1000--}
+      ],
+      "next":"R2hCDbpBFR6eLXGwiRF1cQ",
+      "requestParameters":
+      {
+        "maxResults":500,
+        "fromDate":"201101010000",
+        "toDate":"201201010000"
+      }
+  }
+```
+
+Vous pouvez continuer à transmettre l’élément « next » de votre requête précédente jusqu’à ce que vous ayez reçu tous les Tweets de la période couverte par votre requête. Lorsque vous recevez une réponse qui n’inclut pas d’élément « next », cela signifie que vous avez atteint la dernière page et qu’aucune donnée supplémentaire n’est disponible dans votre plage temporelle.
+
+<div id="counts-endpoint">
+  #### Point de terminaison Counts
+</div>
+
+<div id="searchstreamcounts">
+  ##### /search/:stream/counts
+</div>
+
+<div id="endpoint-pattern">
+  ###### Modèle d’endpoint :
+</div>
+
+`/search/fullarchive/accounts/:account_name/:label/counts.json`
+
+Cet endpoint renvoie des décomptes (volumes de données) pour la requête spécifiée. Si aucune période n’est indiquée, les paramètres temporels prennent par défaut les 30 derniers jours. Les volumes de données sont renvoyés sous forme de tableau horodaté avec une granularité quotidienne, horaire (par défaut) ou à la minute.
+
+**Remarque :** Cette fonctionnalité peut également être obtenue avec une requête GET, au lieu d’une requête POST, en encodant dans l’URL les paramètres décrits ci-dessous.
+
+<div id="counts-request-parameters">
+  ##### Paramètres de requête pour les décomptes
+</div>
+
+| Paramètres | Description | Obligatoire | Valeur d’exemple |
+| :--- | :--- | :--- | :--- |
+| query | L’équivalent d’une règle PowerTrack, jusqu’à 2 048 caractères (sans limite sur le nombre de clauses positives et négatives).  <br />  <br />Ce paramètre doit inclure TOUTES les parties de la règle PowerTrack, y compris tous les opérateurs ; aucune partie de la règle ne doit être répartie dans d’autres paramètres de la requête.  <br />  <br />**Remarque :** Tous les opérateurs PowerTrack ne sont pas pris en charge. Consultez la page [Opérateurs disponibles](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) pour la liste des opérateurs pris en charge. | Oui | (snow OR cold OR blizzard) weather |
+| fromDate | L’horodatage UTC le plus ancien (jusqu’au 21/03/2006) à partir duquel les posts seront fournis. L’horodatage a une granularité à la minute et est inclusif (p. ex. 12:00 inclut la minute 00).  <br />  <br />_Spécifié :_ En utilisant uniquement fromDate sans paramètre toDate, l’API renverra des décomptes (volumes de données) pour la requête en remontant dans le temps, de maintenant jusqu’à fromDate. Si fromDate est antérieur de plus de 31 jours par rapport à maintenant, vous recevrez un jeton next pour paginer votre requête.  <br />  <br />_Non spécifié :_ Si aucun fromDate n’est indiqué, l’API renverra des décomptes (volumes de données) pour les 30 jours précédant maintenant ou toDate (s’il est indiqué).  <br />  <br />Si ni fromDate ni toDate n’est utilisé, l’API renverra des décomptes (volumes de données) pour les 30 jours les plus récents, à partir du moment de la requête, en remontant. | Non  | 201207220000 |
+| toDate | L’horodatage UTC le plus récent jusqu’auquel les posts seront fournis. L’horodatage a une granularité à la minute et n’est pas inclusif (p. ex. 11:59 n’inclut pas la 59e minute de l’heure).  <br />  <br />_Spécifié :_ En utilisant uniquement toDate sans paramètre fromDate, les décomptes (volumes de données) les plus récents pour les 30 jours précédant toDate seront renvoyés.  <br />  <br />_Non spécifié :_ Si aucun toDate n’est indiqué, l’API renverra des décomptes (volumes de données) pour la requête en remontant dans le temps jusqu’à fromDate. Si fromDate est antérieur de plus de 31 jours par rapport à maintenant, vous recevrez un jeton next pour paginer votre requête.  <br />  <br />Si ni fromDate ni toDate n’est utilisé, l’API renverra des décomptes (volumes de données) pour les 30 jours les plus récents, à partir du moment de la requête, en remontant. | Non  | 201208220000 |
+| bucket | L’unité de temps pour laquelle les décomptes seront fournis. Les décomptes peuvent être renvoyés pour chaque jour, heure ou minute dans la période demandée. Par défaut, des décomptes horaires sont fournis. Options : 'day', 'hour', 'minute' | Non  | minute |
+| next | Ce paramètre sert à obtenir la « page » suivante de résultats, comme décrit [ICI](#Pagination). La valeur utilisée est extraite directement de la réponse de l’API et ne doit pas être modifiée. | Non  | NTcxODIyMDMyODMwMjU1MTA0 |
+
+<div id="additional-details">
+  ###### Détails supplémentaires
+</div>
+
+|     |     |
+| :--- | :--- |
+| **Période disponible** | 30 jours : 31 derniers jours  <br />Archive complète : du 21 mars 2006 à aujourd’hui |
+| **Format de requête** | L’équivalent d’une règle PowerTrack, jusqu’à 2 048 caractères.  <br />  <br />**Remarque :** Tous les opérateurs PowerTrack ne sont pas pris en charge. Consultez [Opérateurs disponibles](/fr/x-api/enterprise-gnip-2.0/fundamentals/search-api#available-operators) pour la liste des opérateurs pris en charge. |
+| **Limite de débit** | Les partenaires seront soumis à des limites de débit à la minute et à la seconde. La limite par minute varie selon le partenaire, comme indiqué dans votre contrat. Toutefois, ces limites par minute ne sont pas destinées à être consommées en un seul pic. Quelle que soit votre limite par minute, tous les partenaires sont limités à un maximum de 20 requêtes par seconde, agrégées sur l’ensemble des requêtes de données et/ou de décomptes. |
+| **Précision du décompte** | Les décomptes fournis par ce point de terminaison reflètent le nombre de Tweets observés et ne tiennent pas compte d’éventuels événements de conformité ultérieurs (suppressions, « scrub geos »). Certains Tweets comptabilisés peuvent ne pas être disponibles via le point de terminaison de données en raison d’actions de conformité des utilisateurs. |
+
+<div id="example-counts-requests-and-responses">
+  ##### Exemples de requêtes et de réponses de comptages
+</div>
+
+<div id="example-post-request">
+  ###### Exemple de requête POST
+</div>
+
+- Les paramètres d’une requête POST sont envoyés dans un corps au format JSON, comme illustré ci-dessous.
+- Toutes les parties de la règle PowerTrack recherchée (p. ex. des mots-clés, d’autres opérateurs comme bounding\_box:) doivent être placées dans le paramètre "query".
+- Ne scindez pas des portions de la règle en paramètres distincts dans l’URL de la requête.
+
+Voici un exemple de commande POST (avec cURL) pour effectuer une requête de comptage initial :
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label/counts.json" -d '{"query":"TwitterDev","fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm","bucket":"day"}'
+```
+
+Si la réponse de comptage de l’API inclut un jeton "next", voici une requête suivante qui reprend la requête initiale avec le paramètre "next" défini sur le jeton fourni :
+
+```bash
+    curl -X POST -u<username> "https://gnip-api.x.com/search/:product/accounts/:account_name/:label/counts.json" -d '{"query":"TwitterDev","fromDate":"yyyymmddhhmm","toDate":"yyyymmddhhmm","bucket":"day",
+    "next":"YUcxO87yMDMyODMwMjU1MTA0"}'
+```
+
+<div id="example-get-request">
+  ###### Exemple de requête GET
+</div>
+
+- Les paramètres d’une requête GET sont encodés dans l’URL, à l’aide de l’encodage standard des URL.
+- Toutes les parties de la règle PowerTrack visée par la requête (par exemple des mots‑clés, ou d’autres opérateurs comme bounding\_box:) doivent être placées dans le paramètre « query ».
+- Ne séparez pas des parties de la règle en paramètres distincts dans l’URL de la requête.
+
+Voici un exemple de commande GET (avec cURL) pour effectuer une première requête de comptage :
+
+```bash
+    curl -u<username> "http://gnip-api.x.com/search/fullarchive/accounts/:account_name/:label/counts.json?query=TwitterDev&bucket=day&fromDate=yyyymmddhhmm&toDate=yyyymmddhhmm"
+```
+
+<div id="example-counts-responses">
+  #### Exemples de réponses de comptage
+</div>
+
+Ci-dessous figure un exemple de réponse à une requête de comptage (volume de données). Cet exemple inclut un jeton "next", ce qui signifie que la requête portait sur plus de 31 jours, ou que la requête soumise avait un volume suffisamment important pour déclencher une réponse partielle.
+
+La valeur de l’élément "next" change à chaque requête et doit être traitée comme une chaîne opaque. L’élément "next" apparaîtra comme suit dans le corps de la réponse :
+
+```json
+    {
+      "results": [
+        { "timePeriod": "201101010000", "count": 32 },
+        { "timePeriod": "201101020000", "count": 45 },
+        { "timePeriod": "201101030000", "count": 57 },
+        { "timePeriod": "201101040000", "count": 123 },
+        { "timePeriod": "201101050000", "count": 134 },
+        { "timePeriod": "201101060000", "count": 120 },
+        { "timePeriod": "201101070000", "count": 43 },
+        { "timePeriod": "201101080000", "count": 65 },
+        { "timePeriod": "201101090000", "count": 85 },
+        { "timePeriod": "201101100000", "count": 32 },
+        { "timePeriod": "201101110000", "count": 23 },
+        { "timePeriod": "201101120000", "count": 85 },
+        { "timePeriod": "201101130000", "count": 32 },
+        { "timePeriod": "201101140000", "count": 95 },
+        { "timePeriod": "201101150000", "count": 109 },
+        { "timePeriod": "201101160000", "count": 34 },
+        { "timePeriod": "201101170000", "count": 74 },
+        { "timePeriod": "201101180000", "count": 24 },
+        { "timePeriod": "201101190000", "count": 90 },
+        { "timePeriod": "201101200000", "count": 85 },
+        { "timePeriod": "201101210000", "count": 93 },
+        { "timePeriod": "201101220000", "count": 48 },
+        { "timePeriod": "201101230000", "count": 37 },
+        { "timePeriod": "201101240000", "count": 54 },
+        { "timePeriod": "201101250000", "count": 52 },
+        { "timePeriod": "201101260000", "count": 84 },
+        { "timePeriod": "201101270000", "count": 120 },
+        { "timePeriod": "201101280000", "count": 34 },
+        { "timePeriod": "201101290000", "count": 83 },
+        { "timePeriod": "201101300000", "count": 23 },
+        { "timePeriod": "201101310000", "count": 12 }
+       ],
+      "totalCount":2027,
+      "next":"NTcxODIyMDMyODMwMjU1MTA0",
+      "requestParameters":
+        {
+          "bucket":"day",
+          "fromDate":"201101010000",
+          "toDate":"201201010000"
+        }
+    }
+```
+
+La réponse à une requête ultérieure pourrait ressembler à ce qui suit (notez la nouvelle chronologie des comptages et la valeur "next" différente) :
+
+```json
+    {
+      "results": [
+        { "timePeriod": "201102010000", "count": 45 },
+        { "timePeriod": "201102020000", "count": 76 },
+         ....
+        { "timePeriod": "201103030000", "count": 13 }
+     ],
+     "totalCount":3288,
+     "next":"WE79fnakFanyMDMyODMwMjU1MTA0",
+     "requestParameters":
+        {
+          "bucket":"day",
+          "fromDate":"201101010000",
+          "toDate":"201201010000"
+        }
+    }
+```
+
+Vous pouvez continuer à transmettre l’élément "next" de votre requête précédente jusqu’à avoir reçu tous les comptages pour la période de la requête. Lorsque vous recevez une réponse qui n’inclut pas l’élément "next", cela signifie que vous avez atteint la dernière page et qu’aucun comptage supplémentaire n’est disponible dans votre plage temporelle.
+
+<div id="http-response-codes">
+  #### Codes de réponse HTTP
+</div>
+
+| Statut | Texte | Description |
+| :--- | :--- | :--- |
+| 200 | OK  | La requête a abouti. La réponse JSON sera similaire à ce qui suit : |
+| 400 | Bad Request | En général, cette réponse survient en raison de JSON invalide dans la requête, ou lorsque la requête n’a envoyé aucun payload JSON. |
+| 401 | Unauthorized | L’authentification HTTP a échoué en raison d’identifiants invalides. Connectez-vous à console.gnip.com avec vos identifiants pour vérifier que vous les utilisez correctement dans votre requête. |
+| 404 | Not Found | La ressource est introuvable à l’URL de la requête, probablement parce qu’une URL incorrecte a été utilisée. |
+| 422 | Unprocessable Entity | Cette réponse est renvoyée en raison de paramètres invalides dans la requête — p. ex. des règles PowerTrack invalides. |
+| 429 | Unknown Code | Votre application a dépassé la limite de requêtes de connexion. Le message JSON correspondant sera similaire à ce qui suit : |
+| 500 | Internal Server Error | Une erreur s’est produite côté serveur. Réessayez votre requête en utilisant une stratégie de reprise avec backoff exponentiel. |
+| 502 | Proxy Error | Une erreur s’est produite côté serveur. Réessayez votre requête en utilisant une stratégie de reprise avec backoff exponentiel. |
+| 503 | Service Unavailable | Une erreur s’est produite côté serveur. Réessayez votre requête en utilisant une stratégie de reprise avec backoff exponentiel. |

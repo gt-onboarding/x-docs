@@ -1,0 +1,880 @@
+---
+title: エンゲージメント API
+---
+
+<div id="overview">
+  ## 概要
+</div>
+
+[`Enterprise`](https://developer.x.com/en/products/x-api/enterprise)
+
+_これは、当社のマネージドアクセスレベル内でのみ利用可能なエンタープライズ向け API です。この API を利用するには、まずエンタープライズセールスチームとアカウントを設定する必要があります。 [詳細はこちら](/ja/x-api/enterprise-gnip-2.0/enterprise-gnip)_
+
+Engagement API は、投稿のインプレッションおよびエンゲージメントのメトリクスにアクセスできます。ほとんどのメトリクスおよびエンドポイントでは [OAuth 1.0a User Context](/ja/resources/fundamentals/authentication) による認証が必要ですが、[OAuth 2.0 Bearer Token](/ja/resources/fundamentals/authentication#oauth-2-0) と /totals エンドポイントを使用すると、公開の Favorite、Retweet、Reply、Video Views の各メトリクスにアクセスできます。  
+
+**注:** 一部の X のウェブダッシュボードに表示されるデータと、Engagement API が返すデータに差異が生じる場合があります。これは、ウェブダッシュボードが通常、選択した期間内に発生したエンゲージメントやインプレッションのみを表示するためです。たとえば、ウェブダッシュボードはカレンダー上のある月の範囲に含まれる投稿のエンゲージメントのみを表示しますが、Engagement API はその月の範囲を超えていても、リクエストされた時間範囲内に含まれるエンゲージメントを表示する場合があります。これらの場合は、Engagement API を正とする情報源として扱ってください。
+ 
+
+<div id="request-endpoints">
+  ### リクエストエンドポイント
+</div>
+
+Engagement API には、次の3つのエンドポイントがあります。
+
+#### 現在の合計: \[/totals]
+
+- リクエストは、対象の投稿に対してインプレッションの合計メトリクスとエンゲージメントの合計メトリクスを返します
+- 対応メトリクスは次のとおりです: Impressions、Engagements、Favorites、Replies、Retweets、Quote Tweets、Video Views
+- OAuth 1.0a User Context を使用して、直近90日以内に作成された投稿の **Impressions** および **Engagements** メトリクスを取得できます
+- OAuth 2.0 Bearer token を使用して、任意の投稿の **Favorites、Retweets、Quote Tweets、Replies**、および **Video Views** メトリクスを取得できます
+- 結果は、リクエスト時点におけるインプレッションおよびエンゲージメントの最新の合計に基づきます
+- ダッシュボードレポートの作成や、複数の @handle 全体でのエンゲージメント率の算出に最適です
+- 1 回のリクエストで最大 250 件の投稿のメトリクスを取得できます
+   
+
+#### 過去28時間: \[/28hr]
+
+- リクエストでは、インプレッションの合計メトリクス、エンゲージメントの合計メトリクス、さらに過去28時間に発生した個別のエンゲージメントメトリクスの内訳を返せます
+- データは Post ID ごと、または時系列での集計として日別・時間別にグループ化できます
+- 直近に作成したコンテンツのパフォーマンス追跡に最適
+- 利用可能なすべてのメトリクスをサポート
+- 1回のリクエストで最大25件の Post のメトリクスを取得可能
+   
+
+#### 履歴: \[/historical]
+
+- リクエストでは、直近1年間について、インプレッション、エンゲージメント、および個々のエンゲージメント指標の内訳を、エンゲージメント発生時点（投稿の作成時点ではなく）に基づいて返せます。
+- リクエストは開始日と終了日のパラメータをサポートし、最長4週間の特定期間に絞り込む柔軟性を提供します。
+- 投稿のエンゲージメントデータは過去365日分に限定されます。
+- データは投稿ID単位、または集計の時系列（1日単位または1時間単位）でグループ化できます。
+- 直近のパフォーマンスを履歴ベンチマークと比較評価したり、@handle の履歴的なパフォーマンス像を作成したりするのに最適です。
+- 利用可能なすべてのメトリクスをサポートします。
+- 1回のリクエストで最大25件の投稿に対するメトリクスを要求できます。
+
+<div id="available-metrics">
+  ### 利用可能なメトリクス
+</div>
+
+以下の表では、Engagement API で取得できるメトリクスの種類を説明します。
+
+これらのメトリクスの詳しい解説は、[メトリクスの解釈](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#interpreting-the-metrics)をご確認ください。
+
+| 指標 | エンドポイントの提供状況 | ユーザーコンテキストの要否 | 説明 |
+| :--- | :--- | :--- | :--- |
+| impressions | すべて | はい | 投稿が閲覧された回数。この指標は、過去90日以内に投稿された投稿に対してのみ利用できます。 |
+| engagements | すべて | はい | ユーザーがその投稿とインタラクションした回数。この指標は、過去90日以内に投稿された投稿に対してのみ利用できます。 |
+| favorites | すべて | はい - /28hrs および /historical<br /><br />いいえ - /totals | 投稿がお気に入り登録された回数。 |
+| retweets | すべて | はい - /28hrs および /historical<br /><br />いいえ - /totals | 投稿がリツイートされた回数。 |
+| quote\_tweets | /totals | いいえ - /totals | コメント付きでリツイート（Quote とも呼ばれる）された回数。 |
+| replies | すべて | はい - /28hrs および /historical<br /><br />いいえ - /totals | 投稿に返信された回数。 |
+| video\_views | すべて | はい - /28hrs および /historical<br /><br />いいえ - /totals | 指定の投稿内の動画が少なくとも2秒間、画面の50%で可視だった回数。<br /><br />動画再生数は、投稿から1800日以内の投稿に対してのみ利用できます。1800日を超える投稿で動画再生数をリクエストすると、レスポンスには次のオブジェクトが含まれ、あわせて、その他の要求した指標を含む別オブジェクトも返されます。<br /><br />"unsupported\_for\_video\_views\_tweet\_ids": \["TWEET\_ID"]<br /><br />注意: X の公式プラットフォーム（モバイルアプリおよびウェブサイト）に表示される動画再生数と、/28hr および /historical エンドポイントで取得する数値に差異が生じる場合があります。<br /><br />\* X のユーザーインターフェースおよび /totals エンドポイントに表示される動画再生数は、同一動画が掲載されたすべての投稿を横断して集計した値です。つまり、動画が別の投稿でリツイートまたは再投稿された事例の合算ビューが UI の指標に含まれます。この指標には GIF の再生は含まれません。<br />\* /28hr および /historical エンドポイントで提供される動画再生数は、指標を取得している特定の投稿で発生したビューのみを含みます。この指標には GIF の再生は含まれません。 |
+| media\_views | /28hr /historical | はい | 動画、GIF、画像を横断してカウントされた、メディアのすべての視聴（自動再生およびクリック）の回数。 |
+| media\_engagements<br /><br />([旧称 Media Clicks](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#recent-changes-to-the-engagement-api)) | /28hr /historical | はい | 投稿内の画像や動画などのメディアがクリックされた回数。 |
+| url\_clicks | /28hr /historical | はい | 投稿内の URL がクリックされた回数。 |
+| hashtag\_clicks | /28hr /historical | はい | 投稿内のハッシュタグがクリックされた回数。 |
+| detail\_expands | /28hr /historical | はい | 投稿の詳細を表示するためにクリックされた回数。 |
+| permalink\_clicks | /28hr /historical | はい | 投稿へのパーマリンク（その投稿専用の個別ウェブページ）がクリックされた回数。 |
+| app\_install\_attempts | /28hr /historical | はい | 投稿からアプリインストールのイベントが発生した回数。 |
+| app\_opens | /28hr /historical | はい | 投稿からアプリオープンのイベントが発生した回数。 |
+| email\_tweet | /28hr /historical | はい | 投稿がメールで共有された回数。 |
+| user\_follows | /28hr /historical | はい | この投稿からユーザー（投稿の作者）がフォローされた回数。 || user\_profile\_clicks | /28時間 /履歴 | あり | ユーザー（投稿の作者）のプロフィールがこの投稿からクリックされた回数の合計。 |
+
+<div id="engagement-groupings">
+  ### エンゲージメントのグルーピング
+</div>
+
+グルーピングを使うと、返されるエンゲージメント指標を任意の方法で整理できます。1 回のリクエストにつき、最大 3 つまでグルーピングを指定できます。指標は次の値の 1 つ以上でグループ化できます。
+
+_3 つのエンドポイントすべてでサポート:_
+
+- tweet.id
+- engagement.type
+   
+
+_`/28hr` と `/historical` は時系列の指標を提供できるため、次もサポート:_
+
+- engagement.day
+- engagement.hour
+
+グルーピングの詳細は、ガイドセクション内の [Engagement API Grouping](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings) ページをご覧ください。
+
+<div id="guides">
+  ## ガイド
+</div>
+
+<div id="developer-getting-started-guide">
+  ### 開発者向けはじめかたガイド
+</div>
+
+<div id="introduction">
+  #### はじめに
+</div>
+
+このドキュメントの目的は、開発者向けに Engagement API との連携概要を紹介することです。まず連携の「なぜ」を説明し、その後に技術的な「どのように」の詳細を掘り下げていきます。
+
+<div id="what-does-the-engagement-api-provide">
+  ##### **Engagement API は何を提供しますか？**
+</div>
+
+- Engagement API は、対象アカウントがあなたのアプリに対し [3-legged OAuth](/ja/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) を用いた代理でのメトリクス取得を許可している場合に限り、過去 90 日間の、そのアカウントが所有する投稿に関するインプレッションおよびエンゲージメントデータを提供します。強力でありながら実装が容易なこのソリューションにより、インプレッションや URL クリック、#ハッシュタグのクリックなど、多様なディープエンゲージメントに即時アクセスできます。
+- Engagement API は、任意の投稿に対する「いいね」、リツイート、引用ポスト、返信、動画再生数の総計（アグリゲート）メトリクスを提供します。これは、任意の投稿または投稿の集合について基本的なエンゲージメントデータを取得する強力な手段として利用できます。
+- Engagement API は、15 以上のパフォーマンスメトリクスでコンテンツのパフォーマンスを的確に測定できるようにすることで、X における ROI の可視化を可能にし、ソーシャルリスニング、マーケティング、パブリッシングの各プラットフォームに新たな価値を提供します。
+- Engagement API はリクエスト／レスポンス型の API であり、アプリ開発者は投稿 ID、取得したいメトリクス、期間を指定してリクエストを送信でき、API は即時にデータを返します。
+   
+
+<div id="why-integrate-example-use-cases">
+  ##### **なぜ統合するのか？ユースケースの例**
+</div>
+
+- 自身のコンテンツの総リーチを把握し、どれだけの人に閲覧されたかを確認します。動画の視聴数、リンクのクリック数、ハッシュタグのクリック数、アプリのインストール数を確認します。
+- 合計値と時系列のエンゲージメント指標を生成します。
+- 任意の公開ポストについて、基本的なエンゲージメント指標（いいね、リツイート、引用ポスト、返信）を把握します。
+- これらの指標を用いて、効果的なポストの傾向を見極め、同様の投稿を増やしてインプレッションとエンゲージメントの最大化を図ります。
+- 自分のポストが100件のいいね、またはその他のしきい値に達するたびに、（別の自社アカウントからのコンテンツのリツイートなど）マーケティング施策を自動化します。
+- A/Bテストの一環として、キャンペーン同士をベンチマークし比較します。
+- カスタマーサポート部門に響くコンテンツのタイプを分析し、どのように、いつ対応するかを判断します。
+- 自社プラットフォームから公開されたコンテンツのアナリティクスを表示します。
+   
+
+[Engagement API は 2016 年に公開され](https://blog.x.com/official/en_us/a/2016/gnip-s-engagement-api-is-now-generally-available.html)、これらの詳細なエンゲージメント指標を大規模に提供した初の X API でした。Engagement API は使いやすく、プロセスの自動化を可能にします。以下は、統合例を紹介するケーススタディです。
+
+- [Red Cross によるキャンペーン効果測定](https://blog.x.com/developer/en_us/topics/spotlight/2016/measuring-campaign-success-with-the-red-cross.html)[](https://simplymeasured.com/blog/true-twitter-impressions-and-url-clicks-new-from-simply-measured/#sm.0007werel134td8zqf02m2mduumr6)
+
+Engagement API の「なぜ」を確認したところで、次は技術的な詳細に進みましょう。
+
+<div id="integrating-the-engagement-api">
+  #### Engagement API の統合
+</div>
+
+<div id="introduction-to-api">
+  ##### **API の概要**
+</div>
+
+Engagement API は、JSON でエンコードされたリクエストを受け取り、JSON でエンコードされたエンゲージメント指標で応答するシンプルな RESTful API です。リクエストは主に次の 3 要素で構成されます（詳細はリンクを参照）:
+
+- **_Post IDs_** の配列
+- 関心のある[メトリクスタイプ](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes)を指定する配列。タイプには “impressions”、“retweets”、“hashtag\_clicks”、“user\_follows” などが含まれます。
+- [Engagement groupings](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)。API レスポンスでエンゲージメントデータをどのように構成するかを示す JSON 構造です。
+
+多くの場合、Engagement Types と Groupings はリクエスト間で比較的固定で、更新されるのは Post IDs のみです。
+
+Engagement API には[3 つのエンドポイント](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#RequestEndpoints)があります:
+
+- **Totals** - Post のエンゲージメント合計を提供します。一部の指標はすべての Post で利用できますが、他は過去 90 日間に限られます。
+- **28 hour** - 直近 28 時間の時系列エンゲージメント指標を提供します。
+- **Historical** - 2014 年 9 月 1 日以降に投稿された Post を対象に、最大 4 週間連続の時系列エンゲージメント指標を提供します。
+
+**/totals** エンドポイントは、1 リクエストあたり最大 **250 件の Post** の指標取得をサポートします。**/28hour** と **/historical** エンドポイントは、1 リクエストあたり **25 件** をサポートします。
+
+Engagement API へのアクセスについて説明したのち、API リクエストの作成方法、OAuth の概要、その他の技術リソースへのリンクを順に紹介します。
+
+<div id="getting-api-access">
+  ##### **API アクセスの取得**
+</div>
+
+このドキュメントをお読みの場合、すでに Engagement API へのアクセスをお持ちである可能性が高いです。未取得の場合は、Enterprise アカウントマネージャーにご連絡いただくか、[こちら](/ja/x-api/enterprise-gnip-2.0/enterprise-gnip)から Enterprise アクセスを申請してください。
+
+最初のステップは、[developer portal](/ja/resources/fundamentals/developer-portal) から承認済みの開発者アカウントを用いて [X app](/ja/resources/fundamentals/developer-apps) を作成することです。アクセス付与のため、このアプリケーションに関連付けられた数値の App ID をアカウントマネージャーに共有する必要があります。開発者アカウントの申請が必要な場合は、[こちら](/ja/resources/fundamentals/developer-apps)から申請できます。
+
+<div id="making-a-request">
+  ##### **リクエストの作成**
+</div>
+
+良いニュースは、Engagement APIへのリクエスト作成が簡単だということです。今回のリクエストでは、以下の2つの[@XDevelopers](https://x.com/XDevelopers)投稿について、リツイート、引用ツイート、いいね、返信の合計数を取得します：
+
+> 1/ Today we're sharing our vision for the future of the X API platform![https://t.co/XweGngmxlP](https://t.co/XweGngmxlP)
+>
+> — Twitter Dev (@TwitterDev) [April 6, 2017](https://x.com/TwitterDev/status/850006245121695744)
+
+> Don't miss the Posts about your Post.
+>
+> Now on iOS, you can see Retweets with comments all in one place. [pic.x.com/oanjZfzC6y](https://t.co/oanjZfzC6y)
+>
+> — X (@X) [May 12, 2020](https://x.com/status/1260294888811347969?ref_src=twsrc%5Etfw)
+
+最初のステップは、これら2つの投稿IDを配列に配置し、対象とするエンゲージメントタイプの配列、そしてレスポンスでメトリクスをどのように配置するかを指定するカスタム名の「groupings」JSONオブジェクトで構成されるAPIリクエストをJSONで構築することです。リクエストは以下のようになります：
+
+```json
+{
+  "tweet_ids": [
+    1260294888811347969, 850006245121695744
+  ],
+  "engagement_types": [
+    "retweets", "quote_tweets", "favorites", "replies"
+  ],
+  "groupings": {
+    "engagement-types-by-id": {
+      "group_by": [
+        "Tweet.id", "engagement.type"
+      ]
+    }
+  }
+}
+```
+
+これらの合計メトリクスを取得するために、このJSONリクエストをhttps://data-api.x.com/insights/engagement/totalsエンドポイントにPOSTします。
+
+リクエストがJSONでエンコードされており、Gzipで圧縮されていることを示すために、以下のヘッダーを含めます（リクエストボディは大きくなる可能性があります）：
+
+- Content-Type: application/json
+- Accept-Encoding: gzip
+
+リクエストを行う際は、OAuthを使用して認証を行います。これについては次のセクションで詳しく説明します。
+
+APIは以下のペイロードを返します：
+
+```json
+{
+  "grouping name": {
+    "1260294888811347969": {
+      "favorites": "17111",
+      "quote_tweets": "3254",
+      "replies": "1828",
+      "retweets": "5218"
+    },
+    "850006245121695744": {
+      "favorites": "492",
+      "quote_tweets": "66",
+      "replies": "42",
+      "retweets": "324"
+    }
+  }
+}
+```
+
+レスポンスには、「groupings」定義で記述された構造でリクエストしたメトリクスが含まれており、最初に投稿ID別、次のレベルでエンゲージメントタイプ別にメトリクスが一覧表示されていることに注意してください。
+
+これは非常に簡単でした。OAuthでの認証が初めての場合は、次のセクションをご確認ください。
+
+<div id="authenticating-with-oauth">
+  #### OAuth での認証
+</div>
+
+OAuth はテクノロジー業界で広く用いられている認証標準です。すでに OAuth（他の X API など）を利用している場合は、面倒な詳細を隠蔽してくれる言語別の OAuth パッケージを使っていることが多いでしょう。OAuth が初めての場合は、[X API における OAuth](/ja/resources/fundamentals/authentication) のページを参照するか、[https://oauth.net](https://oauth.net/) を直接ご覧ください。次に、使用する言語向けの OAuth パッケージを選び、そこから始めることをおすすめします。一般に、これらのパッケージでは、キーやトークンを設定し、HTTP オブジェクトを作成し、そのオブジェクトでリクエストを送る、という流れで認証します。
+
+たとえば Ruby では、次の疑似コードは Ruby の gem ‘oauth’ を使って OAuth 対応アプリを構築し、POST リクエストを送る手順を表しています。
+
+```js
+require 'oauth'
+
+#Assemble JSON request (as above).
+request = make_json_request()
+
+#Build an app consumer object with my app consumer key and secret.
+consumer = OAuth::Consumer.new(keys['consumer_key'], keys['consumer_secret'], {:site => ‘https://data-api.x.com’})
+#Build a user token with tokens provided by account providing permission. If making app-only #request (checking Tweets that do not require permission with /totals endpoint), this step can be #skipped.
+token = {:oauth_token => keys['access_token'], :oauth_token_secret => keys['access_token_secret']}
+
+#Create oauth-enabled app object.
+app = OAuth::AccessToken.from_hash(consumer, token)
+#Make POST request.
+result = app.post(“/insights/engagement/totals", request, {"content-type" => "application/json", "Accept-Encoding" => "gzip"})
+```
+
+Engagement API は、アプリケーションのみの認証とユーザーコンテキスト認証の両方をサポートします。/totals エンドポイントで非所有の公開ポストのエンゲージメント指標を収集する場合、ユーザーの許可は不要で、アプリケーションのみの認証を使用できます。この場合は、アプリのキーとシークレットのみで認証します。
+
+また OAuth では、ユーザーに紐づくトークンを用いて、アプリが「ユーザーに代わって」API リクエストを行うことも可能です。所有するポスト、つまりユーザートークンを保有しているユーザーが投稿したポストのエンゲージメント指標を生成する場合は、ユーザーコンテキストでリクエストします。これは、アプリのキーとユーザー固有のアクセストークンの両方で認証することを意味します。これらのユーザーアクセストークンは通常、'[Sign-in with X](/ja/resources/fundamentals/authentication#log-in-with-x)' のフローで提供されるか、ユーザーから直接取得します（ユーザーから直接トークンを取得する場合は、必ず [twurl](https://github.com/xdevplatform/xurl) を使用してください）。ユーザーがトークンを提供した後は、ユーザーがトークンをリセットするかパスワードを変更しない限り失効せず、そのユーザーに代わってリクエストを行うために Engagement API で使用できます。その場合は新しいトークンを提供してもらう必要があります。
+
+どのメトリクスにどの認証が必要かは、[この表](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)で確認できます。
+ 
+
+<div id="selecting-an-engagement-api-endpoint">
+  ### Engagement API エンドポイントの選択
+</div>
+
+Engagement API には 3 つの明確なエンドポイントがあります。
+
+- **[Totals](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)** - “owned” または “unowned” の投稿について、特定のメトリクスの総計を提供します。すべての投稿で利用できるメトリクスもあれば、過去 90 日以内に公開された投稿にのみ利用可能なメトリクスもあります。1 リクエストあたり 250 件の投稿をサポートします。
+- **[28 hour](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement)** - 過去 28 時間の “owned” 投稿に対する時系列のエンゲージメントメトリクスを提供します。1 リクエストあたり 25 件の投稿をサポートします。
+- **[Historical](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-historical)** - 2014 年 9 月 1 日以降に投稿された “owned” 投稿について、最大 4 週連続の時系列エンゲージメントメトリクスを提供します。1 リクエストあたり 25 件の投稿をサポートします。
+   
+
+各エンドポイントには固有の特性があります。3 つすべてを利用する場合でも、どれがユースケースに最適かを検討している場合でも、それらの違いを理解することが重要です。
+
+以下では、いくつかの重要な概念を紹介し、3 つのエンドポイントをさらに掘り下げ、一般的に特定のエンドポイントに対応するサンプルユースケースを提示します。これらの情報が、3 つすべてをより効率的に統合する、または単一のエンドポイントの中から目的に最も適したものを選定する際の一助となれば幸いです。
+ 
+
+<div id="key-concepts">
+  #### 重要な概念
+</div>
+
+3 つの Engagement API エンドポイントが提供する機能やデータの違いを説明するうえで役立つ、いくつかの重要な概念があります。
+ 
+
+<div id="impressions-and-engagement-metrics">
+  ##### インプレッションおよびエンゲージメントのメトリクス
+</div>
+
+インプレッションは、オーガニックなコンテキストで特定の投稿がXプラットフォーム上で表示された回数を指します。プロモーションまたは有料のコンテキストで表示された投稿によるインプレッションは含まれません。Engagement API 以前は、投稿のインプレッションは潜在的な表示回数の指標に過ぎず、投稿者のアカウントのフォロワー数や、そのコンテンツをリツイートしたアカウントのフォロワー数に基づいて計測していました。実際にはユーザーが投稿を見ていないという一般的な状況は考慮されていませんでした。
+
+Engagement API によって生成されるインプレッションのメトリクスは、投稿が実際に表示用にレンダリングされた回数を測定します。あなたのアカウントのフォロワーが投稿を見逃した場合、それはインプレッションとしてカウントされません。
+
+Engagement API は、提示された投稿に対してユーザーが取り得る個別のアクションを表す14種類の固有のエンゲージメント[メトリクス種別](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#available-metrics)に関するメトリクスを提供します。これには、リツイート、いいね、返信、#ハッシュタグ・リンク・メディアなどのエンティティのクリック、投稿者のフォロー、投稿者のプロフィール閲覧が含まれます。これらすべての個別アクションは、単一の Engagements メトリクスに集計されます。
+
+<div id="owned-and-unowned-x-content">
+  ##### 自社投稿と非自社投稿の X コンテンツ
+</div>
+
+Engagement は、自社投稿と非自社投稿を明確に区別します。自社投稿とは、あなたのアカウントから投稿されたもの、またはその投稿の Engagement データを取得するための許可を得ているものを指します。他の X API と同様に、他の X ユーザー／アカウントが、あなたが代理で API リクエストを行えるアクセス・トークンを共有することで許可を得ます。これらのトークンを取得する一般的な方法は、[「Sign in with X」プロセス](/ja/resources/fundamentals/authentication#log-in-with-x)を利用することです。
+
+/totals エンドポイントは、自社投稿と非自社投稿の両方に対するエンゲージメントデータを提供します。非自社投稿については、投稿の表示で公開されているエンゲージメントメトリクス（Favorite、Retweet、Reply）をリクエストできます。これらのメトリクスに関して、Engagement API の利点は、これらを自動化された方法で大規模に取得できる点にあります。自社投稿については、/totals エンドポイントは Impression と（合計）Engagement のメトリクスも提供します。
+
+/28hr および /historical エンドポイントは、自社投稿に対するメトリクスのみを提供します。つまり、これらのエンドポイントにリクエストする際には、ユーザーコンテキストを渡す必要があります。
+
+<div id="total-and-time-series-engagement-data">
+  ##### 合計および時系列のエンゲージメントデータ
+</div>
+
+/ totals エンドポイントは、その名のとおり、各エンゲージメント種別の合計値のみを提供します。表示される数値は、投稿が公開されてから現在までの最新の累計を表します。投稿直後にメトリクスを繰り返しリクエストすると、リクエストのたびにこれらの合計が変動するのが一般的です。
+
+/28hr および /historical エンドポイントは、合計値と時系列データの両方を提供できます。時系列データをリクエストする場合、エンゲージメントのメトリクスは日次または時間単位に集計できます。   
+
+/28hr および /historical エンドポイントで時系列データをリクエストする方法については、[engagement groupings](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)のドキュメントを参照してください。
+
+<div id="endpoints-and-example-use-cases">
+  #### エンドポイントと利用例
+</div>
+
+前述の特性と違いを踏まえると、各エンドポイントは一般に異なる種類のユースケースに対応します。特定のユースケースに最適なエンドポイントを選ぶ助けとして、以下に想定されるユーザーの要望例と、それを最も満たすエンドポイントを示します。
+
+<div id="totals">
+  ##### **/totals**
+</div>
+
+- 特定のメトリクスタイプ（Impressions、Engagements、Favorites、Retweets、Quote Tweets、Replies、Video Views）だけにアクセスできればよい。
+- 自分が所有する投稿に限らず、任意の投稿の基本的なエンゲージメントデータにアクセスしたい。
+- 競合とのパフォーマンス比較を行いたい。
+- 自分が所有していない投稿を含むハッシュタグやキャンペーンの基本的なエンゲージメント統計を追跡したい。
+- 日別や時別に分割されたデータは不要で、リクエスト時点の合計値だけが必要。
+- レポートやダッシュボードに表示する単一のメトリクスが必要で、データを保存したくない。
+- ページ読み込み時にデータを表示したく、リクエストして応答を受け取るだけでよい。
+- 1日に数十万から数百万件の投稿データへアクセスする必要がある。
+   
+
+<div id="28hr">
+  ##### **/28hr**
+</div>
+
+- 17種類すべてのメトリクスにアクセスする必要がある。
+- 直近28時間に投稿された最新の投稿のデータを表示したい。
+- 1日1回実行されるジョブがあり、取得が必要なのは直近1日分のデータのみでよい。
+- メトリクスを日別または時間別に分割する必要がある。
+- ダッシュボードで時間ごとのアクティビティを時系列でブレイクアウト表示したい。
+- 1日に数十万件規模の投稿に対して高いアクセス権限が必要である。
+- ストレージに余裕があり、1日1回データを更新しつつ累積値を保持できる。
+   
+
+<div id="historical">
+  ##### **/historical**
+</div>
+
+- 17種類すべてのメトリクスにアクセスする必要がある。
+- 2014年9月まで遡る投稿の履歴データを取得する必要がある。
+- キャンペーン間を比較する詳細な履歴分析を表示したい。
+- メトリクスを日単位または時間単位に分解する必要がある。
+- エンゲージメント API への高いアクセス権は不要で、1日に数百～数千件の投稿のデータが取れればよい。
+
+<div id="engagement-api-key-characteristics">
+  ### Engagement API の主な特性
+</div>
+
+- **RESTful API** は JSON データを提供し、JSON 本文を含む POST リクエストをサポートします。
+- **リクエストの種類:** クライアントアプリは次の種類のリクエストを行えます:
+  - **合計エンゲージメント** -- /totals エンドポイントへの HTTP POST リクエスト
+  - **直近 28 時間のエンゲージメント** -- /28hr エンドポイントへの HTTP POST リクエスト
+  - **履歴エンゲージメント** -- /historical エンドポイントへの HTTP POST リクエスト
+- **OAuth 認証:**
+  - [OAuth 1.0 User Context](/ja/resources/fundamentals/authentication): 利用可能なすべてのメトリクスは、[3-legged OAuth](https://developer.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens) を用いてあなたのアプリを承認したユーザーが所有する投稿に対して利用できます。リクエスト時にはそのユーザーの Access Token を使用する必要があります。[](/ja/resources/fundamentals/authentication)
+  - [OAuth 2.0 Bearer Token](/ja/resources/fundamentals/authentication#oauth-2-0): 一部のメトリクス（リポスト、引用ポスト、返信、いいね、動画再生数）は公開されている任意の投稿に対して利用できます。
+- **リクエストのメタデータと構造**: リクエストデータは、投稿 ID の配列、エンゲージメントタイプの配列、エンゲージメントのグルーピング構造からなる JSON オブジェクトです。
+- **リクエストあたりの投稿数:**
+  - /totals エンドポイント: 投稿 ID 250 件
+  - /28hr エンドポイント: 投稿 ID 25 件
+  - /historical エンドポイント: 投稿 ID 25 件
+- **エンゲージメントメトリクスの提供範囲:**
+  - **/totals** -- 投稿が公開されてからの累計。インプレッションとエンゲージメントは直近 90 日以内に公開された投稿で利用可能で、リポスト、引用ポスト、返信、いいね、動画再生数はすべての投稿で利用可能です。
+  - **/28hr** -- リクエスト時点から直近 28 時間。
+  - **/historical** -- 2014 年 9 月 1 日以降の任意の 28 日間。
+- **メトリクスタイプ**: 各リクエストには[メトリクスタイプ](http://support.gnip.com/apis/engagement_api/overview.html#EngagementTypes)の配列が含まれます。利用可否はエンドポイントに依存し、/totals エンドポイントからのリクエストの場合は、投稿がユーザー許可済みかどうかにも依存します。
+  - /totals エンドポイント:
+    - すべての投稿: いいね、リポスト、引用ポスト、返信、動画再生数
+    - OAuth 1.0a User Context が必要: インプレッション、エンゲージメント、いいね、返信、リポスト
+  - /28hr および /historical エンドポイント（投稿所有者の Access Token を用いた OAuth 1.0a User Context が必要）: インプレッション、エンゲージメント、いいね、返信、リポスト、URL クリック、ハッシュタグクリック、詳細クリック、パーマリンククリック、メディアクリック、アプリインストール試行、アプリ起動、投稿メール、動画再生数、メディアビュー
+- **エンゲージメントのグルーピング:** 各リクエストには[エンゲージメントのグルーピング](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#engagement-api-groupings)の配列が含まれます。これらのグルーピングにより、返されるメトリクスの整理方法をカスタマイズできます。リクエストごとに最大 3 つのグルーピングを含めることができます。メトリクスは次の値で整理できます:
+  - すべてのエンドポイント: 投稿 ID、エンゲージメントタイプ
+  - /28hr および /historical エンドポイント: 追加のグルーピングを指定した場合は時系列を提供: エンゲージメント日、エンゲージメント時
+- **統合に関する期待事項:** 貴チームには次の責務があります。
+  - リクエストに含まれる投稿 ID のエンゲージメントメトリクスを返す Engagement API に HTTP リクエストを送信できるクライアントアプリの作成と保守
+- **制限事項**
+- 動画再生数は、投稿から 1,800 日以内のものに対してのみ利用可能です。
+
+<div id="authenticating-with-the-engagement-api">
+  ### Engagement API での認証
+</div>
+
+> **注意**
+>
+> API の利用を開始する前に、X が開発者アプリに対して Engagement API へのアクセスを有効化する必要があります。認証に使用する予定のアプリ ID を、アカウントマネージャーまたはテクニカルサポートチームに共有してください。
+
+Engagement API で利用可能な認証方法は 2 つあります：[OAuth 1.0a](/ja/resources/fundamentals/authentication#oauth-1-0a-2) と [OAuth 2.0 Bearer Token](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)。
+
+**OAuth 2.0 Bearer Token**（「application-only」とも呼ばれます）は、公開されているエンゲージメントメトリクスへのアクセスを可能にします。この認証方法は、[/totals エンドポイント](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-totals) へのリクエスト時に、公開されている任意の投稿に対する Favorites（Likes）、Retweets、Quote Tweets、Replies、動画再生数の合計値を取得するために使用できます。
+
+**OAuth 1.0a**（「user context」とも呼ばれます）は、ユーザーに代わってリクエストを行い、当該ユーザーに属する非公開のエンゲージメントメトリクスにアクセスできます。
+
+この認証方法が必要となるのは次の場合です：
+
+- [/28hr エンドポイント](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-28hr) および [/historical エンドポイント](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement-historical) に送信するすべてのリクエスト
+- 次の非公開メトリクスへのアクセス：Impressions、Engagements、Media Views、Media Engagements、URL Clicks、Hashtag Clicks、Detail Expands、Permalink Clicks、App Install Attempts、App Opens、Email Post、User Follows、User Profile Clicks
+
+OAuth 1.0a でリクエストを送信する場合は、対象の投稿または保護対象リソースの所有者であるユーザーの Access Tokens（Access Token と Secret）を含める必要があります。保護されたユーザーデータをリクエストする際に正しいユーザーの Access Tokens を指定しない場合、Engagement API は `403 Forbidden` エラーを返します。
+
+Engagement API は、たとえそれらの投稿の所有者に代わって認証している場合でも、[保護された投稿](https://help.x.com/en/safety-and-security/public-and-protected-tweets)のエンゲージメントデータ取得を許可しません。試行すると、`400 Bad Request` エラーが返され、メッセージは `"Tweet ID(s) are unavailable"` となります。
+
+自分の X アカウント（つまり、開発者アプリを所有するアカウント）に代わってリクエストを送信する場合、[developer portal](https://developer.x.com/en/portal/projects-and-apps) の当該開発者アプリの “Keys and tokens” タブから、必要な Access Tokens を直接生成できます。
+
+他のユーザーに代わってリクエストを行う場合は、必要な Access Tokens を取得するために 3-legged OAuth フローを使用する必要があります。詳細は次のドキュメントを参照してください：[OAuth 1.0a: how to obtain a user’s access tokens](/ja/resources/fundamentals/authentication#oauth-1-0a-2)。
+
+追加の例（OAuth 1.0a を用いた認証方法を含む）については、[X Developers による Engagement API 向けサンプル Python コード](https://github.com/xdevplatform/enterprise-scripts-python/tree/master/Engagement-API)を参照してください。
+
+<div id="recent-changes-to-the-engagement-api">
+  ### Engagement API への最近の変更
+</div>
+
+Engagement API は、X 上でのアクティビティのパフォーマンスを監視するうえで不可欠なインプレッションおよびエンゲージメントのメトリクスを提供します。弊社データに基づくマーケティング判断を支援する継続的な取り組みの一環として、X 全体でメトリクスの一貫性を高める Engagement API の最近の変更点をご案内します。  
+
+最近、Engagement API をモダナイズし、X のアナリティクスダッシュボード（analytics.x.com）で使用しているのと同じメトリクス集計手法を採用しました。新しいメトリクスの導入にあたり、API の破壊的変更を最小限に抑えるべく慎重に進め、最初の変更セットを 2017 年 10 月 9 日に展開しました。これらの変更により、皆様やお客様が X 上のパフォーマンスを確認するあらゆる場所で一貫性が向上します。以下に変更点の詳細を示します。
+
+|     |     |
+| :--- | :--- |
+| **Metric** | **Change** |
+| engagements | 全体の engagements に集計されるメトリクスを更新し、Post アナリティクスダッシュボードと整合させました。engagements は「この Post に対して人々が反応した回数」を測定します。<br /><br />動画や GIF などのメディアを含む Post の場合、engagements にはメディアビューが含まれなくなります。メディアビューは新しいメトリクス _media\_views_ で参照できます。 |
+| media\_clicks\* | このメトリクスは新しいメトリクス「_media\_engagements_」に置き換えられました。 |
+| video\_views | 2018 年 7 月 6 日以降、このメトリクスは [/totals](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement) エンドポイントで「非所有」の Post に対しても利用可能になりました。つまり、アプリのみ認証を使用することで、**すべて**の Post の動画ビューにアクセスできます。 <br /><br />リクエストできる動画ビューは 1800 日以内のものに限られます。1800 日より古い Post の動画ビューをリクエストすると、次のレスポンスが返されます。<br /><br />"unsupported\_for\_video\_views\_tweet\_ids": \["TWEET\_ID"]<br /><br />**注意**: これは media\_views と異なり、video\_views は MRC の基準（動画の 50% が少なくとも 2 秒間視認範囲内）に基づきます。<br /><br />**また、** X の自社プラットフォーム（モバイルアプリおよびウェブサイト）に表示される動画ビューの値と、/28hr および /historical エンドポイント経由で取得する数値に差異が生じる場合があります。<br /><br />\* X のユーザーインターフェイスに表示され、/totals エンドポイントで提供される動画ビューは、該当する動画が含まれるすべての Post を横断して集計された値です。つまり、UI に表示されるメトリクスには、その動画がリポストや別の Post で再投稿されたインスタンスも含めた合算ビューが含まれます。<br />\* /28hr および /historical エンドポイントで提供される動画ビューは、メトリクスを取得している特定の Post で生成されたビューのみを含みます。 |
+| media\_views | 動画、Vine、GIF、画像にわたってカウントされた、メディアのすべてのビュー（自動再生およびクリック）を含みます。<br /><br />**注意**: 画像付きの Post は、アナリティクスダッシュボードには media\_views が表示されませんが、Engagement API では返されます。 |
+| media\_engagements\* | 動画、Vine、GIF、画像に対するメディアのクリック数を含みます。このメトリクスは _media\_clicks_ を置き換えます。 |
+| quote\_tweets | 2020 年 7 月 7 日以降、このメトリクスは /totals エンドポイントで「非所有」の Post に対しても利用可能になりました。つまり、アプリのみ認証を使用することで、すべての Post の引用 Post 数にアクセスできます。 |
+
+<div id="interpreting-the-metrics">
+  ### 指標の解釈
+</div>
+
+**注:** 一部の X のウェブダッシュボードで報告されるデータと、Engagement API で報告されるデータに差異が生じる場合があります。これは、ウェブダッシュボードが通常、選択した期間内に発生したエンゲージメントやインプレッションのみを表示するためです。たとえば、ウェブダッシュボードはカレンダー月内の投稿に対するエンゲージメントのみを表示しますが、Engagement API は、要求された時間範囲内であればその月をまたぐエンゲージメントも表示する場合があります。これらの場合は、Engagement API を正としてください。
+ 
+
+<div id="impressions-and-engagement-data">
+  #### インプレッションとエンゲージメントデータ
+</div>
+
+Engagement API は、**オーガニック**のインプレッションおよびエンゲージメントデータを提供します。
+
+インプレッションは、特定の投稿が X プラットフォーム上でオーガニックなコンテキストで閲覧された回数を指します。プロモーションまたは有料のコンテキストで表示された投稿により発生したインプレッションは含まれません。
+
+エンゲージメントは、特定の投稿に対して視聴者が行った反応の回数を、**オーガニック**および**プロモーション**の両方のコンテキストで集計したものです。エンゲージメントには、リツイート、いいね、返信、URL クリック、ハッシュタグクリック、メンションクリック、メディア再生などが含まれますが、これらに限定されません。含まれるエンゲージメントアクションの全一覧は、Engagement Data セクションをご参照ください。 
+
+基準となるエンゲージメント率を算出するには、分析対象期間内の特定の投稿について、総エンゲージメント数を総インプレッション数で割ってください。
+
+インプレッションおよびエンゲージメントデータは、所有する @handle の投稿、またはあなたのアプリケーションに投稿の詳細閲覧を許可した @handle の投稿に対してのみ取得できます。内部的には、Engagement API は、契約上の @handle 上限に対して、リクエストされた一意の @handle の数を追跡します。クライアント側でも、月間を通じて @handle リクエストの使用状況を追跡することを推奨します。  
+
+<div id="video-metrics">
+  #### 動画メトリクス
+</div>
+
+X 内でメディアのインプレッションを表すメトリクスには複数の種類があります。1つ目は動画視聴数で、少なくとも2秒間、動画の50%が表示領域に入っているという MRC 標準に基づきます。2つ目は Media Views で、動画、Vine、GIF、画像にわたってカウントされる、メディアのすべての視聴（自動再生およびクリック）を含みます。
+
+動画視聴数は、/28hour および /historical エンドポイント経由で自社投稿（owned Posts）に対して利用でき、/totals エンドポイント経由では他社投稿（unowned Posts）すべてに対しても利用可能です。 
+
+X のユーザーインターフェースでの動画視聴数も同じ MRC 標準を用いていますが、X の自社運用プラットフォーム（モバイルアプリおよびウェブサイト）に表示される動画視聴数と、各種 Engagement API エンドポイント経由で取得する数値に差異が生じる場合がある点にご留意ください。
+
+- /totals エンドポイントおよび X のユーザーインターフェースで提供される動画視聴数は、該当の動画が投稿されたすべての投稿にわたって集計された視聴数を表示します。つまり、/totals 経由で提供され X の UI に表示されるメトリクスには、その動画が別の投稿でリツイートまたは再投稿されたあらゆるインスタンスからの視聴数が合算されています。
+- /28hour および /historical の Engagement API エンドポイントで提供される動画視聴数は、メトリクスを取得している特定の投稿によって生成された視聴数のみを含みます。 
+   
+
+1800日より前の投稿については動画視聴数を提供していない点にご留意ください。代わりに、1800日より前の投稿を一覧にしたオブジェクトを返します。リクエストした投稿に関するその他のメトリクスは、別のオブジェクトで引き続き受け取れます。以下はレスポンスの例です:
+
+```json
+{
+  "unsupported_for_video_views_tweet_ids": [
+    "479311209565413376",
+    "477139122520219648"
+  ],
+  "grouping name": {
+    "479311209565413376": {
+      "favorites": "69",
+      "impressions": "1692",
+      "retweets": "142",
+      "video_views": "0"
+    },
+    "477139122520219648": {
+      "favorites": "10",
+      "impressions": "1023",
+      "retweets": "6",
+      "video_views": "0"
+    },
+    "1397568983931392004": {
+      "favorites": "268",
+      "impressions": "26803",
+      "retweets": "56",
+      "video_views": "17902"
+    }
+  }
+}
+```
+
+Media Views は、/28hour および /historical エンドポイントを用いた自社投稿（owned Posts）に対してのみ利用可能です。
+
+<div id="engagement-api-groupings">
+  ### Engagement API のグルーピング
+</div>
+
+グルーピングは、返されるエンゲージメント指標を任意の区分で整理するための機能です。1回のリクエストに含められるグルーピングは最大3つです。次の値の1つ以上で指標をグループ化できます。
+
+_3つのエンドポイントすべてがサポート:_
+
+- tweet.id
+- engagement.type
+   
+
+`/28hr` と `/historical` は時系列指標を提供できるため、次もサポートします:
+
+- engagement.day
+- engagement.hour
+
+グルーピングは順番に評価されるため、`group_by` の値の並び順を変えることで、出力形式を変更できます。`group_by` に4つの値を含むグルーピングは、次の2つの形式のいずれかに限りサポートされます:
+ 
+
+```bash
+"group_by": [
+    "tweet.id",
+    "engagement.type",
+    "engagement.day",
+    "engagement.hour"
+  ]
+```
+
+または
+
+```bash
+"group_by": [
+    "engagement.type",
+    "tweet.id",
+    "engagement.day",
+    "engagement.hour"
+]
+```
+
+たとえば、指標タイプの総計を生成したい場合は、リクエストに次の「groupings」指定を含めます（リクエストの組み立ての詳細は [API Reference](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#post-insights-engagement) を参照してください）:
+ 
+
+```json
+{
+  "engagement_types": [
+    "favorites",
+    "replies",
+    "retweets"
+  ],
+  "groupings": {
+    "Grand Totals": {
+      "group_by": [
+        "engagement.type"
+      ]
+    }
+  }
+}
+```
+
+このグルーピングでは、Engagement API の JSON レスポンスのルートレベルに、指標タイプ別の総計を含む "Grand Totals" 属性が追加されます:
+
+```json
+{
+  "Grand Totals": {
+    "favorites": "12",
+    "replies": "2",
+    "retweets": "2"
+  }
+}
+```
+
+単一の投稿について、投稿IDでグループ化した4時間の時系列指標を生成するには、次のグルーピング指定をリクエストに含めます:
+
+```json
+{
+  "start": "2016-02-10T17:00:00Z",
+  "end": "2016-02-10T21:00:00Z",
+  "tweet_ids": [
+    "697506383516729344"
+  ],
+  "engagement_types": [
+    "impressions",
+    "engagements"
+  ],
+  "groupings": {
+    "Tweets_MetricType_TimeSeries": {
+      "group_by": [
+        "tweet.id",
+        "engagement.type",
+        "engagement.hour"
+      ]
+    }
+  }
+}
+```
+
+このグルーピングでは、Engagement API の JSON レスポンスのルートレベルに "Tweets\_MetricType\_TimeSeries" 属性が追加され、投稿ID、次に指標タイプ、そして対応する毎時の時系列の順で分解された指標が含まれます:
+
+```json
+{
+  "Tweets_MetricType_TimeSeries": {
+    "697506383516729344": {
+      "impressions": {
+        "2016-02-10": {
+          "17": "551",
+          "18": "412",
+          "19": "371",
+          "20": "280"
+        }
+      },
+      "engagements": {
+        "2016-02-10": {
+          "17": "8",
+          "18": "6",
+          "19": "3",
+          "20": "0"
+        }
+      }
+    }
+  }
+}
+```
+
+<div id="frequently-asked-questions">
+  ## よくある質問
+</div>
+
+`Enterprise`
+
+<div id="engagement-api">
+  ### Engagement API
+</div>
+
+<AccordionGroup>
+  <Accordion title="Engagement API にはどのようにアクセスできますか？">
+    Engagement API へのアクセスはエンタープライズサブスクリプションを通じて提供されます。営業担当へのご連絡は[このフォーム](/ja/x-api/enterprise-gnip-2.0/enterprise-gnip)にご記入ください。
+  </Accordion>
+
+  <Accordion title="利用状況は「@handle」でどのように追跡されますか？">
+    ご契約に、Engagement API で使用できる一意の handle 数の上限が定められている場合があります。X の内部システムは、Engagement API でクエリされた投稿を所有する認証済みユーザーの数を追跡します。お客様側でも、この一意数をクライアント側で管理してください。現在、Engagement API の @handle 利用状況を確認するための使用量 API や UI はありません。契約より多くの @handle がリクエストされた場合でも、システムが超過をブロックすることはありません。課金月の末に、クエリされた一意の @handle の数が契約数と比較され、契約条件に従って超過料金が請求されます。
+  </Accordion>
+
+  <Accordion title="Engagement API の @handle 利用状況を確認できますか？">
+    現在、Engagement API の @handle 利用状況を確認するための使用量 API や UI はありません。契約より多くの @handle がリクエストされた場合でも、システムが超過をブロックすることはありません。課金月の末に、クエリされた一意の @handle の数が契約数と比較され、契約条件に従って超過料金が請求されます。
+
+    **ペイロードで返される `engagements` メタデータフィールドが、各種エンゲージメントメトリクス合計の総和と一致しません。なぜですか？**
+
+    これは想定どおりの動作です。`engagements` メタデータフィールドは、API から返される個々のエンゲージメントメトリクスの合計と常に一致するとは限りません。これは、`engagements` フィールドに、ペイロード内で個別のメトリクスとして内訳が提供されていない追加のエンゲージメントが含まれる場合があるためです。言い換えると、さまざまなエンゲージメントメトリクスの合計を足し合わせても、ペイロードで返される `engagements` フィールドの値と一致しないことがあります。
+
+    `engagements` メタデータフィールドは、投稿に対して行われたあらゆるクリックやインタラクション全般と考えることができます。
+     
+
+    **ペイロードのレスポンスで `url_clicks` フィールドに数値が返っていますが、投稿に URL はありません。どうしてですか？**
+
+    ハッシュタグなど（別ページへのリンクを生成する要素）を含む投稿が、ユーザーにクリックされた場合に URL クリックとしてカウントされることがあるためです。
+     
+  </Accordion>
+
+  <Accordion title="特定の投稿のエンゲージメントデータを取得できないのはなぜですか？">
+    特定の投稿のエンゲージメントデータを取得できない理由はいくつかあります。例としては以下のとおりです。
+
+    - リクエストした投稿 ID が、第三者の代わりにデータを取得するために使用している認証トークンでは利用できない。
+    - /totals エンドポイントに対してリクエストした投稿 ID が 90 日以内ではなく、そのためインプレッションやエンゲージメントメトリクスを返す対象ではない。
+    - リクエストした投稿 ID が既に利用できない（削除された、または他の理由で公開されていないことを示すのが一般的）。
+
+    上記のいずれの場合でも受け取る可能性が高い[エラーメッセージ](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#error-messages)をご確認ください。
+  </Accordion>
+
+  <Accordion title="Engagement API でレート制限にはどのように対処できますか？">
+    Engagement API へのリクエスト時にレスポンスヘッダーで返される `x-per-minute-limit` と `x-per-minute-remaining` の情報を使用して、消費状況を監視できます。
+
+    `x-per-minute-limit` は許容量を、`x-per-minute-remaining` は残りの呼び出し回数を示します。
+  </Accordion>
+</AccordionGroup>
+
+<div id="error-troubleshooting-guide">
+  ### エラーのトラブルシューティングガイド
+</div>
+
+<AccordionGroup>
+  <Accordion title="認証で問題が発生しています">
+    Engagement API の[認証に関するガイドライン](/ja/x-api/enterprise-gnip-2.0/fundamentals/engagement-api#authentication)を必ずご確認ください。
+  </Accordion>
+
+  <Accordion title="正しい consumer key と secret、さらに access token と access token secret を渡していますが、次のエラーが返されます。どうすればよいですか？">
+    ```bash
+    [
+        Your account could not be authenticated. Reason: Unknown Authorization Type;
+    ]
+    ```
+
+    /totals エンドポイントで認証を試す際は、access token や secret を使用しないでください。これらのトークンを含めた状態で、それらに関連付けられていない投稿からコンテンツを取得しようとすると、次のようなエラーが発生する可能性があります。
+
+    ```bash
+    [
+        Forbidden to access tweets: 1054424731825229824;
+    ]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<div id="still-cant-find-what-youre-looking-for">
+  ### お探しの情報がまだ見つかりませんか？
+</div>
+
+<AccordionGroup>
+  <Accordion title="未回答の質問があります">
+    技術サポートまでお問い合わせください。迅速に対応いたします。
+  </Accordion>
+</AccordionGroup>
+
+<div id="api-reference">
+  ## API リファレンス
+</div>
+
+<div id="post-insightsengagement">
+  ### **POST insights/engagement**
+</div>
+
+<div id="methods">
+  #### **メソッド**
+</div>
+
+| メソッド | 説明 |
+| :--- | :--- |
+| [POST /insights/engagement/totals](#Totals) | 複数のツイートの合計インプレッション数とエンゲージメント数を取得します。 |
+| [POST /insights/engagement/historical](#Historical) | 2014年9月1日まで遡り、最長4週間の期間について複数のツイートのインプレッション数とエンゲージメント数を取得します。 |
+| [POST /insights/engagement/28hr](#api-28hr) | 過去28時間における複数のツイートのインプレッション数とエンゲージメント数を取得します。 |
+
+<div id="authentication">
+  #### **認証**
+</div>
+
+Engagement API の利用には HTTPS が必須で、User Context と Application-Only OAuth の両方をサポートします。Engagement API へのほとんどのリクエストには 3-Legged OAuth（User Context の特定バージョン）の使用が必要です。これは、Twitter のアカウントマネージャーによって Engagement API へのアクセスが登録・承認されたアプリの consumer key と secret に加え、ツイート所有者の access token と access token secret を用いてエンドポイントを呼び出すことを意味します。次のリクエストにはこの種類の OAuth が必要です:
+
+- 所有ツイートに限定される Impressions および Engagements のメトリクスタイプを取得するための /totals への任意のリクエスト
+- /28hr への任意のリクエスト
+- /historical への任意のリクエスト
+
+Engagement API への一部のリクエストは Application-Only OAuth で実行できます。これは、consumer key と secret、または bearer token を提供するだけでよいことを意味します。次のリクエストはこの種類の OAuth で実行できます:
+
+- 任意のツイートに対して取得可能な Favorites、Replies、Retweets、または Video Views の各メトリクスタイプを取得するための /totals への任意のリクエスト
+
+いずれのリクエストでも、[developer.x.com](https://developer.x.com/en/portal/dashboard) にあるアプリ管理コンソールを使用して Twitter アプリと対応する API key を設定する必要があります。
+
+注意: 既存の[Twitter apps](/ja/resources/fundamentals/developer-apps)は、developer.x.com 上で Twitter アカウントにログインしている場合、[Twitter app dashboard](https://developer.x.com/en/apps) から表示・編集できます。
+
+アプリの設定が完了したら、Engagement API へのリクエストを行うには、アプリ ID をアカウント担当者の承認に通す必要があります。Access token は「現在のユーザー」を表すために使用し、別ユーザーに代わって行うリクエストは有効なトークンで署名する必要があります。OAuth 署名ベース文字列を作成する前に、URL および POST 本文内で[予約文字をエンコード](https://tools.ietf.org/html/rfc3986)していることを確認してください。
+
+OAuth の利用開始方法の詳細は、以下のリンクをご参照ください:
+
+- [OAuth の概要](/ja/resources/fundamentals/authentication)
+- [User Context（3-Legged OAuth）の使用](/ja/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)
+- [Application-Only OAuth の使用](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)
+
+<div id="post-insightsengagementtotals">
+  #### **POST /insights/engagement/totals**
+</div>
+
+totals エンドポイントでは、最大250件のツイートコレクションに対し、現在の合計インプレッション数とエンゲージメント数を取得できます。
+
+|     |     |
+| :--- | :--- |
+| **リクエストメソッド** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/totals` |
+| **コンテンツタイプ** | `application/json` |
+| **圧縮** | Gzip。Gzip 圧縮でリクエストするには、接続リクエストに Accept-Encoding ヘッダーを付与します。  <br />ヘッダーは次のとおりです。  <br />  <br />`Accept-Encoding: gzip` |
+| **POST フォーマット** | リクエストは POST として送信でき、ボディはツイート ID の集合と目的のグルーピングを含む JSON オブジェクトです。POST は `tweets`、`engagements`、`groupings` オブジェクトを含む配列として構成します。各リクエストには最大 250 件のツイート ID を含められます。  <br />  <br />POST ボディの例:  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />        "Tweet ID 1",<br />        "Tweet ID 2",<br />        "Tweet ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "favorites",<br />        "quote\_tweets"<br />    ],<br />    "groupings": \{<br />      "grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    }<br />  } |
+| **ツイート ID** | エンゲージメントデータを照会する対象ツイートのツイート ID を含む配列です。認証中の @handle が作成したツイートに対してのみデータを要求できます。1 回のリクエストに含められるツイートは最大 250 件で、ツイート ID は文字列で指定する必要があります。 |
+| **エンゲージメントタイプ** | 照会するエンゲージメント指標のタイプを含む配列です。Totals エンドポイントでサポートされるエンゲージメントタイプは次のとおりです: `impressions`, `engagements`, `favorites`, `retweets`, `quote_tweets`, `replies`, `video_views`。  <br />`/totals` エンドポイントでは、直近 90 日以内に作成されたツイートに対しては `impressions` と `engagements` を、任意のツイートに対しては `favorites`、`retweets`、`quote_tweets`、`replies`、`video_views` を取得できます。 |
+| **グルーピング** | Engagement API の結果は、要件に合わせて異なるグループで返せます。1 回のリクエストで指定できるグルーピングは最大 3 つです。  <br />  <br />各グルーピングに対して、アプリケーションで参照しやすいカスタムのグルーピング名を定義できます。  <br />  <br />グルーピング名を定義したら、`tweet.id` および／または `engagement.type` でのグルーピングを選択できます。  <br />  <br />グルーピングは指定順に適用されるため、group\_by の値の順序を変更することで、望む結果形式に調整できます。ツイート ID とメトリクスタイプごとに分割したメトリクスを示す例は次のとおりです。  <br />  <br /><br />  "groupings": \{<br />      "my grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    } |
+| **POST サイズ上限** | 1 回のリクエストで指定できるツイート ID は最大 250 件です。 |
+| **レスポンス形式** | JSON。レスポンス形式として JSON を指定するヘッダーをリクエストに含めてください。 |
+| **レート制限** | アクセスレベルに応じて契約で定められたとおり、分あたりのレート制限が適用されます。 |
+| **リクエスト例（公開メトリクス）** | curl --request POST <br />  --url https://data-api.x.com/insights/engagement/totals <br />  --header 'accept-encoding: gzip' <br />  --header 'authorization: Bearer ' <br />  --header 'content-type: application/json' <br />  --data '\{<br />                "tweet\_ids": \[<br />                    "1070059276213702656","1021817816134156288","1067094924124872705"<br />                ],<br />                "engagement\_types": \[<br />                    "favorites","retweets","replies","quote\_tweets","video\_views"<br />                ],<br />                "groupings": \{<br />                    "perTweetMetricsUnowned": \{<br />                        "group\_by": \[<br />                            "tweet.id",<br />                            "engagement.type"<br />                        ]<br />                    }<br />                }<br />            } <br />  --verbose <br />  --compressed |
+| **リクエスト例** | curl --request POST <br />  --url https://data-api.x.com/insights/engagement/totals <br />  --header 'accept-encoding: gzip' <br />  --header 'authorization: OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  --header 'content-type: application/json' <br />  --data '\{<br />                "tweet\_ids": \[<br />                    "1060976163948904448","1045709644067471360"<br />                ],<br />                "engagement\_types": \[<br />                    "favorites","replies","retweets","video\_views","impressions","engagements"<br />                ],<br />                "groupings": \{<br />                    "perTweetMetricsOwned": \{<br />                        "group\_by": \[<br />                            "tweet.id",<br />                            "engagement.type"<br />                        ]<br />                    }<br />                }<br />            }' <br />  --verbose <br />  --compressed |
+| **レスポンス例（公開メトリクス）** | \{<br />  "perTweetMetricsUnowned": \{<br />    "1021817816134156288": \{<br />      "favorites": "530",<br />      "quote\_tweets": "79",<br />      "replies": "147",<br />      "retweets": "323",<br />      "video\_views": "0"<br />    },<br />    "1067094924124872705": \{<br />      "favorites": "1360",<br />      "quote\_tweets": "29",<br />      "replies": "56",<br />      "retweets": "178",<br />      "video\_views": "5754512"<br />    },<br />    "1070059276213702656": \{<br />      "favorites": "69",<br />      "quote\_tweets": "5",<br />      "replies": "7",<br />      "retweets": "26",<br />      "video\_views": "0"<br />    }<br />  }<br />} |
+| **レスポンス例** | \{<br />  "perTweetMetricsOwned": \{<br />    "1045709644067471360": \{<br />      "engagements": "2",<br />      "favorites": "0",<br />      "impressions": "47",<br />      "replies": "0",<br />      "retweets": "8",<br />      "quote\_tweets": "5",<br />      "video\_views": "0"<br />    },<br />    "1060976163948904448": \{<br />      "engagements": "4",<br />      "favorites": "0",<br />      "impressions": "148",<br />      "replies": "1",<br />      "retweets": "9",<br />      "quote\_tweets": "2",<br />      "video\_views": "0"<br />    }<br />  }<br />} |
+| **利用できないツイート ID** | 削除などにより一部のツイート ID が利用できなくなっているクエリでは、利用可能なツイート ID については適切なデータが返され、利用できないツイート ID は `unavailable_tweet_ids` という配列で示されます。例：  <br /><br />  \{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:00:00Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": "26",<br />      "quote\_tweets": "2"<br />     }<br />    }<br />  } |
+
+<div id="post-insightsengagement28hr">
+  #### **POST /insights/engagement/28hr**
+</div>
+
+「28 hour」エンドポイントは、過去28時間にわたり、最大25件のツイートのコレクションについてインプレッションおよびエンゲージメントを取得できます。また、このエンドポイントでは、サポートされているすべての個別メトリクスをリクエストすることも可能です。サポート対象メトリクスの一覧は、[Metric Availability](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes)を参照してください。
+
+|     |     |
+| :--- | :--- |
+| **リクエストメソッド** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/28hr` |
+| **コンテンツタイプ** | `application/json` |
+| **圧縮** | Gzip。Gzip 圧縮でリクエストするには、接続リクエストに Accept-Encoding ヘッダーを付与してください。  <br />ヘッダーは次のとおりです。  <br />  <br />`Accept-Encoding: gzip` |
+| **POST 形式** | リクエストは、本文がツイート ID の集合と希望するグルーピングを含む JSON オブジェクトの POST として送信できます。POST は `tweets`、`engagements`、`groupings` オブジェクトを含む配列としてフォーマットされます。各リクエストで指定できるツイート ID は最大 25 件です。  <br />  <br />POST 本文の例:  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />       "ツイート ID 1",<br />       "ツイート ID 2",<br />       "ツイート ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "グルーピング名": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  } |
+| **ツイート ID** | エンゲージメントデータを照会する対象ツイートのツイート ID を含む配列です。認証中の @handle が作成したツイートに対してのみデータをリクエストできます。28 時間エンドポイントは 1 回のリクエストにつき最大 25 件のツイートをサポートし、ツイート ID は文字列で指定する必要があります。 |
+| **エンゲージメントタイプ** | 照会するエンゲージメント指標の種類の配列です。  <br />  <br />28 時間エンドポイントでは、`impressions`、`engagements`、およびすべての個別エンゲージメントタイプがサポート対象です。サポートされるエンゲージメント指標の一覧は [Engagement Data](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#AvailableData) を参照してください。 |
+| **グルーピング** | Engagement API の結果は、ニーズに合わせて異なるグループで返せます。1 回のリクエストに含められるグルーピングは最大 3 つです。  <br />  <br />各グルーピングについて、アプリケーション内で参照しやすいようカスタムのグルーピング名を定義できます。グルーピング名を定義したら、次の値のうち 1 つ以上でグループ化できます。  <br />`tweet.id`  <br />`engagement.type`  <br />`engagement.day`  <br />`engagement.hour`  <br />グルーピングは順に適用されるため、`group_by` の値の順序を変えることで、望ましい結果形式に変更できます。ツイート ID、指標タイプ、日別で分割して表示するグルーピング例は次のとおりです。<br /><br />  "groupings": \{<br />    "任意のグルーピング名": \{<br />      "group\_by": \[<br />        "tweet.id",<br />        "engagement.type",<br />        "engagement.day"<br />      ]<br />    }<br />  }<br /><br />  <br />4 つの `group_by` 項目を持つグルーピングは、次のいずれかの順序のみ有効です。単一のグルーピングで `group_by` が 4 項目あり、いずれの順序にも該当しないリクエストはエラーになります。さらに、`group_by` が 4 項目のグルーピングは 1 回のリクエストにつき 1 つのみ許可されます。  <br /><br />"group\_by": \[<br />    "tweet.id",<br />    "engagement.type",<br />    "engagement.day",<br />    "engagement.hour"<br />  ]<br /><br />"group\_by": \[<br />    "engagement.type",<br />    "tweet.id",<br />    "engagement.day",<br />    "engagement.hour"<br />  ] |
+| **POST サイズ上限** | 1 回のリクエストで指定できるツイート ID は最大 25 件です。 |
+| **レスポンス形式** | JSON。レスポンスは JSON 形式となるよう、リクエストヘッダーで指定してください。 |
+| **レート制限** | アクセスレベルに応じた契約の規定に基づき、1 分単位でレート制限が適用されます。 |
+| **リクエスト例** | curl -X POST "https://data-api.x.com/insights/engagement/28hr" <br />  -H 'Accept-Encoding: gzip' <br />  -H 'Authorization OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  -d '\{<br />    "tweet\_ids": \[<br />       "123456789"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements"<br />    ],<br />    "groupings": \{<br />      "hourly-time-series": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.day",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  }' |
+| **応答例** | \{<br />    "start": "2015-09-14T17:00:00Z",<br />    "end": "2015-09-15T22:00:00Z",<br />    "hourly-time-series": \{<br />      "123456789": \{<br />        "impressions": \{<br />          "2015-09-14": \{<br />            "17": "551",<br />            "18": "412",<br />            "19": "371",<br />            "20": "280",<br />            "21": "100",<br />            "22": "19",<br />            "23": "6"<br />          },<br />          "2015-09-15": \{<br />            "00": "5",<br />            "01": "2",<br />            "02": "7",<br />            "03": "3",<br />            "04": "1",<br />            "05": "0",<br />            "06": "0",<br />            "07": "0",<br />            "08": "0",<br />            "09": "0",<br />            "10": "0",<br />            "11": "0",<br />            "12": "0",<br />            "13": "0",<br />            "14": "0",<br />            "15": "0",<br />            "16": "0",<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0"<br />          }<br />        },<br />        "engagements": \{<br />          "2015-09-14": \{<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0",<br />            "22": "0",<br />            "23": "0"<br />          },<br />          "2015-09-15": \{<br />            "00": "0",<br />            "01": "0",<br />            "02": "0",<br />            "03": "0",<br />            "04": "0",<br />            "05": "0",<br />            "06": "0",<br />            "07": "0",<br />            "08": "0",<br />            "09": "0",<br />            "10": "0",<br />            "11": "0",<br />            "12": "0",<br />            "13": "0",<br />            "14": "0",<br />            "15": "0",<br />            "16": "0",<br />            "17": "0",<br />            "18": "0",<br />            "19": "0",<br />            "20": "0",<br />            "21": "0"<br />          }<br />        }<br />      }<br />    }<br />  } |
+| **利用不可のツイート ID** | 利用不可になったツイート ID（例：削除済み）がクエリに含まれている場合、利用可能なツイート ID については適切なデータが返され、利用不可のツイート ID は `unavailable_tweet_ids` という配列で示されます。例：  <br /><br />  \{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:00:00Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": 26<br />     }<br />    }<br />  } |
+
+<div id="post-insightsengagementhistorical">
+  #### **POST /insights/engagement/historical**
+</div>
+
+この履歴エンドポイントは、最大25件のツイートのコレクションに対して、最長4週間の任意の期間におけるインプレッションとエンゲージメントを取得できます。現在、2014年9月1日より前のデータは API からリクエストできません。履歴エンドポイントでは、サポートされているすべての個別メトリクスについてメトリクスをリクエストすることも可能です。サポート対象メトリクスの全一覧は、[Metric Availability](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#EngagementTypes)を参照してください。
+
+|     |     |
+| :--- | :--- |
+| **リクエストメソッド** | HTTP POST |
+| **URL** | `https://data-api.x.com/insights/engagement/historical` |
+| **コンテンツタイプ** | `application/json` |
+| **圧縮** | Gzip。Gzip 圧縮でリクエストするには、接続リクエストに Accept-Encoding ヘッダーを付与してください。  <br />ヘッダーは次のとおりです。  <br />  <br />`Accept-Encoding: gzip` |
+| **POST 形式** | リクエストは、本文に Tweet ID の集合と希望するグルーピングを含む JSON オブジェクトとして送信できます。POST の本文は `tweets`、`engagements`、`groupings` オブジェクトを要素とする配列として構成します。各リクエストで指定できる Tweet ID は最大 25 件です。各リクエストには、最大 4 週間の範囲で任意の開始日・終了日を指定できます。  <br />  <br /><br />  \{<br />    "tweet\_ids": \[<br />       "Tweet ID 1",<br />       "Tweet ID 2",<br />       "Tweet ID 3"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "grouping name": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type",<br />          "engagement.hour"<br />        ]<br />      }<br />    }<br />  } |
+| **開始日と終了日** | リクエストの一部として `start` と `end` の値で任意の開始日と終了日を指定できます。開始日と終了日は、期間が 4 週間を超えないように指定する必要があります。現時点で設定可能な最古の開始日は 2014 年 9 月 1 日です。未来の終了日はサポートされません。開始日と終了日が指定されない場合、API は直近 4 週間をデフォルトとします。  <br />  <br />Engagement API が返せる最小の粒度は時間（時）単位です。時間境界にぴったり一致しない Start/End の値で行われたリクエストは、最も近い包含的な時刻に丸められます。例："start":"2015-07-01T12:24:00Z"、"end":"2015-07-10T08:37:00Z" のリクエストは、"start":"2015-07-01T12:00:00Z"、"end":"2015-07-10T09:00:00Z" にデフォルト設定されます。 |
+| **Tweet ID** | エンゲージメントデータを照会する対象ツイートの Tweet ID を含む配列です。認証中の @handle が作成したツイートに対してのみデータをリクエストできます。4 週間の履歴エンドポイントでは、1 リクエストあたり最大 25 件のツイートをサポートし、Tweet ID は文字列として指定する必要があります。 |
+| **エンゲージメントタイプ** | 照会するエンゲージメント指標の種類を含む配列。  <br />  <br />4 週間の履歴エンドポイントでは、`impressions`、`engagements`、およびすべての個別エンゲージメントタイプがサポート対象の指標です。サポートされるエンゲージメント指標の全一覧は [Engagement Data](https://developer.x.com/en/docs/x-api/v1/metrics/get-tweet-engagement/overview#AvailableData) を参照してください。  <br />  <br />\*\*注:\*\* 現在、2015 年 9 月 15 日より前の期間を対象とするクエリでは、`favorites`、`replies`、`retweets` の 3 指標は 0 と表示されます。 |
+| **グルーピング** | Engagement API の結果は、ニーズに合わせてさまざまなグループで返せます。1 回のリクエストで含められるグルーピングは最大 3 つです。  <br />  <br />各グルーピングには、アプリケーション内で参照しやすいように任意の名前を定義できます。グルーピング名を定義したら、次の値のうち 1 つ以上でグループ化を選択できます。  <br />`tweet.id`  <br />`engagement.type`  <br />`engagement.day`  <br />`engagement.hour`  <br />グルーピングは順番に適用されるため、group\_by の並び順を変えることで、望む結果形式に調整できます。ツイート ID、メトリクス種別、日単位でメトリクスを分けて表示する例は次のとおりです:<br /><br />  "groupings": \{<br />    "my grouping name": \{<br />      "group\_by": \[<br />        "tweet.id",<br />        "engagement.type",<br />        "engagement.day"<br />      ]<br />    }<br />  }<br /><br />  <br />`group_by` が 4 項目のグルーピングは、次の 2 通りの順序のいずれかである場合にのみ有効です。単一のグルーピング内で `group_by` が 4 項目あり、以下のいずれにも当てはまらないリクエストはエラーになります。さらに、1 回のリクエストで `group_by` が 4 項目のグルーピングは 1 つに限られます。  <br /><br />"group\_by": \[<br />    "tweet.id",<br />    "engagement.type",<br />    "engagement.day",<br />    "engagement.hour"<br />  ]<br /><br />"group\_by": \[<br />    "engagement.type",<br />    "tweet.id",<br />    "engagement.day",<br />    "engagement.hour"<br />  ] |
+| **POST サイズ制限** | 1 回のリクエストで指定できるツイート ID は最大 25 件です。 |
+| **レスポンス形式** | JSON。レスポンス形式として JSON を指定するヘッダーを付与してください。 |
+| **レート制限** | アクセスレベルに応じて契約で定められたとおり、1 分あたりのレート制限が適用されます。 |
+| **リクエスト例** | curl -XPOST "https://data-api.x.com/insights/engagement/historical" <br />  -H 'Accept-Encoding: gzip' <br />  -H 'Authorization OAuth oauth\_consumer\_key="consumer-key-for-app",oauth\_nonce="generated-nonce",oauth\_signature="generated-signature",oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="generated-timestamp",oauth\_token="access-token-for-authed-user", oauth\_version="1.0"' <br />  -d '\{<br />    "start": "2015-08-01",<br />    "end": "2015-08-15",<br />    "tweet\_ids": \[<br />       "123456789",<br />       "223456789",<br />       "323456789"<br />    ],<br />      "engagement\_types": \[<br />        "impressions",<br />        "engagements",<br />        "url\_clicks",<br />        "detail\_expands"<br />    ],<br />    "groupings": \{<br />      "types-by-tweet-id": \{<br />        "group\_by": \[<br />          "tweet.id",<br />          "engagement.type"<br />        ]<br />      }<br />    }<br />  }' |
+| **レスポンス例** | \{<br />    "start": "2015-08-01T00:00:00Z",<br />    "end": "2015-08-15T00:00:00Z",<br />    "types-by-tweet-id": \{<br />      "123456789": \{<br />        "impressions": "0",<br />        "engagements": "0",<br />        "url\_clicks": "0",<br />        "detail\_expands": "0"<br />      },<br />      "223456789": \{<br />        "impressions": "788",<br />        "engagements": "134",<br />        "url\_clicks": "30",<br />        "detail\_expands": "1323"<br />      },<br />      "323456789": \{<br />        "impressions": "4",<br />        "engagements": "0",<br />        "url\_clicks": "2",<br />        "detail\_expands": "0"<br />      }<br />    }<br />  } |
+| **利用不可のツイート ID** | 削除済みなどで利用できなくなったツイート ID を含むクエリでは、利用可能なツイート ID については適切なデータが返され、利用不可のツイート ID は `unavailable_tweet_ids` という配列で示されます。例：<br /><br />\{<br />    "start": "2015-11-17T22:00:00Z",<br />    "end": "2015-11-19T02:27:50Z",<br />    "unavailable\_tweet\_ids": \[<br />        "323456789"<br />    ],<br />    "group1": \{<br />     "423456789": \{<br />      "favorites": "67",<br />      "replies": "8",<br />      "retweets": 26<br />     }<br />    }<br />  } |
+
+<div id="response-codes">
+  #### **レスポンスコード**
+</div>
+
+| ステータス | テキスト | 説明 |
+| :--- | :--- | :--- |
+| 200 | OK  | リクエストは成功しました。 |
+| 400 | Bad Request | 一般に、リクエストに無効な JSON が含まれている場合、または JSON ペイロードが送信されていない場合に返されます。 |
+| 401 | Unauthorized | 無効な認証情報により HTTP 認証に失敗しました。OAuth のキーとトークンを確認してください。 |
+| 404 | Not Found | リクエスト先の URL にリソースが見つかりませんでした。URL が誤っている可能性があります。 |
+| 429 | Too Many Requests | アプリが API リクエストの上限を超過しました。 |
+| 500 | Internal Server Error | Gnip 側でエラーが発生しました。指数バックオフ方式で再試行してください。 |
+| 502 | Proxy Error | Gnip 側でエラーが発生しました。指数バックオフ方式で再試行してください。 |
+| 503 | Service Unavailable | Gnip 側でエラーが発生しました。指数バックオフ方式で再試行してください。 |
+
+<div id="error-messages">
+  #### **エラーメッセージ**
+</div>
+
+さまざまな状況で、Engagement API は状況に応じたエラーメッセージを返します。以下の表は、これらの一般的なエラーメッセージの例と、その解釈方法を示します。多くの場合、Engagement API は、より詳しい情報を含む 200 OK レスポンスの一部として、特定のエラーメッセージとともに、利用可能なデータの一部のみを返す点にご注意ください。
+
+| エラーメッセージ | 説明 |
+| :--- | :--- |
+| `"errors":["Your account could not be authenticated. Reason: Access token not found"]` | リクエストの認証まわりで発生したエラーです。“Reason” にはトラブルシューティングに役立つ情報が含まれます。解決できない場合は、“Reason” を含むエラー全文をサポートチームにお送りください。 |
+| `"errors":["1 Tweet ID(s) are unavailable"],"unavailable_tweet_ids": ["TWEET_IDS"]` | リクエストした Tweet ID は利用できません。通常は削除されたか、その他の理由で公開されなくなっていることを示します。 |
+| `"errors":["Impressions & engagements for tweets older than 90 days (*TIME_PERIOD*) are not supported"],"unsupported_for_impressions_engagements_tweet_ids":[*TWEET_IDS*]` | /totals エンドポイントに対してリクエストされた Tweet ID が 90 日以内ではないため、インプレッションやエンゲージメントのメトリクスは返せません。 |
+| `"errors":["Forbidden to access tweets: *TWEET_IDS*"]` | 第三者の代理でデータを取得するために使用している認証トークンに基づき、リクエストされた Tweet ID にはアクセスできません。 |

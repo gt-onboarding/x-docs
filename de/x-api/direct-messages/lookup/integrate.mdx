@@ -1,0 +1,194 @@
+---
+title: Integrationsleitfaden
+sidebarTitle: Integrationsleitfaden
+---
+
+import { Button } from '/snippets/de/button.mdx';
+
+Die Direct-Messages-Endpunkte v2 führen Unterhaltungen und Unterhaltungsereignisse als zentrale X-API-Objekte ein und unterscheiden zwischen 1:1- und Gruppenunterhaltungen. 1:1-Unterhaltungen haben immer genau zwei Teilnehmer, während Gruppenunterhaltungen zwei oder mehr Teilnehmer haben können und sich Mitgliedschaften ändern können.   
+
+Diese Seite enthält Informationen zu mehreren Tools und zentralen Konzepten, die Sie kennen sollten, wenn Sie die Direct-Messages-Lookup-Endpunkte in Ihr System integrieren. Wir haben die Seite in zwei Abschnitte unterteilt:
+
+- Zentrale Konzepte
+  - [Direct-Message-Unterhaltungen](#direct-message-conversations)
+  - [Gemeinsame Unterhaltungs- und Ereignis-IDs in v1.1 und v2](#shared-conversation-and-event-ids)
+  - [Felder und Erweiterungen von Direct-Message-Ereignissen](#direct-message-event-fields-and-expansions)
+  - [Typen von Unterhaltungsereignissen](#conversation-event-types)
+  - [Authentifizierung](#authentication)
+  - [Developer-Portal, Projekte und Apps](#developer-portal-projects-and-apps)
+  - [Rate-Limits](#rate-limits)
+  - [Paginierung](#pagination)
+- [Nützliche Tools](#helpful-tools)
+
+<div id="key-concepts">
+  ### Zentrale Konzepte
+</div>
+
+<div id="direct-message-conversations">
+  ### Direktnachrichten-Unterhaltungen
+</div>
+
+Alle Direktnachrichten sind Teil einer Direktnachrichten-Unterhaltung. Diese Unterhaltungen können Eins-zu-eins- oder Gruppenunterhaltungen sein. Diese Einführung stellt die grundlegenden Endpunkte bereit, die benötigt werden, um Direktnachrichten zu erstellen und Ereignisse zu Direktnachrichten-Unterhaltungen abzurufen. Alle Unterhaltungen haben eine eindeutige dm\_conversation\_id, und die Ereignisse, aus denen die Unterhaltung besteht, haben jeweils eine eindeutige dm\_event\_id.  
+
+Die Lookup-Endpunkte für Direktnachrichten bieten Methoden zum Abrufen von Ereignissen, die mit Unterhaltungen verknüpft sind. Diese GET-Endpunkte werden verwendet, um die Nachrichten abzurufen, die eine Unterhaltung ausmachen; bei Gruppenunterhaltungen kann damit nachvollzogen werden, wer beigetreten ist und wer die Unterhaltung verlassen hat.
+
+Diese erste Version der Lookup-Funktion für Direktnachrichten umfasst drei GET-Methoden:
+
+- **GET /2/dm\_conversations/with/:participant\_id/dm\_events** - Ruft Direktnachrichten-Ereignisse ab, die mit einer Eins-zu-eins-Unterhaltung verknüpft sind. Der Pfadparameter :participant\_id ist die numerische User-ID des Kontos, das die Unterhaltung mit dem authentifizierten Nutzer führt, der diese Anfrage stellt.  
+
+- **GET /2/dm\_conversations/:dm\_conversation\_id/dm\_events** - Ruft Direktnachrichten-Ereignisse ab, die mit einer bestimmten Unterhaltungs-ID verknüpft sind, wie durch den Pfadparameter :dm\_conversation\_id angegeben. IDs für sowohl Eins-zu-eins- als auch Gruppenunterhaltungen werden unterstützt.  
+
+- **GET /2/dm\_events** - Ruft Direktnachrichten-Ereignisse ab, die dem authentifizierten Nutzer zugeordnet sind, einschließlich Eins-zu-eins- und Gruppenunterhaltungen. Ereignisse bis zu 30 Tage zurück sind verfügbar.  
+
+Alle diese GET-Endpunkte unterstützen das Abrufen von dm\_events nach Ereignistyp über den Abfrageparameter event\_types. Derzeit werden drei Ereignistypen für Unterhaltungen unterstützt:
+
+- **MessageCreate** - Wird erzeugt, wenn eine neue Direktnachricht erstellt wird. Dieses Ereignisobjekt kann den Zeitpunkt und den Text der Nachricht enthalten, zusammen mit der Konto-ID des Absenders sowie der Unterhaltungs- und Ereignis-ID. 
+
+- **ParticipantsJoin** - Wird erzeugt, wenn ein neuer Teilnehmer einer Gruppenunterhaltung beitritt. Dieses dm\_event-Objekt enthält die ID des beitretenden Teilnehmers sowie den created\_at-Zeitstempel und die sender\_id des „invite“-Ereignisses. 
+
+- **ParticipantsLeave** - Wird erzeugt, wenn ein Teilnehmer eine Unterhaltung verlässt. Dieses Ereignisobjekt enthält die ID des austretenden Teilnehmers sowie den Zeitpunkt des Ereignisses. 
+
+Weitere Informationen finden Sie in den [API-Referenzen für Direktnachrichten-Lookup](/de/x-api/direct-messages/get-dm-events-for-a-dm-conversation).
+
+<div id="shared-conversation-and-event-ids-across-v11-and-v2">
+  ### Gemeinsame Konversations- und Ereignis-IDs in v1.1 und v2
+</div>
+
+Ein wichtiges Konzept ist, dass Konversations- und Ereignis-IDs in den Versionen v1.1 und v2 der X Platform identisch sind. Das bedeutet, dass beide Versionen zusammen verwendet werden können. Beispielsweise bieten die Direct-Messages-v1.1-Endpunkte Methoden zum Abrufen eines einzelnen Ereignisses und zum Löschen von Ereignissen – Funktionen, die in v2 noch nicht verfügbar sind. Da die IDs in v1.1 und v2 übereinstimmen, können Sie v1.1-Anfragen auf Basis von IDs stellen, die von v2 bereitgestellt werden, oder indem Sie die in Konversations-URLs in der X-App angezeigten Konversations-IDs verwenden.  
+
+<div id="direct-message-event-fields-and-expansions">
+  ### Felder und Erweiterungen für Direct-Message-Ereignisse
+</div>
+
+Die X-API v2 ermöglicht es Nutzern, mit einer Reihe von Tools namens Felder und Erweiterungen genau festzulegen, welche Daten von der API zurückgegeben werden sollen. Beispielsweise unterstützen Direct-Message-Lookup-Endpunkte die folgenden dm\_events-Felder: 
+
+- id, event\_type und text sind die Standardfelder für MessageCreate-Ereignisse. 
+
+- id, event\_type und participant\_ids sind die Standardfelder für ParticipantsJoin- und ParticipantsLeave-Ereignisse.
+
+- dm\_conversation\_id und created\_at sind für alle Ereignisse verfügbar.
+
+- attachments und referenced\_tweets sind für MessageCreate-Ereignisse verfügbar. 
+
+- sender\_id ist für MessageCreate- und ParticipantsJoin-Ereignisse verfügbar. 
+
+- participant\_ids ist für ParticipantsJoin- und ParticipantsLeave-Ereignisse verfügbar. 
+
+Zusätzlich unterstützen die Direct-Message-Lookup-Endpunkte die folgenden [Erweiterungen](/de/x-api/fundamentals/expansions):
+
+- sender\_id - Erweitert das User-Objekt der Person, die die Nachricht gesendet oder jemanden zur Unterhaltung eingeladen hat. 
+
+- referenced\_tweets.id - Erweitert das Post-Objekt, wenn der Direct-Message-Text einen Link zu einem Post enthält. 
+
+- attachments.media\_keys - Erweitert das Media-Objekt, wenn die Direct Message einen Medienanhang enthält. 
+
+- participant\_ids - Erweitert das User-Objekt der Person, die einer Gruppenunterhaltung beigetreten ist oder sie verlassen hat.
+
+Da Erweiterungen Post-, User- und Media-Objekte umfassen, können Sie auch die Abfrageparameter tweet.fields, user.fields und media.fields verwenden. Weitere Informationen finden Sie in unserem Leitfaden zur [Verwendung von Feldern und Erweiterungen](/de/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions).
+
+<div id="conversation-event-types">
+  ### Konversationsereignistypen
+</div>
+
+Im Folgenden finden Sie Beispiel-JSON-Objekte für Direct Messages der Ereignistypen MessageCreate, ParticipantsJoin und ParticipantsLeave.
+
+Verfügbare dm\_event-Objektfelder: id, text, event\_type, dm\_conversation\_id, created\_at, sender\_id, attachments, referenced\_tweets, participant\_ids. Weitere Details zur Auswahl dieser Felder in Ihren Anfragen finden Sie im Abschnitt Fields and Expansion.
+
+Beispielereignis MessageCreate:
+
+Mit allen dm\_event-Feldern angegeben, hier die Antwort für eine einfache Direct Message mit Text:
+
+`{
+    "text": "Hi everyone.",
+    "sender_id": "944480690",
+    "dm_conversation_id": "1578398451921985538",
+    "id": "1582838499983564806",
+    "event_type": "MessageCreate",
+    "created_at": "2022-10-19T20:58:00.000Z"
+}`
+
+Beispielereignis ParticipantsJoin:
+
+Mit allen dm\_event-Feldern angegeben, hier die Antwort für einen Teilnehmer, der einer Unterhaltung beitritt:
+
+`{
+    "participant_ids": [
+        "944480690"
+    ],
+    "sender_id": "17200003",
+    "dm_conversation_id": "1578398451921985538",
+    "id": "1582835469712138240",
+    "event_type": "ParticipantsJoin",
+    "created_at": "2022-10-19T20:45:58.000Z"
+}`
+
+Beispielereignis ParticipantsLeave:
+
+Mit allen dm\_event-Feldern angegeben, hier die Antwort für einen Teilnehmer, der eine Unterhaltung verlässt:
+
+`{
+    "participant_ids": [
+        "944480690"
+    ],
+    "dm_conversation_id": "1578398451921985538",
+    "id": "1582838535115067392",
+    "event_type": "ParticipantsLeave",
+    "created_at": "2022-10-19T20:58:09.000Z"
+    }`
+
+<div id="authentication">
+  ### Authentifizierung
+</div>
+
+Alle X-API-v2-Endpunkte erfordern, dass Sie Ihre Anfragen mit einem Satz von Anmeldedaten (Keys und Tokens) authentifizieren. Alle Direct Messages sind privat und erfordern eine Benutzerautorisierung für den Zugriff.
+
+Diese Direct-Message-Endpunkte erfordern die Verwendung des [OAuth-2.0-Autorisierungsflows mit PKCE](/de/x-api/posts/manage-tweets) oder des [1.0a-User-Context](/de/resources/fundamentals/authentication). Das bedeutet, dass Sie einen Satz von API-Schlüsseln und Benutzer-Access-Tokens verwenden müssen, um eine erfolgreiche Anfrage zu stellen. Die Access Tokens müssen dem Nutzer zugeordnet sein, in dessen Namen Sie die Anfrage stellen. Wenn Sie einen Satz von Access Tokens für einen anderen Nutzer generieren möchten, muss dieser Ihre App mithilfe des [dreistufigen OAuth-Flows](/de/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow) autorisieren bzw. authentifizieren.
+
+Bitte beachten Sie, dass der OAuth-User-Context anspruchsvoll sein kann. Wenn Sie mit dieser Authentifizierungsmethode nicht vertraut sind, empfehlen wir die Verwendung einer [Bibliothek](/de/x-api/tools-and-libraries/overview) oder eines Tools wie Postman, um Ihre Anfragen korrekt zu authentifizieren.
+
+[OAuth 2.0 Authorization Code mit PKCE](de/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-2) ermöglicht eine feinere Kontrolle über den Scope einer Anwendung sowie Autorisierungsabläufe über mehrere Geräte hinweg. Mit OAuth 2.0 können Sie spezifische, fein granulare Scopes auswählen, die Ihnen bestimmte Berechtigungen im Namen eines Nutzers geben. Die Direct-Message-Lookup-Endpunkte erfordern diese Scopes: dm.read, post.read, user.read
+
+Um OAuth 2.0 in Ihrer App zu aktivieren, müssen Sie es in den Authentifizierungseinstellungen Ihrer App aktivieren, die Sie im Abschnitt App-Einstellungen des Developer-Portals finden.
+
+<div id="developer-portal-projects-and-developer-apps">
+  ### Developer-Portal, Projekte und Entwickler-Apps
+</div>
+
+Um Anmeldedaten zu erhalten, die mit den Endpunkten der X-API v2 funktionieren, benötigen Sie ein genehmigtes Entwicklerkonto, richten darin ein Projekt ein und erstellen in diesem Projekt eine Entwickler-App. Anschließend finden Sie Ihre Keys und Tokens in Ihrer Entwickler-App. 
+
+<div id="rate-limits">
+  ### Rate Limits
+</div>
+
+Täglich senden viele Tausend Entwickler Anfragen an die X-API. Um das hohe Anfragevolumen zu steuern, gelten für jeden Endpoint Rate Limits, die die Anzahl der Anfragen begrenzen, die Sie im Namen Ihrer App oder eines authentifizierten Nutzers stellen können.
+
+Die Endpoints zur Direct-Message-Abfrage unterliegen nutzerbasierten Rate Limits. Das bedeutet, dass der authentifizierte Nutzer, in dessen Namen Sie die Anfrage stellen, mit Ihrer X-App nur eine bestimmte Anzahl von Anfragen ausführen kann. Für die GET-Methoden gilt ein nutzerbasiertes Limit von 300 Anfragen pro 15 Minuten. Diese Rate Limits werden über die GET-Endpoints hinweg gemeinsam genutzt. 
+
+<div id="pagination">
+  ### Paginierung
+</div>
+
+Diese Endpunkte verwenden Paginierung, damit Antworten schnell zurückgegeben werden. Wenn es mehr Ergebnisse gibt, als in einer einzelnen Antwort gesendet werden können (bis zu 100 Ereignisse), müssen Sie paginieren. Verwenden Sie den Parameter max\_results, um festzulegen, wie viele Ergebnisse pro Seite zurückgegeben werden, und den Parameter pagination\_token, um die nächste Seite mit Ergebnissen abzurufen. Weitere Informationen finden Sie in unserem [Leitfaden zur Paginierung](/de/x-api/fundamentals/pagination).
+
+**Hilfreiche Tools**
+
+Hier sind einige hilfreiche Tools, die wir Ihnen zur Erkundung empfehlen, wenn Sie mit den Direct-Messages-Lookup-Endpunkten arbeiten: 
+
+****Postman****
+
+Postman ist ein hervorragendes Tool, um einen Endpunkt zu testen. Jede Postman-Anfrage enthält alle Pfad- und Body-Parameter, damit Sie schnell verstehen, was verfügbar ist. Weitere Informationen zu unseren Postman-Collections finden Sie auf der Seite [Postman verwenden](/de/tutorials/postman-getting-started). 
+
+****Codebeispiele****
+
+Python-Beispielcode für die v2 Direct-Messages-Endpunkte ist in unserem Repository [X API v2 sample code GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code) verfügbar. Der Ordner „Manage-Direct-Messages“ enthält Beispiele für die POST-Methoden, und der Ordner „Direct-Messages-lookup“ enthält Beispiele für die GET-Methoden.
+
+****XDev Software Development Kits (SDKs)****
+
+Diese [Bibliotheken](/de/x-api/tools-and-libraries/overview) werden für die v2 Direct-Messages-Endpunkte aktualisiert und sollten bald bereitstehen:
+
+- [X API Java SDK](https://github.com/xdevplatform/twitter-api-java-sdk) - Offizielles Java-SDK für die X-API v2
+- [X API TypeScript/JavaScript SDK](https://github.com/xdevplatform/twitter-api-typescript-sdk) - Offizielles TS/JS-SDK für die X-API v2
+
+**Drittanbieter-Bibliotheken**
+
+Es gibt eine wachsende Anzahl von [Drittanbieter-Bibliotheken](/de/x-api/tools-and-libraries/overview#community-tools-and-libraries-for-v2), die von unserer Community entwickelt wurden. Diese Bibliotheken sollen den Einstieg erleichtern, und mehrere werden voraussichtlich bald die v2 Direct-Messages-Endpunkte unterstützen. Sie finden eine Bibliothek, die mit den v2-Endpunkten funktioniert, indem Sie nach dem passenden Versions-Tag suchen.

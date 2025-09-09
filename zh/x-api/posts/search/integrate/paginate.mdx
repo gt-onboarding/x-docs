@@ -1,0 +1,130 @@
+---
+title: 分页
+sidebarTitle: 分页
+---
+
+<div id="recent-search-pagination">
+  ### 最近搜索的分页
+</div>
+
+<div id="introduction">
+  #### 介绍
+</div>
+
+搜索查询通常会匹配到多于单个 API 响应所能返回数量的帖子（Posts）。当出现这种情况时，数据会以一系列“页面”返回。分页指的是按顺序请求所有页面以获取完整数据集的方法。
+
+以下是近期搜索分页的基本要点：
+
+- 近期搜索端点对查询至少会返回一页；如果还有更多页面可用，会在其 JSON 响应中提供一个 next\_token。为接收所有匹配的帖子，可以重复此过程，直到响应中不再包含该令牌为止。
+
+- next\_token 不会过期。无论在何时发出请求，使用相同 next\_token 值的多次请求都会收到相同的结果。
+
+- 帖子按 UTC 时区的逆时间顺序返回。这一点在单个页面内以及跨多个页面都成立：
+  - 第一次响应中的第一条帖子将是与你的查询匹配的最新帖子。
+  - 最后一次响应中的最后一条帖子将是与你的查询匹配的最旧帖子。
+
+- max\_results 请求参数可用于配置每个响应返回的帖子数量。默认值为 10，最大为 100。
+
+- 任何分页实现都需要从响应负载中解析 next\_token，并在“下一页”的搜索请求中包含它。有关如何构造这些“下一页”请求的更多细节，请参见下文。
+   
+
+近期搜索端点旨在支持两种基本使用模式：
+
+- **获取历史数据** - 从感兴趣的时间段请求匹配的帖子。这类请求通常用于一次性的历史研究。搜索请求可基于 start\_time 和 end\_time 请求参数。近期搜索端点将按逆时间顺序返回帖子，从最新的匹配帖子开始。
+
+- **轮询** - 请求自上次接收的帖子以来新发布的匹配帖子。这些用例通常侧重于近实时，特点是频繁请求，用于“监听”新的目标帖子。近期搜索端点提供 since\_id 请求参数以支持“轮询”模式。为便于根据帖子 ID 导航，还提供 until\_id 请求参数。
+   
+
+接下来，我们将讨论历史模式。这是近期搜索端点的默认模式，示范了分页的基本原理。随后我们将讨论轮询用例的示例。当轮询触发分页时，管理搜索请求还需要一个额外步骤。
+ 
+
+<div id="retrieving-historical-data">
+  #### 检索历史数据
+</div>
+
+本节说明如何使用 start\_time 和 end\_time 请求参数，从指定时间段（目前限于过去七天）检索帖子。历史数据请求通常是一次性请求，用于支持研究与分析。
+
+按时间段发起请求是最近搜索端点的默认模式。如果搜索请求未指定 start\_time、end\_time 或 since\_id 参数，end\_time 将默认为“现在”（实际为查询时间前 30 秒），start\_time 将默认为七天前。
+
+该端点将按时间逆序返回第一“页”帖子，从最新帖子开始。如果存在更多数据页，响应 JSON 负载中还会包含 next\_token。要收集全部匹配的帖子（不论页数多少），应持续发起请求，直到不再返回 next\_token。
+
+例如，以下是一个检索过去一周内包含关键词 snow 的帖子初始请求：
+
+https://api.x.com/2/tweets/search/recent?query=snow
+
+响应将包含最近的 10 条帖子，以及 JSON 响应中的以下“meta”属性：
+
+```
+"meta": {
+        "newest_id": "1204860593741553664",
+        "oldest_id": "1204860580630278147",
+        "next_token": "b26v89c19zqg8o3fobd8v73egzbdt3qao235oql",
+        "result_count": 10
+    }
+```
+
+要检索接下来的 10 条帖子，需要将此 next\_token 添加到原始请求中。请求如下：
+
+https://api.x.com/2/tweets/search/recent?query=snow\&next\_token=b26v89c19zqg8o3fobd8v73egzbdt3qao235oql
+
+在后续请求中查找 next\_token 并将其包含进去的过程可以重复，直到收集到全部（或指定数量的）帖子，或达到设定的请求次数上限。如果数据完整性（收集与你的查询匹配的全部结果）对你的用例至关重要，采用“重复执行直至 request.next\_token 为 null”的简单设计即可。 
+ 
+
+<div id="polling-and-listening-use-cases">
+  #### 轮询与监听用例
+</div>
+
+本节说明如何使用 since\_id 请求参数轮询 recent search 端点以获取最新帖子。
+
+在轮询用例中，会以持续且高频的方式发起“有新的感兴趣的帖子吗？”这类查询。与基于时间的历史用例不同，轮询用例通常基于帖子 ID 发起请求。
+
+轮询模式的核心在于，每条新帖子都有一个[唯一 ID](/zh/resources/fundamentals/x-ids)，该 ID 在 X 平台上通常按升序“生成”。如果一条帖子的 ID 小于另一条，意味着它更早发布。
+
+recent search 端点支持按帖子 ID 在帖子存档中导航。该端点的响应包含 oldest\_id 和 newest\_id。轮询模式下，请求会将 since\_id 设置为迄今收到的最大/最新 ID。
+
+例如，假设每五分钟查询一次关于 snow 的新帖子，而我们上次收到的最后一条帖子的帖子 ID 是 10000。到轮询时间时，请求如下所示：
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=10000
+
+接下来，假设自上次请求以来发布了七条帖子。由于这些都能放在单个数据“页面”中，因此没有 next\_token。响应会提供最新发布帖子的帖子 ID：
+
+```
+"meta": {
+        "newest_id": "12000",
+        "oldest_id": "10005",
+        "result_count": 7
+    }
+```
+
+要进行下一次轮询查询，使用该 newest\_id 值来设置下一个 since\_id 参数：
+
+`https://api.x.com/2/tweets/search/recent?query=snow&since_id=12000`
+
+当有更多可用数据并返回 next\_token 时，只需要第一页结果中的 newest\_id 值。每一页数据都会包含 newest\_id 和 oldest\_id 值，但下一次定期轮询请求仅需第一页提供的 newest\_id。因此，如果你正在实现轮询设计，或按 ID 范围搜索帖子，分页逻辑会略微更复杂一些。
+
+现在假设又有 18 条匹配的帖子。该端点会先返回一个满页的数据，并提供一个 next\_token 以请求该五分钟时间段的下一页数据。同时还会包含五分钟后下一次轮询所需的最新帖子 ID。
+
+```
+"meta": {
+        "newest_id": "13800",
+        "oldest_id": "12500",
+        "next_token": "fnsih9chihsnkjbvkjbsc",
+        "result_count": 10
+    }
+```
+
+要收集该五分钟时间段内所有匹配数据，请在下一次请求中传递 next\_token，并与上一请求相同的 since\_id 值一起使用。
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=12000\&next\_token=fnsih9chihsnkjbvkjbsc
+
+```
+"meta": {
+        "newest_id": "12300",
+        "oldest_id": "12010",
+        "result_count": 8
+    }
+```
+
+第二个响应提供了剩余的八条帖子，且不再包含 next\_token。请注意，我们不会将 newest\_id 更新为该页的值（12300），而是基于第一次响应中的 newest\_id 值发起下一次 since\_id 请求：
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=13800

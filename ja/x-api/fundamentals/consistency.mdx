@@ -1,0 +1,115 @@
+---
+title: 一貫性
+---
+
+<div id="consistency-across-the-x-api-v2-endpoints">
+  ## X API v2 エンドポイント間の一貫性
+</div>
+
+X API の新しい v2 の主な特徴の一つは、エンドポイント間での一貫性です。これは、返されるオブジェクト、機能、API の挙動が、類似するエンドポイント間で統一されていることを意味します。
+
+すべてのエンドポイントで、以下の要素は同一であると想定できます。
+
+<div id="path-naming">
+  ### パス命名
+</div>
+
+パスには常にエンドポイントの[バージョン](/ja/x-api/fundamentals/versioning)が含まれ、その後に**リソース**が続きます。さらに、パスには直前のリソースに関連する**ID**、返すデータを特定するための**選択動詞**（例：`search`、`sample`）、データの提供方法を示す**配信動詞**（例：`stream`）、または主要なリソースと**関係**を持つ他のリソース（例：`/user/12/tweets`）を含めることができます。最後に、エンドポイントがクエリパラメータを受け付ける場合は、末尾に**クエリパラメータ**を付与できます。
+
+これらのパスおよびクエリ要素の構成例は以下のとおりです：
+
+`/version/resource/id?param1=value&param2=value /version/resource/delivery/selection?param1=value&param2=value`
+
+実際のリクエスト例：
+
+`/2/tweets/1067094924124872705?expansions=attachments.media_keys&tweet.fields=author_id /2/users/2244994945?user.fields=created_at,description /2/tweets/search/stream /2/tweets/search/recent?query=snow`
+
+<div id="json-schema">
+  ### JSON Schema
+</div>
+
+リクエストへのレスポンスは [JSON Schema](http://json-schema.org/) に基づいて定義されています。これにより、レスポンスは常に配列としてオブジェクトの集合を返し、各要素には ID が付与されます。ID をキーとするマップは返されません。
+
+<div id="response-object-and-parameters">
+  ### レスポンスオブジェクトとパラメータ
+</div>
+
+既定で返されるオブジェクトは、そのオブジェクトタイプの各エンドポイントで同一です。
+
+- `id` オブジェクトは常に文字列です。
+- パラメータとレスポンスフィールドは一貫して米国英語の綴りを使用します。
+- 値がないフィールドは空、または返されません。
+- `entities` オブジェクトには、投稿テキストに由来するエンティティのみが含まれます。これには `urls`、`hashtags`、`mentions`、`cashtags` が含まれます。
+- `media_keys` および `poll_ids` フィールドを含む、カード関連のすべての情報は `attachments` オブジェクトで返されます。
+
+以下は、[単一投稿のルックアップ](/ja/x-api/posts/post-lookup-by-post-id) エンドポイントからのレスポンスオブジェクトの例です（[tweet.fields](/ja/x-api/fundamentals/data-dictionary#tweet) パラメータを `author_id`、`entities` に設定）。
+
+```json
+{
+   "data": {
+       "id": "1278747501642657792",
+       "text": "It's been a year since Twitter's Developer Labs launched.\n\nAs we build towards the next generation of the #TwitterAPI (coming VERY soon), see what we've learned and changed along the way. https://t.co/WvjuEWCa6G",
+       "author_id": "2244994945",
+       "entities": {
+           "urls": [
+               {
+                   "start": 188,
+                   "end": 211,
+                   "url": "https://t.co/WvjuEWCa6G",
+                   "expanded_url": "https://blog.x.com/developer/en_us/topics/tools/2020/a-year-with-twitter-developer-labs.html",
+                   "display_url": "blog.x.com/developer/en_u…",
+                   "images": [
+                       {
+                           "url": "https://pbs.twimg.com/news_img/1278747527043362816/7HQRkQeV?format=jpg&name=orig",
+                           "width": 1600,
+                           "height": 600
+                       },
+                       {
+                           "url": "https://pbs.twimg.com/news_img/1278747527043362816/7HQRkQeV?format=jpg&name=150x150",
+                           "width": 150,
+                           "height": 150
+                       }
+                   ],
+                   "status": 200,
+                   "title": "A year with Twitter Developer Labs: What we've learned and changed",
+                   "description": "Labs has been invaluable in helping us understand what works well and what doesn’t, what you liked and what you didn’t.",
+                   "unwound_url": "https://blog.x.com/developer/en_us/topics/tools/2020/a-year-with-twitter-developer-labs.html"
+               }
+           ],
+           "hashtags": [
+               {
+                   "start": 106,
+                   "end": 117,
+                   "tag": "TwitterAPI"
+               }
+           ]
+       }
+   }
+}
+```
+
+<div id="authentication">
+  ### 認証
+</div>
+
+すべての X API v2 エンドポイントでは認証が必要です。その多くは [OAuth 2.0 Bearer Token](/ja/resources/fundamentals/authentication#oauth-2-0) を受け付けており、エンドポイントへのリクエストに Bearer Token を含めることで、正常にリクエストできます。
+
+他のユーザーに代わってデータの作成・操作・取得を行う権限が必要なエンドポイントでは、[OAuth 1.0a User Context](/ja/resources/fundamentals/authentication) を使用してください。これは、[開発者アプリ](/ja/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)の[API キーとトークン](/ja/resources/fundamentals/authentication#api-key-and-secret)に加え、リクエスト対象ユーザーのために生成したユーザーの[アクセス・トークン](/ja/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)一式を提供することを意味します。[3-legged OAuth フロー](/ja/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow)を使用するとアクセス・トークンを取得できます。この認可ヘッダーを自動生成する[ツールまたはライブラリ](/ja/x-api/tools-and-libraries/overview)を使用してください。
+
+認証の詳細は、[authentication](/ja/resources/fundamentals/authentication) ドキュメントをご参照ください。
+
+<div id="fields">
+  ### フィールド
+</div>
+
+各エンドポイントで返されるオブジェクトは要約されています。開発者が API レスポンスをより柔軟にカスタマイズできるよう、希望するフィールドを指定するために [`fields`](/ja/x-api/fundamentals/fields) パラメータを使用します。フィールドはエンドポイント間で一貫しています。Post オブジェクトは、Post オブジェクトが返されるすべてのエンドポイントで同じフィールドを返します。類似のエンドポイント間で同一のフィールドセットをクエリできます。
+
+たとえば、同じ Post フィールドは [Posts lookup](/ja/x-api/posts/lookup/introduction) と、[Users lookup](/ja/x-api/users/lookup/introduction) における展開されたピン留め Post でもクエリできます。
+
+<div id="expansions">
+  ### 展開（Expansions）
+</div>
+
+該当する場合、すべてのネストされた id フィールド（例：`author_id` など、`*_id` という名前のすべてのフィールド）で[展開](/ja/x-api/fundamentals/expansions)を利用できます。現在のオブジェクトのトップレベル識別子ではない id を持つすべてのフィールドでも展開が利用可能です。たとえば、[Posts lookup](/ja/x-api/posts/lookup/introduction) では、Post が現在のオブジェクトであり、`id` フィールドがトップレベル識別子です。`author_id` や `referenced_tweets.id` のようなフィールドは、これらをカンマ区切りで `expansions` パラメータに指定することで、完全なユーザーまたは Post オブジェクトに展開できます。
+
+これらのフィールドに関して気づいた[不整合があればご報告ください](https://twitterdevfeedback.uservoice.com/)。

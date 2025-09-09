@@ -1,0 +1,47 @@
+---
+title: OAuth Echo
+sidebarTitle: OAuth Echo
+---
+
+import { Button } from "/snippets/it/button.mdx";
+
+
+<div id="oauth-echo">
+  ### OAuth Echo
+</div>
+
+OAuth Echo è un modo per delegare in modo sicuro l’autorizzazione OAuth a una terza parte durante l’interazione con un’API.
+
+In questa interazione sono coinvolte quattro parti:
+
+* l’Utente, che utilizza X tramite una specifica applicazione X autorizzata
+* il Consumer, ovvero l’applicazione X che sta tentando di interagire con il provider di media di terze parti (ad es. un sito di condivisione foto)
+* il Delegator, ovvero il provider di media di terze parti
+* il Service Provider, ossia X stesso
+     
+
+In sostanza, prepara una richiesta che il delegator invierà all’API X per conto di un’applicazione e di un utente. Inserisci quella che altrimenti sarebbe una richiesta OAuth firmata in un’intestazione HTTP e chiedi al delegator di inviarla a X dopo aver completato l’operazione intermedia.
+
+Ecco un esempio: l’Utente vuole caricare una foto. Il Consumer effettuerà una chiamata di upload al delegator con un POST. Il POST deve contenere l’immagine, ma anche due elementi aggiuntivi come intestazioni HTTP:
+
+* `x-auth-service-provider` — di fatto, questo è il “realm” a cui inviare la delega dell’identità — nel caso di X, impostalo su https://api.x.com/1.1/account/verify_credentials.json. Le integrazioni con X basate su iOS5 aggiungeranno un parametro aggiuntivo application_id a questo URL, che verrà anche usato per calcolare l’oauth_signature utilizzata in x-verify-credentials-authorization.
+* `x-verify-credentials-authorization` — il Consumer deve creare tutti i parametri OAuth necessari in modo da poter chiamare https://api.x.com/1.1/account/verify_credentials.json utilizzando OAuth nell’intestazione HTTP (ad es. dovrebbe presentarsi come OAuth oauth_consumer_key="...", oauth_token="...", oauth_signature_method="...", oauth_signature="...", oauth_timestamp="...", oauth_nonce="...", oauth_version="..." ).
+     
+
+Tieni presente che l’intera transazione deve avvenire entro un intervallo di tempo in cui l’`oauth_timestamp` sia ancora valido.
+
+In alternativa, invece di inviare questi due parametri nell’intestazione, possono essere inclusi nel POST come x_auth_service_provider e x_verify_credentials_authorization — in tal caso, ricorda di eseguire l’escape e includere i parametri nella base string della firma OAuth, in modo analogo alla codifica dei parametri in qualsiasi richiesta. È preferibile usare le intestazioni HTTP per mantenere le operazioni il più separate possibile.
+
+L’obiettivo del delegator, a questo punto, è verificare che l’Utente sia chi dichiara di essere prima di salvare i contenuti multimediali. Una volta ricevuti tutti i dati sopra tramite il suo metodo di upload, il delegator deve archiviare temporaneamente l’immagine e quindi effettuare una chiamata all’endpoint specificato nell’intestazione x-auth-service-provider — in questo caso, https://api.x.com/1.1/account/verify_credentials.json — utilizzando la stessa intestazione di autenticazione OAuth fornita dal Consumer nell’intestazione x-verify-credentials-authorization.
+ 
+
+<div id="oauth-echo-best-practices">
+  #### Best practice per OAuth Echo
+</div>
+
+Usa l’URL fornito da `x-auth-service-provider` per effettuare la lookup, non un valore codificato in modo statico. iOS di Apple, ad esempio, aggiunge un parametro supplementare application_id a tutte le richieste OAuth, e la sua presenza deve essere preservata in ogni fase di OAuth Echo.
+
+Per la parte di autorizzazione OAuth, prendi il valore dell’intestazione x-verify-credentials-authorization e inseriscilo in un’intestazione Authorization separata per la chiamata al service provider. Per maggiore scrupolo, verifica che il valore in `x-auth-service-provider` sia quello previsto.
+
+* Se il Service Provider restituisce un HTTP 200, tutto ok. Il Delegator dovrebbe archiviare definitivamente l’immagine, generare un URL e restituirlo.
+* Se il Service Provider non restituisce un HTTP 200, scarta l’immagine e restituisci un errore al Consumer.

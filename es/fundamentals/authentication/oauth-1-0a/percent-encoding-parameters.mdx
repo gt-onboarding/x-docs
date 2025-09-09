@@ -1,0 +1,55 @@
+---
+title: Parámetros de codificación por porcentaje
+sidebarTitle: Parámetros de codificación por porcentaje
+---
+
+import { Button } from "/snippets/es/button.mdx";
+
+
+<div id="percent-encoding-parameters">
+  ### Parámetros de codificación por porcentaje
+</div>
+
+Partes de la API de X, en particular las relacionadas con firmas OAuth, requieren que las cadenas se codifiquen conforme a [RFC 3986, sección 2.1](http://tools.ietf.org/html/rfc3986#section-2.1). Dado que muchas implementaciones de algoritmos de codificación de URL no son totalmente compatibles con la RFC 3986, las codificaciones incorrectas son la causa de muchos errores de firma de OAuth. Por esta razón, en esta página se describe el algoritmo de firma exacto que se debe utilizar.
+
+Esta página cubre el proceso de codificación de URL descrito en [RFC 3986, sección 2.1](http://tools.ietf.org/html/rfc3986#section-2.1). Le recomendamos consultar esa especificación en caso de ambigüedad o conflicto con este documento.
+ 
+
+<div id="encoding-a-string">
+  #### Codificación de una cadena
+</div>
+
+El siguiente algoritmo asume que está codificando una cadena SRC copiando sus valores, byte por byte, a una cadena DST.
+
+**Paso 1: Mientras SRC contenga bytes no leídos, lea el siguiente byte (8 bits) de SRC.** Por lo general, esto se considera un carácter, pero si se trata de codificaciones en las que un carácter puede ocupar más de un byte (como UTF-8), lea solo el primer byte.
+
+**Paso 2: Verifique si el byte leído coincide con alguno de los siguientes equivalentes ASCII.** La siguiente tabla se ha dividido en filas para mejorar la legibilidad, pero solo necesita determinar si el byte leído aparece en la tabla, no en qué fila específica.
+
+| Nombre | Caracteres ASCII | Valores de byte equivalentes |
+| :--- | :--- | :--- |
+| Dígitos | ‘0’, ‘1’, ‘2’, ‘3’, ‘4’, ‘5’, ‘6’, ‘7’, ‘8’, ‘9’ | 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39 |
+| Letras mayúsculas | ‘A’, ‘B’, ‘C’, ‘D’, ‘E’, ‘F’, ‘G’, ‘H’, ‘I’, ‘J’, ‘K’, ‘L’, ‘M’, ‘N’, ‘O’, ‘P’, ‘Q’, ‘R’, ‘S’, ‘T’, ‘U’, ‘V’, ‘W’, ‘X’, ‘Y’, ‘Z’ | 0x41, 0x42, 0x43, 0x44, 0x45,0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B,0x4C, 0x4D, 0x4E, 0x4F, 0x50, 0x51,0x52, 0x53, 0x54, 0x55, 0x56, 0x57,0x58, 0x59, 0x5A |
+| Letras minúsculas | ‘a’, ‘b’, ‘c’, ‘d’, ‘e’, ‘f’, ‘g’, ‘h’, ‘i’, ‘j’, ‘k’, ‘l’, ‘m’, ‘n’, ‘o’, ‘p’, ‘q’, ‘r’, ‘s’, ‘t’, ‘u’, ‘v’, ‘w’, ‘x’, ‘y’, ‘z’ | 0x61, 0x62, 0x63, 0x64, 0x65,0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B,0x6C, 0x6D, 0x6E, 0x6F, 0x70, 0x71,0x72, 0x73, 0x74, 0x75, 0x76, 0x77,0x78, 0x79, 0x7A |
+| Caracteres reservados | ‘-‘, ‘.’, ‘_’, ‘~’ | 0x2D, 0x2E, 0x5F, 0x7E |
+
+**Paso 2b: Si el byte no figura en la tabla anterior, continúe.** Cualquier otro valor debe codificarse. **Paso 2a: Si el byte figura en la tabla anterior, cópielo en DST y regrese al Paso 1.** Los caracteres incluidos en la tabla anterior no necesitan escape, por lo que simplemente copiará el byte directamente.
+
+**Paso 3: Escriba el carácter ‘%’ en DST.** El carácter de porcentaje ‘%’ (o 0x25 en hexadecimal y 00100101 en binario) indica que los dos siguientes bytes representarán un byte codificado.
+
+**Paso 4: Escriba dos caracteres que representen el valor hexadecimal en ASCII en mayúsculas del byte actual en DST.** Esto puede resultar un poco confuso, así que aquí va un ejemplo. Suponga que el byte actual es 0xE6 (11100110 en binario). Esto corresponde al valor codificado en UTF-8 de ‘æ’. Para codificar este valor, escriba el carácter ‘E’ (0x45, de la tabla anterior) y luego el carácter ‘6’ (0x36) en DST. Los últimos tres caracteres escritos deberían haber sido “%E6”. Tenga en cuenta que si escribe una letra como A, B, C, D, E o F, debe usar la letra en mayúscula.
+
+**Paso 5: Regrese al Paso 1.** Continúe hasta que la totalidad de SRC se copie en DST.
+ 
+
+<div id="examples">
+  #### Ejemplos
+</div>
+
+Los siguientes ejemplos pueden ayudarte a comparar con la salida de tu propio código. Debes considerar cualquier diferencia como un error. Los espacios codificados como caracteres “+” constituyen un ejemplo de codificación incorrecta.
+
+| Cadena original | Cadena codificada |
+| :--- | :--- |
+| Ladies + Gentlemen | Ladies%20%2B%20Gentlemen |
+| An encoded string! | An%20encoded%20string%21 |
+| Dogs, Cats & Mice | Dogs%2C%20Cats%20%26%20Mice |
+| ☃   | %E2%98%83 |

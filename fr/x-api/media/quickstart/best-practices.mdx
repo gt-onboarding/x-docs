@@ -1,0 +1,120 @@
+---
+title: Bonnes pratiques
+sidebarTitle: Bonnes pratiques
+---
+
+Il y a quelques concepts importants à comprendre lors de l’utilisation du point de terminaison [`POST /2/media/upload`](/fr/x-api/media/media-upload). Le téléversement de médias avec OAuth peut être un peu délicat ; nous avons donc rassemblé ici des points essentiels à garder à l’esprit ainsi qu’un exemple fonctionnel montrant comment utiliser ce point de terminaison.
+
+<div id="keep-in-mind">
+  ## À garder à l’esprit
+</div>
+
+- Vous pouvez joindre jusqu’à 4 photos, 1 GIF animé ou 1 vidéo dans un Post.
+- L’image transmise doit être le binaire brut de l’image ou un binaire encodé en base64 ; il n’est pas nécessaire d’encoder ou d’échapper autrement le contenu tant que l’en-tête Content-Type est correctement défini (en cas de doute : `application/octet-stream`).
+- Lors de l’envoi d’images encodées en base64, veillez à définir « Content-Transfer-Encoding: base64 » sur la partie image du message.
+- Les délimitations des messages multipart doivent se trouver sur leur propre ligne et se terminer par un CRLF.
+- Pour des exemples concrets de requêtes POST avec cet endpoint, nous vous recommandons de tester avec [xurl](https://github.com/xdevplatform/xurl). Consultez également les [bibliothèques X](/fr/resources/tools-and-libraries) disponibles.
+- Utilisez le `media_id_string` fourni dans la réponse de l’API pour JavaScript et tout autre langage qui ne peut pas représenter précisément un entier long.
+
+<div id="media-categories">
+  ## Catégories de médias
+</div>
+
+Le paramètre Media Category définit le cas d’usage du fichier média à charger et peut influencer les limites de taille de fichier ou d’autres contraintes appliquées aux mises en ligne de médias. Il est important d’utiliser la catégorie de médias appropriée lors du chargement afin d’éviter des problèmes au moment d’exploiter le média. Il s’agit d’une valeur facultative transmise dans la requête INIT dans le cadre du flux de chargement. Si aucune catégorie de médias n’est spécifiée, le média chargé est considéré comme destiné à un Post (`tweet_image`, `tweet_video` ou `tweet_gif`), selon le type de contenu.
+
+Les catégories de médias les plus courantes sont les suivantes :
+
+- `tweet_image`
+- `tweet_video`
+- `tweet_gif`
+- `dm_image`
+- `dm_video`
+- `dm_gif`
+- `subtitles`
+
+Si vous êtes partenaire de l’API publicitaire X, veuillez consulter [cette documentation](/fr/x-ads-api/creatives#promoted-video) pour plus d’informations sur la catégorie de médias recommandée pour les vidéos sponsorisées.
+
+<div id="image-specifications-and-recommendations">
+  ## Spécifications et recommandations pour les images
+</div>
+
+Les fichiers image doivent respecter tous les critères suivants :
+
+- **Formats d’image pris en charge** : `JPG`, `PNG`, `GIF`, `WEBP`
+- **Taille de l’image** : `<= 5 Mo`
+- **Taille des GIF animés** : `<= 15 Mo`
+
+La limite de taille de fichier ci-dessus est appliquée par le point de terminaison de téléversement de médias. En outre, une limite distincte, spécifique à l’entité produit, s’applique lors de l’appel des points de terminaison de création de Post (ou similaires) avec `media_id`. La limite de taille de fichier et d’autres contraintes peuvent varier en fonction du paramètre `media_category`.
+
+<div id="animated-gif-recommendations">
+  ## Recommandations pour les GIF animés
+</div>
+
+Un GIF peut échouer lors de la création d’un Post même s’il respecte la limite de taille de fichier. Respectez les contraintes suivantes pour augmenter les chances de réussite.
+
+- **Résolution** : `<= 1280x1080` (`width` x `height`)
+- **Nombre d’images** : `<= 350`
+- **Nombre de pixels** : `<= 300 millions` (`width` \* `height` \* `num_frames`)
+- **Taille du fichier** : `<= 15 Mo`
+
+Pour traiter des GIF plus volumineux, utilisez le point de terminaison [chunked upload](/fr/x-api/media/quickstart/media-upload-chunked) avec le paramètre `media_category`. Cela permet au serveur de traiter le fichier GIF de manière asynchrone, condition nécessaire pour gérer des fichiers plus lourds. Indiquez `media_category=tweet_gif` pour activer le téléversement asynchrone des Posts contenant un GIF animé.
+
+<div id="video-specifications-and-recommendations">
+  ## Spécifications et recommandations relatives à la vidéo
+</div>
+
+Veuillez utiliser le parcours asynchrone pour le téléversement des médias.
+
+<div id="recommended">
+  ### Recommandé
+</div>
+
+- **Codec vidéo** : `H264 High Profile`
+- **Fréquences d’images** : `30 FPS`, `60 FPS`
+- **Résolution vidéo** : `1280x720` (paysage), `720x1280` (portrait), `720x720` (carré). Les utilisateurs abonnés peuvent importer une vidéo 1080p et bénéficier d’une lecture en 1080p. Les utilisateurs non abonnés peuvent importer une vidéo 720p et bénéficier d’une lecture en 720p.
+- **Débit vidéo minimum** : `5 000 kbps`
+- **Débit audio minimum** : `128 kbps`
+- **Codec audio** : `AAC LC`
+- **Format d’image** : `16:9` (paysage ou portrait), `1:1` (carré)
+
+<div id="advanced">
+  ### Avancé
+</div>
+
+- **Fréquence d’images** : doit être de `60 ips` ou moins
+- **Dimensions** : doivent être comprises entre `32x32` et `1280x1024`
+- **Taille du fichier** : ne doit pas dépasser `512 Mo`
+- **Durée** : doit être comprise entre `0,5 seconde` et `140 secondes`
+- **Rapport d’aspect** : doit être compris entre `1:3` et `3:1`
+- **[Rapport d’aspect des pixels](https://en.wikipedia.org/wiki/Pixel_aspect_ratio)** : doit être de `1:1`
+- **Format de pixels** : seul le [YUV](https://en.wikipedia.org/wiki/YUV) 4:2:0 est pris en charge
+- L’audio doit être [`AAC` avec profil Low Complexity](https://en.wikipedia.org/wiki/Advanced_Audio_Coding#Modular_encoding). (le `AAC` High-Efficiency n’est pas pris en charge)
+- L’audio doit être en `mono` ou en `stéréo`, pas en 5.1 ou supérieur
+- Ne doit pas comporter de [`GOP ouvert`](https://en.wikipedia.org/wiki/Group_of_pictures)
+- Doit utiliser le [`balayage progressif`](https://en.wikipedia.org/wiki/Progressive_scan)
+
+<div id="additional-information">
+  ### Informations supplémentaires
+</div>
+
+Dans le tableau ci-dessous, chaque ligne correspond à une recommandation de mise en ligne, sans caractère obligatoire. Toutes les mises en ligne sont traitées afin d’être optimisées pour plusieurs plateformes.
+
+| Orientation | Largeur | Hauteur | Débit vidéo | Débit audio |
+| :--- | :--- | :--- | :--- | :--- |
+| Paysage | 1280 | 720 | 2048K | 128K |
+| Paysage | 640 | 360 | 768K | 64K |
+| Paysage | 320 | 180 | 256K | 64K |
+| Portrait | 720 | 1280 | 2048K | 128K |
+| Portrait | 360 | 640 | 768K | 64K |
+| Portrait | 180 | 320 | 256K | 64K |
+| Carré | 720 | 720 | 2048K | 128K |
+| Carré | 480 | 480 | 768K | 64K |
+| Carré | 240 | 240 | 256K | 32K |
+
+Pour un exemple de mise en ligne de médias, veuillez consulter la [documentation sur la mise en ligne segmentée des médias](/fr/x-api/media/quickstart/media-upload-chunked).
+
+<div id="troubleshooting">
+  ### Dépannage
+</div>
+
+En cas de problème avec les Media APIs, consultez la [catégorie Media API](https://devcommunity.x.com/c/x-api/media-apis) sur les forums des développeurs pour trouver une réponse.

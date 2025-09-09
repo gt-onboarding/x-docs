@@ -1,0 +1,357 @@
+---
+title: "规则与筛选：企业版"
+---
+
+<div id="getting-started-with-enterprise-rules-and-queries">
+  ## 企业级规则与查询入门
+</div>
+
+使用企业级运算符的产品会根据你设置的筛选规则向你提供社交数据。规则由一个或多个“子句”组成，子句可以是关键词、精确短语，或众多企业级运算符之一。在开始使用企业级运算符构建规则之前，请务必先查看下文所述语法，浏览可用运算符列表，并了解构建规则时的限制。你还应理解规则在逻辑评估方面的细微差别，详见“[运算顺序](#orderofoperations)”一节。
+
+多个子句可以同时通过 “and” 与 “or” 逻辑进行组合。
+
+**请注意：** “And” 逻辑通过在子句之间留空格来表示，而 “or” 逻辑通过使用全部大写的 `OR` 来表示。
+
+每条规则最长可包含 2,048 个字符，对正向子句（你希望匹配或筛选的内容）和负向子句（你希望排除且不匹配的内容）的数量不设上限。
+ 
+
+### 构建规则和查询 
+
+**关键词匹配**
+
+关键词匹配与搜索界面中的查询类似。例如，下面这个企业级运算符规则会匹配正文中包含“social”一词的活动。
+
+`social`
+
+**用空格进行 AND 连接**
+
+添加另一个关键词等同于增加一个匹配条件。例如，此规则只会匹配文本中同时包含“social”和“media”的活动，顺序不限——_在词与词之间使用空格等同于布尔 AND 逻辑_。如果在规则中显式写出 AND，将会被规则端点拒绝。
+
+`social media`
+
+**使用大写 OR 进行 OR 连接**
+
+很多情况下需要布尔 OR 逻辑，也很容易实现。_注意，OR 运算符必须为大写；小写 “or” 会被当作普通关键词处理。_
+
+`social OR data`
+
+**取反（排除）术语**
+
+有时需要排除包含某些关键词的结果（布尔 NOT 逻辑）。例如，包含“happy”但排除文本中包含“birthday”的活动。
+
+`social -personality`
+
+**使用括号分组**
+
+可以用括号对上述逻辑进行分组组合，扩展为更复杂的查询。
+
+`(social OR data) (academic OR research) -personality -information -university`
+
+这只是开始——虽然上述示例仅依赖于对关键词的分词匹配，企业产品还提供运算符以在文本上执行不同类型的匹配。
+
+**精确匹配**
+
+`"social media research"`
+
+**子串匹配**
+
+`contains:info`
+
+**近邻匹配**
+
+`"social media research"~3`
+
+此外，其他运算符还支持按文本之外的社交数据独有维度进行筛选。 
+
+**发布帖子的用户**
+
+`from:XDevelopers`
+
+**以美国科罗拉多州博尔德市 Pearl St. 为中心 10 英里范围内的地理标记推文**
+
+`point_radius:[-105.27346517 40.01924738 10.0mi]`
+
+**将所有内容组合在一起**
+
+这些可以与文本筛选器结合使用，逻辑方式与上述一致。
+
+`(social OR data) (academic OR research OR "social media research") point_radius:[-105.27346517 40.01924738 10.0mi] lang:en -personality -information -university`
+
+<div id="boolean-syntax">
+  ### 布尔语法
+</div>
+
+上一节的示例使用了多种布尔逻辑与分组方式。请参阅下表，了解各自的语法与要求。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **逻辑类型** | **运算符语法** | 说明 |
+| AND | social data | 在两个运算符之间留空白即表示 AND 逻辑。  <br />  <br />匹配同时包含两个关键词（“social”“data”）的活动。  <br />  <br />**不要在规则中显式写 AND。只使用空白。显式的 AND 会被当作普通关键词处理。** |
+| OR  | social OR data | 要将两个运算符进行 OR 连接，请在它们之间插入以空白分隔的全大写 OR。  <br />  <br />匹配包含任一关键词（“social” 或 “data”）的活动。  <br />  <br />注意，如果在同一条规则中同时使用 OR 和 AND，请先理解“[运算顺序](#OrderOfOperations)”一节所述的优先级，并按下文所述用括号将未取反的运算符分组，以确保规则按预期运行。  <br />  <br />规则中必须使用大写 “OR”。小写 “or” 会被视为普通关键词。 |
+| NOT | social data  <br />-apple -android -phone | 在运算符或一组运算符前紧跟一个 `-` 符号即可取反。  <br />  <br />示例规则匹配包含关键词 “social” 的活动，但排除包含关键词 “data” 的活动。  <br />  <br />不允许使用会请求“除否定项外抓取整条 firehose”的取反 OR。例如，`apple OR -ipad` 是无效的，因为它会匹配除提及 “ipad” 之外的所有活动。 |
+| 分组 | (social OR data) -XDevelopers -api | 用括号将多个运算符括起可创建一个功能性“组”。<br /><br />组可以像单个子句一样，通过空白（AND）或 OR 与其他子句连接。但最佳实践是不要通过对整个组加负号来统一取反；相反，应分别对每个运算符取反，并用空白（AND）串联。<br /><br />例如，不要使用 -(iphone OR imac OR macbook)，应改为：-iphone -imac -macbook。  <br />  <br />当单条规则同时包含 AND 和 OR 时，分组尤为重要，因为规则评估遵循特定的运算顺序。详见下文。 |
+
+**请注意：** 运算符可以是正向或负向。
+
+**正向运算符** 定义你希望在结果中**包含**的内容。例如，`has:hashtags` 表示“我想要包含话题标签的活动”。
+
+**负向运算符** 定义你希望从结果中**排除**的内容，通过使用上述布尔 NOT 逻辑来实现。例如，`-has:hashtags` 表示“排除任何包含话题标签的活动，即使它们在其他方面符合我的规则”。
+
+高级运算符产品对正负子句的数量不设限制，但整体最大长度为 2,048 个字符。
+ 
+
+<div id="order-of-operations">
+  #### 运算顺序
+</div>
+
+在单个规则中同时使用 AND 与 OR 时，规则的评估遵循以下运算顺序：
+
+1. 先合并由 AND 逻辑连接的运算符
+2. 再应用由 OR 逻辑连接的运算符
+
+**示例：**
+
+- `apple OR iphone ipad` 将被评估为 `apple OR (iphone ipad)`
+- `ipad iphone OR android` 将被评估为 `(iphone ipad) OR android`
+
+为消除歧义并确保按预期评估规则，请在合适的地方使用括号对术语进行分组。例如：
+
+- `(apple OR iphone) ipad`
+- `iphone (ipad OR android)`
+
+<div id="punctuation-diacritics-and-case-sensitivity">
+  #### 标点、变音符号与大小写敏感性
+</div>
+
+如果你为企业级运算符指定带有重音或变音符号的关键词或话题标签规则，它将仅匹配帖子文本中同样带有相应变音符号的内容（话题标签或关键词）。包含关键词 `Diacr**í**tica` 或话题标签 `#cumplea**ñ**os` 的规则将匹配“Diacr**í**tica”或“#cumplea**ñ**os”，但不会匹配缺少重音符或波浪号的“Diacritica”或“#cumpleanos”，即缺少 **í** 或字母 **ñ** 的情况。
+
+带有重音或变音符号的字符与普通字符一样处理，不会被视为词边界。例如，规则 cumplea**ñ**os 只会匹配包含单词 cumpleaños 的活动，而不会匹配包含 cumplea、cumplean 或 os 的活动。
+
+所有运算符的评估均不区分大小写。例如，规则 `Cat` 将匹配以下所有内容：“cat”“CAT”“Cat”。
+
+<div id="powertrack-rule-tags">
+  #### PowerTrack 规则标签
+</div>
+
+如我们的“[匹配规则](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#matching-rules)”页面所述，可在创建每条规则时为其指定一个标签。标签不会影响过滤，但可用于在您的应用中对规则进行逻辑分组。每条规则只能有一个标签，最大长度为 255 个字符。通过 API 创建时，应在 JSON 格式的规则中包含该标签，具体说明见“匹配规则”页面。
+
+<div id="putting-rules-in-json-format">
+  #### 以 JSON 格式编写规则
+</div>
+
+要通过 API 在流中添加或删除规则，必须使用 JSON 格式。基本上，需要将每条规则写成以下结构：
+
+`{"value":"insert_rule_here"}`
+
+**包含双引号的规则**
+
+如果规则中包含用于精确匹配或其他运算符的双引号字符（`"`），必须使用反斜杠进行转义，以将其与 JSON 结构区分开来。
+
+`"social data" @XDevelopers`
+
+对应的 JSON 格式为：
+
+`{"value":"\"social data\" @XDevelopers"}`
+
+**包含双引号字符串字面量的规则**
+
+如果要在精确匹配中将双引号作为字符串字面量包含在内，则必须进行双重转义。比如，对于匹配精确短语 "Toys “R” Us" 的规则（包括围绕 "R" 的双引号），其纯文本表示如下：
+
+`"Toys \"R\" Us"`
+
+转换为 JSON 格式时，应使用以下结构：
+
+`{"value":"\"Toys \\\"R\\\" Us\""}`
+
+**带有标签的规则**
+
+如上所述，如需为规则添加可选标签，只需在规则中增加一个 `tag` 字段：
+
+`{"value":"\"social data\" @XDevelopers","tag":"RULE-TAG-01"}`
+
+**API 请求的格式**
+
+通过 API 在流中添加或删除规则时，多个 JSON 格式的规则应以逗号分隔，并放入名为 “rules” 的 JSON 数组中，如下所示：
+
+`{"rules":[{"value":"from:XDevelopers"},{"value":"\"social data\" @XDevelopers","tag":"RULE-TAG-01"}]}`
+
+<div id="operators-that-match-quote-tweets">
+  #### 匹配引用推文的运算符
+</div>
+
+在使用 [PowerTrack API](/zh/x-api/enterprise-gnip-2.0/powertrack-api) 和 Historical PowerTrack API 时，以下运算符会同时匹配被引用的原始帖子和新的引用推文中的内容。
+
+但如果您使用的是 [Search API](/zh/x-api/enterprise-gnip-2.0/fundamentals/search-api)，这些运算符将只匹配引用推文本身的内容，不会匹配被引用的原始帖子的任何内容。
+
+- `Keywords`
+- `Phrases`
+- `Proximity`
+- `#hashtags`
+- `@mentions`
+- `$cashtags`
+- `url:`
+- `url_contains:`
+- `has:links`
+- `has:mentions`
+- `has:hashtags`
+- `has:media`
+- `has:symbols`
+- `is:quote`
+- `is:reply`
+
+<div id="enterprise-operators">
+  ## 企业版操作符
+</div>
+
+以下为 PowerTrack 和 Historical PowerTrack 可用的操作符。其中一部分也适用于 30 天和全档案搜索 API。请参阅[此表](/zh/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#operators-by-product)，查看各产品可用的操作符列表。 
+
+| 运算符                      | 说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|:---------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 关键字                     | 匹配帖子正文或 URL 中的关键字。关键字必须以数字（0-9）或任何非标点字符开头。<br />关键字匹配基于分词，即会与帖子正文的分词文本进行匹配。<br />对于包含标点的字符串（如 “coca-cola”），请使用带引号的“精确短语匹配”。<br />示例：`(social OR pizza OR wildfire) -planet`                                                                                                                                                                                                                       |
+| 表情符号                   | 在帖子正文中匹配表情符号，使用基于标点、符号/表情和分隔符字符的分词匹配。<br />如果某个表情符号存在变体，请使用引号进行精确匹配。<br />示例：`(🍕 OR 💜 OR 🐢) -🤖`                                                                                                                                                                                                                                                                                                                                                               |
+| “精确短语匹配”             | 在帖子正文中匹配完全相同的短语。标点将视为空白字符。<br />示例：`("social media" OR "developer.x.com" OR "wildfire911" OR "coca-cola") -"planet earth"`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| #                         | 匹配包含指定话题标签的任何帖子。为精确匹配，即 `#2016` 会匹配含有 `#2016` 的帖子，但不会匹配 `#2016election`。<br />示例：`(#social OR #pizza OR #2016election) -#planet`                                                                                                                                                                                                                                                                                                                                                                                           |
+| @                         | 匹配提及指定用户名的任何帖子。<br />示例：`(@XDevelopers OR @api OR @twittereng) -@jack`                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| “keyword1 keyword2”~N     | 近邻运算符，匹配关键字彼此相距不超过 N 个分词的帖子。<br />若关键字顺序相反，其间距最多为 N-2 个分词。N 不得大于 6。<br />示例：`"social media"~5 OR "API"~3`                                                                                                                                                                                                                                                                                                                                                               |
+| contains:                 | 对帖子正文进行子串匹配，不受分词影响。<br />包含空格或标点的子串请使用双引号。<br />示例：`(contains:social OR contains:"wikipedia.com") -contains:"buy now"`                                                                                                                                                                                                                                                                                                                                         |
+| from:                     | 按 X 数字账户 ID 或用户名（不含 `@`）匹配来自特定用户的任何帖子。<br />示例：`(from:2244994945 OR from:api OR from:twittereng) -from:jack`                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| to:                       | 按 X 数字账户 ID 或用户名（不含 `@`）匹配回复给特定用户的任何帖子。<br />示例：`(to:2244994945 OR to:api OR to:twittereng) -to:jack`                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| url:                      | 对帖子的展开 URL 执行分词（关键字/短语）匹配。<br />示例：`@XDevelopers url:"developer.x.com"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| url\_title:                | 对展开 URL 的 HTML 标题元数据执行关键字/短语匹配。<br />仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| url\_description:          | 对展开页面的描述元数据执行关键字/短语匹配。<br />仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| url\_contains:             | 匹配包含指定短语或关键字的 URL 的帖子。<br />将含标点的搜索词用引号括起。<br />示例：`(url_contains:"developer.x.com" OR url_contains:wildfire) -url_contains:reddit`                                                                                                                                                                                                                                                                                                                                                                         |
+| bio:                      | 在帖子的用户简介中匹配关键字或短语。此为对 [User object](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object) 的 description 字段进行分词匹配。<br />示例：`(bio:engineer OR bio:"wordpress.com" OR bio:🚀) -bio:troll`<br />注意：仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                            |
+| bio\_name:                 | 在帖子的用户简介名称中匹配关键字。此为对 [User object](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object) 中用户 name 字段进行分词匹配。<br />注意：仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                                                                                                                       |
+| bio\_location:             | 匹配用户对象中“所在地”包含指定关键字或短语的帖子。<br />此运算符执行分词匹配，类似于对消息正文的常规关键字规则。<br />该所在地属于[用户对象](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)的一部分，表示账户的“常驻”所在地。<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                |
+| statuses\_count:           | 当作者发布的状态数量处于给定范围内时匹配帖子。<br />如果仅指定一个数字，则匹配任何大于或等于该数字的情况。<br />可以指定一个范围以匹配范围内的任意数字（例如，`statuses_count:1000..10000`）。<br />_示例：_ `to:api statuses_count:10`<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                           |
+| followers\_count:          | 当作者的关注者数量处于给定范围内时匹配帖子。<br />如果仅指定一个数字，则匹配任何大于或等于该数字的情况。<br />可以指定一个范围以匹配范围内的任意数字（例如，`followers_count:1000..10000`）。<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                                          |
+| friends\_count:            | 当作者的关注数（其关注的用户数量）处于给定范围内时匹配帖子。<br />如果仅指定一个数字，则匹配任何大于或等于该数字的情况。<br />可以指定一个范围以匹配范围内的任意数字（例如，`friends_count:1000..10000`）。<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                              |
+| listed\_count:             | 当作者在 X 中被加入列表的次数处于给定范围内时匹配帖子。<br />如果仅指定一个数字，则匹配任何大于或等于该数字的情况。<br />可以指定一个范围以匹配范围内的任意数字（例如，`listed_count:10..100`）。<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                    |
+| $                         | 匹配包含指定“股权标签”（cashtag）实体的任意帖子。<br />_示例_：`($TWTR OR $TSLA OR $BRK.A) -$F`<br />_注意：_ 该运算符依赖 X 的“symbols”实体提取来匹配 cashtag，而不是直接从正文中提取。                                                                                                                                                                                                                                                          |
+| retweets\_of:              | 匹配对指定用户的转发。<br />同时接受用户名和 X 账户的数字 ID（不是帖子的状态 ID）。<br />_示例_：`(retweets_of:2244994945 OR retweets_of:api OR retweets_of:twittereng) -retweets_of:jack`                                                                                                                                                                                                                                                                                                               |
+| retweets\_of\_status\_id:    | 仅投递对指定帖子的显式转发。请使用原帖的 ID，而不是转发帖的 ID。<br />_示例_：`retweets_of_status_id:1293593516040269825`<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                                                                                                                                                                               |
+| in\_reply\_to\_status\_id:    | 仅投递对指定帖子的显式回复。<br />_示例_：`in_reply_to_status_id:1293593516040269825`<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                                                                                                                                                                                                                             |
+| sample:                   | 返回匹配某条规则的帖子随机样本。样本百分比必须是 1 到 100 的整数。<br />该运算符先将范围缩小至 X%，再对该抽样子集应用规则/筛选。<br />_示例：_ `#happybirthday sample:5`<br />`"happy birthday"~5 sample:80`<br />_注意：_ 仅适用于 PowerTrack 和 Historical PowerTrack。                                                                                                                            |
+| source:                   | 匹配由指定来源应用生成的任意帖子。取值可以是应用名称或应用的 URL。<br />_示例：_ `#happybirthday source:"X for iPhone"`<br />`"This is a test X from my TestingApp" source:MyTestAppName`<br />_注意：_ source 运算符基于帖子的来源属性进行搜索，且不能单独使用。                                                                                                                 |
+| lang:                     | 匹配被 X 判定为特定语言的帖子。目前每条帖子仅会被判定为一种语言，因此同时匹配多种语言将不会返回结果。_不建议单独使用。_                                                                                                                                                                                                                                                                                                                                                     |
+
+下面的列表列出了当前支持的语言及其对应的 BCP 47 语言标识符：
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| 阿姆哈拉语: am | 德语: de | 马拉雅拉姆语: ml | 斯洛伐克语: sk |
+| 阿拉伯语: ar | 希腊语: el | 迪维希语: dv | 斯洛文尼亚语: sl |
+| 亚美尼亚语: hy | 古吉拉特语: gu | 马拉地语: mr | 索拉尼库尔德语: ckb |
+| 巴斯克语: eu | 海地克里奥尔语: ht | 尼泊尔语: ne | 西班牙语: es |
+| 孟加拉语: bn | 希伯来语: iw | 挪威语: no | 瑞典语: sv |
+| 波斯尼亚语: bs | 印地语: hi | 奥里亚语: or | 他加禄语: tl |
+| 保加利亚语: bg | 拉丁化印地语: hi-Latn | 旁遮普语: pa | 泰米尔语: ta |
+| 缅甸语: my | 匈牙利语: hu | 普什图语: ps | 泰卢固语: te |
+| 克罗地亚语: hr | 冰岛语: is | 波斯语: fa | 泰语: th |
+| 加泰罗尼亚语: ca | 印度尼西亚语: in | 波兰语: pl | 藏语: bo |
+| 捷克语: cs | 意大利语: it | 葡萄牙语: pt | 繁体中文: zh-TW |
+| 丹麦语: da | 日语: ja | 罗马尼亚语: ro | 土耳其语: tr |
+| 荷兰语: nl | 卡纳达语: kn | 俄语: ru | 乌克兰语: uk |
+| 英语: en | 高棉语: km | 塞尔维亚语: sr | 乌尔都语: ur |
+| 爱沙尼亚语: et | 韩语: ko | 简体中文: zh-CN | 维吾尔语: ug |
+| 芬兰语: fi | 老挝语: lo | 信德语: sd | 越南语: vi |
+| 法语: fr | 拉脱维亚语: lv | 僧伽罗语: si | 威尔士语: cy |
+| 格鲁吉亚语: ka | 立陶宛语: lt |     |
+
+示例：
+
+(@XDevelopers OR to:XDevelopers) lang:es
+
+注意：语言运算符会匹配由 X 判定并设置为帖子 lang 属性的特定语言。有关 X 实体 JSON 属性的更多信息，请参见[此处](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)。如果无法对某条帖子进行语言分类，其 lang 将被设为“und”（未定义）。
+
+| 运算符                 | 说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|:--------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| place                    | 匹配带有指定位置或 X 地点 ID 标签的帖子。<br />包含多个词的地点名称应使用引号括起。<br />示例：`(place:London OR place:"Great Britain") -place:USA`<br />`place:fd70c22040963ac7`<br />注意：如何获取 X 地点 ID，请参见公共 API 端点 [GET geo/search](https://developer.x.com/en/docs/x-api/v1/geo/places-near-location/api-reference/get-geo-search)。<br />注意：不会匹配转推或引用推文，因为转推的地点附加在原始帖子上。 |
+| place\_country            | 匹配帖子中带有地点/位置标签且其关联的国家/地区代码与给定 ISO alpha-2 两字母代码一致的内容。<br />示例：`place_country:GB OR place_country:AU OR place_country:CA`<br />注意：不会匹配转推或引用推文，因为转推的地点附加在原始帖子上。<br />有效 ISO 代码：[ISO 3166-1 alpha-2](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)。                                                                                                                                      |
+| point\_radius:\[lon lat radius] | 在定义的半径内，匹配帖子的精确位置（x,y）或“地点”地理多边形。<br />• 半径：\< 25mi<br />• 支持单位：mi、km<br />• 经度：±180<br />• 纬度：±90<br />坐标为十进制度。<br />参数用方括号括起，空格分隔。<br />示例：`point_radius:[-105.27346517 40.01924738 0.5mi]`<br />示例：`point_radius:[2.355128 48.861118 16km]`<br />注意：不会匹配转推或引用推文。                             |
+| bounding\_box:\[west\_long south\_lat east\_long north\_lat] | 匹配完全包含在边界框内的精确位置或“地点”地理多边形。<br />参数用方括号括起，空格分隔。<br />坐标：十进制度（经度 ±180，纬度 ±90）。<br />宽度与高度必须小于 25mi。<br />示例：`bounding_box:[-105.301758 39.964069 -105.178505 40.09455]`<br />注意：不会匹配转推或引用推文。                                                                                                                                                    |
+| profile\_country          | 匹配作者个人资料地理信息中国家/地区代码与给定 ISO-3166-1-alpha-2 两字母代码一致的帖子。                                                                                                                                                                                                                                                                                                                                                                                                    |
+| profile\_region           | 匹配作者个人资料地理富化中的“region”字段，要求精确完整字符串匹配。<br />包含空格或标点的子串请使用双引号。<br />示例：`profile_region:"New York"`                                                                                                                                                                                                                                                                                |
+| profile\_locality         | 匹配作者个人资料地理富化中的“locality”字段，要求精确完整字符串匹配。<br />包含空格或标点的子串请使用双引号。<br />示例：`profile_locality:"San Francisco"`                                                                                                                                                                                                                                                                             |
+| profile\_subregion        | 匹配作者个人资料地理富化中的“subRegion”字段，包括特定县或都会区。<br />要求精确完整字符串匹配。<br />示例：`profile_subregion:"Santa Clara County"`                                                                                                                                                                                                                                                                                               |
+| has:geo                  | 匹配包含来自 X 的帖子级地理位置信息的帖子，包括“geo”经纬度或带显示名称与地理多边形的“地点”位置信息。<br />注意：使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                           |
+| has:profile\_geo          | 匹配包含任意个人资料地理元数据的帖子（不论其值）。<br />可用别名：`has:derived_user_geo`。<br />注意：使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                            |
+| has:links                | 匹配在负载的“text”对象中包含链接或被引用媒体的帖子，包括媒体和引用推文。<br />注意：使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                      |
+| is:retweet               | 仅返回明确的转发。可取反以排除转发，只返回原创内容。<br />此运算符仅匹配真正的转发，不包含引用推文。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                               |
+| is:reply                 | 仅返回明确的回复。可取反以排除回复。<br />PowerTrack 会匹配对原始帖子的回复、引用帖子中的回复，以及转发中的回复。<br />Search API 仅匹配对原始帖子的回复。<br />_示例：_ `@XDevelopers -is:reply`                                                                                                                                                                                                                                         |
+| is:quote                 | 仅返回引用推文，或引用其他帖子的帖子。<br />可取反以排除引用推文。<br />_示例：_ `@XDevelopers is:quote`                                                                                                                                                                                                                                                                                                                                                            |
+| is:verified              | 仅返回来自“已验证”作者的帖子。可取反以排除来自已验证作者的帖子。<br />_示例：_ `@XDevelopers is:verified`                                                                                                                                                                                                                                                                                                                                                                 |
+| has:mentions             | 匹配提及其他 X 用户的帖子。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                                                                                                 |
+| has:hashtags             | 匹配包含话题标签的帖子。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                                                                                                       |
+| has:media                | 匹配包含由 X 归类的媒体 URL 的帖子（例如 pic.x.com）。<br />可用别名：`has:media_link`。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                           |
+| has:images               | 匹配包含媒体 URL 的帖子（例如 pic.x.com）。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                                                                                  |
+| has:videos               | 匹配包含上传到 X 的原生视频的帖子。<br />可用别名：`has:video_link`。<br />此运算符不匹配来自 YouTube、Periscope 或其他视频托管站点的视频。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                            |
+| has:symbols              | 匹配包含股票代号（cashtag）符号的帖子（例如 $TWTR）。<br />**注意：** 使用 Search API 时，必须与非 `is:` 或 `has:` 运算符组合。                                                                                                                                                                                                                                                                                                                                                                 |
+
+<div id="operators-by-product">
+  ## 按产品分类的操作符
+</div>
+
+<div id="rules-and-filtering-enterprise">
+  ### 规则与过滤：企业版
+</div>
+
+所有企业版运算符均可用于 PowerTrack 和 Historical PowerTrack API。但企业版 Search API 仅支持其中一部分运算符，具体见本页说明。
+
+深蓝色标签标示了不同企业产品可用的运算符：
+
+PowerTrack Search
+
+| 运算符 | 产品 | 说明 | 匹配的负载元素 |
+| :--- | :--- | :--- | :--- |
+| "精确短语匹配" | PowerTrack<br /><br />Search | 在帖子的正文中匹配一个精确短语。<br /><br />可被解释为搜索运算符的组件将被视为词语。换句话说：<br /><br />\* `"#hashtag"` 将匹配 `hashtag`，但不匹配 `#hashtag`（若要匹配实际的主题标签，请使用不带引号的[主题标签运算符](#hashtag-operator)）<br />\* `"$TWTR"` 将匹配单词 `TWTR`，但不匹配带有股票标签的 `$TWTR`（若要匹配实际的股票标签，请使用不带引号的[股票标签运算符](#cashtag-operator)）<br /><br />**注意：** 在 30 天搜索与全档案搜索（企业版与高级版）中，标点符号不会被分词，而是被视为空白字符。 | `text` |
+| @   | PowerTrack<br /><br />Search | 匹配任何提及给定用户名的帖子。该值可以是用户名（不含 `@` 字符）或用户的数字 ID（例如通过 [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 端点获取）。 | `entities.user_mentions` |
+| #   | PowerTrack<br /><br />Search | 匹配包含指定主题标签的任何帖子。<br /><br />此运算符执行精确匹配。例如，规则 `#1989` 将匹配包含精确主题标签 `#1989` 的帖子，但不会匹配带有主题标签 `#TaylorSwift1989` 的帖子。<br /><br />**注意：** 此运算符依赖 X 的实体抽取来匹配主题标签，而不是从正文中抽取。有关实体 JSON 属性的更多信息，请参阅 [X Entities](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)。 | `entities.hashtags` |
+| $   | PowerTrack<br /><br />Search | 匹配包含指定股票标签（其标记的首字符为 `$`）的任何帖子。<br /><br />**注意：** 此运算符依赖 X 的实体抽取来匹配股票标签，而不是从正文中抽取。有关实体 JSON 属性的更多信息，请参阅 [X Entities](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)。 | `entities.symbols` |
+| bio: | PowerTrack | 可用别名：user\_bio:<br /><br />在帖子的用户简介中匹配关键字（使用分词匹配）或短语。使用双引号匹配短语。换句话说：<br /><br />\* `bio:software engineer` 将匹配由简介中含有单词 `software` 的用户发布的、且帖子正文包含关键字 `engineer` 的内容<br />\* `bio:"software engineer"` 将匹配由简介中包含短语 `software engineer` 的用户发布的任何帖子 | `user.description` |
+| bio\_location: | PowerTrack | 可用别名：user\_bio\_location:<br /><br />匹配其 [User 对象](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)的位置包含指定关键字（使用分词匹配）或短语的帖子。<br /><br />该位置是一个未规范化、用户生成的自由格式字符串，与帖子的地理位置（如有）不同。 | `user.location` |
+| bio\_name: | PowerTrack | 匹配其 [User 对象](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)的名称包含指定关键字（使用分词匹配）或短语的帖子。 | `user.name` |
+| bounding\_box: | PowerTrack<br /><br />Search | _可用别名_: geo\_bounding\_box:<br /><br />匹配帖子的精确位置（经度、纬度，若存在）以及地理多边形（当 Place 完全包含于定义区域内时）。<br /><br />\* west\_long 与 south\_lat 表示边界框的西南角，其中 west\_long 为该点的经度，south\_lat 为该点的纬度。<br />\* east\_long 与 north\_lat 表示边界框的东北角，其中 east\_long 为该点的经度，north\_lat 为该点的纬度。<br />\* 边界框的宽度和高度必须小于 25 英里。<br />\* 经度范围为 ±180。<br />\* 纬度范围为 ±90。<br />\* 所有坐标均为十进制度。<br />\* 规则参数置于方括号内，以空格分隔。<br /><br />**注意：** 针对 place（帖子地理信息）的匹配运算符只会匹配原始帖子。转发不包含任何 place 数据。 | `place`（仅限原始帖子） |
+| contains: | PowerTrack | 对在正文中包含给定子字符串的帖子进行子字符串匹配，与分词无关。换言之，这是纯子字符串匹配，不考虑词边界。<br /><br />若子字符串包含空格或标点，请使用双引号进行匹配。 | `text` |
+| \<emoji> | PowerTrack<br /><br />Search | 匹配帖子正文中的表情符号。<br /><br />这是分词匹配，因此你的表情符号会与帖子正文分词后的文本进行匹配。分词基于标点、符号/表情符号以及分隔符的 Unicode 基本多文种平面字符。例如，文本 “I like 🍕” 的帖子会被分成如下标记：I、like、🍕。这些标记随后会与规则中的表情符号进行比较。<br /><br />**注意：** 如果某个表情符号有变体，必须使用双引号将其加入规则。 | `text` |
+| followers\_count: | PowerTrack | 当作者的关注者数量处于给定范围内时匹配帖子。<br /><br />\* 单个数字（例如 `followers_count:42`）将匹配任何大于或等于指定值的数字。<br />\* 范围（例如 `followers_count:42..1337`）将匹配给定范围内的任何数字。 | `user.followers_count` |
+| friends\_count: | PowerTrack | _可用别名_: following\_count:<br /><br />当作者的朋友数（其关注的用户数）处于给定范围内时匹配帖子。<br /><br />\* 单个数字（例如 `followers_count:42`）将匹配任何大于或等于指定值的数字。<br />\* 范围（例如 `followers_count:42..1337`）将匹配给定范围内的任何数字。 | `user.friends_count` |
+| from: | PowerTrack<br /><br />Search | 匹配来自特定用户的任何帖子。取值可以是用户名（不含 `@` 字符）或用户的数字 ID（例如通过 [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 端点获取）。 | `user.id`, `user.id_str`（若使用用户 ID）<br /><br />`user.screen_name`（若使用用户名） |
+| has:geo | PowerTrack<br /><br />Search | 匹配包含由 X 提供的帖子级地理定位数据的帖子。可以是 “geo” 经纬度坐标，或以 X [Place](https://dev.x.com/overview/api/places) 形式提供的 “location”，包含相应显示名称、地理多边形及其他字段。<br /><br />不可单独作为独立运算符使用。<br /><br />**注意：** 针对 place（帖子地理信息）的匹配运算符只会匹配原始帖子。转发不包含任何 place 数据。 | `place`（仅限原始帖子） |
+| has:hashtags | PowerTrack<br /><br />Search | 匹配至少包含一个话题标签的帖子。<br /><br />不可单独作为独立运算符使用。 | `entities.hashtags` |
+| has:images | PowerTrack<br /><br />Search | 匹配至少包含一个已分类的图片 URL 的帖子。<br /><br />不可单独作为独立运算符使用。 | `entities.media` |
+| has:lang | PowerTrack | 匹配被 X 识别为特定语言的帖子。<br /><br />如果帖子尚未被分类，该运算符将不匹配。每条帖子目前仅会被归类为一种语言，因此将多种语言用 AND 组合不会产生结果。<br /><br />不能单独使用该运算符。 | 当值不为 `und` 时的 `lang` |
+| has:links | PowerTrack<br /><br />Search | 匹配正文包含链接的帖子。<br /><br />不能单独使用该运算符。<br /><br />\*\*注意：\*\*此运算符依赖 X 的实体抽取来匹配链接，而不是直接从正文提取链接。有关实体 JSON 属性的更多信息，请参阅 [X Entities](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary)。 | `entities.urls` |
+| has:media | PowerTrack<br /><br />Search | 可用别名：has:media\_link<br /><br />匹配包含至少一个已分类媒体 URL 的帖子。<br /><br />不能单独使用该运算符。 | `entities.media` |
+| has:mentions | PowerTrack<br /><br />Search | 匹配提及其他 X 用户的帖子。<br /><br />不能单独使用该运算符。 | `entities.user_mentions` |
+| has:profile\_geo | PowerTrack<br /><br />Search | 可用别名：has:derived\_user\_geo<br /><br />匹配含有任意 [Profile Geo](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments#profile-geo) 元数据的帖子，不论其实际取值。<br /><br />不能单独使用该运算符。 | `user.location` |
+| has:symbols | PowerTrack<br /><br />Enterprise | 匹配包含股票代码标签（例如 `$TWTR`）的帖子。<br /><br />不能单独使用该运算符。 | `entities.symbols` |
+| has:videos | PowerTrack<br /><br />Search | 可用别名：has:video\_link<br /><br />匹配包含至少一个已分类媒体 URL 的帖子。<br /><br />不能单独使用该运算符。 | `entities.media` |
+| in\_reply\_to\_status\_id: | PowerTrack | 可用别名：in\_reply\_to\_tweet\_id:<br /><br />仅投递对指定帖子的显式回复。 | 目标帖子的 `id`、`id_str` |
+| is:quote | PowerTrack | 投递与规则匹配的显式引用推文。<br /><br />也可取反（`-is:quote`）以从投递中排除与规则匹配的引用推文。<br /><br />不能单独使用该运算符。 | `is_quote_status`（为 `true` 时） |
+| is:reply | PowerTrack<br /><br />Search | 仅投递与规则匹配的回复。<br /><br />也可取反（`-is:reply`）以排除与指定规则匹配的回复。<br /><br />在 PowerTrack 中，此运算符匹配：<br /><br />\* 对原帖的回复<br />\* 引用帖子中的回复<br />\* 转推中的回复<br /><br />  <br />与 Search API 搭配使用时，此运算符匹配对原帖的回复，但不包含引用推文中的回复和转推中的回复。<br /><br />你可以将此运算符与 `is:retweet` 和 `is:quote` 结合使用，仅投递对原帖的回复。<br /><br />在 Search API 中不能单独使用该运算符。<br /><br />**注意**：在 Premium 中，此运算符在 Sandbox 开发环境不可用。 | 回复元素，例如 `in_reply_to_status_id` |
+| is:retweet | PowerTrack<br /><br />Search | 仅投递与规则匹配的显式转推。<br /><br />也可取反（`-is:retweet`）以排除与规则匹配的转推，仅投递原始内容。<br /><br />此运算符仅匹配真正的转推（即使用“转推”按钮发布的转推）。引用推文以及未使用 X 转推功能的修改帖子将不会被该运算符匹配。<br /><br />不能单独使用该运算符。 | 转推元素，例如 `retweeted_status` |
+| is:verified | PowerTrack<br /><br />Search | 仅返回作者已通过 X 验证的帖子。<br /><br />也可取反以排除作者已验证的帖子。<br /><br />不能作为独立运算符使用。 | `user.verified` |
+| keyword | PowerTrack<br /><br />Search | 匹配帖子正文中的关键词。<br /><br />这是基于分词的匹配，表示你的关键词字符串将与帖子正文的分词文本进行匹配。分词基于标点、符号/表情，以及分隔符类 Unicode 基本平面字符。例如，文本为“I like coca-cola”的帖子将被切分为以下词元：`I`、`like`、`coca`、`cola`。这些词元将与规则中使用的关键词字符串进行比较。若要匹配包含标点（例如 coca-cola）、符号或分隔符的字符串，必须使用[精确短语匹配](#exact-match)运算符。 | `text` |
+| lang: | PowerTrack<br /><br />Search | 匹配被 X 归类为特定语言的帖子（仅当该帖子已被归类时）。每条帖子只会被归入一种语言，因此将多个语言用 AND 组合将不会产生结果。<br /><br />__注意：__如果无法进行语言归类，将返回 `und`（未定义）。<br /><br />此运算符仅会匹配受支持的语言。提供任何其他值（包括 `und`）都会导致该运算符被忽略（换言之，帖子不会按此运算符被过滤）。下表为当前支持的语言及其对应的 BCP 47 语言标识：<br /><br />`am` 阿姆哈拉语<br /><br />`hu` 匈牙利语<br /><br />`pt` 葡萄牙语<br /><br />`ar` 阿拉伯语<br /><br />`is` 冰岛语<br /><br />`ro` 罗马尼亚语<br /><br />`hy` 亚美尼亚语<br /><br />`in` 印度尼西亚语<br /><br />`ru` 俄语<br /><br />`bn` 孟加拉语<br /><br />`it` 意大利语<br /><br />`sr` 塞尔维亚语<br /><br />`bg` 保加利亚语<br /><br />`ja` 日语<br /><br />`sd` 信德语<br /><br />`my` 缅甸语<br /><br />`kn` 卡纳达语<br /><br />`si` 僧伽罗语<br /><br />`zh` 中文<br /><br />`km` 高棉语<br /><br />`sk` 斯洛伐克语<br /><br />`cs` 捷克语<br /><br />`ko` 韩语<br /><br />`sl` 斯洛文尼亚语<br /><br />`da` 丹麦语<br /><br />`lo` 老挝语<br /><br />`ckb` 索拉尼库尔德语<br /><br />`nl` 荷兰语<br /><br />`lv` 拉脱维亚语<br /><br />`es` 西班牙语<br /><br />`en` 英语<br /><br />`lt` 立陶宛语<br /><br />`sv` 瑞典语<br /><br />`et` 爱沙尼亚语<br /><br />`ml` 马拉雅拉姆语<br /><br />`tl` 他加禄语<br /><br />`fi` 芬兰语<br /><br />`dv` 迪维希语（马尔代夫语）<br /><br />`ta` 泰米尔语<br /><br />`fr` 法语<br /><br />`mr` 马拉地语<br /><br />`te` 泰卢固语<br /><br />`ka` 格鲁吉亚语<br /><br />`ne` 尼泊尔语<br /><br />`th` 泰语<br /><br />`de` 德语<br /><br />`no` 挪威语<br /><br />`bo` 藏语<br /><br />`el` 希腊语<br /><br />`or` 奥里亚语<br /><br />`tr` 土耳其语<br /><br />`gu` 古吉拉特语<br /><br />`pa` 旁遮普语<br /><br />`uk` 乌克兰语<br /><br />`ht` 海地语<br /><br />`ps` 普什图语<br /><br />`ur` 乌尔都语<br /><br />`iw` 希伯来语<br /><br />`fa` 波斯语<br /><br />`ug` 维吾尔语<br /><br />`hi` 印地语<br /><br />`pl` 波兰语<br /><br />`vi` 越南语<br /><br />`cy` 威尔士语 | `lang` 当取值不为 `und` 时 |
+| listed\_count: | PowerTrack | _可用别名_：user\_in\_lists\_count:<br /><br />当作者在 X 上被加入列表的次数处于给定范围内时匹配帖子。<br /><br />_ 单个数字（例如 `listed_count:42`）将匹配任何大于或等于所指定值的数字。<br />_ 区间（例如 `listed_count:42..1337`）将匹配给定范围内的任何数字。 | `user.listed_count` |
+| place\_country: | PowerTrack<br /><br />Search | 匹配带有标签的[地点/位置](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-geo-objects)所关联的国家/地区代码与给定[ISO alpha-2 字符代码](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)相同的帖子。<br /><br />**注意：** 基于地点（帖子地理）的运算符仅包含来自原始帖子的匹配。转帖不包含任何地点数据。 | `place`（仅限原始帖子） |
+| place: | PowerTrack<br /><br />Search | 匹配带有指定位置或 [X place ID](https://developer.x.com/en/docs/x-api/v1/geo/places-near-location/api-reference/get-geo-search)标签的帖子。多词地点名称应使用引号括起（例如 `place:"San Francisco"`）。<br /><br />**注意：** 基于地点（帖子地理）的运算符仅包含来自原始帖子的匹配。转帖不包含任何地点数据。 | `place`（仅限原始帖子） |
+| point\_radius: | PowerTrack<br /><br />Search | **注意：** 基于地点（帖子地理）的运算符仅包含来自原始帖子的匹配。转帖不包含任何地点数据。 | `place`（仅限原始帖子） |
+| profile\_bounding\_box:\[west\_long south\_lat east\_long north\_lat] | PowerTrack | 在[个人资料地理增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)中，当地点完全包含在定义的区域内时，按用户的精确位置（经度、纬度）进行匹配。<br /><br />_ west\_long 和 south\_lat 表示边界框的西南角，其中 west\_long 为该点的经度，south\_lat 为纬度。<br />_ east\_long 和 north\_lat 表示边界框的东北角，其中 east\_long 为该点的经度，north\_lat 为纬度。<br />\* 边界框的宽度和高度必须小于 25 英里。<br />\* 经度范围为 ±180。<br />\* 纬度范围为 ±90。<br />\* 所有坐标均为十进制度数。<br />\* 规则参数置于方括号内，使用空格分隔。<br /><br />**注意：** 基于地点（帖子地理）的运算符仅包含来自原始帖子的匹配。转帖不包含任何地点数据。 | `user.derived.locations.geo.coordinates` |
+| profile\_country: | PowerTrack<br /><br />Search | 精确匹配来自[个人资料地理增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)的国家/地区代码。<br /><br />使用基于[ISO-3166-1-alpha-2 规范](http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)的标准化两字母国家/地区代码集。<br /><br />为简洁起见，此运算符用于替代地址对象中国家/地区字段的运算符。<br /><br />**注意：** 基于地点（帖子地理）的运算符仅包含来自原始帖子的匹配。转帖不包含任何地点数据。 | `user.derived.locations.country_code` |
+| profile\_locality: | PowerTrack<br /><br />Search | 精确匹配[个人资料地理增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)中的 Locality 字段。<br /><br />这是对完整字符串的精确匹配。<br /><br />无需使用反斜杠转义字符。例如，若要匹配包含斜杠的内容，使用 `one/two`。<br /><br />对包含空格或标点的子串使用双引号，例如 `profile_locality:"Lower East Side"`。 | `user.derived.locations.locality` |
+| profile\_point\_radius:\[lon lat radius] | PowerTrack | 与用户[个人资料地理增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)的精确位置（x，y）匹配。<br /><br />\* 支持的半径单位为英里（mi）和千米（km）。<br />\* 半径必须小于 25 英里。<br />\* 经度范围为 ±180。<br />\* 纬度范围为 ±90。<br />\* 所有坐标均为十进制度。<br />\* 规则参数置于方括号内，以空格分隔。<br /><br />**注意：** 针对 place（帖子地理）的匹配运算符仅包含原始帖子的匹配。转发不包含任何 place 数据。 | `user.derived.locations.geo` |
+| profile\_region: | PowerTrack<br /><br />Search | 与[个人资料地理增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)中的 Region 字段精确匹配。<br /><br />这是对完整字符串的精确匹配。<br /><br />无需使用反斜杠转义字符。例如，匹配包含斜杠的内容时，使用 `one/two`。<br /><br />对包含空格或标点的子字符串使用双引号，例如：`profile_locality:"New York"`。 | `user.derived.locations.region` |
+| profile\_subregion: | PowerTrack | 与[个人资料地理增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)中的 Subregion 字段精确匹配。<br /><br />这是对完整字符串的精确匹配。<br /><br />无需使用反斜杠转义字符。例如，匹配包含斜杠的内容时，使用 `one/two`。<br /><br />对包含空格或标点的子字符串使用双引号，例如：`profile_locality:"Kings County"`。 | `user.derived.locations.sub_region` |
+| "keyword1 keyword2"~N | PowerTrack<br /><br />Search | 通常称为“邻近”运算符，用于匹配关键词之间相距不超过 N 个标记的帖子。<br /><br />如果关键词顺序相反，则它们之间最多只能相距 N-2 个标记。<br /><br />引号中可包含任意数量的关键词。<br /><br />N 不得大于 6。 | `text` |
+| retweets\_of\_status\_id: | PowerTrack | 可用别名：retweets\_of\_tweet\_id:<br /><br />仅投递指定原帖的显式转发。 | `retweeted_status.id`, `retweeted_status.id_str` |
+| retweets\_of: | PowerTrack<br /><br />Search | 可用别名：retweets\_of\_user:<br /><br />匹配任何对给定用户的转发帖子。取值可以是用户名（不含 `@` 字符）或该用户的数字 ID（例如通过 [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 端点获取）。 | `retweeted_status.id` (if present) |
+| sample: | PowerTrack | 返回与规则匹配的帖子中的随机百分比样本，而非整个集合。百分比取值必须为 1 到 100 的整数。<br /><br />此运算符作用于整条规则，且要求所有用 OR 连接的项进行分组。<br /><br />**注意：** sample 运算符会先将 firehose 的范围缩小至 X%，然后再对该抽样子集应用规则/过滤。例如，若使用 `sample:10`，每条帖子有 10% 的概率进入样本。<br /><br />**注意：** 抽样是确定性的，你在实时中获得的数据样本与历史拉取时相同。 |     |
+| source: | PowerTrack | 匹配由指定来源应用生成的任何帖子。取值必须为应用名称或该应用的 URL。<br /><br />不能作为独立运算符使用。 | `source` |
+| statuses\_count: | PowerTrack | _可用别名_: tweets\_count:<br /><br />当作者已发布的状态数落在给定范围内时匹配帖子。<br /><br />\* 单个数字（例如 `statuses_count:42`）将匹配任何大于或等于该值的数量。<br />\* 范围（例如 `statuses_count:42..1337`）将匹配该范围内的任何数量。 | `user.statuses_count` |
+| to: | PowerTrack<br /><br />Search | 匹配回复特定用户的任何帖子。值可以是用户名（不含 `@` 字符）或用户的数值 ID（例如通过 [GET users/lookup](https://developer.x.com/en/docs/x-api/v1/accounts-and-users/follow-search-get-users/api-reference/get-users-lookup) 端点获取）。 | `text` |
+| url: | PowerTrack<br /><br />Search | 对帖子的展开 URL 执行分词匹配。包含标点或特殊字符的标记和短语应使用双引号括起（例如 `url:"/developer"`）。<br /><br />虽然一般不建议，但该操作符也可以匹配特定协议，需用双引号括起（例如 `url:"https://developer.x.com"`）。 | `entities.urls.expanded_url` |
+| url\_contains: | PowerTrack | 对（新的）[展开的 URL 标题元数据增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)执行关键词/短语匹配。 | `entities.urls.expanded_url` |
+| url\_description: | PowerTrack | _可用别名_: within\_url\_description:<br /><br />对（新的）[展开的页面描述元数据增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)执行关键词/短语匹配。 | `entities.urls.unwound.description` |
+| url\_title: | PowerTrack | _可用别名_: within\_url\_title:<br /><br />对（新的）[展开的 URL 标题元数据增强](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-enrichments)执行关键词/短语匹配。 | `entities.urls.title` |

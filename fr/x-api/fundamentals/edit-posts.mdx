@@ -1,0 +1,144 @@
+---
+title: Modifier des posts
+---
+
+<div id="introduction">
+  # Introduction
+</div>
+
+Les endpoints de l’API X v2 fournissent des métadonnées sur l’édition des posts. La fonctionnalité _Edit Posts_ a d’abord été introduite pour des tests auprès des employés de X le 1er septembre 2022. À partir de cette date, les posts éligibles sont modifiables pendant 30 minutes et jusqu’à 5 fois. _Tous les objets pour les posts créés depuis le 29 septembre 2022_ incluent des métadonnées d’édition, même si le post n’a jamais été modifié. Chaque fois qu’un post est édité, un nouvel ID de post est créé. L’historique des éditions d’un post peut être décrit en chaînant ces ID, en commençant par l’ID d’origine. De plus, si un post de la chaîne d’édition est supprimé, tous les posts de cette chaîne le sont également.
+
+Avec l’API X v2, un développeur peut déterminer :
+
+- Si un post était éligible à l’édition au moment de sa création. Certains posts, comme ceux avec des sondages ou les posts programmés, ne peuvent pas être modifiés.
+- Les posts sont modifiables pendant 30 minutes et peuvent être édités jusqu’à 5 fois. Pour les posts éditables, vous pouvez voir s’il reste du temps pour modifier et combien d’éditions supplémentaires sont possibles.
+- Si vous consultez une version éditée d’un post (dans la plupart des cas, l’API renverra la version la plus récente d’un post, sauf si une version antérieure spécifique est demandée par ID de post).
+- L’intégralité de l’historique des éditions du post.
+- L’engagement attribué à chaque version du post.
+
+Il existe trois composants pour l’historique des éditions d’un post :
+
+1. Par défaut, le payload du post contiendra un tableau d’ID de post qui font partie de l’historique des éditions. Cette information est fournie par `edit_history_tweet_ids`, qui est un champ par défaut du payload du post. Ce tableau contiendra au moins un ID, celui du post original non édité. Lorsqu’il n’y a qu’un seul ID, cela signifie que le post n’a pas d’historique d’édition.
+2. Vous pouvez obtenir des informations telles que si un post était éditable au moment de sa création, combien de temps, le cas échéant, il reste pour qu’un post soit modifié, et combien d’éditions restent en spécifiant `edit_controls` dans votre paramètre [tweet.fields](/fr/x-api/fundamentals/fields).
+3. Enfin, vous pouvez obtenir les objets post pour chaque post de l’historique des éditions, en spécifiant `edit_history_tweet_ids` à l’aide du paramètre [expansion](/fr/x-api/fundamentals/expansions).
+
+La plupart des posts sont éligibles à l’édition. Toutefois, les types de posts suivants ne le sont pas :
+
+- Post promu
+- Post avec sondage
+- Post qui est une réponse à un fil d’autrui
+- Post qui est un Retweet (notez que les Quote Tweets sont éligibles à l’édition)
+- Post en nullcast
+- Post de communauté
+- Post Superfollow
+- Post collaboratif
+
+Exemples
+
+---
+
+Les exemples ci-dessous montrent comment un développeur peut demander des métadonnées d’édition de post à l’aide de l’API X v2.
+
+Remarque : Les exemples ci-dessous utilisent l’endpoint User Post Timeline, mais vous pouvez demander ces métadonnées en utilisant les mêmes paramètres (avec fields et expansions) pour tous les endpoints qui renvoient des posts (p. ex. posts lookup, search, filtered stream, etc.).
+
+<div id="default-behavior">
+  ### Comportement par défaut
+</div>
+
+Par défaut, lors d’une requête API vers tout endpoint qui renvoie des objets Post dans l’API X v2, vous obtenez :
+
+- L’ID du Post
+- Le texte du Post
+- Un tableau d’ID de Post qui font partie de l’historique des modifications d’un Post. S’il n’y a qu’un seul ID fourni, cela signifie que le Post n’a pas été modifié.
+
+**Requête :**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**Exemple de réponse :**
+
+```{
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"]
+    }
+  ]
+}
+```
+
+### Obtenir des données supplémentaires avec edit\_controls
+
+Si vous souhaitez des métadonnées supplémentaires sur les Posts édités, par exemple savoir si un Post était éligible à l’édition lors de sa création et combien de temps il reste pour qu’un Post soit éditable, vous pouvez demander ces informations en utilisant le paramètre tweet.fields et en le définissant sur edit\_control.
+
+**Requête :**
+
+`curl --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+**Exemple de réponse :**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ]
+}
+```
+
+<div id="getting-post-objects-for-all-posts-in-a-posts-edit-history">
+  ### Récupérer les objets Post pour tous les Posts de l’historique des modifications d’un Post
+</div>
+
+Les exemples ci-dessus fournissent un tableau d’ID de Post présents dans l’historique des modifications d’un Post. Si vous souhaitez obtenir l’objet Post correspondant à chacun de ces ID, utilisez le paramètre d’expansion et définissez-le sur `edit_history_tweet_ids`. Les objets Post qui composent l’historique des modifications seront fournis dans l’objet « includes ».
+
+**Requête :**
+
+```bash
+      curl --location --request GET 'https://api.x.com/2/users/:id/tweets?tweet.fields=edit_control&expansions=edit_history_tweet_ids' --header 'Authorization: Bearer $BEARER_TOKEN'`
+```
+
+**Exemple de réponse :**
+
+```
+  {
+  "data": [
+    {
+      "id": "1514991667853602823",
+      "text": "we have an edit button",
+      "edit_history_tweet_ids": ["1514991667853602822", "1514991667853602823"],
+      "edit_controls": {
+        "is_edit_eligible": true,
+        "editable_until": "2022-04-21 09:35:20.311",
+        "edits_remaining": 4
+      }
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "id": "1514991667853602822",
+        "text": "we need an eidt button",
+        "edit_history_tweet_ids": [
+          "1514991667853602822",
+          "1514991667853602823"
+        ],
+        "edit_controls": {
+          "is_edit_eligible": true,
+          "editable_until": "2022-04-21 09:35:20.311",
+          "edits_remaining": 4
+        }
+      }
+    ]
+  }
+}
+```

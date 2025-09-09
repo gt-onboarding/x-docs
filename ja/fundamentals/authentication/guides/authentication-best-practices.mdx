@@ -1,0 +1,104 @@
+---
+title: ベストプラクティス
+---
+
+import { Button } from "/snippets/ja/button.mdx";
+
+APIキーとトークンは厳重に保護してください。
+
+これらの認証情報は、あなたの[developer App](/ja/resources/fundamentals/developer-apps)および、あなたが代理でのリクエスト送信を許可されたXアカウントに直接紐づいています。キーが漏えいすると、不正な第三者があなたのdeveloper Appまたはその認可ユーザーの代理としてXのエンドポイントにリクエストを送信し、想定外のレート制限に達したり、有料のアクセス枠を消費し尽くしたり、最悪の場合はdeveloper Appが停止される可能性があります。
+
+以下のセクションでは、APIキーとトークンを管理する際に考慮すべきベストプラクティスを紹介します。
+
+<div id="regenerate-api-keys-and-tokens">
+  ## API キーとトークンの再生成
+</div>
+
+API キーが漏えいしたおそれがある場合は、以下の手順で API キーを再生成してください。
+
+1. [Developer Portal の「プロジェクトとアプリ」ページ](https://developer.x.com/en/portal/projects-and-apps.html)に移動します。
+2. 該当するアプリの横にある「Keys and tokens」アイコン（🗝）をクリックします。
+3. 再生成したいキーとトークンのセットの横にある「Regenerate」ボタンをクリックします。
+
+Access Token または Bearer Token をプログラムから再生成する場合は、認証エンドポイントを使用してください。
+
+- Access Token を再生成する場合は、まず [POST oauth/invalidate\_token](/ja/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token) エンドポイントでトークンを無効化し、その後 [3-legged OAuth flow](/ja/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) でトークンを再生成します。
+- Bearer Token を再生成する場合は、まず [POST oauth2/invalidate\_token](/ja/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token) エンドポイントでトークンを無効化し、その後 [POST oauth2/token](/ja/resources/fundamentals/authentication/api-reference#post-oauth2-token) エンドポイントでトークンを再生成します。
+
+<div id="having-a-central-file-for-your-secrets">
+  ## 秘密情報を一元管理するファイルを用意する
+</div>
+
+秘密情報を格納するために、.env ファイルや .yaml などの設定ファイルを用意するのは有用です。ただし、これらを誤って Git リポジトリにコミットしないよう、確実に除外できる堅牢な .gitignore を必ず用意してください。 
+
+<div id="environment-variables">
+  ## 環境変数
+</div>
+
+環境変数を活用するコードを書くと便利な場合があります。
+
+その一例を Python で示します:
+
+```python
+import os
+
+consumer_key = os.environ.get("CONSUMER_KEY")
+
+consumer_secret = os.environ.get("CONSUMER_SECRET")
+```
+
+ターミナルでは次のように入力します:
+
+```bash
+export CONSUMER_KEY='xxxxxxxxxxxxxxxxxxx'
+export CONSUMER_SECRET='xxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+<div id="source-code-and-version-control">
+  ## ソースコードとバージョン管理
+</div>
+
+開発者が犯しがちなセキュリティ上のミスとして最も多いのは、GitHub や Bitbucket などの誰でもアクセス可能なバージョン管理システムで、API キーやトークンをソースコードにコミットしてしまうことです。これらのコードリポジトリの多くは公開されています。公開リポジトリでこのミスがあまりにも頻繁に起きるため、API キーを収集して回る収益目的のボットまで存在します。
+
+- サーバーの環境変数を使用する。API キーを環境変数に保存すれば、コードやバージョン管理から切り離せます。これにより、環境ごとに異なるキーを簡単に使い分けられます。
+- ソース管理から除外した設定ファイルを使用する。ファイル名を [.gitignore](https://git-scm.com/docs/gitignore) に追加し、バージョン管理で追跡されないようにします。
+- いったんバージョン管理にかけた後でコードから API キーを削除しても、コードベースの過去バージョンにアクセスすれば依然として取得できる可能性があります。次のセクションの手順に従って API キーを再生成してください。
+
+<div id="databases">
+  ## データベース
+</div>
+
+アクセストークンをデータベースに保存する必要がある場合は、次の点に留意してください。
+
+- アクセストークンが当該トークンの所有者のみが読み取れるよう、データベースへのアクセスを制限してください。
+- アクセストークン用のデータベーステーブルへの編集／書き込み権限を制限してください。これはキー管理システムで自動化する必要があります。
+- いかなるデータストアに保存する場合でも、事前にアクセストークンを暗号化してください。
+
+<div id="password-management-tools">
+  ## パスワード管理ツール
+</div>
+
+1Password や LastPass などのパスワード管理ツールは、キーやトークンを安全に保管するのに役立ちます。共有のチーム向けパスワード管理ツール内でこれらを共有することは避けるとよいでしょう。
+
+<div id="web-storage-cookies">
+  ## Web storage & cookies
+</div>
+
+Web Storage には LocalStorage と SessionStorage の 2 種類があります。これらは Cookie よりも保存容量が大きいため、Cookie の代替・改良として導入されました。ただし、各ストレージ方式にはそれぞれ異なる長所と短所があります。
+ 
+
+**Web Storage: LocalStorage**
+
+LocalStorage に保存されたデータは永続的です。つまり、明示的に削除されるまで保持されます。プロジェクトの要件によっては利点となり得ますが、LocalStorage の使用には注意が必要です。保存したデータの変更や追加は、当該ウェブページへの以後のすべての訪問で利用可能になるためです。通常は LocalStorage の使用を推奨しませんが、例外となるケースもあります。LocalStorage は同一オリジンポリシーをサポートしており、ここに保存されたデータは同一オリジンからのみ取得できます。さらに、データを HTTP リクエストごとにサーバーへ送信する必要がないため、クライアント—サーバー間のトラフィックを削減できるというパフォーマンス上の利点もあります。
+ 
+
+**Web Storage: SessionStorage**
+
+SessionStorage は LocalStorage に似ていますが、決定的な違いは永続的ではない点です。SessionStorage に書き込んだウィンドウ（またはブラウザによってはタブ）を閉じると、データは失われます。これは、ユーザーセッション内でトークンの読み取りアクセスを制限するのに有用です。セキュリティの観点では、一般に SessionStorage は LocalStorage より望ましい選択です。LocalStorage と同様に、同一オリジンポリシーの適用やクライアント—サーバー間トラフィックの削減といった利点も SessionStorage に当てはまります。
+ 
+
+**Cookies**
+
+Cookies はセッションデータを保存する従来の方法です。各 Cookie に有効期限を設定できるため、失効の容易さやアクセス制御が可能です。ただし、Cookie を使用すると、データがあらゆる HTTP リクエストでサーバーへ送信されるため、クライアント—サーバー間のトラフィックは確実に増加します。Cookie を使用する場合は、セッションハイジャックへの対策が必要です。既定では Cookie は HTTP 上で平文送信されるため、パケットスニッフィングや中間者攻撃により内容が盗聴・改ざんされるおそれがあります。転送中のデータを保護するため、常に HTTPS を強制してください。これにより、機密性、完全性、認証が確保されます。なお、ウェブアプリケーションやサイトが HTTP と HTTPS の両方で利用可能な場合は、Cookie に「Secure」フラグも付与してください。これにより、攻撃者がサイトの HTTP 版へのリンクをユーザーに送って、その結果生じる HTTP リクエストを傍受することを防げます。
+
+Cookie 使用時のセッションハイジャックに対する二次的な防御策としては、重要度の高い操作を実行する前にユーザーの本人確認を再度行うことが挙げられます。Cookie のセキュリティ向上のために検討すべきもう一つのフラグは「HttpOnly」フラグです。このフラグは、当該 Cookie をサーバーからのみアクセス可能とするようブラウザに指示します。クライアント側スクリプトからのアクセスはこのフラグにより禁止されるため、ほとんどのクロスサイトスクリプティング（XSS）攻撃に対する防御に役立ちます。

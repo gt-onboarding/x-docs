@@ -1,0 +1,149 @@
+---
+title: Autorizando uma requisição
+sidebarTitle: Autorizando uma requisição
+---
+
+import { Button } from "/snippets/pt-BR/button.mdx";
+
+<div id="authorizing-a-request">
+  ### Autorizando uma solicitação
+</div>
+
+O objetivo deste documento é mostrar como modificar solicitações HTTP para enviar requisições autorizadas à API do X.
+
+Todas as APIs do X são baseadas no protocolo HTTP. Isso significa que qualquer software que você escreva e que use as APIs do X envia uma série de mensagens estruturadas aos servidores do X. Por exemplo, uma solicitação para publicar o texto “**Hello Ladies + Gentlemen, a signed OAuth request!**” como um Tweet será algo como:
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+Qualquer biblioteca HTTP deve ser capaz de gerar e enviar a solicitação acima com relativa facilidade. No entanto, ela é considerada inválida, pois não há como saber:
+
+1. Qual aplicativo está fazendo a solicitação
+2. Em nome de qual usuário a solicitação está publicando
+3. Se o usuário concedeu ao aplicativo autorização para publicar em seu nome
+4. Se a solicitação foi adulterada por um terceiro durante o trânsito
+
+Para permitir que os aplicativos forneçam essas informações, a API do X depende do [protocolo OAuth 1.0a](http://tools.ietf.org/html/rfc5849). Em um nível bastante simplificado, a implementação do X exige que solicitações que precisam de autorização contenham um cabeçalho HTTP Authorization adicional com informações suficientes para responder às perguntas listadas acima. Uma versão da solicitação HTTP mostrada acima, modificada para incluir esse cabeçalho, ficaria assim (normalmente o cabeçalho Authorization precisaria estar em uma única linha, mas foi quebrado para melhorar a legibilidade aqui):
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Authorization:
+OAuth oauth\_consumer\_key="xvz1evFS4wEEPTGEFPHBog",
+oauth_nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg",
+oauth_signature="tnnArxj06cWHq44gCs1OSKk%2FjLY%3D",
+oauth\_signature\_method="HMAC-SHA1",
+oauth_timestamp="1318622958",
+oauth_token="370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb",
+oauth_version="1.0"
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+Quando essa solicitação foi criada, ela teria sido aceita pela API do X como válida.
+
+Se esse processo de assinatura parecer além do escopo da sua integração, considere usar [Web Intents](https://dev.x.com/web/intents), que não precisam de OAuth para interagir com a API do X.
+ 
+
+**Coletando parâmetros**
+
+Você deve notar que o cabeçalho contém 7 pares chave/valor, em que as chaves começam com a string “oauth\_”. Para qualquer solicitação à API do X, coletar esses 7 valores e criar um cabeçalho semelhante permitirá especificar a autorização da solicitação. Como cada valor foi gerado é descrito abaixo:
+
+**Consumer key**
+
+O oauth\_consumer\_key identifica qual aplicativo está fazendo a solicitação. Obtenha esse valor na página de configurações do seu [app do X](/pt-BR/resources/fundamentals/developer-apps) no [portal do desenvolvedor](/pt-BR/resources/fundamentals/developer-portal).
+
+|     |     |
+| :--- | :--- |
+| oauth\_consumer\_key | xvz1evFS4wEEPTGEFPHBog |
+
+**Nonce**
+
+O parâmetro oauth\_nonce é um token exclusivo que seu aplicativo deve gerar para cada solicitação. O X usará esse valor para determinar se uma solicitação foi enviada várias vezes. O valor desta solicitação foi gerado codificando em base64 32 bytes de dados aleatórios e removendo todos os caracteres que não sejam alfanuméricos; qualquer abordagem que produza uma string alfanumérica com boa aleatoriedade é aceitável aqui.
+
+|     |     |
+| :--- | :--- |
+| oauth\_nonce | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg |
+
+**Signature**
+
+O parâmetro oauth\_signature contém um valor gerado ao processar todos os demais parâmetros da solicitação e dois valores secretos por meio de um algoritmo de assinatura. A finalidade da assinatura é permitir que o X verifique que a solicitação não foi modificada em trânsito, identifique o aplicativo que está enviando a solicitação e confirme que o aplicativo tem autorização para interagir com a conta do usuário.
+
+O processo para calcular o oauth\_signature para esta solicitação é descrito em [Criando uma assinatura](/pt-BR/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature).
+
+|     |     |
+| :--- | :--- |
+| oauth\_signature | tnnArxj06cWHq44gCs1OSKk/jLY= |
+
+**Método de assinatura**
+
+O oauth\_signature\_method usado pelo X é HMAC-SHA1. Esse valor deve ser usado em qualquer solicitação autorizada enviada à API do X.
+
+|     |     |
+| :--- | :--- |
+| oauth\_signature\_method | HMAC-SHA1 |
+
+**Timestamp**
+
+O parâmetro oauth\_timestamp indica quando a solicitação foi criada. Esse valor deve ser o número de segundos desde a época Unix no momento em que a solicitação é gerada e pode ser facilmente obtido na maioria das linguagens de programação. O X rejeitará solicitações criadas há muito tempo, portanto, é importante manter o relógio do computador que gera as solicitações sincronizado com o NTP.
+
+|     |     |
+| :--- | :--- |
+| oauth\_timestamp | 1318622958 |
+
+**Token**
+
+O parâmetro oauth\_token normalmente representa a permissão de um usuário para compartilhar o acesso à sua conta com seu aplicativo. Há algumas solicitações de autenticação em que esse valor não é enviado ou assume uma forma diferente de token, mas esses casos são abordados em detalhes em [Obtendo tokens de acesso](/pt-BR/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens). Para a maioria das solicitações de uso geral, você usará o chamado **token de acesso**.
+
+Você pode gerar um [token de acesso](/pt-BR/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) válido para sua conta na página de configurações do seu [app do X](/pt-BR/resources/fundamentals/developer-apps) no [portal do desenvolvedor](/pt-BR/resources/fundamentals/developer-portal).
+
+|     |     |
+| :--- | :--- |
+| oauth\_token | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+
+**Versão**
+
+O parâmetro oauth\_version deve ser sempre 1.0 para qualquer solicitação enviada à API do X.
+
+|     |     |
+| :--- | :--- |
+| oauth\_version | 1.0 |
+
+<div id="building-the-header-string">
+  #### Construindo a string do cabeçalho
+</div>
+
+Para construir a string do cabeçalho, imagine escrever em uma string chamada DST.
+
+1. Acrescente a string "OAuth " (incluindo o espaço ao final) a DST.
+2. Para cada par chave/valor dos 7 parâmetros listados acima:
+   1. [Codifique em percentual](/pt-BR/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) a chave e acrescente-a a DST.
+   2. Acrescente o caractere de igual '=' a DST.
+   3. Acrescente uma aspa dupla '"' a DST.
+   4. [Codifique em percentual](/pt-BR/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens) o valor e acrescente-o a DST.
+   5. Acrescente uma aspa dupla '"' a DST.
+   6. Se restarem pares chave/valor, acrescente uma vírgula ',' e um espaço ' ' a DST.
+
+Preste atenção especial à codificação percentual dos valores ao construir essa string. Por exemplo, o valor de oauth\_signature tnnArxj06cWHq44gCs1OSKk/jLY= deve ser codificado como tnnArxj06cWHq44gCs1OSKk%2FjLY%3D.
+
+Executar essas etapas nos parâmetros coletados acima resulta na seguinte string:
+
+```
+OAuth oauth\_consumer\_key="xvz1evFS4wEEPTGEFPHBog", oauth\_nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg", oauth\_signature="tnnArxj06cWHq44gCs1OSKk%2FjLY%3D", oauth\_signature\_method="HMAC-SHA1", oauth\_timestamp="1318622958", oauth\_token="370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb", oauth_version="1.0"
+```
+
+Esse valor deve ser definido como o cabeçalho Authorization da solicitação.

@@ -1,0 +1,110 @@
+---
+title: Umgang mit Verbindungsunterbrechungen
+sidebarTitle: Umgang mit Verbindungsunterbrechungen
+---
+
+<div id="what-is-a-disconnection">
+  ### Was ist eine Trennung?
+</div>
+
+Eine Verbindung zu den Streaming-APIs herzustellen bedeutet, eine sehr langlebige HTTPS-Anfrage zu senden und die Antwort fortlaufend zu verarbeiten. Beim Herstellen einer Verbindung zum Gefilterter Stream-Endpunkt sollten Sie eine HTTPS-Anfrage senden und den resultierenden Stream so lange wie praktikabel verarbeiten. Unsere Server halten die Verbindung auf unbestimmte Zeit offen, sofern keine serverseitigen Fehler, übermäßige clientseitige Latenz, Netzwerkprobleme, routinemäßige Wartungsarbeiten auf dem Server oder doppelte Anmeldungen auftreten. Bei Verbindungen zu Streaming-Endpunkten ist es wahrscheinlich und zu erwarten, dass Verbindungen unterbrochen werden und eine Wiederverbindungslogik implementiert werden muss.
+ 
+
+<div id="why-a-streaming-connection-might-be-disconnected">
+  #### Warum eine Streaming-Verbindung getrennt werden kann
+</div>
+
+Ihr Stream kann aus verschiedenen Gründen getrennt werden. Prüfen Sie die vom Stream zurückgegebene Fehlermeldung, um die Ursache zu verstehen. Mögliche Gründe für Verbindungsabbrüche sind:
+
+- Ein Authentifizierungsfehler (z. B. ein falsches Token oder die Verwendung einer falschen Authentifizierungsmethode).
+- Ein Streaming-Server auf X-Seite wird neu gestartet. Dies hängt in der Regel mit einem Code-Deploy zusammen und sollte grundsätzlich einkalkuliert und entsprechend berücksichtigt werden.
+- Ihr Client hält mit der Anzahl der vom Stream gelieferten Posts nicht Schritt oder liest Daten zu langsam. Jede Streaming-Verbindung wird durch eine Nachrichtenwarteschlange (Queue) gestützt, die an den Client gesendet wird. Wird diese Warteschlange im Zeitverlauf zu groß, wird die Verbindung geschlossen.
+- Ihr Konto hat Ihr tägliches/monatliches Post-Kontingent überschritten.
+- Sie haben zu viele aktive, redundante Verbindungen.
+- Ein Client hört plötzlich auf, Daten zu lesen. Wenn die Rate der vom Stream gelesenen Posts abrupt abnimmt, wird die Verbindung geschlossen.
+- Mögliche Netzwerkprobleme zwischen Server und Client.
+- Ein vorübergehendes serverseitiges Problem, geplante Wartung oder Updates. (Prüfen Sie die [Statusseite](https://api.twitterstat.us/))
+   
+
+<div id="common-disconnection-errors-include">
+  #### Häufige Verbindungsfehler sind u. a.:
+</div>
+
+```{
+	"errors": [{
+		"title": "operational-disconnect",
+		"disconnect_type": "UpstreamOperationalDisconnect",
+		"detail": "Dieser Stream wurde aus betrieblichen Gründen stromaufwärts getrennt.",
+		"type": "https://api.x.com/2/problems/operational-disconnect"
+	}]
+}
+```
+
+```
+{
+	"title": "ConnectionException",
+	"detail": "Dieser Stream hat derzeit die maximal zulässige Anzahl gleichzeitiger Verbindungen erreicht.",
+	"connection_issue": "TooManyConnections",
+	"type": "https://api.x.com/2/problems/streaming-connection"
+}
+```
+
+<div id="anticipating-disconnects-and-reconnecting">
+  #### Trennungen antizipieren und erneut verbinden
+</div>
+
+Beim Streamen von Posts ist das Ziel, so lange wie möglich verbunden zu bleiben, wobei zu berücksichtigen ist, dass Verbindungsabbrüche auftreten können. Der Endpunkt sendet alle 20 Sekunden ein Keep-Alive-Heartbeat (dies erscheint als Zeilenumbruchzeichen). Verwenden Sie dieses Signal, um zu erkennen, ob Sie getrennt werden.
+
+1. Ihr Code sollte erkennen, wenn neue Inhalte und das Heartbeat ausbleiben.
+2. Falls dies geschieht, sollte Ihr Code eine Wiederverbindungslogik auslösen. Einige Clients und Sprachen erlauben das Festlegen eines Lese-Timeouts, das Sie auf 20 Sekunden setzen können.
+3. Ihr Dienst sollte diese Verbindungsabbrüche erkennen und so schnell wie möglich erneut verbinden.
+
+Sobald eine bestehende Verbindung abbricht, versuchen Sie sofort, sie wiederherzustellen. Wenn die Wiederverbindung fehlschlägt, verlangsamen Sie Ihre Wiederverbindungsversuche entsprechend der Art des aufgetretenen Fehlers:
+
+- Linear zurückfahren bei TCP/IP-Netzwerkfehlern. Diese Probleme sind in der Regel vorübergehend und beheben sich oft schnell. Erhöhen Sie die Verzögerung zwischen Wiederverbindungen bei jedem Versuch um 250 ms, bis zu 16 Sekunden.
+- Exponentiell zurückfahren bei HTTP-Fehlern, bei denen eine Wiederverbindung angemessen wäre. Beginnen Sie mit einer Wartezeit von 5 Sekunden und verdoppeln Sie diese bei jedem Versuch, bis zu 320 Sekunden.
+- Exponentiell zurückfahren bei HTTP-429-Fehlern (Rate limit exceeded). Beginnen Sie mit einer Wartezeit von 1 Minute und verdoppeln Sie diese bei jedem Versuch. Beachten Sie, dass jeder empfangene HTTP 429 die Zeit erhöht, die Sie warten müssen, bis die Ratenbegrenzung für Ihr Konto nicht mehr gilt.
+   
+
+<div id="recovering-lost-data">
+  #### Wiederherstellung verlorener Daten
+</div>
+
+Sollte es zu einer Unterbrechung der Verbindung kommen, stehen Ihnen verschiedene Strategien zur Verfügung, um sicherzustellen, dass Sie alle möglicherweise verpassten Daten erhalten. In unserem Integrationsleitfaden zur [Wiederherstellung von Daten](/de/x-api/posts/filtered-stream/integrate/recovery-and-redundancy-features) haben wir zentrale Schritte dokumentiert, mit denen Sie verpasste Daten nachträglich abrufen können. 
+ 
+
+<div id="rate-limits-and-usage">
+  #### Ratenlimits und Nutzung
+</div>
+
+Um Verbindungslimits zu prüfen, gibt die Antwort drei Header zurück. Das hilft zu verstehen, wie oft Sie den Rules-Endpoint verwenden können und wie viele Wiederverbindungsversuche für den Streaming-Endpoint zulässig sind.
+
+- x-rate-limit-limit gibt an, wie viele Anfragen Ihr Client innerhalb eines 15‑Minuten‑Fensters stellen darf.
+
+- x-rate-limit-remaining gibt an, wie viele Anfragen im aktuellen 15‑Minuten‑Fenster bereits gestellt wurden.
+
+- x-rate-limit-reset ist ein UNIX-Zeitstempel, der angibt, wann das 15‑Minuten‑Fenster neu beginnt und x-rate-limit-remaining auf 0 zurücksetzt.
+
+Der Filtered-Stream-Endpoint meldet derzeit keine Nutzungsdaten. Um zu prüfen, wie viele Posts zugestellt wurden, kann Ihr Code eine Zähl-/Messlogik implementieren, sodass der Verbrauch gemessen und bei Bedarf pausiert werden kann.
+
+Ihr Code, der die Client-Seite des Streams betreibt, fügt eingehende Posts einfach in eine First-in-first-out-(FIFO)-Warteschlange oder eine ähnliche Datenstruktur ein; ein separater Prozess/Thread sollte Posts aus dieser Warteschlange entnehmen, um Inhalte zu parsen und für die Speicherung aufzubereiten. Mit diesem Design können Sie einen Dienst implementieren, der effizient skaliert, falls sich das Volumen eingehender Posts stark ändert. Konzeptionell können Sie sich das wie das Herunterladen einer unendlich langen Datei über HTTP vorstellen.
+
+<div id="reconnection-best-practices">
+  #### Best Practices für das Wiederverbinden
+</div>
+
+**Backoff-Strategien testen**
+
+Eine gute Möglichkeit, eine Backoff-Implementierung zu testen, besteht darin, absichtlich ungültige Authentifizierungsdaten zu verwenden und die Wiederverbindungsversuche zu beobachten. Eine gute Implementierung sollte keine 429-Antworten auslösen.
+
+**Warnmeldungen bei mehrfachen Wiederverbindungen ausgeben**
+
+Wenn ein Client seine obere Schwelle für die Zeit zwischen Wiederverbindungen erreicht, sollte er Benachrichtigungen senden, damit Sie die Probleme, die Ihre Verbindung beeinträchtigen, priorisieren und bearbeiten können.
+
+**DNS-Änderungen berücksichtigen**
+
+Testen Sie, dass Ihr Client-Prozess die DNS-Time-to-Live (TTL) respektiert. Manche Stacks cachen eine aufgelöste Adresse über die gesamte Laufzeit des Prozesses und übernehmen DNS-Änderungen nicht innerhalb der vorgesehenen TTL. Solch aggressives Caching führt zu Dienstunterbrechungen auf Ihrem Client, wenn X die Last zwischen IP-Adressen verschiebt.
+
+**User-Agent**
+
+Stellen Sie sicher, dass Ihr User-Agent-HTTP-Header die Version des Clients enthält. Das ist entscheidend für die Diagnose von Problemen auf Seiten von X. Wenn Ihre Umgebung das Setzen des User-Agent-Felds nicht zulässt, setzen Sie stattdessen einen x-user-agent-Header.

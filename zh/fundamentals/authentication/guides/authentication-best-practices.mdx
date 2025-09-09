@@ -1,0 +1,104 @@
+---
+title: 最佳实践
+---
+
+import { Button } from "/snippets/zh/button.mdx";
+
+应非常谨慎地保护你的 API 密钥和令牌。 
+
+这些凭据直接关联到你的[开发者应用](/zh/resources/fundamentals/developer-apps)以及那些已授权你代表其发起请求的 X 账户。若你的密钥遭到泄露，不法分子可能会利用它们代表你的开发者应用或其授权用户向 X 的端点发起请求，可能导致你意外触发速率限制、耗尽付费访问配额，甚至使你的开发者应用被暂停。
+
+以下各部分提供了管理 API 密钥和令牌时应参考的最佳实践。
+
+<div id="regenerate-api-keys-and-tokens">
+  ## 重新生成 API 密钥和令牌
+</div>
+
+如果您认为自己的 API 密钥已遭泄露，请按以下步骤重新生成：
+
+1. 前往[开发者门户的“项目与应用”页面](https://developer.x.com/en/portal/projects-and-apps.html)。
+2. 点击相关应用旁的“Keys and tokens”图标（🗝）。
+3. 在需重新生成的那组密钥和令牌旁，点击“Regenerate”按钮。
+
+如果您希望通过编程方式重新生成 Access Token 或 Bearer Token，可以使用我们的身份验证端点实现。
+
+- 如需重新生成 Access Token，必须先使用 [POST oauth/invalidate\_token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token) 端点使令牌失效，然后通过[三方 OAuth 流程（3-legged OAuth）](/zh/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens)重新生成令牌。
+- 如需重新生成 Bearer Token，必须先使用 [POST oauth2/invalidate\_token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token) 端点使令牌失效，然后使用 [POST oauth2/token](/zh/resources/fundamentals/authentication/api-reference#post-oauth2-token) 端点重新生成令牌。
+
+<div id="having-a-central-file-for-your-secrets">
+  ## 将机密信息集中存放在单一文件中
+</div>
+
+使用一个文件（例如 .env 或 .yaml 文件）来存放机密信息是可行且有用的做法，但务必配置完善的 .gitignore，避免不小心将这些内容提交到 Git 仓库。 
+
+<div id="environment-variables">
+  ## 环境变量
+</div>
+
+在代码中使用环境变量会很有帮助。
+
+下面是一个用 Python 编写的示例：
+
+```python
+import os
+
+consumer_key = os.environ.get("CONSUMER_KEY")
+
+consumer_secret = os.environ.get("CONSUMER_SECRET")
+```
+
+在终端中，你可以输入如下命令：
+
+```bash
+export CONSUMER_KEY='xxxxxxxxxxxxxxxxxxx'
+export CONSUMER_SECRET='xxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+<div id="source-code-and-version-control">
+  ## 源代码与版本控制
+</div>
+
+开发者最常见的安全失误，是将 API 密钥和令牌提交到 GitHub、Bitbucket 等可访问的版本控制系统中的代码库。许多此类代码库对公众开放。公共代码库中此类失误屡见不鲜，甚至催生了专门抓取 API 密钥、并从中牟利的机器人。
+
+- 使用服务器环境变量。将 API 密钥存储在环境变量中，可将其与代码与版本控制隔离开来；这也便于为不同环境使用不同的密钥。
+- 使用不纳入版本控制的配置文件。将文件名添加到你的 [.gitignore](https://git-scm.com/docs/gitignore) 中，以避免该文件被版本控制跟踪。
+- 如果你在代码已纳入版本控制后才移除其中的 API 密钥，仍可能通过访问代码库的历史版本获取到这些密钥。请按下一节说明重新生成你的 API 密钥。
+
+<div id="databases">
+  ## 数据库
+</div>
+
+如需在数据库中存储访问令牌，请注意以下事项：
+
+- 限制对数据库的访问，确保访问令牌仅由令牌所有者可读取。
+- 限制存放访问令牌的数据库表的编辑/写入权限——应通过密钥管理系统自动化管控。
+- 在写入任何数据存储之前，对访问令牌进行加密。
+
+<div id="password-management-tools">
+  ## 密码管理工具
+</div>
+
+1Password、LastPass 等密码管理工具有助于将你的密钥和令牌安全存放。你可能应避免在团队共享的密码管理工具中分享这些敏感信息。
+
+<div id="web-storage-cookies">
+  ## Web 存储与 Cookie
+</div>
+
+Web 存储分为两种：LocalStorage 和 SessionStorage。它们是对使用 Cookie 的改进，因为 Web 存储的容量远高于 Cookie 存储。不过，这些存储选项各有利弊。
+ 
+
+**Web 存储：LocalStorage**
+
+存储在本地 Web 存储中的任何内容都是持久的，也就是说，数据会一直保留，直到被明确删除。根据项目需求，你可能会将此视为优点。但使用 LocalStorage 时需谨慎，因为对数据的任何更改或新增在后续访问相关网页时都会生效。我们通常不建议使用 LocalStorage，但少数情况下可能例外。如果你决定使用 LocalStorage，需要了解它遵循同源策略，因此其中的所有数据只能由同一来源访问。使用 LocalStorage 的一个额外性能优势是可以减少客户端与服务器之间的流量，因为数据无需在每个 HTTP 请求中回传服务器。
+ 
+
+**Web 存储：SessionStorage**
+
+SessionStorage 与 LocalStorage 类似，但关键区别在于 SessionStorage 不具备持久性。一旦用于写入 SessionStorage 的窗口（或标签页，取决于浏览器）关闭，数据就会丢失。这有助于在单个用户会话内限制对令牌的读取访问。从安全角度看，通常比起 LocalStorage 更推荐使用 SessionStorage。与 LocalStorage 一样，SessionStorage 同样受益于同源策略支持以及减少客户端-服务器流量。
+ 
+
+**Cookies**
+
+Cookie 是更传统的会话数据存储方式。你可以为每个 Cookie 设置过期时间，从而便于撤销与限制访问。然而，使用 Cookie 会显著增加客户端-服务器流量，因为数据会在每个 HTTP 请求中回传服务器。如果你决定使用 Cookie，需要防范会话劫持。默认情况下，Cookie 通过 HTTP 以明文发送，使其内容容易受到数据包嗅探和/或中间人攻击（攻击者可能篡改你的流量）。你应始终强制使用 HTTPS 以保护传输中的数据，从而提供机密性、完整性和身份验证。不过，如果你的 Web 应用或站点同时可通过 HTTP 和 HTTPS 访问，还应在 Cookie 上使用“Secure”标记。这将防止攻击者向用户发送站点的 HTTP 版本链接并窃听由此产生的 HTTP 请求。
+
+在使用 Cookie 时，防范会话劫持的另一道辅助防线是在执行任何高影响操作前再次验证用户身份。提升 Cookie 安全性还可考虑使用 “HttpOnly” 标记。该标记告知浏览器，相关 Cookie 只能由服务器端访问，任何客户端脚本的访问尝试都会被禁止，从而有助于防范大多数跨站脚本（XSS）攻击。

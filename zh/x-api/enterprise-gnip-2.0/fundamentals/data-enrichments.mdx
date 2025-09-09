@@ -1,0 +1,305 @@
+---
+title: "数据增强：企业版"
+---
+
+<div id="introduction">
+  ## 介绍
+</div>
+
+`Enterprise`
+
+Enterprise 增强功能是在部分数据 API 的响应载荷中附加的元数据。仅在付费订阅方案中提供。
+
+下表对每种增强功能作简要说明：
+
+| 增强功能： | 描述： |
+| :--- | :--- |
+| 扩展与增强的 URL | 自动展开帖文正文中的短链接（如 bitly），并从目标页面提取 HTML 标题与描述等元数据。 |
+| 匹配规则对象 | 指示哪些规则匹配了接收的帖文。在响应对象中返回规则标签与规则 ID。 |
+| 投票元数据 | 标注帖文中是否包含投票，包含投票选项列表，以及投票持续时间与到期时间。 |
+| 个人资料地理信息 | 基于用户个人资料位置推导的数据，包括（在可能情况下）经度、纬度坐标及相关地点元数据。 |
+
+<div id="expanded-and-enhanced-urls">
+  ### 扩展与增强的 URL
+</div>
+
+“扩展与增强的 URL”富化会自动展开帖子正文中的短链接，并将得到的最终 URL 作为元数据包含在有效负载中。此外，该富化还会提供目标页面 `title` 和 `description` 对应的 HTML 页面元数据。
+
+**重要细节：**
+
+- 为解析短链接，我们的系统会向提供的 URL 发送 HTTP HEAD 请求，并跟随所有重定向直至到达最终 URL。该最终 URL（而非页面内容本身）会被包含在响应的有效负载中。
+
+- URL 富化会为实时流增加约 5–10 秒的延迟
+
+- 对“全档案搜索”API 发起的请求中，展开 URL 的富化数据仅适用于发布时间在 13 个月内的帖子。
+
+- URL 富化不适用于帖子链接（包括引用推文）、Moments 链接，以及帖子中包含的个人资料链接。 
+   
+
+<div id="post-payload">
+  #### 帖子负载
+</div>
+
+展开与增强的 URL 富化信息位于帖子负载的 `entities` 对象中——具体在 `entitites.urls.unwound` 对象内。它提供以下元数据字段：
+
+- 展开后的 URL - `unwound.url`
+- 展开后的 HTTP 状态 - `unwound.status`
+- 展开后的 URL 的 HTML 标题（最多 300 个字符）- `unwound.title`
+- 展开后的 URL 的 HTML 描述（最多 1000 个字符）- `unwound.description`
+
+**以下是一个带有 URL 富化信息的 [entities 对象](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#x-entities)示例：**
+
+```
+"entities": {
+    "hashtags": [
+
+    ],
+    "urls": [
+      {
+        "url": "https:\/\/t.co\/HkTkwFq8UT",
+        "expanded_url": "http:\/\/bit.ly\/2wYTb9y",
+        "display_url": "bit.ly\/2wYTb9y",
+        "unwound": {
+          "url": "https:\/\/www.forbes.com\/sites\/laurencebradford\/2016\/12\/08\/11-websites-to-learn-to-code-for-free-in-2017\/",
+          "status": 200,
+          "title": "11 Websites To Learn To Code For Free In 2017",
+          "description": "It\u2019s totally possible to learn to code for free...but what are the best resources to achieve that? Here are 11 websites where you can get started."
+        },
+        "indices": [
+          10,
+          33
+        ]
+      }
+    ],
+    "user_mentions": [
+
+    ],
+    "symbols": [
+
+    ]
+  },
+```
+
+**以下是一个包含未进行富化的帖子链接的 entities 对象示例：**
+
+```
+"entities": {
+  "urls": [{
+    "url": "https://t.co/SywNbZdDmb",
+    "expanded_url": "https://x.com/XDevelopers/status/1050118621198921728",
+    "display_url": "x.com/XDevelopers/s…",
+     "indices": [
+        142,
+        165
+     ]
+   }
+  ]
+}
+```
+
+<div id="filtering-operators">
+  #### 过滤运算符
+</div>
+
+以下运算符将基于 URL 元数据的相关字段进行过滤，并提供分词匹配：
+
+**url：**
+
+- 示例：“url:tennis”
+- 对包含单词 tennis 的任何展开 URL 进行分词匹配
+- 也可用作过滤器，通过类似“url:npr.org”的语法包含或排除来自特定网站的链接
+
+**url\_title：**
+
+- 示例：“url\_title:tennis”
+- 对包含单词 tennis 的任何展开 URL 的 HTML 标题进行分词匹配
+- 匹配载荷中包含的 HTML 标题数据，长度限制为 300 个字符。
+
+**url\_description：**
+
+- 示例：“url\_description:tennis”
+- 对包含单词 tennis 的任何展开 URL 的 HTML 描述进行分词匹配
+- 匹配载荷中包含的 HTML 描述，长度限制为 1000 个字符。
+   
+
+<div id="http-status-codes">
+  #### HTTP 状态码
+</div>
+
+扩展的 URL 富化还会提供我们尝试解展开的最终 URL 的 HTTP 状态码。正常情况下，该值为 200。其他 4xx 段的状态码表示解析该 URL 时出现问题。
+
+在尝试展开 URL 时，可能会返回不同的状态码。在展开过程中，如果遇到重定向，我们会持续跟随，直到出现以下任一情况为止：
+
+- 命中 2xx 状态码（成功）
+- 命中非重定向类状态码（失败）
+- 因最终 URL 无法在合理时间内解析而超时（返回 408 - 超时）
+- 遇到某种异常
+   
+
+如果遇到异常，我们将按以下原因与返回状态码进行映射：
+
+| 原因 | 返回的状态码 |
+| :--- | :--- |
+| SSL 异常 | 403（Forbidden） |
+| URL 不允许展开 | 405 |
+| 套接字超时 | 408（Timeout） |
+| 未知主机异常 | 404（Not Found） |
+| 不支持的操作 | 404（Not Found） |
+| 连接异常 | 404（Not Found） |
+| 非法参数 | 400（Bad Request） |
+| 其他情况 | 400（Bad Request） |
+
+<div id="matching-rules">
+  ### 匹配规则
+</div>
+
+“匹配规则”增强是一种元数据对象，用于指明接收到的帖子符合了哪些规则。该对象最常与 PowerTrack 流一起使用。
+
+系统会对规则中包含的词项进行精确匹配，并在扫描活动内容时同时考虑带标点与不带标点的情况。匹配不区分大小写。当检测到内容包含规则中定义的所有词项时，根级会出现一个 matching\_rules 对象，指出促成匹配的规则。
+
+**PowerTrack**
+
+通过 PowerTrack（实时、回放与历史）传递的帖子将包含如下所示的 matching\_rules 对象：
+
+```
+"matching_rules": [{
+        "tag": null,
+        "id": 907728589029646336,
+        "id_str": "907728589029646336"
+    }]
+```
+
+在 PowerTrack 中，`matching_rules` 对象反映与该结果匹配的所有规则。换言之，即使有多个规则匹配同一帖子，该帖子也只会被传递一次，但 `matching_rules` 元素会包含所有匹配的规则。
+
+<div id="poll-metadata">
+  ### 投票元数据
+</div>
+
+投票元数据是一项免费增强，可在所有产品（实时与历史 API）的增强型原生格式负载中获取。该元数据标记帖子中是否包含投票，提供投票选项列表，并包含投票时长和到期时间。此增强便于识别投票的存在，并支持对含投票的帖子进行正确渲染与展示。
+
+<div id="important-details">
+  ##### 重要说明：
+</div>
+
+- 适用于所有企业级 API（PowerTrack、Replay、Search、Historical PowerTrack）
+  - _注意：_ 对于 Replay 和 Historical PowerTrack，此元数据首次可用时间为 2017/02/22。
+- 不包含投票信息或投票结果
+- 目前不支持过滤器/运算符
+- 仅提供 **增强的原生格式**
+  - “增强的原生格式”是用户可控的设置，可随时通过 Console 更改：_选择产品（PowerTrack、Replay、Search）> Settings 选项卡 > Output Format（保持数据的原始格式）_
+
+<div id="post-payload">
+  #### 帖子载荷
+</div>
+
+投票帖子将在载荷中的“entities.polls”对象内包含以下元数据：
+
+- 一个“options”数组，最多四个选项，包含位置（1-4）和选项文本
+- 投票截止日期
+- 投票持续时间
+
+有关更多信息，请参见下方示例载荷。
+
+<div id="sample-payload">
+  #### 示例负载
+</div>
+
+下面是一个扩展后的原生格式负载片段，突出展示了新增的投票元数据：
+
+```json
+"entities":{
+          "hashtags":[],
+          "urls":[],
+          "user_mentions":[],
+          "symbols":[],
+          "polls":[
+             {
+                "options":[
+                   {
+                      "position":1,
+                      "text":"The better answer"
+                   },
+                   {
+                      "position":2,
+                      "text":"The best answer"
+                   }
+                ],
+                "end_datetime":"Sat Feb 04 15:33:11 +0000 2017",
+                "duration_minutes":1440
+             }
+          ]
+       },
+```
+
+<div id="profile-geo">
+  ### 个人资料地理位置
+</div>
+
+<div id="introduction">
+  #### 介绍
+</div>
+
+许多 X 用户的个人资料包含由用户提供的公开位置信息。该数据作为普通字符串返回在 user.location 字段中（参见 [User object data dictionary](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary#native-enriched-user-object)）。Profile Geo Enrichment 会在可能的情况下通过地理编码并规范化位置字符串，为 user.location 的值添加相关的结构化地理数据。仅当这些信息作为企业版 API 产品中 Post 负载的一部分出现时，纬度/经度坐标及相关地点元数据才会添加到 user.derived.locations 中。使用 [enriched native 格式](/zh/x-api/enterprise-gnip-2.0/fundamentals/data-dictionary) 时可获取这些数据，并可结合使用 [PowerTrack 规则](/zh/x-api/enterprise-gnip-2.0/fundamentals/rules-filtering#enterprise-operators)进行过滤。
+
+<Note>
+  **注意：** 用于创建 Profile Geo 丰富数据的部分地理数据来自 GeoNames.org，X 按照 [Creative Commons Attribution 3.0 License](https://creativecommons.org/licenses/by/3.0/us/legalcode) 使用该数据。
+</Note>
+
+Profile Geo 数据将包含在 X 的 PowerTrack、Replay、Volume Stream、Search 和 Historical PowerTrack API 中。
+
+<div id="profile-geo-data">
+  #### 个人资料地理数据
+</div>
+
+| 丰富的原生字段名称 | 示例值 | 描述 |
+| :--- | :--- | :--- |
+| user.derived.locations.country | United States | 创建该帖子用户的所属国家。 |
+| user.derived.locations.country\_code | US  | 与创建该帖子用户所属国家相对应的两字母 ISO-3166 国家/地区代码。 |
+| user.derived.locations.locality | Birmingham | 创建该帖子用户的所属地区（通常为城市）。 |
+| user.derived.locations.region | Alabama | 创建该帖子用户的所属区域（通常为州/省）。 |
+| user.derived.locations.sub\_region | Jefferson County | 创建该帖子用户的次级区域（通常为郡/县）。 |
+| user.derived.locations.full\_name | Birmingham, Alabama, United States | 创建该帖子用户所在地的完整名称（不含次级区域）。 |
+| User.derived.locations.geo | See Below | 一个数组，其中包含与创建该帖子用户的最低粒度位置相对应的坐标的纬度/经度值。 |
+
+Historical PowerTrack、Search 和 PowerTrack API 支持基于个人资料地理数据进行过滤。有关可用于过滤个人资料地理数据的运算符的详细信息，请参阅相应的产品文档。
+
+<div id="sample-payload">
+  #### 示例负载
+</div>
+
+```
+{
+    "user": {
+        "derived": {
+            "locations": [
+                {
+                    "country": "United States",
+                    "country_code": "US",
+                    "locality": "Birmingham",
+                    "region": "Alabama",
+                    "sub_region": "Jefferson County",
+                    "full_name": "Birmingham, Alabama, United States",
+                    "geo": {
+                        "coordinates": [
+                            -86.80249,
+                            33.52066
+                        ],
+                        "type": "point"
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+<div id="limitations">
+  #### 限制
+</div>
+
+- Profile Geo 富化会尝试从个人资料位置字符串中判定最合适的地理位置。但由于可能存在重名或名称含糊等情况，结果不一定在所有场景下都准确。
+- 如果用户的个人资料位置字段（actor.location）未提供值，我们将不尝试进行分类。
+- 精度级别：如果 Profile Geo 富化只能在国家或地区层面有足够把握，则更低层级的地理信息（如 subRegion 和 locality）将不会包含在负载中。
+- Profile Geo 富化会提供与其结果精度级别相对应的经纬度坐标（单个点）。这些坐标表示该富化位置结果的地理中心。例如，如果精度级别为国家级，则这些坐标设为该国家的地理中心。
+- 针对地址属性（locality/region/country/country code）提供的 PowerTrack 运算符特意设计得足够细化，以支持多种规则组合。当需定位与其他地点同名的特定位置时，建议组合使用地址规则。例如，以下组合可避免匹配“San Francisco, Philippines”：profile\_locality:"San Francisco" profile\_region:California。构建只针对单个 Profile Geo 字段的规则时，请注意：粒度每提高一级，返回结果范围都会变小。在某些情况下，当你尝试查看某个城市的数据时，若该地区与城市有较大重叠，你可能更倾向仅依赖区域规则；例如，瑞士苏黎世及周边地区可通过 profile\_region:"Zurich" 有效定向。
+- 与原生地理信息的帖子配合使用：Profile Geo 富化为帖子提供一种不同于负载中原生地理值的备用地理类型。这两种地理类型可以组合使用，以尽可能覆盖与给定区域相关的所有帖子（基于可用地理数据），尽管二者在概念上并不等同。

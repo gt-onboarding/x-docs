@@ -1,0 +1,175 @@
+---
+title: Guide d’intégration
+sidebarTitle: Guide d’intégration
+---
+
+import { Button } from '/snippets/fr/button.mdx';
+
+Les endpoints Direct Messages v2 introduisent les conversations et les événements de conversation comme objets fondamentaux de l’API X, et opèrent une distinction entre les conversations en tête-à-tête et les conversations de groupe. Les conversations en tête-à-tête ont toujours deux, et seulement deux, participants, tandis que les conversations de groupe peuvent en avoir deux ou plus, avec des appartenances susceptibles d’évoluer.   
+
+Cette page présente plusieurs outils et concepts clés à connaître lors de l’intégration des endpoints Manage Direct Messages dans votre système. Nous avons divisé la page en deux sections :
+
+- Concepts clés
+  - [Conversations de Messages privés](#direct-message-conversations)
+
+  - [Identifiants de conversation et d’événement partagés entre v1.1 et v2](#shared-conversation-and-event-ids)
+
+  - [Inclure des pièces jointes média et référencer des Posts](#including-media-attachments-and-referencing-tweets)
+
+  - [Authentification](#authentication)
+
+  - [Portail développeur, Projets et applications développeur](#developer-portal-projects-and-developer-apps)
+
+  - [Limites de taux](#rate-limits)
+
+- [Outils utiles](#helpful-tools)
+
+**Concepts clés**
+
+<div id="direct-message-conversations">
+  ### Conversations de Messages privés
+</div>
+
+Tous les Messages privés font partie d’une conversation de Messages privés. Ces conversations peuvent être des échanges en tête-à-tête ou des conversations de groupe. Cette version fournit les endpoints fondamentaux nécessaires pour créer des Messages privés et récupérer les événements associés aux conversations de Messages privés. Toutes les conversations ont un dm\_conversation\_id unique, et les événements qui composent cette conversation ont tous un dm\_event\_id unique.  
+
+Les endpoints Manage Direct Message proposent trois méthodes POST pour créer de nouveaux messages et les ajouter aux conversations :
+
+- **POST /2/dm\_conversations/with/:participant\_id/messages** - Crée un Message privé en tête-à-tête. Cette méthode ajoute le message à une conversation en tête-à-tête existante ou en crée une nouvelle. Le paramètre de chemin :participant\_id correspond à l’ID utilisateur du compte qui reçoit le message. 
+  Voici un exemple de corps de requête JSON pour envoyer un Message privé en tête-à-tête :
+
+```
+{
+   "text": "Bonjour, juste pour toi. Cela apparaîtra comme une nouvelle conversation si nous n’avons jamais échangé de messages, ou sera ajouté à notre fil existant."
+}
+```
+
+- **POST /2/dm\_conversations** - Crée une nouvelle conversation de groupe et y ajoute un Message privé. Ces requêtes nécessitent une liste de participants à la conversation. Notez que vous pouvez créer plusieurs conversations avec la même liste de participants. Ces requêtes renverront toujours un nouvel ID de conversation. Ci-dessous, un exemple de corps de requête JSON pour créer une nouvelle conversation de groupe et y ajouter un Message privé. Notez que cela nécessite un champ "conversation\_type" qui doit être défini sur "Group" (sensible à la casse).
+
+```
+{
+   "message": {"text": "Bonjour à vous deux, ceci est une nouvelle conversation de groupe."},
+   "participant_ids": ["944480690","906948460078698496"],
+   "conversation_type": "Group"
+}
+```
+
+- **POST /2/dm\_conversations/:dm\_conversation\_id/messages** - Crée un Message privé et l’ajoute à une conversation existante. Le paramètre de chemin :dm\_conversation\_id est l’ID de la conversation à laquelle le message sera ajouté. Cette méthode peut être utilisée pour ajouter un message aux conversations en tête-à-tête comme aux conversations de groupe.
+  Voici un exemple de corps de requête JSON pour envoyer un Message privé aux conversations en tête-à-tête et de groupe :
+
+```
+{
+   "text": "Voici un nouveau message."
+}
+```
+
+Ces méthodes POST prennent en charge l’ajout d’une seule pièce jointe média. Les corps de requête POST doivent inclure le champ "text" et/ou "attachments". L’attribut "text" est requis si le champ "attachments" n’est pas inclus, et le champ "attachments" est requis si le champ "text" n’est pas inclus. Voir la section suivante pour plus d’informations.
+
+Pour plus d’informations, consultez les [références de l’API Manage Direct Messages](/fr/x-api/direct-messages/create-a-new-dm-conversation). 
+
+<div id="shared-conversation-and-event-ids-across-v11-and-v2">
+  ### Identifiants de conversation et d’événement partagés entre v1.1 et v2
+</div>
+
+Un point important à comprendre est que les identifiants de conversation et d’événement sont partagés entre les versions v1.1 et v2 de la plateforme X. Cela signifie que les deux versions peuvent être utilisées ensemble.
+
+Par exemple, les endpoints Direct Messages v1.1 proposent des méthodes pour récupérer un seul événement et pour supprimer des événements. Ces méthodes ne sont pas encore disponibles avec v2. Étant donné que les identifiants sont communs entre v1.1 et v2, vous pouvez effectuer des requêtes v1.1 à partir d’identifiants fournis par v2, ou en vous référant aux identifiants de conversation affichés dans les URL de conversation sur l’application X.  
+
+<div id="including-media-attachments-and-referencing-posts">
+  ### Inclure des pièces jointes média et référencer des posts
+</div>
+
+Les endpoints Manage Direct Message prennent tous en charge l’ajout d’un seul média (photo, vidéo ou GIF). L’ajout de médias nécessite un ID de média généré par l’endpoint v1.1 [Upload media](https://developer.x.com/en/docs/x-api/v1/media/upload-media/overview). L’utilisateur authentifié qui envoie le message privé doit également avoir téléversé le média. Une fois téléversé, le média est disponible pendant 24 heures pour être inclus avec le message.
+
+Pour illustrer l’inclusion de médias, voici un exemple de corps de requête JSON :
+
+```
+{
+ "text": "Voici une photo...",
+ "attachments": [{"media_id": "1583157113245011970}]
+}
+```
+
+L’événement MessageCreate résultant inclura les métadonnées suivantes :
+
+```
+{
+    "attachments": {
+        "media_keys": [
+            "5_1583157113245011970"
+        ]
+    }
+}
+```
+
+Des posts peuvent également être inclus en ajoutant l’URL du post dans le texte du message. Pour illustrer l’inclusion de posts dans les messages, voici un exemple de corps de requête JSON :
+
+```
+{
+ "text": "Voici le post dont je parlais : https://x.com/SnowBotDev/status/1580559079470145536"
+}
+```
+
+L’événement MessageCreate résultant inclura les métadonnées suivantes :
+
+```
+{
+    "referenced_tweets": [
+        {
+            "id": "1580559079470145536"
+        }
+    ]
+}
+```
+
+<div id="authentication">
+  ### Authentification
+</div>
+
+Tous les endpoints de l’API X v2 exigent que vous authentifiiez vos requêtes à l’aide d’un ensemble d’identifiants, également appelés clés et jetons. Tous les Messages privés sont confidentiels et nécessitent une autorisation de l’utilisateur pour y accéder.
+
+Ces endpoints de Messages privés nécessitent l’utilisation de [OAuth 2.0 Authorization Flow with PKCE](/fr/x-api/posts/manage-tweets) ou du [contexte utilisateur 1.0a](/fr/resources/fundamentals/authentication), ce qui signifie que vous devez utiliser un ensemble de clés d’API et de jetons d’accès utilisateur pour effectuer une requête avec succès. Les jetons d’accès doivent être associés à l’utilisateur pour le compte duquel vous effectuez la requête. Si vous souhaitez générer un ensemble de jetons d’accès pour un autre utilisateur, celui-ci doit autoriser ou authentifier votre application via le [flux OAuth en 3 étapes](/fr/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow).
+
+Veuillez noter que le contexte utilisateur OAuth peut être délicat à utiliser. Si vous n’êtes pas familier avec cette méthode d’authentification, nous vous recommandons d’utiliser une [bibliothèque](/fr/x-api/tools-and-libraries/overview) ou un outil comme Postman pour authentifier correctement vos requêtes.
+
+[OAuth 2.0 Authorization Code with PKCE](fr/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-2) permet un meilleur contrôle de l’étendue d’une application et des flux d’autorisation sur plusieurs appareils. OAuth 2.0 vous permet de choisir des périmètres fins et spécifiques, qui vous accordent des autorisations précises au nom d’un utilisateur. Les endpoints de recherche de Messages privés nécessitent ces périmètres : dm.write, dm.read, tweet.read, user.read.
+
+Pour activer OAuth 2.0 dans votre application, vous devez l’activer dans les paramètres d’authentification de votre application, accessibles dans la section des paramètres de l’application du portail développeur.
+
+<div id="developer-portal-projects-and-developer-apps">
+  ### Portail développeur, Projets et applications développeur
+</div>
+
+Pour obtenir un ensemble d’identifiants d’authentification compatibles avec les endpoints de l’API X v2, vous devez disposer d’un compte développeur approuvé, configurer un Projet dans ce compte, puis créer une application développeur au sein de ce Projet. Vous pourrez ensuite retrouver vos clés et jetons dans votre application développeur. 
+
+<div id="rate-limits">
+  ### Limites de débit
+</div>
+
+Chaque jour, des milliers de développeurs envoient des requêtes à l’API X. Pour gérer le volume de ces requêtes, des limites de débit sont appliquées à chaque endpoint, ce qui restreint le nombre de requêtes que vous pouvez effectuer au nom de votre application ou d’un utilisateur authentifié.
+
+Les endpoints de gestion des messages privés (Direct Messages) sont soumis à des limites de débit à la fois au niveau utilisateur et au niveau des applications X. Cela signifie que l’utilisateur authentifié pour lequel vous effectuez la requête ne peut envoyer qu’un certain nombre de messages avec votre application X. De plus, il existe une limite quotidienne au nombre de messages privés que votre application X peut envoyer.
+
+Une limite de débit de 200 requêtes/messages par 15 minutes s’applique aux méthodes POST pour chaque utilisateur. Les utilisateurs sont également limités à 1 000 messages privés par période de 24 heures. En outre, les applications X sont limitées à 15 000 messages par 24 heures. Ces limites de débit sont partagées entre les endpoints POST.
+
+**Outils utiles**
+
+Voici quelques outils utiles que nous vous encourageons à explorer lorsque vous travaillez avec les endpoints de recherche de messages privés (Direct Messages lookup) :
+
+****Postman****
+
+Postman est un excellent outil pour tester un endpoint. Chaque requête Postman inclut tous les paramètres de chemin et de corps afin de vous aider à comprendre rapidement ce qui est disponible. Pour en savoir plus sur nos collections Postman, veuillez consulter notre page [Utiliser Postman](/fr/tutorials/postman-getting-started).
+
+****Exemples de code****
+
+Des exemples de code Python pour les endpoints v2 des messages privés sont disponibles dans notre dépôt [X API v2 sample code GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code)[](https://github.com/xdevplatform/Twitter-API-v2-sample-code). Le dossier « Manage-Direct-Messages » contient des exemples pour les méthodes POST, et le dossier « Direct-Messages-lookup » contient des exemples pour les méthodes GET.
+
+**Kits de développement logiciel (SDK) XDev**
+
+Ces [bibliothèques](/fr/x-api/tools-and-libraries/overview) sont en cours de mise à jour pour les endpoints v2 des messages privés et devraient être prêtes bientôt :
+
+- [X API Java SDK](https://github.com/xdevplatform/twitter-api-java-sdk) - SDK Java officiel pour l’API X v2
+- [X API TypeScript/JavaScript SDK](https://github.com/xdevplatform/twitter-api-typescript-sdk) - SDK TS/JS officiel pour l’API X v2
+
+**Bibliothèques tierces**
+
+Un nombre croissant de [bibliothèques tierces](/fr/x-api/tools-and-libraries/overview#community-tools-and-libraries-for-v2) sont développées par notre communauté. Ces bibliothèques sont conçues pour vous aider à démarrer, et plusieurs devraient bientôt prendre en charge les endpoints v2 des messages privés. Vous pouvez trouver une bibliothèque compatible avec les endpoints v2 en recherchant la balise de version appropriée.

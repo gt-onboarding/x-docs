@@ -1,0 +1,195 @@
+---
+title: 对话 ID
+---
+
+<div id="conversation-threads-using-the-x-api">
+  ### 使用 X API 的会话线程
+</div>
+
+在 X 上，单条帖子可能引发多个会话线程，随着更多人参与，每个线程的长度与复杂性都会增加。X API v2 的响应负载与搜索功能支持识别帖子之间的关系并理解会话线程。当一条帖子回复另一条帖子（即“回复”），或回复某条回复时，每条回复都会带有一个明确的 `conversation_id`，其值与发起该会话的原始帖子的帖子 ID 相同。
+
+针对某条帖子的所有回复，以及对这些回复的进一步回复，均属于由该原始帖子引发的同一会话。无论产生多少条回复线程，它们都会共享与引发会话的原始帖子对应的同一个 `conversation_id`。使用 X API v2，你可以检索并还原完整的会话线程，从而了解人们在说什么，以及会话与观点如何演变。
+
+<div id="example-conversation-thread">
+  #### 示例会话线程
+</div>
+
+下面是一个示例会话线程，涉及五位不同的参与者，其中包含对某条回复的再次回复。
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1279944223114900000",
+      "in_reply_to_user_id": "1102323333",
+      "author_id": "63044444",
+      "created_at": "2020-07-06T15:58:10.000Z",
+      "id": "1280169177479744444",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1280155225706433333"
+        }
+      ],
+      "text": "@ThirdPerson333 @OriginalPerson000 回复第三条回复！"
+    },
+    {
+      "conversation_id": "1279944223114900000",
+      "in_reply_to_user_id": "3001960000",
+      "author_id": "1102323333",
+      "created_at": "2020-07-06T15:02:44.000Z",
+      "id": "1280155225706433333",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1279944223114900000"
+        }
+      ],
+      "text": "@OriginalPerson000 第三条回复"
+    },
+    {
+      "conversation_id": "1279944223114900000",
+      "in_reply_to_user_id": "3001960000",
+      "author_id": "199562222",
+      "created_at": "2020-07-06T15:02:36.000Z",
+      "id": "1280155190306340864",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1279944223114900000"
+        }
+      ],
+      "text": "@OriginalPerson000 第二条回复"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "name": "Original person",
+        "id": "3001960000",
+        "username": "OriginalPerson000"
+      },
+      {
+        "name": "First person",
+        "id": "179201111",
+        "username": "FirstPerson111"
+      }
+    ]
+  },
+  "meta": {
+    "newest_id": "1280169177479744444",
+    "oldest_id": "1279945722494811111",
+    "result_count": 4
+  }
+}
+```
+
+将 `conversation_id` 作为 `tweet.fields` 参数检索
+若要在 v2 端点返回的所有帖子中请求 `conversation_id`，请在请求参数中添加 tweet.fields=conversation\_id 字段。conversation\_id 字段始终是该会话回复线程中原始帖子的帖子 ID。相同回复线程中的所有帖子（包括由更早回复线程派生的回复线程）都会显示相同的 conversation\_id。
+
+<div id="request-with-conversation_id-parameter">
+  ### 使用 `conversation_id` 参数的请求
+</div>
+
+```
+curl --request GET \
+  --url 'https://api.x.com/2/tweets?ids=1225917697675886593&tweet.fields=author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets&expansions=author_id,in_reply_to_user_id,referenced_tweets.id&user.fields=name,username' \
+  --header 'Authorization: Bearer $ACCESS_TOKEN'
+```
+
+<div id="response">
+  ### 响应
+</div>
+
+```
+{
+  "data": [
+    {
+      "id": "1225917697675886593",
+      "text": "@TwitterEng *咳嗽* https://t.co/aroJHt2zQ1",
+      "created_at": "2020-02-07T23:02:10.000Z",
+      "author_id": "2244994945",
+      "in_reply_to_user_id": "6844292",
+      "conversation_id": "1225912275971657728",
+      "referenced_tweets": [
+        {
+          "type": "quoted",
+          "id": "1200517737669378053"
+        },
+        {
+          "type": "replied_to",
+          "id": "1225912275971657728"
+        }
+      ]
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "username": "TwitterDev",
+        "name": "Twitter Dev",
+        "id": "2244994945"
+      },
+      {
+        "username": "TwitterEng",
+        "name": "Twitter Engineering",
+        "id": "6844292"
+      }
+    ],
+    "tweets": [
+      {
+        "id": "1200517737669378053",
+        "text": "|￣￣￣￣￣￣￣￣￣￣￣|\n             周五不要            \n             推到生产            \n               环境                  \n|＿＿＿＿＿＿＿＿＿＿＿| \n(\\__/)",
+        "created_at": "2019-11-29T20:51:47.000Z",
+        "author_id": "2244994945",
+        "conversation_id": "1200517737669378053"
+      }
+    ]
+  }
+}
+```
+
+<div id="using-conversation_id-as-a-filter-operator">
+  ### 将 `conversation_id` 用作过滤运算符
+</div>
+
+`conversation_id` 可在“近期搜索”中作为查询参数使用，或作为规则中的运算符用于[过滤流](/zh/x-api/posts/filtered-stream/introduction)。这将返回整个帖子的会话线程：要么通过过滤流实时返回，要么通过[搜索帖子](/zh/x-api/posts/search/introduction)按时间倒序返回。你也可以将该运算符与[帖子计数](/zh/x-api/posts/counts/introduction)配合使用，以获取某个会话中的帖子数量。
+
+<div id="request-to-query-by-conversation_id">
+  ## 使用 `conversation_id` 进行查询的请求
+</div>
+
+```
+curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=conversation_id:1279940000004973111&tweet.fields=in_reply_to_user_id,author_id,created_at,conversation_id' \
+  --header 'Authorization: Bearer $ACCESS_TOKEN'
+```
+
+<div id="response">
+  ### 响应
+</div>
+
+_注意：搜索帖子的结果按时间倒序排列。_
+
+```
+{
+  "data": [
+    {
+      "id": "1280169000000704333",
+      "text": "@attributeisland @iterationjoe What beautiful creatures! Happy #seaturtleweek",
+      "conversation_id": "1279940000004973111",
+      "public_metrics": {
+        "retweet_count": 0,
+        "reply_count": 0,
+        "like_count": 7,
+        "quote_count": 0
+      }
+    }
+  ],
+  "meta": {
+    "newest_id": "1280169000000704333",
+    "oldest_id": "1279940000004973111",
+    "result_count": 5
+  }
+}
+```

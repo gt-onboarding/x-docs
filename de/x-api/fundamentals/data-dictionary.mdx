@@ -1,0 +1,2704 @@
+---
+title: "Datenwörterbuch der X-API v2"
+---
+
+<div id="object-model">
+  ## Objektmodell
+</div>
+
+<div id="tweet">
+  ### Tweet
+</div>
+
+Tweets sind der grundlegende Baustein für alles auf Twitter. Das Tweet-Objekt verfügt über eine lange Liste von „Root“-Feldern wie `id`, `text` und `created_at`. Tweet-Objekte sind außerdem das übergeordnete Objekt („Parent“) für mehrere untergeordnete Objekte, darunter `user`, `media`, `poll` und `place`. Verwenden Sie den Feldparameter `tweet.fields`, wenn Sie diese Root-Felder für das Tweet-Objekt anfordern.
+
+Das Tweet-Objekt kann in der User-Ressource gefunden und erweitert werden. Weitere, zum angeforderten Tweet gehörende Tweets können ebenfalls in der Tweet-Ressource gefunden und erweitert werden. Das Objekt kann in der User-Ressource mit `?expansions=pinned_tweet_id` oder in der Tweet-Ressource mit `?expansions=referenced_tweets.id` erweitert werden, um das Objekt nur mit Standardfeldern zu erhalten. Verwenden Sie die Expansion zusammen mit dem Feldparameter `tweet.fields`, wenn Sie zusätzliche Felder anfordern, um das Objekt zu vervollständigen.
+
+| Field Value           | Type   | Description                                                                                                                           | How it Can Be Used                                                  |
+|:-----------------------|:--------|:---------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------|
+| **id (default)**      | string | Die eindeutige Kennung des angeforderten Tweets.                                                                                       | Verwenden Sie dies, um programmgesteuert einen bestimmten Tweet abzurufen. |
+| **text (default)**    | string | Der tatsächliche UTF-8-Text des Tweets. Siehe [twitter-text](https://github.com/twitter/twitter-text/) für Details zu gültigen Zeichen. | Schlagwortextraktion und Stimmungsanalyse/-klassifizierung.          |
+| **edit\_history\_tweet\_ids (default)** | object | Eindeutige Kennungen, die alle Versionen eines Tweets angeben. Bei Tweets ohne Bearbeitungen gibt es eine ID, bei Tweets mit Bearbeitungshistorie mehrere IDs. | Verwenden Sie diese Informationen, um die Bearbeitungshistorie eines Tweets zu ermitteln. |
+| **attachments**       | object | Gibt die Art der Anhänge (falls vorhanden) in diesem Tweet an.                                                                        | Verständnis der für angeforderte Expansions zurückgegebenen Objekte. |
+| **author\_id**         | string | Die eindeutige Kennung des Nutzers, der diesen Tweet gepostet hat.                                                                    | Anreichern des Nutzerobjekts, Teilen des Datensatzes zur Peer-Review. |
+| **context\_annotations** | array | Enthält Kontextanmerkungen zum Tweet.                                                                                                 | Erkennung/Extraktion von Entitäten, thematische Analyse.             |
+| **conversation\_id**   | string | Die Tweet-ID des ursprünglichen Tweets der Unterhaltung (einschließlich direkter Antworten und Antworten auf Antworten).              | Verwenden Sie dies, um die Unterhaltung ausgehend von einem Tweet zu rekonstruieren. |
+| **created\_at**        | date (ISO 8601) | Erstellungszeitpunkt des Tweets.                                                                                                    | Nützlich für Zeitreihenanalysen und zum Verständnis, wann ein Tweet erstellt wurde. |
+| **edit\_controls**     | object | Gibt an, wie lange der Tweet noch bearbeitet werden kann und wie viele Bearbeitungen verbleiben.                                      | Verwenden Sie dies, um festzustellen, ob ein Tweet noch bearbeitet werden kann. |
+| **entities**          | object | Entitäten, die aus dem Text des Tweets extrahiert wurden. Siehe Entities in Twitter Objects.                                          | Liefert zusätzliche Informationen zu Hashtags, URLs, Erwähnungen usw. |
+| **in\_reply\_to\_user\_id** | string | Wenn der dargestellte Tweet eine Antwort ist, enthält dieses Feld die Autor-ID des ursprünglichen Tweets.                            | Bestimmen, ob ein Tweet eine Antwort auf einen anderen Tweet war.    |
+| **lang**              | string | Sprache des Tweets, sofern von Twitter erkannt.                                                                                       | Tweets nach gesprochener Sprache klassifizieren.                     |
+| **non\_public\_metrics** | object | Nicht öffentliche Engagement-Metriken für den Tweet zum Zeitpunkt der Anfrage. Erfordert Authentifizierung im Benutzerkontext.       | Gesamtimpressionen bestimmen, die für den Tweet erzeugt wurden.      |
+| **organic\_metrics**   | object | Engagement-Metriken, im organischen Kontext erfasst, zum Zeitpunkt der Anfrage. Erfordert Authentifizierung im Benutzerkontext.      | Organisches Engagement für den Tweet messen.                         |
+| **possibly\_sensitive** | boolean | Gibt an, ob der Inhalt möglicherweise als sensibel erkannt wird.                                                                     | Verbreitung bestimmter Inhaltsarten untersuchen.                     |
+| **promoted\_metrics**  | object | Engagement-Metriken, im beworbenen Kontext erfasst, zum Zeitpunkt der Anfrage. Erfordert Authentifizierung im Benutzerkontext.       | Engagement für den Tweet messen, wenn er beworben wurde.             |
+| **public\_metrics**    | object | Öffentliche Engagement-Metriken für den Tweet zum Zeitpunkt der Anfrage.                                                              | Tweet-Engagement messen.                                             |
+| **referenced\_tweets** | array  | Eine Liste von Tweets, auf die sich dieser Tweet bezieht, z. B. Retweets, zitierte Tweets oder Antworten.                             | Konversationelle Aspekte von Retweets usw. verstehen.                |
+| **reply\_settings**    | string | Zeigt, wer auf einen bestimmten Tweet antworten kann. Optionen sind „everyone“, „mentioned\_users“ und „followers“.                   | Antwort-Einstellungen der Unterhaltung für den Tweet bestimmen.      |
+| **withheld**          | object | Enthält Details zur Zurückhaltung für [zurückgehaltene Inhalte](https://help.x.com/en/rules-and-policies/tweet-withheld-by-country). |                                                                      |
+| **media\_metadata**          | array | Enthält Metadaten zu Medienanhängen des Tweets.     | Zusätzliche Metadaten wie den `alt_text` eines Medienanhangs des Tweets abrufen. |
+
+**Abrufen eines Tweet-Objekts**
+
+**Beispielanforderung**
+
+In der folgenden Anfrage fordern wir Felder für den Tweet am Endpoint [Tweets lookup](/de/resources/fundamentals/rate-limits) an. Ersetzen Sie dabei unbedingt `$BEARER_TOKEN` durch Ihr eigenes generiertes [Bearer Token](/de/resources/fundamentals/authentication).
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1212092628029698048&tweet.fields=attachments,author_id,context_annotations,created_at,entities,geo,id,in_reply_to_user_id,lang,possibly_sensitive,public_metrics,referenced_tweets,text,withheld&expansions=referenced_tweets.id' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**Beispielantwort**
+
+```
+{
+  "data": [
+    {
+      "text": "Wir sind überzeugt, dass die beste zukünftige Version unserer API entsteht, wenn wir sie gemeinsam mit EUCH entwickeln. Auf ein weiteres großartiges Jahr mit allen, die auf der Twitter-Plattform bauen. Wir können es kaum erwarten, im neuen Jahr weiter mit euch zusammenzuarbeiten. https://t.co/yvxdK6aOo2",
+      "edit_history_tweet_ids": [
+        "1212092628029698048"
+      ],
+      "lang": "en",
+      "in_reply_to_user_id": "2244994945",
+      "entities": {
+        "urls": [
+          {
+            "start": 222,
+            "end": 245,
+            "url": "https://t.co/yvxdK6aOo2",
+            "expanded_url": "https://x.com/LovesNandos/status/1211797914437259264/photo/1",
+            "display_url": "pic.x.com/yvxdK6aOo2",
+            "media_key": "16_1211797899316740096"
+          }
+        ],
+        "annotations": [
+          {
+            "start": 42,
+            "end": 44,
+            "probability": 0.5359,
+            "type": "Other",
+            "normalized_text": "API"
+          },
+          {
+            "start": 144,
+            "end": 150,
+            "probability": 0.9832,
+            "type": "Other",
+            "normalized_text": "Twitter"
+          }
+        ]
+      },
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1212092627178287104"
+        }
+      ],
+      "id": "1212092628029698048",
+      "public_metrics": {
+        "retweet_count": 7,
+        "reply_count": 3,
+        "like_count": 38,
+        "quote_count": 1
+      },
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "29",
+            "name": "Events [Entity Service]",
+            "description": "Ereignisse in der realen Welt. ",
+          },
+          "entity": {
+            "id": "1186637514896920576",
+            "name": "Silvester",
+          }
+        },
+        {
+          "domain": {
+            "id": "29",
+            "name": "Events [Entity Service]",
+            "description": "Ereignisse in der realen Welt. ",
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "Frohes Neues Jahr: Endlich ist überall 2020!",
+            "description": "Erlebe Feuerwerke und andere Feiern, wenn Menschen auf der ganzen Welt ins neue Jahr starten.\nFoto via @GettyImages ",
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "Feiertag",
+            "description": "Feiertage wie Weihnachten oder Halloween",
+          },
+          "entity": {
+            "id": "1186637514896920576",
+            "name": "Silvester",
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "Feiertag",
+            "description": "Feiertage wie Weihnachten oder Halloween",
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "Frohes Neues Jahr: Endlich ist überall 2020!",
+            "description": "Erlebe Feuerwerke und andere Feiern, wenn Menschen auf der ganzen Welt ins neue Jahr starten.\nFoto via @GettyImages ",
+          }
+        },
+        {
+          "domain": {
+            "id": "30",
+            "name": "Entities [Entity Service]",
+            "description": "Top-Level-Domain des Entity Service; jeder Eintrag, der im Entity Service ist, sollte in dieser Domain sein",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Marke",
+            "description": "Marken und Unternehmen",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "Unified Twitter Taxonomy",
+            "description": "Eine Taxonomie von Nutzerinteressen. ",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "Unified Twitter Taxonomy",
+            "description": "Eine Taxonomie von Nutzerinteressen. "
+          },
+          "entity": {
+            "id": "847868745150119936",
+            "name": "Familie & Beziehungen",
+            "description": "Hobbys und Interessen"
+          }
+        },
+        {
+          "domain": {
+            "id": "131",
+            "name": "Vereinheitlichte Twitter-Taxonomie",
+            "description": "Eine Taxonomie von Nutzerinteressen. "
+          },
+          "entity": {
+            "id": "1196446161223028736",
+            "name": "Soziale Medien"
+          }
+        },
+        {
+          "domain": {
+            "id": "29",
+            "name": "Ereignisse [Entity Service]",
+            "description": "Ereignisse aus der realen Welt. "
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "Frohes neues Jahr: Endlich ist überall 2020!",
+            "description": "Erleben Sie Feuerwerk und andere Feierlichkeiten, wenn Menschen auf der ganzen Welt ins neue Jahr starten.\nFoto via @GettyImages "
+          }
+        },
+        {
+          "domain": {
+            "id": "119",
+            "name": "Feiertag",
+            "description": "Feiertage wie Weihnachten oder Halloween"
+          },
+          "entity": {
+            "id": "1206982436287963136",
+            "name": "Frohes neues Jahr: Endlich ist überall 2020!",
+            "description": "Erleben Sie Feuerwerk und andere Feierlichkeiten, wenn Menschen auf der ganzen Welt ins neue Jahr starten.\nFoto via @GettyImages "
+          }
+        }
+      ],
+      "created_at": "2019-12-31T19:26:16.000Z",
+      "attachments": {
+        "media_keys": [
+          "16_1211797899316740096"
+        ]
+      },
+      "possibly_sensitive": false
+    }
+  ],
+  "includes": {
+    "tweets": [
+      {
+        "text": "Diese Launches wären ohne das Feedback, das Sie unterwegs gegeben haben, nicht möglich gewesen. Daher VIELEN DANK an alle, die ihre Zeit und Ideen beigesteuert haben. Haben Sie weiteres Feedback? Lassen Sie es uns wissen ⬇️ https://t.co/Vxp4UKnuJ9",
+        "edit_history_tweet_ids": [
+          "1212092627178287104"
+        ],
+        "lang": "en",
+        "in_reply_to_user_id": "2244994945",
+        "entities": {
+          "urls": [
+            {
+              "start": 187,
+              "end": 210,
+              "url": "https://t.co/Vxp4UKnuJ9",
+              "expanded_url": "https://twitterdevfeedback.uservoice.com/forums/921790-twitter-developer-labs",
+              "display_url": "twitterdevfeedback.uservoice.com/forums/921790-…",
+              "status": 200,
+              "title": "Aktualisierungen zu unseren Feedback-Kanälen",
+              "description": "Wir entwickeln unsere Entwicklerplattform offen – mit Ihrem Input und Feedback. Im vergangenen Jahr hat uns der direkte Austausch mit Ihnen und den Nutzern Ihrer Apps geholfen, Entwicklerprodukte zu entwickeln, die auf die von Ihnen identifizierten Anwendungsfälle zugeschnitten sind. Wir möchten, dass dies unser Weg der Produktentwicklung wird, und konsolidieren künftig unsere Feedback-Kanäle. Dort präsent sein, wo Sie sind. Ab heute stellen wir unseren UserVoice-Feedback-Kanal zugunsten häufigerer direkter Interaktionen mit I...",
+              "unwound_url": "https://devcommunity.x.com/t/updates-on-our-feedback-channels/169706"
+            }
+          ]
+        },
+        "author_id": "2244994945",
+        "referenced_tweets": [
+          {
+            "type": "replied_to",
+            "id": "1212092626247110657"
+          }
+        ],
+        "id": "1212092627178287104",
+        "public_metrics": {
+          "retweet_count": 2,
+          "reply_count": 1,
+          "like_count": 19,
+          "quote_count": 0
+        },
+        "created_at": "2019-12-31T19:26:16.000Z",
+        "possibly_sensitive": false
+      }
+    ]
+  }
+```
+
+<div id="user">
+  ### Benutzer
+</div>
+
+Das Benutzerobjekt enthält Metadaten zum Twitter-Benutzerkonto, die den referenzierten Benutzer beschreiben. Es ist das primäre Objekt, das vom Endpoint [users lookup](/de/x-api/users/lookup/introduction) zurückgegeben wird. Wenn Sie für diesen Endpoint zusätzliche Benutzerfelder anfordern, verwenden Sie den Parameter `user.fields`.
+
+Das Benutzerobjekt kann auch als untergeordnetes Objekt im Tweet-Objekt vorkommen und dort erweitert werden. Es steht zur Erweiterung mit `?expansions=author_id` oder `?expansions=in_reply_to_user_id` zur Verfügung, um das komprimierte Objekt mit nur den Standardfeldern zu erhalten. Verwenden Sie die Expansion in Kombination mit dem Feldparameter `user.fields`, wenn Sie zusätzliche Felder anfordern, um das Objekt zu vervollständigen.
+ 
+
+| Feldwert | Typ | Beschreibung | Verwendung |
+| :--- | :--- | :--- | :--- |
+| id (Standard) | string | Die eindeutige Kennung dieses Nutzers.<br /><br />`"id": "2244994945"` | Verwenden Sie dies, um programmgesteuert Informationen zu einem bestimmten Twitter-Nutzer abzurufen. |
+| name (Standard) | string | Der vom Nutzer im Profil festgelegte Name. Nicht zwingend ein Personenname. Üblicherweise auf 50 Zeichen begrenzt, kann sich jedoch ändern.<br /><br />`"name": "Twitter Dev"` |     |
+| username (Standard) | string | Der Twitter-Screenname, das Handle oder der Alias, mit dem sich dieser Nutzer identifiziert. Nutzernamen sind eindeutig, können sich jedoch ändern. Üblicherweise maximal 15 Zeichen lang; es können jedoch historische Konten mit längeren Namen existieren.<br /><br />`"username": "TwitterDev"` |     |
+| confirmed\_email | string | Die bestätigte E-Mail-Adresse des authentifizierten Nutzers. | |
+| connection\_status | array | Liefert eine Liste der Beziehungen zwischen dem authentifizierenden Nutzer und dem abgefragten Nutzer, z. B. folgt, wird gefolgt, Folgeanfrage gesendet, Folgeanfrage erhalten, blockiert, stummgeschaltet.<br /><br />"connection\_status": \[  <br />           "follow\_request\_received",  <br />           "follow\_request\_sent",  <br />           "blocking",  <br />           "followed\_by",  <br />           "following",  <br />           "muting"  <br />] | Kann verwendet werden, um den Verbindungsstatus zwischen dem authentifizierenden Nutzer und dem abgefragten Nutzer zu bestimmen. |
+| created\_at | date (ISO 8601) | Das UTC-Datum und die Uhrzeit, zu der das Nutzerkonto auf Twitter erstellt wurde.<br /><br />`"created_at": "2013-12-14T04:35:55.000Z"` | Kann verwendet werden, um zu bestimmen, wie lange jemand Twitter nutzt. |
+| description | string | Der Text der Profilbeschreibung (auch „Bio“ genannt) dieses Nutzers, sofern der Nutzer eine angegeben hat.<br /><br />`"description": "The voice of the X Dev team and your official source for updates, news, and events, related to the X API."` |     |
+| entities | object | Enthält Details zu Text, der in der Benutzerbeschreibung eine besondere Bedeutung hat.<br /><br />`"entities": {  <br/>       "url": {  <br/>           "urls": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 23,  <br/>                   "url": "https://t.co/3ZX3TNiZCY",  <br/>                   "expanded_url": "/content/developer-twitter/en/community",  <br/>                   "display_url": "developer.x.com/en/community"  <br/>               }  <br/>           ]  <br/>       },  <br/>       "description": {  <br/>           "urls": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 23,  <br/>                   "url": "https://t.co/3ZX3TNiZCY",  <br/>                   "expanded_url": "/content/developer-twitter/en/community",  <br/>                   "display_url": "developer.x.com/en/community"  <br/>               },  <br/>           "hashtags": [  <br/>               {  <br/>                   "start": 23,  <br/>                   "end": 30,  <br/>                   "tag": "DevRel"  <br/>               },  <br/>               {  <br/>                   "start": 113,  <br/>                   "end": 130,  <br/>                   "tag": "BlackLivesMatter"  <br/>               },  <br/>           "mentions": [  <br/>               {  <br/>                   "start": 0,  <br/>                   "end": 10,  <br/>                   "tag": "TwitterDev"  <br/>               },  <br/>           "cashtags": [  <br/>               {  <br/>                   "start": 12,  <br/>                   "end": 16,  <br/>                   "tag": "twtr"  <br/>               }  <br/>           ]  <br/>       }  <br/>   }` | Entities sind JSON-Objekte, die zusätzliche Informationen zu Hashtags, URLs, Benutzererwähnungen und Cashtags liefern, die mit der Beschreibung verknüpft sind. Siehe die jeweilige Entity für weitere Details.<br /><br />Alle Benutzer-******start******-Indizes sind inklusive, alle Benutzer-******end******-Indizes exklusiv. |
+| location | string | Der vom Benutzer im Profil angegebene Standort, sofern der Benutzer einen angegeben hat. Da dies ein Freitextwert ist, muss er keinen gültigen Ort darstellen, kann aber bei der Suche mit Standortabfragen unscharf ausgewertet werden.<br /><br />`"location": "127.0.0.1"` |     |
+| pinned\_tweet\_id | string | Eindeutiger Bezeichner des angehefteten Tweets dieses Benutzers.<br /><br />`"pinned_tweet_id": "1255542774432063488"` | Bestimmt den Tweet, der oben im Profil des Benutzers angeheftet ist. Kann potenziell verwendet werden, um die Sprache des Benutzers zu bestimmen. |
+| profile\_image\_url | string | Die URL zum Profilbild dieses Benutzers, wie im Profil des Benutzers angezeigt.<br /><br />`"profile_image_url": "https://pbs.twimg.com/profile_images/1267175364003901441/tBZNFAgA_normal.jpg"` | Kann verwendet werden, um das Profilbild dieses Benutzers herunterzuladen. |
+| protected | boolean | Gibt an, ob dieser Benutzer seine Tweets geschützt hat (mit anderen Worten: ob die Tweets dieses Benutzers privat sind).<br /><br />`"protected": false` |     |
+| public\_metrics | object | Enthält Details zur Aktivität dieses Benutzers.<br /><br />`"public_metrics": {             "followers_count": 507902,             "following_count": 1863,             "tweet_count": 3561,             "listed_count": 1550         }` | Kann potenziell verwendet werden, um die Reichweite oder den Einfluss eines X-Nutzers zu bestimmen, das Interessenspektrum des Nutzers zu quantifizieren und das Engagement des Nutzers auf X zu bewerten. |
+| url | string | Die in dem Profil des Nutzers angegebene URL, falls vorhanden.<br /><br />`"url": "https://t.co/3ZX3TNiZCY"` | Eine vom Twitter-Nutzer in seinem Profil angegebene URL. Das kann eine Homepage sein, muss es aber nicht. |
+| verified | boolean | Gibt an, ob dieser Nutzer ein verifizierter Twitter-Nutzer ist.<br /><br />`"verified": true` | Gibt an, ob dieser Twitter-Nutzer ein verifiziertes Konto hat. Ein verifiziertes Konto zeigt an, dass ein Konto von öffentlichem Interesse authentisch ist. |
+| withheld | object | Enthält Details zu [zurückgehaltenen Inhalten](https://help.x.com/en/rules-and-policies/tweet-withheld-by-country), falls zutreffend. |     |
+
+**Abrufen eines User-Objekts**
+
+**Beispielanfrage**
+
+In der folgenden Anfrage rufen wir Felder für den User über den Endpunkt [users lookup](/de/x-api/users/lookup/introduction) ab. Ersetzen Sie unbedingt `$BEARER_TOKEN` durch Ihr eigenes generiertes [Bearer-Token](/de/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token).
+ 
+
+```{
+  curl --request GET 'https://api.x.com/2/users?
+  ids=2244994945&user.fields=created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,url,username,verified,withheld&expansions=pinned_tweet_id'
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+  }
+```
+
+**Beispielantwort**
+
+```{
+    "data": [
+        {
+            "id": "2244994945",
+            "name": "Twitter Dev",
+            "username": "TwitterDev",
+            "location": "127.0.0.1",
+            "entities": {
+                "url": {
+                    "urls": [
+                        {
+                            "start": 0,
+                            "end": 23,
+                            "url": "https://t.co/3ZX3TNiZCY",
+                            "expanded_url": "/content/developer-twitter/en/community",
+                            "display_url": "developer.x.com/en/community"
+                        }
+                    ]
+                },
+                "description": {
+                    "hashtags": [
+                        {
+                            "start": 23,
+                            "end": 30,
+                            "tag": "DevRel"
+                        },
+                        {
+                            "start": 113,
+                            "end": 130,
+                            "tag": "BlackLivesMatter"
+                        }
+                    ]
+                }
+            },
+            "verified": true,
+            "description": "The voice of Twitter's #DevRel team, and your official source for updates, news, & events about Twitter's API. \n\n#BlackLivesMatter",
+            "url": "https://t.co/3ZX3TNiZCY",
+            "profile_image_url": "https://pbs.twimg.com/profile_images/1267175364003901441/tBZNFAgA_normal.jpg",
+            "protected": false,
+            "pinned_tweet_id": "1255542774432063488",
+            "created_at": "2013-12-14T04:35:55.000Z"
+        }
+    ],
+    "includes": {
+        "tweets": [
+            {
+                "id": "1255542774432063488",
+                "text": "During these unprecedented times, what’s happening on Twitter can help the world better understand &amp; respond to the pandemic. \n\nWe're launching a free COVID-19 stream endpoint so qualified devs &amp; researchers can study the public conversation in real-time. https://t.co/BPqMcQzhId"
+            }
+        ]
+    }
+}
+```
+
+<div id="space">
+  ### Space
+</div>
+
+Spaces ermöglichen Ausdruck und Interaktion über Live-Audiogespräche. Das Space-Datenwörterbuch enthält relevante Metadaten zu einem Space; alle Details werden in Echtzeit aktualisiert.
+
+Benutzerobjekte sind in der Benutzerressource verfügbar und können dort erweitert werden. Diese Objekte lassen sich erweitern, indem dem Abfrageparameter `expansions` mindestens einer der folgenden Werte hinzugefügt wird: `host_ids`, `creator_id`, `speaker_ids`, `mentioned_user_ids`.
+
+Im Gegensatz zu Tweets sind Spaces vergänglich und nicht mehr verfügbar, sobald sie beendet werden oder wenn sie von ihrer Erstellerin bzw. ihrem Ersteller abgesagt werden. Wenn Ihre App mit Spaces-Daten arbeitet, sind Sie dafür verantwortlich, die aktuellsten Informationen bereitzustellen und Daten zu entfernen, die auf der Plattform nicht mehr verfügbar sind. Die [Spaces-Lookup-Endpunkte](/de/x-api/spaces/lookup/introduction) helfen Ihnen dabei sicherzustellen, dass Sie die Erwartungen und die Intention der Nutzenden respektieren.
+
+| Feldwert            | Typ             | Beschreibung                                                                                                 | Verwendungsmöglichkeiten                                 |
+| :-------------------- | :--------------- | :----------------------------------------------------------------------------------------------------------- | :------------------------------------------------------- |
+| id (Standard)       | string          | Die eindeutige Kennung des angeforderten Space.<br />`"id": "1zqKVXPQhvZJB"`                                 | Einen in der Antwort zurückgegebenen Space eindeutig identifizieren. |
+| state (Standard)    | string          | Zeigt an, ob der Space läuft, bevorsteht oder beendet ist.<br />`"state": "live"`                            | Live- oder geplante Spaces filtern.                      |
+| created\_at         | date (ISO 8601) | Erstellungszeitpunkt dieses Space.<br />`"created_at": "2021-07-04T23:12:08.000Z"`                           | Nachvollziehen, wann ein Space erstellt wurde, und nach Zeit sortieren. |
+| ended\_at           | date (ISO 8601) | Zeitpunkt, zu dem der Space beendet wurde (falls zutreffend).<br />`"ended_at": "2021-07-04T00:11:44.000Z"` | Ermitteln, wann ein Live-Space endete, zur Bestimmung der Laufzeit. |
+| host\_ids           | array           | Eindeutige Kennungen der Space-Hosts.<br />`"host_ids": ["2244994945", "6253282"]`                           | User-Objekte erweitern, Engagement verstehen.            |
+| lang                | string          | Sprache des Space, falls erkannt.<br />`"lang": "en"`                                                        | Spaces nach Sprache klassifizieren.                      |
+| is\_ticketed        | boolean         | Gibt an, ob es sich um einen Ticketed Space handelt.<br />`"is_ticketed": false`                             | Relevante Inhalte hervorheben.                           |
+| invited\_user\_ids   | array           | Liste der als Sprecher eingeladenen Benutzer-IDs.<br />`"invited_user_ids": ["2244994945", "6253282"]`       | User-Objekte erweitern, Engagement verstehen.            |
+| participant\_count  | integer         | Anzahl der Nutzer im Space, einschließlich Hosts und Sprecher.<br />`"participant_count": 420`               | Engagement verstehen, Berichte erstellen.                |
+| subscriber\_count   | integer         | Anzahl der Personen, die eine Erinnerung für einen Space gesetzt haben.<br />`"subscriber_count": 36`        | Interesse am Event verstehen.                            |
+| scheduled\_start    | date (ISO 8601) | Geplanter Startzeitpunkt des Space.<br />`"scheduled_start": "2021-07-14T08:00:00.000Z"`                     | Mit Kalenderbenachrichtigungen integrieren.              |
+| speaker\_ids        | array           | Liste der Nutzer, die irgendwann gesprochen haben.<br />`"speaker_ids": ["2244994945", "6253282"]`           | User-Objekte erweitern, Engagement verstehen.            |
+| started\_at         | date (ISO 8601) | Tatsächlicher Startzeitpunkt eines Space.<br />`"started_at": "2021-07-14T08:00:12.000Z"`                    | Startzeit des Space bestimmen.                           |
+| title               | string          | Titel des Space.<br />`"title": "Say hello to the Space data object!"`                                       | Schlüsselwörter, Hashtags, Erwähnungen verstehen.        |
+| topic\_ids          | array           | IDs der vom Space-Ersteller ausgewählten Themen.<br />`"topic_ids": ["2244994945", "6253282"]`               | Schlüsselwörter, Hashtags, Erwähnungen verstehen.        |
+| updated\_at         | date (ISO 8601) | Letzte Aktualisierung der Space-Metadaten.<br />`"updated_at": "2021-07-11T14:44:44.000Z"`                   | Informationen aktuell halten.                            |
+
+\*\*Abrufen eines Space-Objekts\*\*
+
+**Beispielanfrage**
+
+In der folgenden Anfrage holen wir Felder für den Space über den [Spaces-Lookup-Endpunkt](/de/x-api/spaces/lookup/introduction) ab. Ersetzen Sie unbedingt `$BEARER_TOKEN` durch Ihr selbst erzeugtes [Bearer-Token](/de/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token).
+
+```bash
+curl "https://api.x.com/2/spaces/1DXxyRYNejbKM?space.fields=created_at,creator_id,created_athost_ids,lang,is_ticketed,invited_user_ids,participant_count,scheduled_start,speaker_ids,started_at,state,title,updated_at&expansions=creator_id,host_ids,invited_user_ids,speaker_ids" --header "Authorization: Bearer $BEARER_TOKEN"
+```
+
+\*\* Beispielantwort \*\*
+
+```
+{
+  "data": {
+    "id": "1zqKVXPQhvZJB",
+    "state": "live",
+    "created_at": "2021-07-04T23:12:08.000Z",
+    "host_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "lang": "en",
+    "is_ticketed": false,
+    "invited_user_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "participant_count": 420,
+    "scheduled_start": "2021-07-14T08:00:00.000Z",
+    "speaker_ids": [
+      "2244994945",
+      "6253282"
+    ],
+    "started_at": "2021-07-14T08:00:12.000Z",
+    "title": "Sag Hallo zum Space-Datenobjekt!",
+    "updated_at": "2021-07-11T14:44:44.000Z"
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "Twitter Dev",
+        "username": "TwitterDev"
+      },
+      {
+        "id": "6253282",
+        "name": "Twitter API",
+        "username": "TwitterAPI"
+      }
+    ]
+  }
+}
+```
+
+<div id="list">
+  ### Liste
+</div>
+
+Das Listenobjekt enthält Metadaten zu [Twitter-Listen](https://help.x.com/en/using-twitter/twitter-lists), die die referenzierte Liste beschreiben. Das Listenobjekt ist das primäre Objekt, das im List-Lookup-Endpunkt zurückgegeben wird. Wenn Sie bei diesem Endpunkt zusätzliche Listenfelder anfordern, verwenden Sie den Parameter fields `list.fields`.
+
+Das Listenobjekt ist kein Kindelement anderer Datenobjekte. Benutzerobjekte können jedoch in der User-Ressource gefunden und erweitert werden. Diese Objekte lassen sich erweitern, indem `owner_id` dem Query-Parameter `expansions` hinzugefügt wird. Verwenden Sie diese Expansion zusammen mit dem Feldparameter `list.fields`, wenn Sie zusätzliche Felder anfordern, um das primäre Listenobjekt zu vervollständigen, und `user.fields`, um das Erweiterungsobjekt zu vervollständigen.
+
+| Feldwert      | Typ             | Beschreibung                                                                                                                                                      | Verwendung                                                              |
+|:---------------|:-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------|
+| id (Standard) | string          | Die eindeutige Kennung dieser Liste.<br />`"id": "2244994945"`                                                                                                      | Verwenden Sie dies, um programmgesteuert Informationen zu einer bestimmten Liste abzurufen. |
+| name (Standard)| string         | Der Name der Liste, wie beim Erstellen festgelegt.<br />`"name": "Twitter Lists"`                                                                                   |                                                                         |
+| created\_at    | date (ISO 8601) | Der UTC-Zeitpunkt, zu dem die Liste erstellt wurde.<br />`"created_at": "2013-12-14T04:35:55.000Z"`                                                                 | Ermitteln Sie, wie lange eine Liste auf Twitter existiert.              |
+| description   | string          | Eine kurze Beschreibung, die Nutzer über die Liste informiert.<br />`"description": "People that are active members of the Bay area cycling community on Twitter."` |                                                                         |
+| follower\_count| integer         | Zeigt, wie viele Nutzer dieser Liste folgen.<br />`"follower_count": 198`                                                                                           |                                                                         |
+| member\_count  | integer         | Zeigt, wie viele Mitglieder zu dieser Liste gehören.<br />`"member_count": 60`                                                                                      |                                                                         |
+| private       | boolean         | Gibt an, ob die Liste privat ist.<br />`"private": false`                                                                                                           |                                                                         |
+| owner\_id      | string          | Eindeutige Kennung des Besitzers dieser Liste.<br />`"owner_id": "1255542774432063488"`                                                                             | Kann verwendet werden, um festzustellen, ob dieser Nutzer weitere Listen besitzt, und um User-Objekte zu erweitern. |
+
+**Abrufen eines User-Objekts**
+
+**Beispielanfrage**
+
+In der folgenden Anfrage fordern wir Felder für den Nutzer über den Endpunkt [List-Lookup nach ID](/de/x-api/lists/list-lookup/introduction) an. Ersetzen Sie `$BEARER_TOKEN` durch Ihr generiertes [Bearer-Token](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only).
+
+```bash
+curl --request GET 'https://api.x.com/2/lists/1355797419175383040?list.fields=created_at,description,private,follower_count,member_count,owner_id&expansions=owner_id' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**Beispielantwort**
+
+```
+{
+  "data": {
+    "name": "Twitter Comms",
+    "member_count": 60,
+    "id": "1355797419175383040",
+    "private": false,
+    "description": "",
+    "follower_count": 198,
+    "owner_id": "257366942",
+    "created_at": "2021-01-31T08:37:48.000Z"
+  },
+  "includes": {
+    "users": [
+      {
+        "created_at": "2011-02-25T07:51:26.000Z",
+        "name": "Ashleigh Hay 🤸🏼‍♀️",
+        "id": "257366942",
+        "username": "shleighhay",
+        "verified": false
+      }
+    ]
+  }
+}
+```
+
+<div id="media">
+  ### Medien
+</div>
+
+„Medien“ bezeichnet jedes Bild, GIF oder Video, das an einen Tweet angehängt ist. Das Medienobjekt ist an keinem Endpoint ein primäres Objekt, kann aber im Tweet-Objekt gefunden und erweitert werden. Das Objekt steht zur Erweiterung mit `?expansions=attachments.media_keys` zur Verfügung, um das komprimierte Objekt nur mit Standardfeldern zu erhalten. Verwenden Sie die Expansion zusammen mit dem Feldparameter `media.fields`, wenn Sie zusätzliche Felder anfordern, um das Objekt zu vervollständigen.
+
+| Feldwert                   | Typ     | Beschreibung                                                                                                       | Wie es verwendet werden kann                            |
+|:----------------------------|:---------|:--------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------|
+| media\_key (Standard)       | string  | Eindeutiger Bezeichner des erweiterten Medieninhalts. <br /> ` "media_key": "13_1263145212760805376"`               | Kann programmgesteuert zum Abrufen von Medien verwendet werden |
+| type (Standard)            | string  | Inhaltstyp (animated\_gif, photo, video). <br /> ` "type": "video"`                                                  | Medien als Foto, GIF oder Video klassifizieren            |
+| url                        | string  | Direkte URL zur Mediendatei auf Twitter.                                                                           | Gibt für Fotos ein Media-Objekt mit einem URL-Feld zurück |
+| duration\_ms                | integer | Verfügbar, wenn der Typ video ist. Dauer des Videos in Millisekunden. <br /> ` "duration_ms": 46947`                |                                                          |
+| height                     | integer | Höhe dieses Inhalts in Pixeln. <br /> ` "height": 1080`                                                              |                                                          |
+| non\_public\_metrics         | object  | Nicht öffentliche Engagement-Metriken für den Medieninhalt zum Zeitpunkt der Anfrage. Erfordert Authentifizierung im Benutzerkontext. <br /> ` "non_public_metrics": { "playback_0_count": 1561, "playback_100_count": 116, "playback_25_count": 559, "playback_50_count": 305, "playback_75_count": 183,}` | Video-Engagement bestimmen: wie viele Nutzer bis zu jedem Viertel des Videos abgespielt haben. |
+| organic\_metrics            | object  | Engagement-Metriken für den Medieninhalt, in einem organischen Kontext erfasst, zum Zeitpunkt der Anfrage. Erfordert Authentifizierung im Benutzerkontext. <br /> ` "organic_metrics": { "playback_0_count": 1561, "playback_100_count": 116, "playback_25_count": 559, "playback_50_count": 305, "playback_75_count": 183, "view_count": 629}` | Organisches Medien-Engagement bestimmen.                  |
+| preview\_image\_url          | string  | URL zur statischen Platzhaltervorschau dieses Inhalts. <br /> ` "preview_image_url": "https://pbs.twimg.com/media/EYeX7akWsAIP1_1.jpg"` |                                                          |
+| promoted\_metrics           | object  | Engagement-Metriken für den Medieninhalt, in einem beworbenen Kontext erfasst, zum Zeitpunkt der Anfrage. Erfordert Authentifizierung im Benutzerkontext. <br /> ` "promoted_metrics": { "playback_0_count": 259, "playback_100_count": 15, "playback_25_count": 113, "playback_50_count": 57, "playback_75_count": 25, "view_count": 124}` | Medien-Engagement bestimmen, wenn der Tweet beworben wurde.  |
+| public\_metrics             | object  | Öffentliche Engagement-Metriken für den Medieninhalt zum Zeitpunkt der Anfrage. <br /> ` "public_metrics": { "view_count": 6865141}` | Gesamtzahl der Aufrufe des an den Tweet angehängten Videos bestimmen. |
+| width                      | integer | Breite dieses Inhalts in Pixeln. <br /> ` "width": 1920`                                                             |                                                          |
+| alt\_text                   | string  | Eine Beschreibung eines Bildes zur Unterstützung der Barrierefreiheit. Kann bis zu 1000 Zeichen lang sein. Alt-Text kann derzeit nur Bildern hinzugefügt werden. <br /> ` "alt_text": "Rugged hills along the Na Pali coast on the island of Kauai"` | Kann verwendet werden, um eine schriftliche Beschreibung eines Bildes bereitzustellen, falls ein Nutzer sehbeeinträchtigt ist. |
+| variants                   | array   | Jedes Medienobjekt kann mehrere Anzeige- oder Wiedergabevarianten mit unterschiedlichen Auflösungen oder Formaten haben. <br /> ` "variants": [{ "bit_rate": 632000, "content_type": "video/mp4", "url": "https://video.twimg.com/ext_tw_video/1527322141724532740/pu/vid/320x568/lnBaR2hCqE-R_90a.mp4?tag=12"}]` |                                                          |
+
+**Abrufen eines Medienobjekts**
+
+**Beispielanfrage**
+
+In der folgenden Anfrage rufen wir Felder für das dem Tweet angehängte Medienobjekt über den Endpoint [Tweet-Lookup](/de/x-api/posts/lookup/introduction) ab. Da Medien ein untergeordnetes Objekt eines Tweets sind, ist die Expansion `attachments.media_keys` erforderlich. Ersetze `$BEARER_TOKEN` durch deinen eigenen generierten [Bearer Token](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only).
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1263145271946551300&expansions=attachments.media_keys&media.fields=duration_ms,height,media_key,preview_image_url,public_metrics,type,url,width,alt_text' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+```
+{
+  "data": [
+    {
+      "text": "Testing, testing...\n\nA new way to have a convo with exactly who you want. We’re starting with a small % globally, so keep your 👀 out to see it in action. https://t.co/pV53mvjAVT",
+      "id": "1263145271946551300",
+      "attachments": {
+        "media_keys": [
+          "13_1263145212760805376"
+        ]
+      }
+    }
+  ],
+  "includes": {
+    "media": [
+      {
+        "duration_ms": 46947,
+        "type": "video",
+        "height": 1080,
+        "media_key": "13_1263145212760805376",
+        "public_metrics": {
+          "view_count": 6909260
+        },
+        "preview_image_url": "https://pbs.twimg.com/media/EYeX7akWsAIP1_1.jpg",
+        "width": 1920
+      }
+    ]
+  }
+}
+```
+
+<div id="poll">
+  ### Umfrage
+</div>
+
+Eine in einem Tweet enthaltene Umfrage ist an keinem Endpoint ein primäres Objekt, kann jedoch im Tweet-Objekt gefunden und erweitert werden. Das Objekt kann mit `?expansions=attachments.poll_ids` erweitert werden, um das komprimierte Objekt mit nur Standardfeldern zu erhalten. Verwenden Sie die Expansion zusammen mit dem Feldparameter `poll.fields`, wenn Sie zusätzliche Felder anfordern, um das Objekt zu vervollständigen.
+
+| Feldwert          | Typ                  | Beschreibung                                                                                                |
+|:-------------------|:----------------------|:-------------------------------------------------------------------------------------------------------------|
+| id (Standard)     | string               | Eindeutiger Bezeichner der erweiterten Umfrage.                                                             |
+|                   |                      | `{"id": "1199786642791452673"}`                                                                           |
+| options (Standard) | array               | Enthält Objekte, die jede Auswahl in der referenzierten Umfrage beschreiben.                               |
+|                   |                      | `{"options": [ { "position": 1, "label": "“C Sharp”", "votes": 795 }, { "position": 2, "label": "“C Hashtag”", "votes": 156 } ]}` |
+| duration\_minutes   | integer              | Gibt die Gesamtdauer dieser Umfrage an.                                                                     |
+|                   |                      | `{"duration_minutes": 1440}`                                                                                |
+| end\_datetime       | date (ISO 8601)     | Gibt das Enddatum und die Endzeit für diese Umfrage an.                                                     |
+|                   |                      | `{"end_datetime": "2019-11-28T20:26:41.000Z"}`                                                            |
+| voting\_status      | string               | Gibt an, ob diese Umfrage noch aktiv ist und Stimmen erhalten kann oder ob die Abstimmung bereits geschlossen ist. |
+|                   |                      | `{"voting_status": "closed"}`                                                                               |
+
+**Abrufen eines Umfrageobjekts**
+
+**Beispielanfrage**
+
+In der folgenden Anfrage fordern wir Felder für das Umfrageobjekt an, das am Endpoint [Tweets lookup](/de/x-api/posts/lookup/introduction) an den Tweet angehängt ist. Da die Umfrage ein untergeordnetes Objekt eines Tweets ist, ist die Expansion `attachments.poll_id` erforderlich. Ersetzen Sie unbedingt `$BEARER_TOKEN` durch Ihr eigenes generiertes [Bearer Token](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only).
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1199786642791452673&expansions=attachments.poll_ids&poll.fields=duration_minutes,end_datetime,id,options,voting_status' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**Beispielantwort**
+
+```
+{
+  "data": [
+    {
+      "text": "C#",
+      "id": "1199786642791452673",
+      "attachments": {
+        "poll_ids": [
+          "1199786642468413448"
+        ]
+      }
+    }
+  ],
+  "includes": {
+    "polls": [
+      {
+        "id": "1199786642468413448",
+        "voting_status": "closed",
+        "duration_minutes": 1440,
+        "options": [
+          {
+            "position": 1,
+            "label": "“C Sharp”",
+            "votes": 795
+          },
+          {
+            "position": 2,
+            "label": "“C Hashtag”",
+            "votes": 156
+          }
+        ],
+        "end_datetime": "2019-11-28T20:26:41.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="place">
+  ### Ort
+</div>
+
+Der in einem Tweet getaggte Ort ist kein primäres Objekt an einem Endpoint, kann aber in der Tweet-Ressource gefunden und erweitert werden. Das Objekt kann mit `?expansions=geo.place_id` erweitert werden, um das komprimierte Objekt nur mit Standardfeldern zu erhalten. Verwenden Sie die Expansion zusammen mit dem Feldparameter `place.fields`, wenn Sie zusätzliche Felder anfordern, um das Objekt zu vervollständigen.
+
+| Feldwert            | Typ    | Beschreibung                                                                                 | Verwendung                                      |
+|:---------------------|:--------|:----------------------------------------------------------------------------------------------|:------------------------------------------------|
+| full\_name (default) | string | Ein ausführlicher, detaillierter Ortsname.                                                  | Einen Tweet nach einem bestimmten Ortsnamen klassifizieren |
+|                     |        | `"full_name": "Manhattan, NY"`                                                             |                                                |
+| id (default)       | string | Der eindeutige Bezeichner des erweiterten Ortes, wenn es sich um einen im Tweet getaggten Point of Interest handelt. | Zum programmgesteuerten Abruf eines Ortes verwenden |
+|                     |        | `"id": "01a9a39529b27f36"`                                                                  |                                                |
+| contained\_within    | array  | Gibt die Bezeichner bekannter Orte zurück, die den referenzierten Ort enthalten.            |                                                |
+| country             | string | Der ausgeschriebene Name des Landes, zu dem dieser Ort gehört.                              | Einen Tweet nach Ländernamen klassifizieren     |
+|                     |        | `"country": "United States"`                                                                  |                                                |
+| country\_code        | string | Der ISO-Alpha-2-Ländercode, zu dem dieser Ort gehört.                                       | Einen Tweet nach Ländercode klassifizieren      |
+|                     |        | `"country_code": "US"`                                                                       |                                                |
+| geo                 | object | Enthält Ortsdetails im GeoJSON-Format.                                                      |                                                |
+|                     |        | `json                                                                                      |
+|                     |        | "geo":                                                                                       |
+|                     |        |     "type": "Feature",                                                                       |
+|                     |        |     "bbox": [                                                                                |
+|                     |        |         -74.026675,                                                                          |
+|                     |        |         40.683935,                                                                           |
+|                     |        |         -73.910408,                                                                          |
+|                     |        |         40.877483                                                                            |
+|                     |        |     ],                                                                                       |
+|                     |        |     "properties": {}                                                                         |
+|                     |        | }                                                                                            |
+|                     |        | `                                                                                          |                                                |
+| name                | string | Der Kurzname dieses Ortes.                                                                  | Einen Tweet nach einem bestimmten Ortsnamen klassifizieren |
+|                     |        | `"name": "Manhattan"`                                                                       |                                                |
+| place\_type          | string | Gibt den speziellen Typ der durch diese Ortsinformation dargestellten Information an, z. B. einen Stadtnamen oder einen Point of Interest. | Einen Tweet nach einem bestimmten Ortstyp klassifizieren |
+|                     |        | `"place_type": "city"`                                                                       |                                                |
+
+**Abrufen eines Ortsobjekts**
+
+**Beispielanforderung**
+
+In der folgenden Anfrage fordern wir Felder für das an den Tweet angehängte Ortsobjekt am Endpoint [Tweets lookup](/de/x-api/posts/lookup/introduction) an. Da der Ort ein untergeordnetes Objekt eines Tweets ist, ist die Expansion `geo.place_id` erforderlich. Ersetzen Sie unbedingt `$BEARER_TOKEN` durch Ihr eigenes generiertes [Bearer Token](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only).
+
+```bash
+curl --request GET 'https://api.x.com/2/tweets?ids=1136048014974423040&expansions=geo.place_id&place.fields=contained_within,country,country_code,full_name,geo,id,name,place_type' --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+**Beispielantwort**
+
+```
+{
+  "data": [
+    {
+      "text": "We’re sharing a live demo of the new Twitter Developer Labs program, led by a member of our DevRel team, @jessicagarson #TapIntoTwitter https://t.co/ghv7f4dW5M",
+      "id": "1136048014974423040",
+      "geo": {
+        "place_id": "01a9a39529b27f36"
+      }
+    }
+  ],
+  "includes": {
+    "places": [
+      {
+        "geo": {
+          "type": "Feature",
+          "bbox": [
+            -74.026675,
+            40.683935,
+            -73.910408,
+            40.877483
+          ],
+          "properties": {}
+        },
+        "country_code": "US",
+        "name": "Manhattan",
+        "id": "01a9a39529b27f36",
+        "place_type": "city",
+        "country": "United States",
+        "full_name": "Manhattan, NY"
+      }
+    ]
+  }
+}
+```
+
+<div id="direct-message-events">
+  ### Direct-Message-Ereignisse
+</div>
+
+Direct-Message- (DM-)Konversationen bestehen aus Ereignissen. Die X-API v2 unterstützt derzeit drei Ereignistypen: MessageCreate, ParticipantsJoin und ParticipantsLeave.
+
+DM-Ereignisobjekte werden von den Endpunkten zur [Direct-Message-Abfrage](/de/x-api/direct-messages/lookup/introduction) zurückgegeben, und ein MessageCreate-Ereignis entsteht, wenn Direct Messages erfolgreich über die Endpunkte [Direct Messages verwalten](/de/x-api/direct-messages/lookup/introduction) erstellt werden.
+
+Bei Anfragen zu DM-Ereignissen sind standardmäßig drei Attribute (bzw. Felder) des Ereignisobjekts enthalten: id, event\_type und text. Um zusätzliche Ereignisfelder zu erhalten, verwenden Sie den Parameter [fields](/de/x-api/fundamentals/fields) dm\_event.fields, um weitere auszuwählen. Weitere verfügbare Ereignisfelder sind: dm\_conversation\_id, created\_at, sender\_id, attachments, participant\_ids und referenced\_tweets.
+
+Mehrere dieser Felder liefern die IDs anderer X-Objekte, die mit dem Direct-Message-Ereignis in Zusammenhang stehen:
+
+- sender\_id – Die ID des Accounts, der die Nachricht gesendet hat oder eine Person zu einer Gruppenunterhaltung eingeladen hat
+- participant\_ids – Ein Array von Account-IDs. Bei ParticipantsJoin- und ParticipantsLeave-Ereignissen enthält dieses Array die einzelne ID des Accounts, der das Ereignis erstellt hat
+- attachments – Liefert Media-IDs für Inhalte, die vom Absender bzw. der Absenderin auf Twitter hochgeladen wurden
+- referenced\_tweets – Wenn im Feld text eine Tweet-URL gefunden wird, ist die ID dieses Tweets in der Antwort enthalten
+
+Die [Erweiterungen](/de/x-api/fundamentals/expansions) sender\_id, participant\_ids, referenced\_tweets.id und attachments.media\_keys sind verfügbar, um diese Twitter-Objekt-IDs aufzulösen.
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| **Feldwert** | **Typ** | **Beschreibung** | **Verwendungszweck** |
+| id (Standard) | string | Die eindeutige Kennung des Events.<br /><br />"id": "1050118621198921728" | Nutzen Sie dies, um ein bestimmtes Konversations-Event programmgesteuert abzurufen (verfügbar mit v1.1-Endpunkten). |
+| event\_type (Standard) | string | Beschreibt den Typ des Events. Derzeit werden drei Typen unterstützt: <br /><br />\* MessageCreate<br />    <br />\* ParticipantsJoin<br />    <br />\* ParticipantsLeave<br />    <br /><br />"event\_type": "MessageCreate" | Beim Abrufen des Konversationsverlaufs verstehen, wann Nachrichten erstellt wurden, und bei Gruppenkonversationen, wann Teilnehmende beigetreten oder ausgetreten sind. Alle GET-Methoden unterstützen das Filtern nach bestimmten Event-Typen mit dem Abfrageparameter event\_type=. |
+| text (Standard) | string | Der UTF-8-Text der Direct Message. <br /><br />"text": "Hello, just you!" | Mit Chatbots kann dies genutzt werden, um Nachrichteninhalte zu analysieren und automatisierte Antworten zu bestimmen. Eignet sich auch zum Aufbau von Suchfunktionen für Konversationen. |
+| sender\_id | string | ID des Users, der das Event erstellt. Um dieses Objekt in der Antwort zu erweitern, fügen Sie sender\_id als Expansion hinzu und verwenden Sie den Abfrageparameter user.fields, um gewünschte Attribute des User-Objekts anzugeben.<br /><br />"sender\_id": "906948460078698496" | Rufen Sie das User-Objekt der Person ab, die das MessageCreate- oder ParticipantsJoin-Event erstellt hat. |
+| participant\_id | array (of strings) | IDs der Teilnehmenden, die einer Gruppenkonversation beitreten bzw. sie verlassen. Wird auch beim Erstellen neuer Gruppenkonversationen verwendet. Um dieses Objekt in der Antwort zu erweitern, fügen Sie participant\_ids als Expansion hinzu und verwenden Sie den Abfrageparameter user.fields, um gewünschte Attribute des User-Objekts anzugeben.<br /><br />"participant\_ids": \[<br /><br />     "906948460078698496"<br /><br />] | Wird verwendet, um User-Objekte für Teilnehmende abzurufen, die Gruppenkonversationen beitreten oder sie verlassen. |
+| dm\_conversation\_id | string | Die eindeutige Kennung der Konversation, zu der das Event gehört.<br /><br />"dm\_conversation\_id": "1584988213961031680" | Verwenden Sie dies, um Events aus einer Konversation programmgesteuert abzurufen und Direct Messages hinzuzufügen. |
+| created\_at | date (ISO 8601) | Erstellungszeitpunkt (UTC) des Tweets.<br /><br />"created\_at": "2019-06-04T23:12:08.000Z" | Dieses Feld kann genutzt werden, um nachzuvollziehen, wann eine Direct Message erstellt wurde oder wann Konversationsteilnehmende beigetreten bzw. ausgetreten sind. |
+| referenced\_tweets | array | ID für jeden Tweet, der im Text der Direct Message erwähnt wird. Um dieses Objekt in der Antwort zu erweitern, fügen Sie referenced\_tweets.id als Expansion hinzu und verwenden Sie den Abfrageparameter tweet.fields, um gewünschte Attribute des Tweet-Objekts anzugeben.<br /><br />"referenced\_tweets": \[<br /><br />    <br /><br />"id": "1578868150510456833"<br /><br />    <br /><br />] | Wenn Direct Messages auf einen Tweet verweisen, können diese IDs verwendet werden, um die Details des Tweets abzurufen. |
+| attachments | object | Bei Direct Messages mit angehängten Medien liefert dies den Media Key des hochgeladenen Inhalts (Foto, Video oder GIF). Um dieses Objekt in der Antwort zu erweitern, fügen Sie attachments.media\_keys als Expansion hinzu und verwenden Sie den Abfrageparameter media.fields, um gewünschte Attribute des Media-Objekts anzugeben. Derzeit wird ein Anhang unterstützt. <br /><br />"attachments": <br /><br />    "media\_keys": \[<br /><br />        "3\_1136048009270239232"<br /><br />    ]<br /><br /> | Dient zum Verständnis der an Direct Messages angehängten Media-Objekte. |
+
+**Abrufen eines Direct-Message-Event-Objekts**
+
+**Beispielanfrage**
+
+In diesem Beispiel erstellen wir eine Anfrage, die Events abruft, die mit einer Eins-zu-eins-Konversation verknüpft sind. Diese Anfrage gibt grundlegende Direct-Message-Event-Felder zurück sowie zusätzliche Felder für referenzierte Tweets und deren Autoren. Erstellen wir eine Abfrage, die Folgendes anfordert:
+
+- Grundlegende Event-Attribute wie den Erstellungszeitpunkt und zu welcher Konversation es gehört (dm\_conversation).
+- Die Account-ID und die Beschreibung der Person, die die Direct Message gesendet hat.
+- Den Text eines referenzierten Tweets und wann er veröffentlicht wurde.
+- Die Account-ID und die Beschreibung der jeweiligen Autorin bzw. des jeweiligen Autors eines referenzierten Tweets.
+
+Um diese Attribute zurückzugeben, würde Ihre Anfrage die folgenden Parameter enthalten:
+
+`?dm_event.fields=id,sender_id,text,created_at,dm_conversation_id&expansions=sender_id,referenced_tweets.id&tweet.fields=created_at,text,author_id&user.fields=description`
+
+```bash
+      curl --request GET 'https://api.x.com/2/dm_conversations/with/:participant_id/dm_events?tweet.fields=created_at,text,author_id&user.fields=description&expansions=sender_id,participant_ids,referenced_tweets.id&dm_event.fields=id,sender_id,text,participant_ids,created_at,'
+    --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Stellen Sie sicher, dass Sie $BEARER\_TOKEN durch Ihr eigenes, generiertes [Bearer-Token](/de/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token) ersetzen.
+
+**Beispielantwort**
+
+```
+      {
+	"data": [{
+			"id": "1585047616894574596",
+			"sender_id": "944480690",
+			"text": "Hello, just you!",
+			"created_at": "2022-10-25T23:16:15.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		},
+		{
+			"id": "1581048670673260549",
+			"sender_id": "944480690",
+			"text": "Simple Tweet link: https://t.co/IYFbRIdXHg",
+			"referenced_tweets": [{
+				"id": "1578900353814519810"
+			}],
+			"created_at": "2022-10-14T22:25:52.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		},
+		{
+			"id": "1580705121553420292",
+			"sender_id": "944480690",
+			"text": "Adding a new 1-to-1 Direct Message.",
+			"created_at": "2022-10-13T23:40:43.000Z",
+			"event_type": "MessageCreate",
+			"dm_conversation_id": "944480690-906948460078698496"
+		}
+	],
+	"includes": {
+		"users": [{
+				"name": "API Demos",
+				"description": "Hosting TwitterDev integrations... @TwitterDev #DevRel",
+				"id": "944480690",
+				"username": "FloodSocial"
+			},
+			{
+				"name": "the SnowBot",
+				"description": "Home of the @TwitterDev SnowBot... Serving snow reports, snow photos, and snow research links... Chatbot is currently being remodeled for Twitter APIv2.",
+				"id": "906948460078698496",
+				"username": "SnowBotDev"
+			}
+		],
+		"tweets": [{
+				"text": "Feeling kind of bad that I didn’t wish everybody a happy new Colorado Water Year…\n\nHappy Water Year to all my Colorado friends and colleagues, new and old… \n\nMay this be a generous water year, although not too generous…",
+				"id": "1578900353814519810",
+				"created_at": "2022-10-09T00:09:13.000Z",
+				"author_id": "944480690",
+				"edit_history_tweet_ids": [
+					"1578900353814519810"
+				]
+			}
+		]
+	},
+	"meta": {
+		"result_count": 3,
+		"next_token": "18LAA581J5II7LA00C00ZZZZ",
+		"previous_token": "1BLC45G1H8CAL5DG0G00ZZZZ"
+	}
+}
+```
+
+<div id="community">
+  ### Community
+</div>
+
+Communities sind dedizierte Bereiche für X-Nutzer, um sich zu vernetzen, Inhalte zu teilen und an den Diskussionen teilzunehmen, die ihnen am wichtigsten sind.
+
+Beiträge in Communities sind für alle auf X sichtbar, aber nur Mitglieder der jeweiligen Community können interagieren und an der Diskussion teilnehmen.
+
+Das Community-Objekt enthält relevante Metadaten zu einer Community.
+
+| Feldwert            | Typ                | Beschreibung                                                                                       |                |
+|:----------------------|:--------------------|:----------------------------------------------------------------------------------------------------|:----------------|
+| created\_at           | date (ISO 8601)    | Erstellungszeitpunkt der Community.                                                                 |                |
+| id                   | string             | Der eindeutige Bezeichner der Community.                                                            |                |
+| name                 | string             | Der Name der Community.                                                                             |                |
+| description          | string             | Der Beschreibungstext der Community, sofern vorhanden.                                              |                |
+| access               | string             | Die Zugriffsstufe der Community. <br /><br /> Kann eine der folgenden sein:                           |                |
+|                      |                    | - `Public`                                                                                          |                |
+|                      |                    | - `Closed`                                                                                          |                |
+| join\_policy          | string             | Die Beitrittsrichtlinie der Community. <br /><br /> Kann eine der folgenden sein:                     |                |
+|                      |                    | - `Open`                                                                                            |                |
+|                      |                    | - `RestrictedJoinRequestsDisabled`                                                                  |                |
+|                      |                    | - `RestrictedJoinRequestsRequireAdminApproval`                                                      |                |
+|                      |                    | - `RestrictedJoinRequestsRequireModeratorApproval`                                                  |                |
+|                      |                    | - `SuperFollowRequired`                                                                             |                |
+| member\_count         | integer            | Die Anzahl der Mitglieder, die der Community beigetreten sind.                                      |                |
+
+**Abrufen von Community-Objekten**
+
+**Beispielanfrage**
+
+In der folgenden Anfrage fordern wir bestimmte Felder an und suchen anhand eines angegebenen Schlüsselworts nach einer Liste von Communities. Ersetzen Sie dabei unbedingt `$BEARER_TOKEN` durch Ihr eigenes generiertes [Bearer-Token](/de/resources/fundamentals/authentication#bearer-token-also-known-as-app-only).
+
+```bash
+curl --location 'https://api.x.com/2/communities/search?query=anime&amp;community.fields=access,created_at,description,id,join_policy,member_count,name' --header 'Authorization: $BEARER_TOKEN'
+```
+
+**Beispielantwort**
+
+```
+{
+  "data": [
+    {
+      "id": "Q29tbXVuaXR5OjE3NTg3NDc4MTc2NDI3MDA5MjI=",
+      "description": "Welcome to the Anime Community! Where anime fans gather to share their favorite shows and discuss everything anime-related.",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 39915,
+      "name": "Anime Community",
+      "created_at": "2024-02-17T06:58:50.000Z"
+    },
+    {
+      "id": "Q29tbXVuaXR5OjE1MDY3OTM5NTMxMDYwNDI4OTE=",
+      "description": "Join and text about anime 🥰",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 26019,
+      "name": "Anime World 🌸",
+      "created_at": "2022-03-24T00:44:07.000Z"
+    },
+    {
+      "id": "Q29tbXVuaXR5OjE0OTY3NzYyMTU5Mzk1MzQ4NDk=",
+      "description": "For all anime lovers and creators!",
+      "join_policy": "Open",
+      "access": "Public",
+      "member_count": 5612,
+      "name": "Anime",
+      "created_at": "2022-02-24T09:17:13.000Z"
+    }
+  ],
+  "meta": {
+    "next_token": "7140dibdnow9c7btw481s8m561gat797rboud5r80xvzm"
+  }
+}
+```
+
+<div id="how-to-use-fields-and-expansions">
+  ## So verwenden Sie Felder und Expansions
+</div>
+
+Standardmäßig enthalten die Datenobjekte der X-API v2 nur eine kleine Anzahl von Standardfeldern, wenn eine Anfrage ohne die Parameter [fields](/de/x-api/fundamentals/fields) oder [expansions](/de/x-api/fundamentals/expansions) gestellt wird. In diesem Leitfaden zeigen wir, wie Sie die Query-Parameter `fields` und `expansions` in Ihrer Anfrage verwenden, um zusätzliche Objekte und Felder in der Antwort zu erhalten.
+
+In diesem Leitfaden fordern wir mehrere Felder für den folgenden Tweet-Screenshot an.
+ 
+
+![Dieses Bild zeigt einen Screenshot eines Tweets, der von @X veröffentlicht wurde. Sichtbar sind der Tweet-Text, der Benutzername, Datum und Uhrzeit der Veröffentlichung, die Quelle und öffentliche Metriken. Es enthält außerdem ein Video. ](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/ScreenShotDataDictionaryGuide.png.twimg.1920.png)
+
+Wie Sie im Screenshot sehen, gibt es mehrere sichtbare Informationen zum Tweet, darunter der Autor des Tweets, Metriken zum Tweet, der Erstellungszeitpunkt, das Video und die Anzahl der Videoaufrufe. Es gibt auch mehrere Datenpunkte, die im Screenshot nicht sichtbar sind, aber dennoch angefordert werden können. 
+
+Bei einer Anfrage an die API ist die Standardantwort schlank und enthält nur die Standard-Tweet-Felder (id und text). Außerdem erhalten Sie nur das primäre Objekt, das vom verwendeten Endpoint zurückgegeben wird, und nicht die zugehörigen Datenobjekte, die sich auf das primäre Objekt beziehen könnten.
+
+Diese Schlankheit, zusammen mit den Parametern fields und expansions, ermöglicht es Ihnen, je nach Anwendungsfall nur die Felder anzufordern, die Sie benötigen. 
+ 
+
+<div id="requesting-additional-fields-and-objects">
+  #### Zusätzliche Felder und Objekte anfordern
+</div>
+
+Zunächst fordern wir mit einer Tweet-ID und dem [GET /tweets-Endpunkt](/de/x-api/posts/lookup/introduction) ein [Tweet-Objekt](/de/x-api/fundamentals/data-dictionary#tweet) an.
+
+Anfrage:
+
+```bash
+curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Antwort:
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "Verpassen Sie keine Tweets über Ihren Tweet. \n\nAb sofort auf iOS sehen Sie Retweets mit Kommentaren gebündelt an einem Ort. https://t.co/oanjZfzC6y"
+        }
+    ]
+}
+```
+
+Die folgende Schritt-für-Schritt-Anleitung zeigt Ihnen, wie Sie die zusätzlichen Daten abrufen, die im Screenshot zu sehen sind.
+
+1. Identifizieren Sie die zusätzlichen Felder, die Sie anfordern möchten, indem Sie unser [Objektmodell](/de/x-api/fundamentals/data-dictionary#tweet) verwenden oder die Felderliste in den API-Referenzen der jeweiligen Endpunkte prüfen.
+
+   In diesem Fall fordern wir die folgenden zusätzlichen Felder an:
+   attachments, author\_id, created\_at, public\_metrics.
+
+2. Erstellen Sie den Abfrageparameter `tweet.fields`, wobei Sie die oben genannten Felder als Wert in einer durch Kommas getrennten Liste angeben:
+   `?tweet.fields=attachments,author_id,created_at,public_metrics`
+
+3. Fügen Sie den Query-Parameter zu der GET-/tweets-Anfrage hinzu, die Sie zuvor ausgeführt haben.
+
+Anforderung:
+
+`curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics' \   --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+Antwort:
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "Verpasse nicht die Tweets über deinen Tweet.\n\nAb sofort auf iOS: Sieh dir Retweets mit Kommentar gebündelt an einem Ort an. https://t.co/oanjZfzC6y",
+            "author_id": "783214",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            },
+            "created_at": "2020-05-12T19:44:51.000Z"
+        }
+    ]
+}
+```
+
+4. Als Nächstes fordern wir Felder an, die sich auf das im Tweet enthaltene Video beziehen. Dafür verwenden wir den Parameter `expansions` mit dem Wert `attachments.media_keys` und fügen ihn der Anfrage hinzu.
+
+?expansions=attachments.media\_keys
+
+Anfrage:
+
+```bash
+curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+Antwort, wobei das Medienobjekt im includes-Objekt dargestellt ist:
+
+```
+{
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "Verpassen Sie keine Tweets zu Ihrem Tweet. \n\nAuf iOS können Sie jetzt Retweets mit Kommentaren gebündelt an einem Ort sehen. https://t.co/oanjZfzC6y"
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "created_at": "2020-05-12T19:44:51.000Z",
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            },
+            "author_id": "783214"
+        }
+    ],
+    "includes": {
+        "media": [
+            {
+                "media_key": "13_1260294804770041858",
+                "type": "video"
+            }
+        ]
+    }
+}
+```
+
+5. Zum Schluss rufen wir die Aufrufzahl und die Dauer des Videos ab. Diese sind keine Standardfelder, daher müssen wir sie explizit anfordern. Verwenden Sie in Ihrer Anfrage den Parameter `media.fields` mit den kommagetrennten Werten `public_metrics` und `duration_ms`.
+
+?media.fields=public\_metrics,duration\_ms
+
+Anfrage:
+ 
+
+`curl --request GET --url 'https://api.x.com/2/tweets?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys&media.fields=duration_ms,public_metrics' --header 'Authorization: Bearer $BEARER_TOKEN'`
+
+Antwort, die nun alle Daten enthält, die im Tweet-Screenshot zu sehen sind:
+ 
+
+```
+  {
+    "data": [
+        {
+            "id": "1260294888811347969",
+            "text": "Don’t miss the Tweets about your Tweet. \n\nNow on iOS, you can see Retweets with comments all in one place. https://t.co/oanjZfzC6y",
+            "author_id": "783214",
+            "public_metrics": {
+                "retweet_count": 5219,
+                "reply_count": 1828,
+                "like_count": 17141,
+                "quote_count": 3255
+            },
+            "created_at": "2020-05-12T19:44:51.000Z",
+            "attachments": {
+                "media_keys": [
+                    "13_1260294804770041858"
+                ]
+            }
+        }
+    ],
+    "includes": {
+        "media": [
+            {
+                "duration_ms": 36503,
+                "media_key": "13_1260294804770041858",
+                "public_metrics": {
+                    "view_count": 1534703
+                },
+                "type": "video"
+            }
+        ]
+    }
+}
+```
+
+Insgesamt haben wir in diesem Beispiel die folgenden Parameter verwendet:
+
+- ids=1260294888811347969
+- tweet.fields=attachments,author\_id,created\_at,public\_metrics
+- expansions=attachments.media\_keys
+- media.fields=public\_metrics,duration\_ms
+   
+
+Kombiniert ergibt sich folgende vollständige Abfragezeichenfolge:
+
+```
+?ids=1260294888811347969&tweet.fields=attachments,author_id,created_at,public_metrics&expansions=attachments.media_keys&media.fields=public_metrics,duration_ms
+```
+
+<div id="x-api-v2-example-payloads">
+  ## Beispiel-Payloads für die X-API v2
+</div>
+
+<div id="tweet">
+  ### Tweet
+</div>
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1304102743196356610",
+      "id": "1307025659294674945",
+      "possibly_sensitive": false,
+      "public_metrics": {
+        "retweet_count": 11,
+        "reply_count": 2,
+        "like_count": 70,
+        "quote_count": 1
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 74,
+            "end": 97,
+            "url": "https://t.co/oeF3ZHeKQQ",
+            "expanded_url": "https://dev.to/twitterdev/understanding-the-new-tweet-payload-in-the-twitter-api-v2-1fg5",
+            "display_url": "dev.to/twitterdev/und…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1317156296982867969/2uLfv-Bh?format=jpg&name=orig",
+                "width": 1128,
+                "height": 600
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1317156296982867969/2uLfv-Bh?format=jpg&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "Die neue Tweet-Payload in der X-API v2 verstehen",
+            "description": "X hat kürzlich die neue X-API v2 angekündigt, die von Grund auf neu entwickelt wurde, um neue Funktionen bereitzustellen ...",
+            "unwound_url": "https://dev.to/twitterdev/understanding-the-new-tweet-payload-in-the-twitter-api-v2-1fg5"
+          }
+        ]
+      },
+      "text": "Hier ist ein Artikel, der die Neuerungen in der neuen Tweet-Payload v2 hervorhebt https://t.co/oeF3ZHeKQQ",
+      "in_reply_to_user_id": "2244994945",
+      "created_at": "2020-09-18T18:36:15.000Z",
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1304102743196356610"
+        }
+      ],
+      "lang": "en",
+      "source": "Twitter Web App",
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "verified": true,
+        "location": "127.0.0.1",
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, Nachrichten und Events rund um die #TwitterAPI."
+        "pinned_tweet_id": "1293593516040269825",
+        "username": "TwitterDev",
+        "public_metrics": {
+          "followers_count": 513961,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "name": "Twitter Dev",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "protected": false
+      }
+    ],
+    "tweets": [
+      {
+        "conversation_id": "1304102743196356610",
+        "id": "1304102743196356610",
+        "possibly_sensitive": false,
+        "public_metrics": {
+          "retweet_count": 31,
+          "reply_count": 12,
+          "like_count": 104,
+          "quote_count": 4
+        },
+        "entities": {
+          "mentions": [
+            {
+              "start": 146,
+              "end": 158,
+              "username": "suhemparack"
+            }
+          ],
+          "urls": [
+            {
+              "start": 237,
+              "end": 260,
+              "url": "https://t.co/CjneyMpgCq",
+              "expanded_url": "https://x.com/TwitterDev/status/1304102743196356610/video/1",
+              "display_url": "pic.x.com/CjneyMpgCq"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 8,
+              "end": 19,
+              "tag": "TwitterAPI"
+            }
+          ]
+        },
+        "attachments": {
+          "media_keys": [
+            "13_1303848070984024065"
+          ]
+        },
+        "text": "Die neue #TwitterAPI bringt einige Verbesserungen am Tweet-Payload mit sich. Sie fragen sich wahrscheinlich: Was sind die wichtigsten Unterschiede? 🧐\n\nIn diesem Video vergleicht @SuhemParack den Tweet-Payload der v1.1 mit dem, was Sie über unsere v2-Endpunkte finden. https://t.co/CjneyMpgCq",
+        "created_at": "2020-09-10T17:01:37.000Z",
+        "author_id": "2244994945",
+        "lang": "en",
+        "source": "Twitter Media Studio"
+      }
+    ]
+  }
+}
+```
+
+<div id="tweet-reply">
+  ### Tweet-Antwort
+</div>
+
+```json
+{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1296887091901718529",
+      "text": "Sehen Sie, wie @PennMedCDH Twitter-Daten nutzen, um die COVID-19-Gesundheitskrise besser zu verstehen 📊\n\nhttps://t.co/1tdA8uDWes",
+      "referenced_tweets": [
+        {
+          "type": "replied_to",
+          "id": "1296887091901718529"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 30,
+            "end": 36,
+            "probability": 0.6318,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 8,
+            "end": 19,
+            "username": "PennMedCDH"
+          }
+        ],
+        "urls": [
+          {
+            "start": 87,
+            "end": 110,
+            "url": "https://t.co/1tdA8uDWes",
+            "expanded_url": "https://developer.x.com/en/use-cases/success-stories/penn",
+            "display_url": "developer.x.com/en/use-cases/s…",
+            "status": 200,
+            "title": "Penn Medicine Center for Digital Health",
+            "description": "Das Penn Med Center for Digital Health hat eine COVID-19-Twitter-Karte erstellt, die Diagramme zu Stimmung, gemeldeten Symptomen, bundesstaatlichen Datenauswertungen und Grenzdaten zum COVID-19-Ausbruch enthält. Darüber hinaus nutzt ihre Initiative „Penn Med With You“ aggregierte regionale Informationen von Twitter, um ihre Website und ihren SMS-Dienst zu unterstützen. Der Dienst verwendet diese Informationen, um relevante und zeitnahe Ressourcen bereitzustellen.",
+            "unwound_url": "https://developer.x.com/en/use-cases/success-stories/penn"
+          }
+        ]
+      },
+      "id": "1296887316556980230",
+      "public_metrics": {
+        "retweet_count": 9,
+        "reply_count": 3,
+        "like_count": 26,
+        "quote_count": 2
+      },
+      "author_id": "2244994945",
+      "in_reply_to_user_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "Markenkategorie",
+            "description": "Kategorien innerhalb von Markenvertikalen, die den Umfang von Marken eingrenzen",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "description": "Marken und Unternehmen",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "123",
+            "name": "Laufende Nachrichtengeschichte",
+            "description": "Laufende Nachrichtengeschichten wie „Brexit“",
+          },
+          "entity": {
+            "id": "1220701888179359745",
+            "name": "COVID-19"
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "created_at": "2020-08-21T19:10:05.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, Nachrichten und Veranstaltungen rund um die #TwitterAPI.",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      },
+      {
+        "created_at": "2013-07-23T16:58:03.000Z",
+        "id": "1615654896",
+        "protected": false,
+        "username": "PennMedCDH",
+        "verified": false,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/7eS9RuwIb9",
+                "expanded_url": "http://centerfordigitalhealth.upenn.edu/",
+                "display_url": "centerfordigitalhealth.upenn.edu"
+              }
+            ]
+          },
+          "description": {
+            "mentions": [
+              {
+                "start": 0,
+                "end": 13,
+                "username": "PennMedicine"
+              }
+            ]
+          }
+        },
+        "description": "Das Center for Digital Health von @PennMedicine treibt die Wissenschaft voran, indem es die Auswirkungen des Fortschritts digitaler Gesundheitstechnologien im Gesundheitswesen erforscht.",
+        "public_metrics": {
+          "followers_count": 1348,
+          "following_count": 455,
+          "tweet_count": 1288,
+          "listed_count": 92
+        },
+        "location": "Philadelphia, PA",
+        "name": "Penn Med CDH",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1067488849725726723/MoO3FQ44_normal.jpg",
+        "url": "https://t.co/7eS9RuwIb9"
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1296887091901718529",
+        "text": "Dr. @RainaMerchant und ihr Team am Penn Medicine CDH gestalten die Zukunft der Gesundheitsversorgung mit.\n\nDas Team nutzt Erkenntnisse aus sozialen Daten auf vielfältige Weise – von der Identifizierung von Risikofaktoren bis hin zur Erhellung der öffentlichen Stimmung. 🔎",
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 39,
+              "end": 55,
+              "probability": 0.8274,
+              "type": "Organization",
+              "normalized_text": "Penn Medicine CDH"
+            }
+          ],
+          "mentions": [
+            {
+              "start": 4,
+              "end": 18,
+              "username": "RainaMerchant"
+            }
+          ]
+        },
+        "id": "1296887091901718529",
+        "public_metrics": {
+          "retweet_count": 9,
+          "reply_count": 7,
+          "like_count": 32,
+          "quote_count": 0
+        },
+        "author_id": "2244994945",
+        "source": "Twitter Web App",
+        "created_at": "2020-08-21T19:09:12.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="extended-tweet">
+  ### Erweiterter Tweet
+</div>
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": "1296121314218897408",
+      "id": "1296121314218897408",
+      "possibly_sensitive": false,
+      "public_metrics": {
+        "retweet_count": 54,
+        "reply_count": 9,
+        "like_count": 172,
+        "quote_count": 23
+      },
+      "entities": {
+        "urls": [
+          {
+            "start": 192,
+            "end": 215,
+            "url": "https://t.co/khXhTurm9x",
+            "expanded_url": "https://devcommunity.x.com/t/hide-replies-now-available-in-the-new-twitter-api/140996",
+            "display_url": "devcommunity.com/t/hide-replies…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1296121315514957825/3CI24hSI?format=png&name=orig",
+                "width": 400,
+                "height": 400
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1296121315514957825/3CI24hSI?format=png&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "Endpunkt zum Verbergen von Antworten jetzt in der neuen Twitter-API verfügbar"
+            "description": "Heute freuen wir uns, die allgemeine Verfügbarkeit des Endpunkts zum Verbergen von Antworten in der neuen Twitter-API bekanntzugeben. Der Endpunkt zum Verbergen von Antworten ermöglicht es Ihnen, Tools zu entwickeln, mit denen Personen Antworten auf ihre Tweets verbergen oder wieder einblenden können. Menschen verwalten ihre Antworten aus vielen Gründen, unter anderem um Kommentaren, die missbräuchlich, ablenkend oder irreführend sind, weniger Aufmerksamkeit zu schenken oder um Gespräche ansprechender zu gestalten. Über diesen Endpunkt können Sie Tools entwickeln, die Menschen auf Twitter dabei helfen, Antworten schneller zu verbergen oder wieder einzublenden und mehr …"
+            "unwound_url": "https://devcommunity.x.com/t/hide-replies-now-available-in-the-new-twitter-api/140996"
+          }
+        ],
+        "hashtags": [
+          {
+            "start": 178,
+            "end": 189,
+            "tag": "TwitterAPI"
+          }
+        ]
+      },
+      "text": "Der Endpunkt zum Verbergen von Antworten startet heute!\n\nEntwickler können Antworten auf Tweets verbergen – eine entscheidende Möglichkeit, wie Entwickler dazu beitragen können, die Gesundheit der öffentlichen Debatte mithilfe der #TwitterAPI zu verbessern.\n\nhttps://t.co/khXhTurm9x"
+      "created_at": "2020-08-19T16:26:16.000Z",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "65",
+            "name": "Interessen- und Hobbys-Vertikal"
+            "description": "Gruppierungen von Interessen und Hobbys auf oberster Ebene, wie Essen oder Reisen"
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "Technology",
+            "description": "Technologie und Informatik"
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "Kategorie Interessen und Hobbys"
+            "description": "Eine Gruppierung von Interessen- und Hobby-Entitäten, wie neuartige Speisen oder Reiseziele"
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "Computer programming",
+            "description": "Programmierung"
+          }
+        }
+      ],
+      "author_id": "2244994945",
+      "lang": "en",
+      "source": "Twitter Web App"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "verified": true,
+        "location": "127.0.0.1",
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, Neuigkeiten und Events rund um die #TwitterAPI.",
+        "pinned_tweet_id": "1293593516040269825",
+        "username": "TwitterDev",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "name": "Twitter Dev",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "protected": false
+      }
+    ]
+  }
+}
+```
+
+<div id="tweet-with-media">
+  ### Tweet mit Medien
+</div>
+
+```json
+{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1293593516040269825",
+      "text": "Endlich ist es so weit! 🥁 Sagen Sie hallo zur neuen #TwitterAPI.\n\nWir bauen die X-API v2 von Grund auf neu auf, um unsere Entwickler-Community besser zu unterstützen. Und der heutige Launch ist erst der Anfang.\n\nhttps://t.co/32VrwpGaJw https://t.co/KaFSbjWUA8",
+      "attachments": {
+        "media_keys": [
+          "7_1293565706408038401"
+        ]
+      },
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 78,
+            "end": 88,
+            "probability": 0.4381,
+            "type": "Product",
+            "normalized_text": "Twitter API"
+          }
+        ],
+        "hashtags": [
+          {
+            "start": 42,
+            "end": 53,
+            "tag": "TwitterAPI"
+          }
+        ],
+        "urls": [
+          {
+            "start": 195,
+            "end": 218,
+            "url": "https://t.co/32VrwpGaJw",
+            "expanded_url": "https://blog.x.com/developer/en_us/topics/tools/2020/introducing_new_twitter_api.html",
+            "display_url": "blog.x.com/developer/en_u…",
+            "images": [
+              {
+                "url": "https://pbs.twimg.com/news_img/1336475659279818754/_cmRh7QE?format=jpg&name=orig",
+                "width": 1200,
+                "height": 627
+              },
+              {
+                "url": "https://pbs.twimg.com/news_img/1336475659279818754/_cmRh7QE?format=jpg&name=150x150",
+                "width": 150,
+                "height": 150
+              }
+            ],
+            "status": 200,
+            "title": "Vorstellung der neuen, verbesserten X-API",
+            "description": "Vorstellung der neuen X-API – von Grund auf neu aufgebaut, um schneller neue Funktionen zu liefern, damit Entwickler der Welt helfen können, sich mit der öffentlichen Unterhaltung auf Twitter zu verbinden.",
+            "unwound_url": "https://blog.x.com/developer/en_us/topics/tools/2020/introducing_new_twitter_api.html"
+          },
+          {
+            "start": 219,
+            "end": 242,
+            "url": "https://t.co/KaFSbjWUA8",
+            "expanded_url": "https://x.com/TwitterDev/status/1293593516040269825/video/1",
+            "display_url": "pic.x.com/KaFSbjWUA8"
+          }
+        ]
+      },
+      "id": "1293593516040269825",
+      "public_metrics": {
+        "retweet_count": 958,
+        "reply_count": 171,
+        "like_count": 2848,
+        "quote_count": 333
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "Markenkategorie",
+            "description": "Kategorien innerhalb von Markenbereichen, die den Umfang von Marken eingrenzen",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services"
+            "name": "Services",
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "name": "Marke",
+            "description": "Marken und Unternehmen",
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "Interessen- und Hobbysparte",
+            "description": "Oberste Gruppierungen von Interessen und Hobbys, etwa Essen oder Reisen",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "Technologie",
+            "description": "Technologie und Informatik",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "Interessen- und Hobbykategorie",
+            "description": "Eine Gruppierung von Interessen- und Hobby-Entitäten, etwa ausgefallenes Essen oder Reiseziele",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "Programmierung",
+            "description": "Programmierung",
+          }
+        }
+      ],
+      "source": "Twitter Web App"
+      "created_at": "2020-08-12T17:01:42.000Z"
+    }
+  ],
+  "includes": {
+    "media": [
+      {
+        "height": 720,
+        "duration_ms": 34875,
+        "media_key": "7_1293565706408038401",
+        "type": "video",
+        "preview_image_url": "https://pbs.twimg.com/ext_tw_video_thumb/1293565706408038401/pu/img/66P2dvbU4a02jYbV.jpg",
+        "public_metrics": {
+          "view_count": 279438
+        },
+        "width": 1280
+      }
+    ],
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, Neuigkeiten und Veranstaltungen rund um die #TwitterAPI.",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      }
+    ]
+  }
+}`
+
+
+### Retweet
+
+      `{
+  "data": [
+    {
+      "public_metrics": {
+        "retweet_count": 19,
+        "reply_count": 0,
+        "like_count": 0,
+        "quote_count": 0
+      },
+      "conversation_id": "1229851574555508737",
+      "id": "1229851574555508737",
+      "entities": {
+        "annotations": [
+          {
+            "start": 28,
+            "end": 38,
+            "probability": 0.261,
+            "type": "Product",
+            "normalized_text": "Alexa Skill"
+          },
+          {
+            "start": 44,
+            "end": 50,
+            "probability": 0.7332,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 3,
+            "end": 15,
+            "username": "suhemparack"
+          }
+        ]
+      },
+      "text": "RT @suhemparack: I built an Alexa Skill for Twitter using APL that allows you to view Tweets and Trends on the echo show!\n\nCheck it out her…",
+      "created_at": "2020-02-18T19:33:59.000Z",
+      "possibly_sensitive": false,
+      "author_id": "2244994945",
+      "referenced_tweets": [
+        {
+          "type": "retweeted",
+          "id": "1229843515603144704"
+        }
+      ],
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "47",
+            "name": "Marke",
+            "description": "Marken und Unternehmen"
+          },
+          "entity": {
+            "id": "10026792024",
+            "name": "Amazon"
+          }
+        },
+        {
+          "domain": {
+            "id": "48",
+            "name": "Produkt",
+            "description": "Von Marken entwickelte Produkte. Beispiele: Ford Explorer, Apple iPhone."
+          },
+          "entity": {
+            "id": "968221983803494400",
+            "name": "Amazon - Alexa",
+            "description": "Alexa"
+          }
+        },
+        {
+          "domain": {
+            "id": "46",
+            "name": "Markenkategorie",
+            "description": "Kategorien innerhalb von Markenbranchen, die den Geltungsbereich von Marken eingrenzen"
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services"
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Marke",
+            "description": "Marken und Unternehmen"
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter"
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "lang": "en"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "username": "TwitterDev",
+        "name": "Twitter Dev",
+        "location": "127.0.0.1",
+        "url": "https://t.co/3ZX3TNiZCY",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community",
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "id": "2244994945",
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, Neuigkeiten und Events zur #TwitterAPI.",
+        "verified": true,
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "pinned_tweet_id": "1293593516040269825",
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "protected": false
+      },
+      {
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1230703695051935747/TbQKe91L_normal.jpg",
+        "username": "suhemparack",
+        "name": "Suhem Parack",
+        "location": "Seattle, WA",
+        "url": "https://t.co/8IkCzClPCz",
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/8IkCzClPCz",
+                "expanded_url": "https://developer.x.com",
+                "display_url": "developer.x.com"
+              }
+            ]
+          },
+          "description": {
+            "mentions": [
+              {
+                "start": 42,
+                "end": 50,
+                "username": "Twitter"
+              }
+            ]
+          }
+        },
+        "id": "857699969263964161",
+        "description": "Developer Relations für akademische Forschung @Twitter. Sprechen Sie mit mir über Forschung mit Twitter-Daten. Zuvor: Amazon Alexa. Ansichten sind meine eigenen.",
+        "verified": false,
+        "public_metrics": {
+          "followers_count": 738,
+          "following_count": 512,
+          "tweet_count": 460,
+          "listed_count": 12
+        },
+        "pinned_tweet_id": "1296498078233571329",
+        "created_at": "2017-04-27T20:56:22.000Z",
+        "protected": false
+      }
+    ],
+    "tweets": [
+      {
+        "public_metrics": {
+          "retweet_count": 19,
+          "reply_count": 1,
+          "like_count": 71,
+          "quote_count": 6
+        },
+        "conversation_id": "1229843515603144704",
+        "id": "1229843515603144704",
+        "entities": {
+          "annotations": [
+            {
+              "start": 11,
+              "end": 21,
+              "probability": 0.3342,
+              "type": "Product",
+              "normalized_text": "Alexa Skill"
+            },
+            {
+              "start": 27,
+              "end": 33,
+              "probability": 0.6727,
+              "type": "Product",
+              "normalized_text": "Twitter"
+            }
+          ],
+          "urls": [
+            {
+              "start": 127,
+              "end": 150,
+              "url": "https://t.co/l5J8wq748G",
+              "expanded_url": "https://dev.to/twitterdev/building-an-alexa-skill-for-twitter-using-alexa-presentation-language-1aj0",
+              "display_url": "dev.to/twitterdev/bui…",
+              "status": 200,
+              "unwound_url": "https://dev.to/twitterdev/building-an-alexa-skill-for-twitter-using-alexa-presentation-language-1aj0"
+            }
+          ]
+        },
+        "text": "I built an Alexa Skill for Twitter using APL that allows you to view Tweets and Trends on the echo show!\n\nCheck it out here 👇\n\nhttps://t.co/l5J8wq748G",
+        "created_at": "2020-02-18T19:01:58.000Z",
+        "possibly_sensitive": false,
+        "author_id": "857699969263964161",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "47",
+              "name": "Brand",
+              "name": "Marke",
+              "description": "Marken und Unternehmen"
+            "entity": {
+              "id": "10026792024",
+              "name": "Amazon"
+            }
+          },
+          {
+            "domain": {
+              "id": "48",
+              "name": "Produkt",
+              "description": "Von Marken entwickelte Produkte. Beispiele: Ford Explorer, Apple iPhone."
+            },
+            "entity": {
+              "id": "968221983803494400",
+              "name": "Amazon - Alexa",
+              "description": "Alexa"
+            "description": "Alexa"
+          },
+          {
+            "domain": {
+              "id": "46",
+              "name": "Markenkategorie",
+              "description": "Kategorien innerhalb von Markenbranchen, die den Geltungsbereich von Marken eingrenzen"
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "Services"
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "Marke",
+              "description": "Marken und Unternehmen"
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            }
+          }
+        ],
+        "source": "Twitter Web App"
+        "lang": "en"
+      }
+    ]
+  }
+}`
+
+
+### Quote-Tweet      `{
+  "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1328399838128467969",
+      "text": "Wie geplant wurden die unten aufgeführten Labs-v2-Endpunkte nun eingestellt. Bitte melden Sie sich in den Foren, wenn Sie Fragen haben oder Unterstützung bei der X-API v2 benötigen! https://t.co/JaxttUMmjX",
+      "referenced_tweets": [
+        {
+          "type": "quoted",
+          "id": "1327011423252144128"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 151,
+            "end": 157,
+            "probability": 0.8115,
+            "type": "Product",
+            "normalized_text": "Twitter"
+          }
+        ],
+        "urls": [
+          {
+            "start": 167,
+            "end": 190,
+            "url": "https://t.co/JaxttUMmjX",
+            "expanded_url": "https://x.com/TwitterDev/status/1327011423252144128",
+            "display_url": "twitter.com/TwitterDev/sta…"
+          }
+        ]
+      },
+      "id": "1328399838128467969",
+      "public_metrics": {
+        "retweet_count": 7,
+        "reply_count": 4,
+        "like_count": 29,
+        "quote_count": 1
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "Markenkategorie",
+            "description": "Kategorien innerhalb von Marken-Vertikalen, die den Umfang von Marken eingrenzen",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Marke",
+            "description": "Marken und Unternehmen",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter",
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "Interessen- und Hobbys-Vertikal",
+            "description": "Übergeordnete Gruppierungen von Interessen und Hobbys, wie Essen oder Reisen",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "Technologie",
+            "description": "Technologie und Informatik",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "Interessen- und Hobbys-Kategorie",
+            "description": "Eine Gruppierung von Interessen- und Hobbys-Entitäten, z. B. neuartige Lebensmittel oder Reiseziele",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "Programmierung",
+            "description": "Programmierung",
+          }
+        }
+      ],
+      "source": "Twitter Web App",
+      "created_at": "2020-11-16T18:09:36.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              "display_url": "developer.x.com/en/community",
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, News und Events rund um die #TwitterAPI.",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1327011423252144128",
+        "text": "👋 Kurze Erinnerung: Twitter Developer Labs v2 „Antworten ausblenden“ und „Neueste Suche“ werden am kommenden Montag, dem 16. November, eingestellt! Wir empfehlen, jetzt auf die neuen Endpunkte für „Antworten ausblenden“ und „Neueste Suche“ in der v2 #TwitterAPI zu migrieren. Details: https://t.co/r6z6CI7kEy",
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 26,
+              "end": 50,
+              "probability": 0.4387,
+              "type": "Product",
+              "normalized_text": "Twitter Developer Labs v2"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 228,
+              "end": 239,
+              "tag": "TwitterAPI"
+            }
+          ],
+          "urls": [
+            {
+              "start": 250,
+              "end": 273,
+              "url": "https://t.co/r6z6CI7kEy",
+              "expanded_url": "https://devcommunity.x.com/t/retiring-labs-v2-recent-search-and-hide-replies/145795",
+              "display_url": "devcommunity.com/t/retiring-lab…",
+              "images": [
+                {
+                  "url": "https://pbs.twimg.com/news_img/1327011425240313856/PkurOyu1?format=jpg&name=orig",
+                  "width": 1200,
+                  "height": 630
+                },
+                {
+                  "url": "https://pbs.twimg.com/news_img/1327011425240313856/PkurOyu1?format=jpg&name=150x150",
+                  "width": 150,
+                  "height": 150
+                }
+              ],
+              "status": 200,
+              "title": "Einstellung von Labs v2: Neueste Suche und Antworten ausblenden",
+              "description": "Wie in unseren Ankündigungen zu Early Access und „Antworten ausblenden“ beschrieben, werden die folgenden Twitter Developer Labs v2-Endpunkte am 16. November eingestellt. Labs v2 „Neueste Suche“ Labs v2 „Antworten ausblenden“ Bei Aufruf antworten diese Endpunkte mit HTTP-Status 410 und liefern keine Daten. Basierend auf Ihrem Feedback aus den Labs haben wir entsprechende Funktionen in die X-API v2 integriert. Die relevante Dokumentation finden Sie über die unten stehenden Links. Klicken Sie hier, um v2-Zugang zu erhalten, falls noch nicht geschehen …",
+              "unwound_url": "https://devcommunity.x.com/t/retiring-labs-v2-recent-search-and-hide-replies/145795"
+            }
+          ]
+        },
+        "id": "1327011423252144128",
+        "public_metrics": {
+          "retweet_count": 8,
+          "reply_count": 2,
+          "like_count": 33,
+          "quote_count": 4
+        },
+        "author_id": "2244994945",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "46",
+              "name": "Markenkategorie",
+              "description": "Kategorien innerhalb von Marken-Vertikalen, die den Umfang von Marken eingrenzen",
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "Services",
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "Marke",
+              "description": "Marken und Unternehmen",
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter",
+            }
+          },
+          {
+            "domain": {
+              "id": "65",
+              "name": "Interessen- und Hobbys-Vertikal",
+              "description": "Übergeordnete Gruppierungen von Interessen und Hobbys, wie Essen oder Reisen",
+            },
+            "entity": {
+              "id": "848920371311001600",
+              "name": "Technologie",
+              "description": "Technologie und Informatik",
+            }
+          },
+          {
+            "domain": {
+              "id": "66",
+              "name": "Interessen- und Hobbys-Kategorie",
+              "description": "Eine Gruppierung von Interessen- und Hobbys-Entitäten, z. B. neuartige Lebensmittel oder Reiseziele",
+            },
+            "entity": {
+              "id": "848921413196984320",
+              "name": "Programmierung",
+              "description": "Programmierung",
+            }
+          }
+        ],
+        "source": "Twitter Web App"
+        "created_at": "2020-11-12T22:12:32.000Z"
+      }
+    ]
+  }
+}
+```
+
+<div id="retweeted-quote-tweet">
+  ### Retweetetes Zitat-Tweet
+</div>
+
+```
+{
+    "data": [
+    {
+      "lang": "en",
+      "conversation_id": "1225470895902412800",
+      "text": "RT @AureliaSpecker: 📣 Wenn dir das London-Commute-Tutorial gefallen hat, das ich im November letzten Jahres geschrieben habe, schau dir die überarbeitete Version an, die …",
+      "referenced_tweets": [
+        {
+          "type": "retweeted",
+          "id": "1224709550214873090"
+        }
+      ],
+      "possibly_sensitive": false,
+      "entities": {
+        "annotations": [
+          {
+            "start": 42,
+            "end": 47,
+            "probability": 0.6999,
+            "type": "Place",
+            "normalized_text": "London"
+          }
+        ],
+        "mentions": [
+          {
+            "start": 3,
+            "end": 18,
+            "username": "AureliaSpecker"
+          }
+        ]
+      },
+      "id": "1225470895902412800",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 0,
+        "like_count": 0,
+        "quote_count": 0
+      },
+      "author_id": "2244994945",
+      "context_annotations": [
+        {
+          "domain": {
+            "id": "46",
+            "name": "Brand Category",
+            "description": "Kategorien innerhalb von Markenbereichen, die den Umfang von Marken eingrenzen",
+          },
+          "entity": {
+            "id": "781974596752842752",
+            "name": "Services",
+          }
+        },
+        {
+          "domain": {
+            "id": "47",
+            "name": "Brand",
+            "description": "Marken und Unternehmen",
+          },
+          "entity": {
+            "id": "10045225402",
+            "name": "Twitter",
+          }
+        },
+        {
+          "domain": {
+            "id": "65",
+            "name": "Interests and Hobbies Vertical",
+            "description": "Übergeordnete Gruppen von Interessen und Hobbys, wie Essen oder Reisen",
+          },
+          "entity": {
+            "id": "848920371311001600",
+            "name": "Technologie",
+            "description": "Technologie und Informatik",
+          }
+        },
+        {
+          "domain": {
+            "id": "66",
+            "name": "Interests and Hobbies Category",
+            "description": "Eine Gruppierung von Interessen- und Hobby-Entitäten, wie neuartige Lebensmittel oder Reiseziele",
+          },
+          "entity": {
+            "id": "848921413196984320",
+            "name": "Programmieren",
+            "description": "Programmieren",
+          }
+        }
+      ],
+      "source": "Twitter für iPhone",
+      "created_at": "2020-02-06T17:26:44.000Z"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "created_at": "2013-12-14T04:35:55.000Z",
+        "id": "2244994945",
+        "protected": false,
+        "username": "TwitterDev",
+        "verified": true,
+        "entities": {
+          "url": {
+            "urls": [
+              {
+                "start": 0,
+                "end": 23,
+                "url": "https://t.co/3ZX3TNiZCY",
+                "expanded_url": "https://developer.x.com/en/community",
+                "display_url": "developer.x.com/en/community"
+              }
+            ]
+          },
+          "description": {
+            "hashtags": [
+              {
+                "start": 17,
+                "end": 28,
+                "tag": "TwitterDev"
+              },
+              {
+                "start": 105,
+                "end": 116,
+                "tag": "TwitterAPI"
+              }
+            ]
+          }
+        },
+        "description": "Die Stimme des #TwitterDev-Teams und Ihre offizielle Quelle für Updates, Neuigkeiten und Veranstaltungen rund um die #TwitterAPI.",
+        "pinned_tweet_id": "1293593516040269825",
+        "public_metrics": {
+          "followers_count": 513962,
+          "following_count": 2039,
+          "tweet_count": 3635,
+          "listed_count": 1672
+        },
+        "location": "127.0.0.1",
+        "name": "Twitter Dev"
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1283786620521652229/lEODkLTh_normal.jpg",
+        "url": "https://t.co/3ZX3TNiZCY"
+      },
+      {
+        "created_at": "2013-01-18T23:45:43.000Z",
+        "id": "1102321381",
+        "protected": false,
+        "username": "AureliaSpecker",
+        "verified": false,
+        "entities": {
+          "description": {
+            "mentions": [
+              {
+                "start": 7,
+                "end": 17,
+                "username": "TwitterUK"
+              },
+              {
+                "start": 86,
+                "end": 95,
+                "username": "_dormrod"
+              }
+            ]
+          }
+        },
+        "description": "DevRel @TwitterUK • Schweizerin in London • Mutter von Zimmerpflanzen • persönliche Friseurin von @_dormrod",
+        "pinned_tweet_id": "1253069421322567681",
+        "public_metrics": {
+          "followers_count": 1036,
+          "following_count": 1330,
+          "tweet_count": 855,
+          "listed_count": 26
+        },
+        "location": "London, Vereinigtes Königreich",
+        "name": "Aurelia Specker",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/1137517534104772608/8FBYgc6G_normal.jpg",
+        "url": ""
+      }
+    ],
+    "tweets": [
+      {
+        "lang": "en",
+        "conversation_id": "1224709550214873090",
+        "text": "📣 Wenn Ihnen das London-Pendler-Tutorial gefallen hat, das ich im November letzten Jahres geschrieben habe, sehen Sie sich die überarbeitete Version an, die den neuen Such-Endpunkt von Twitter nutzt 🚇 https://t.co/87XIPZmZBJ\n\n#DEVcommunity #Pythontutorial @TwitterDev @TwitterAPI https://t.co/dXrJYvn3hY",
+        "referenced_tweets": [
+          {
+            "type": "quoted",
+            "id": "1195000047089389573"
+          }
+        ],
+        "possibly_sensitive": false,
+        "entities": {
+          "annotations": [
+            {
+              "start": 22,
+              "end": 27,
+              "probability": 0.7075,
+              "type": "Place",
+              "normalized_text": "London"
+            },
+            {
+              "start": 120,
+              "end": 126,
+              "probability": 0.7355,
+              "type": "Product",
+              "normalized_text": "Twitter"
+            }
+          ],
+          "mentions": [
+            {
+              "start": 206,
+              "end": 217,
+              "username": "TwitterDev"
+            },
+            {
+              "start": 218,
+              "end": 229,
+              "username": "TwitterAPI"
+            }
+          ],
+          "hashtags": [
+            {
+              "start": 176,
+              "end": 189,
+              "tag": "DEVcommunity"
+            },
+            {
+              "start": 190,
+              "end": 205,
+              "tag": "Pythontutorial"
+            }
+          ],
+          "urls": [
+            {
+              "start": 151,
+              "end": 174,
+              "url": "https://t.co/87XIPZmZBJ",
+              "expanded_url": "https://bit.ly/2OrnrCC",
+              "display_url": "bit.ly/2OrnrCC",
+              "status": 200,
+              "unwound_url": "https://dev.to/twitterdev/migrate-to-twitter-s-newly-released-labs-recent-search-endpoint-3npe"
+            },
+            {
+              "start": 230,
+              "end": 253,
+              "url": "https://t.co/dXrJYvn3hY",
+              "expanded_url": "https://x.com/AureliaSpecker/status/1195000047089389573",
+              "display_url": "twitter.com/AureliaSpecker…"
+            }
+          ]
+        },
+        "id": "1224709550214873090",
+        "public_metrics": {
+          "retweet_count": 12,
+          "reply_count": 0,
+          "like_count": 43,
+          "quote_count": 2
+        },
+        "author_id": "1102321381",
+        "context_annotations": [
+          {
+            "domain": {
+              "id": "46",
+              "name": "Markenkategorie",
+              "description": "Kategorien innerhalb von Markenvertikalen, die den Geltungsbereich von Marken eingrenzen",
+            },
+            "entity": {
+              "id": "781974596752842752",
+              "name": "Services",
+            }
+          },
+          {
+            "domain": {
+              "id": "47",
+              "name": "Brand",
+              "description": "Marken und Unternehmen"
+            },
+            "entity": {
+              "id": "10045225402",
+              "name": "Twitter"
+            }
+          },
+          {
+            "domain": {
+              "id": "65",
+              "name": "Interessen- und Hobby-Vertikale",
+              "description": "Gruppierungen von Interessen und Hobbys auf oberster Ebene, etwa Essen oder Reisen"
+            },
+            "entity": {
+              "id": "848920371311001600",
+              "name": "Technologie",
+              "description": "Technologie und Computer"
+            }
+          },
+          {
+            "domain": {
+              "id": "66",
+              "name": "Kategorie Interessen und Hobbys",
+              "description": "Eine Gruppierung von Interessen- und Hobby-Entitäten, etwa neuartige Speisen oder Reiseziele"
+            },
+            "entity": {
+              "id": "848921413196984320",
+              "name": "Programmierung",
+              "description": "Programmierung"
+            }
+          }
+        ],
+        "source": "Twitter Web App",
+        "created_at": "2020-02-04T15:01:25.000Z"
+      }
+    ]
+  }
+}
+```

@@ -1,0 +1,166 @@
+---
+title: 3-legged OAuth フローでアクセストークンを取得する
+sidebarTitle: ユーザーアクセストークン（3-legged OAuth フロー）
+---
+
+import { Button } from "/snippets/ja/button.mdx";
+
+<div id="obtaining-access-tokens-using-3-legged-oauth-flow">
+  ### 3-legged OAuth フローを使用してアクセストークンを取得する
+</div>
+
+他のユーザーに代わって操作を行うには、そのユーザーのアクセストークンを取得する必要があります。アクセストークンは、リクエストが誰の代わりに実行されるかを示す X アカウントを特定するためのものです。そのため、あなたがこれらを取得するには、まず相手からアクセスを許可してもらう必要があります。これらのトークンに有効期限はありませんが、ユーザーがいつでも取り消すことができます。
+
+X では、3-legged OAuth フローを通じてユーザーアクセストークンを取得できます。このフローでは、ユーザーを X にリダイレクトし、あなたのアプリケーションを認可してもらうことで、**access token** と access token secret を取得します。このフローは [Log in with X の実装](/ja/resources/fundamentals/authentication/guides/log-in-with-x) で説明されているフローとほぼ同一ですが、次の2点が異なります。
+
+- [GET oauth/authorize](/ja/resources/fundamentals/authentication/api-reference#get-oauth-authorize) エンドポイントを、[GET oauth/authenticate](/ja/resources/fundamentals/authentication/api-reference#get-oauth-authenticate) の代わりに使用します。
+- 以前にアクセスが許可されていた場合でも、ユーザーは**常に**あなたのアプリケーションへのアクセスを認可するよう求められます。
+   
+
+開始する前に、[アプリケーション](/ja/resources/fundamentals/developer-apps)の権限を確認し、コンシューマーキーとコールバック URL を把握しておいてください。コールバック URL や外部公開可能な UI がない場合は、[PIN ベース認可](/ja/resources/fundamentals/authentication/oauth-1-0a/pin-based-oauth)の使用を検討してください。これは、認可後にユーザーをリダイレクトするための Web ブラウザーにアクセスできない、またはそれを埋め込めないアプリケーションを想定しています。 
+
+3-legged サインインのインタラクションにおける可能な状態は、次のフローチャートで示されています。
+
+![](https://cdn.cms-twdigitalassets.com/content/dam/developer-twitter/docs/obtaining-access-tokens.png.twimg.1920.png)
+
+<div id="overview-of-the-process">
+  #### プロセスの概要
+</div>
+
+概略として、3-legged OAuth のプロセスは次の手順で進みます。
+
+1. コンシューマーアプリケーションが、リクエストトークンを取得するための要求を作成します。
+2. ユーザーが認証を行い、コンシューマーアプリケーションにリクエストトークンが送信されます。
+3. リクエストトークンを、利用可能なユーザーアクセス トークンに変換します。
+
+**用語の整理**
+
+以下のガイドでは、同じ対象を指す異なる用語が登場する場合があります。
+
+**クライアント認証情報:**
+
+- App Key === API Key === Consumer API Key === Consumer Key === Customer Key === `oauth_consumer_key`
+- App Key Secret === API Secret Key === Consumer Secret === Consumer Secret Key === Customer Secret === `oauth_consumer_secret`
+- Callback URL === `oauth_callback`
+   
+
+**一時認証情報:**
+
+- Request Token === `oauth_token`
+- Request Token Secret === `oauth_token_secret`
+- oauth\_verifier
+   
+
+**トークン認証情報:**
+
+- Access Token === Token === 結果の `oauth_token`
+- Access Token Secret === Token Secret === 結果の `oauth_token_secret`
+
+<div id="walkthrough-steps">
+  #### 手順の説明
+</div>
+
+**ステップ 1: [POST oauth/request\_token](/ja/resources/fundamentals/authentication/api-reference#post-oauth-request-token)**
+
+コンシューマーアプリがリクエストトークンを取得するためのリクエストを作成します。
+
+このリクエストで固有のパラメータは `oauth_callback` のみです。これは、ステップ2完了後にユーザーをリダイレクトしたい URL を[URL エンコード](/ja/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters)した値です。残りのパラメータは OAuth の署名プロセスによって追加されます。
+
+注意: [POST oauth/request\_token](/ja/resources/fundamentals/authentication/api-reference#post-oauth-request-token) エンドポイントで使用するコールバック URL は、開発者ポータルのアプリ詳細ページにある [Developer App](/ja/resources/fundamentals/developer-apps) の設定で事前に構成しておく必要があります。
+ 
+
+**リクエストに含まれるもの:**
+
+`oauth_callback="https%3A%2F%2FyourCallbackUrl.com"`
+
+`oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w"`
+
+アプリはレスポンスの HTTP ステータスを確認する必要があります。200 以外は失敗を示します。レスポンス本文には `oauth_token`、`oauth_token_secret`、`oauth_callback_confirmed` パラメータが含まれます。アプリは `oauth_callback_confirmed` が true であることを確認し、他の 2 つの値を次のステップのために保存してください。
+ 
+
+**レスポンスに含まれるもの**
+
+`oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0`
+
+`oauth_token_secret=veNRnAWe6inFuo8o2u8SLLZLjolYDmDP7SzL0YfYI`
+
+`oauth_callback_confirmed=true`
+
+**ステップ 2: [GET oauth/authorize](/ja/resources/fundamentals/authentication/api-reference#get-oauth-authorize)**
+
+ユーザーに認証してもらい、コンシューマーアプリにリクエストトークンを送信します。
+ 
+
+**ユーザーをリダイレクトするための例 URL:**
+
+`https://api.x.com/oauth/authorize?oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0`
+
+認証に成功すると、`callback_url` は `oauth_token` と `oauth_verifier` パラメータを含むリクエストを受け取ります。アプリケーションは、このトークンがステップ1で受け取ったリクエストトークンと一致することを確認する必要があります。
+ 
+
+**クライアントのリダイレクトからのリクエスト:**
+
+`https://yourCallbackUrl.com?oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0&oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY`
+
+**ステップ 3: [POST oauth/access\_token](/ja/resources/fundamentals/authentication/api-reference#post-oauth-access-token)**
+
+リクエストトークンを使用可能なアクセストークンに変換します。
+
+リクエストトークンを使用可能なアクセストークンに変換するには、ステップ2で取得した `oauth_verifier` の値を含めて [POST oauth/access\_token](/ja/resources/fundamentals/authentication/api-reference#post-oauth-access-token) エンドポイントにリクエストを送信する必要があります。リクエストトークンはヘッダーの `oauth_token` にも含まれますが、これは署名プロセスによって追加されます。
+ 
+
+**リクエストに含まれるもの:**
+
+`POST /oauth/access_token`
+
+`oauth_consumer_key=cChZNFj6T5R0TigYB9yd1w`
+
+`oauth_token=NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0`
+
+`oauth_verifier=uw7NjWHT6OJ1MpJOXsHfNxoAhPKpgI8BlYDhxEjIBY`
+
+成功したレスポンスには `oauth_token`、`oauth_token_secret` パラメータが含まれます。トークンとトークンシークレットは保存し、今後の X API への認証済みリクエストに使用してください。ユーザーの識別には [GET account/verify\_credentials](/ja/resources/fundamentals/authentication/api-reference) を使用します。
+ 
+
+**レスポンスに含まれるもの:**
+
+`oauth_token=7588892-kagSNqWge8gB1WwE3plnFsJHAZVfxWD7Vb57p0b4`
+
+`oauth_token_secret=PbKfYqSryyeKDWz4ebtY3o5ogNLG11WJuZBc9fQrQo`
+
+**これらの認証情報を使用した OAuth 1.0a（アプリケーション—ユーザー）必須リクエストの実行**
+
+これでユーザーアクセストークンを取得できたので、[POST statuses/update](/ja/x-api/posts/manage-tweets/introduction) などの特定の API を使って、ユーザーに代わってツイートを作成できます。
+ 
+
+**リクエストに含める内容:**
+
+`POST statuses/update.json`
+
+`oauth_consumer_key=cChZNFj6T5R0TigYB9yd1w`
+
+`oauth_token=7588892-kagSNqWge8gB1WwE3plnFsJHAZVfxWD7Vb57p0b4`
+
+<div id="sample-use-case">
+  #### サンプルユースケース
+</div>
+
+標準のフローはウェブベースで、3-legged の OAuth 認可フローを使用します。ここに示すスクリーンショットは、[https://github.com/xdevplatform/twauth-web](https://github.com/xdevplatform/twauth-web) でソースを確認できるサンプルの一部です。
+
+アプリケーションのどこかの時点で、アプリの認可を行うために X にリダイレクトする必要があります。
+
+<Frame>
+  <img src="/images/twauth-web-2.png" alt="" />
+</Frame>
+
+リクエストトークンを付与して X にリダイレクトすると、ユーザーにアプリの認可が求められます。
+
+<Frame>
+  <img src="/images/twauth-web-3.png" alt="" />
+</Frame>
+
+ユーザーがアプリを認可すると、リクエストトークンの生成時に指定したコールバック URL にリダイレクトされます。ここで、このユーザーの永続的なアクセストークンを取得し、ローカルに保存します。
+
+<Frame>
+  <img src="/images/twauth-web-4.png" alt="" />
+</Frame>

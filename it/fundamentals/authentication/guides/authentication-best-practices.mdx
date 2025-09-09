@@ -1,0 +1,104 @@
+---
+title: Buone pratiche
+---
+
+import { Button } from "/snippets/it/button.mdx";
+
+Le chiavi e i token API vanno protetti con la massima cura. 
+
+Queste credenziali sono direttamente associate alla tua [App per sviluppatori](/it/resources/fundamentals/developer-apps) e agli account X che ti hanno autorizzato a inviare richieste per loro conto. Se le tue chiavi vengono compromesse, soggetti malintenzionati potrebbero usarle per inviare richieste agli endpoint di X per conto della tua App per sviluppatori o dei relativi utenti autorizzati, con il rischio di raggiungere limiti di frequenza imprevisti, consumare il tuo contingente di accesso a pagamento o persino causare la sospensione della tua App per sviluppatori.
+
+Le sezioni seguenti includono le best practice da considerare quando gestisci chiavi e token API.
+
+<div id="regenerate-api-keys-and-tokens">
+  ## Rigenerare le chiavi e i token dell'API
+</div>
+
+Se ritieni che le tue chiavi API siano state esposte, rigenerale seguendo questi passaggi:
+
+1. Vai alla [pagina “Progetti e App” del portale per sviluppatori](https://developer.x.com/en/portal/projects-and-apps.html).
+2. Fai clic sull’icona “Keys and tokens” (🗝) accanto all’App pertinente.
+3. Fai clic sul pulsante “Regenerate” accanto al set di chiavi e token che desideri rigenerare.
+
+Se preferisci rigenerare in modo programmatico i tuoi Access Token o Bearer Token, puoi farlo utilizzando i nostri endpoint di autenticazione.
+
+- Se desideri rigenerare gli Access Token, devi prima invalidare i token utilizzando l’endpoint [POST oauth/invalidate\_token](/it/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token), quindi rigenerarli utilizzando il [flusso OAuth a 3 passaggi](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens).
+- Se desideri rigenerare il Bearer Token, devi prima invalidare il token utilizzando l’endpoint [POST oauth2/invalidate\_token](/it/resources/fundamentals/authentication/api-reference#post-oauth2-invalidate-token), quindi rigenerarlo utilizzando l’endpoint [POST oauth2/token](/it/resources/fundamentals/authentication/api-reference#post-oauth2-token).
+
+<div id="having-a-central-file-for-your-secrets">
+  ## Avere un file centrale per i segreti
+</div>
+
+Disporre di un file, ad esempio un file .env o un file .yaml, per conservare i segreti può essere utile; assicurati però di avere un .gitignore robusto che impedisca di aggiungerli per errore a un repository Git. 
+
+<div id="environment-variables">
+  ## Variabili d'ambiente
+</div>
+
+Può essere utile scrivere codice che utilizzi variabili d'ambiente.
+
+Ecco un esempio in Python:
+
+```python
+import os
+
+consumer_key = os.environ.get("CONSUMER_KEY")
+
+consumer_secret = os.environ.get("CONSUMER_SECRET")
+```
+
+Nel terminale, esegui comandi come i seguenti:
+
+```bash
+export CONSUMER_KEY='xxxxxxxxxxxxxxxxxxx'
+export CONSUMER_SECRET='xxxxxxxxxxxxxxxxxxxxxxx'
+```
+
+<div id="source-code-and-version-control">
+  ## Codice sorgente e controllo delle versioni
+</div>
+
+Gli errori di sicurezza più comuni commessi dagli sviluppatori consistono nell’avere chiavi e token API inseriti nel codice sorgente in sistemi di controllo versione accessibili come GitHub e Bitbucket. Molti di questi repository di codice sono pubblicamente accessibili. Questo errore è talmente frequente nei repository pubblici che esistono bot redditizi che eseguono scraping alla ricerca di chiavi API.
+
+- Usa variabili d’ambiente sul server. Archiviando le chiavi API nelle variabili d’ambiente, le tieni fuori dal codice e dal controllo delle versioni. Questo consente anche di usare facilmente chiavi diverse per ambienti diversi.
+- Usa un file di configurazione escluso dal controllo versione. Aggiungi il nome del file al tuo [.gitignore](https://git-scm.com/docs/gitignore) per escluderlo dal tracciamento da parte del controllo versione.
+- Se rimuovi le chiavi API dal codice dopo aver usato il controllo versione, è probabile che siano ancora recuperabili accedendo alle versioni precedenti della codebase. Rigenera le chiavi API, come descritto nella sezione successiva.
+
+<div id="databases">
+  ## Database
+</div>
+
+Se devi archiviare i token di accesso in un database, tieni presente quanto segue:
+
+- Limita l’accesso al database in modo che i token di accesso siano leggibili solo dal proprietario del token.
+- Limita i privilegi di modifica/scrittura sulla tabella del database che contiene i token di accesso: questo dovrebbe essere automatizzato dal sistema di gestione delle chiavi.
+- Cifra i token di accesso prima di archiviarli in qualsiasi archivio dati.
+
+<div id="password-management-tools">
+  ## Strumenti di gestione delle password
+</div>
+
+Strumenti di gestione delle password come 1Password o LastPass possono essere utili per conservare chiavi e token in un luogo sicuro. Potresti voler evitare di condividerli all’interno di un gestore di password condiviso dal team.
+
+<div id="web-storage-cookies">
+  ## Web storage & cookies
+</div>
+
+Esistono due tipi di web storage: LocalStorage e SessionStorage. Sono stati introdotti come miglioramento rispetto all’uso dei cookie, poiché la capacità di archiviazione del web storage è molto più elevata rispetto a quella dei cookie. Tuttavia, ciascuna di queste opzioni di archiviazione presenta diversi pro e contro.
+ 
+
+**Web Storage: LocalStorage**
+
+Qualsiasi elemento archiviato nel web storage locale è persistente. Ciò significa che i dati rimarranno finché non verranno esplicitamente eliminati. A seconda delle esigenze del tuo progetto, potresti considerarlo un aspetto positivo. Tuttavia, è opportuno usare LocalStorage con attenzione, poiché eventuali modifiche/aggiunte ai dati saranno disponibili in tutte le visite future alla pagina web in questione. In genere non consigliamo l’uso di LocalStorage, sebbene possano esserci alcune eccezioni. Se decidi di usare LocalStorage, è utile sapere che supporta la same-origin policy, quindi tutti i dati archiviati qui saranno disponibili solo dalla stessa origine. Un ulteriore vantaggio prestazionale dell’uso di LocalStorage è la riduzione del traffico client-server, poiché i dati non devono essere inviati al server per ogni richiesta HTTP.
+ 
+
+**Web Storage: SessionStorage**
+
+SessionStorage è simile a LocalStorage, ma la differenza fondamentale è che non è persistente. Una volta chiusa la finestra (o la scheda, a seconda del browser utilizzato) con cui si è scritto su SessionStorage, i dati andranno persi. Questo è utile per limitare l’accesso in lettura al token all’interno di una sessione utente. In termini di sicurezza, usare SessionStorage è generalmente preferibile rispetto a LocalStorage. Come per LocalStorage, anche per SessionStorage valgono i vantaggi del supporto alla same-origin policy e della riduzione del traffico client-server.
+ 
+
+**Cookies**
+
+I cookie sono il metodo più tradizionale per archiviare i dati di sessione. È possibile impostare un tempo di scadenza per ciascun cookie, il che consente una revoca semplice e una restrizione dell’accesso. Tuttavia, il traffico client-server aumenterà sicuramente quando si usano i cookie, poiché i dati vengono inviati al server per ogni richiesta HTTP. Se decidi di usare i cookie, devi proteggerti dal dirottamento di sessione. Per impostazione predefinita, i cookie vengono inviati in chiaro su HTTP, il che rende il loro contenuto vulnerabile al packet sniffing e/o ad attacchi man-in-the-middle in cui gli aggressori possono modificare il traffico. Dovresti sempre imporre l’uso di HTTPS per proteggere i dati in transito. Questo garantisce riservatezza, integrità (dei dati) e autenticazione. Tuttavia, se la tua applicazione o il tuo sito web sono disponibili sia tramite HTTP che HTTPS, dovresti anche usare il flag "Secure" sul cookie. Questo impedirà agli aggressori di inviare a un utente link alla versione HTTP del tuo sito e di intercettare la richiesta HTTP risultante.
+
+Un’ulteriore difesa secondaria contro il dirottamento di sessione quando si usano i cookie consiste nel validare nuovamente l’identità dell’utente prima di eseguire qualsiasi azione ad alto impatto. Un altro flag da considerare per migliorare la sicurezza dei cookie è "HttpOnly". Questo flag indica al browser che il cookie in questione deve essere accessibile solo dal server specificato. Qualsiasi tentativo effettuato da script lato client sarebbe impedito da questo flag, contribuendo quindi a proteggere dalla maggior parte degli attacchi di cross-site scripting (XSS).

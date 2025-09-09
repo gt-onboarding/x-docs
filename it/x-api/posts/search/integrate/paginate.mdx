@@ -1,0 +1,130 @@
+---
+title: Paginazione
+sidebarTitle: Paginazione
+---
+
+<div id="recent-search-pagination">
+  ### Paginazione della ricerca recente
+</div>
+
+<div id="introduction">
+  #### Introduzione
+</div>
+
+Le query di ricerca in genere restituiscono più Post di quanti ne possano essere inclusi in una singola risposta API. Quando ciò accade, i dati vengono forniti in una serie di “pagine”. Per paginazione si intendono i metodi per richiedere tutte le pagine al fine di recuperare l’intero set di dati.
+
+Di seguito i dettagli fondamentali sulla paginazione della ricerca recente:
+
+- Gli endpoint della ricerca recente risponderanno a una query con almeno una pagina e forniranno un next\_token nella risposta JSON se sono disponibili pagine aggiuntive. Per ricevere tutti i Post corrispondenti, è possibile ripetere il processo finché nella risposta non è incluso alcun token.
+
+- Il next\_token non scade. Più richieste che utilizzano lo stesso valore di next\_token riceveranno gli stessi risultati, indipendentemente da quando viene effettuata la richiesta.
+
+- I Post sono restituiti in ordine cronologico inverso, nel fuso orario UTC. Questo vale all’interno delle singole pagine, così come tra più pagine:
+  - Il primo Post nella prima risposta sarà il più recente che soddisfa la query.
+  - L’ultimo Post nell’ultima risposta sarà il più vecchio che soddisfa la query.
+
+- Il parametro di richiesta max\_results consente di configurare il numero di Post restituiti per risposta. Il valore predefinito è 10 Post e il massimo è 100.
+
+- Ogni implementazione della paginazione prevede l’estrazione dei next\_token dal payload della risposta e la loro inclusione nella richiesta di ricerca della “pagina successiva”. Vedi sotto per maggiori dettagli su come costruire queste richieste di “pagina successiva”.
+   
+
+L’endpoint della ricerca recente è stato progettato per supportare due modelli d’uso fondamentali:
+
+- **Recupero storico** - Richiedere Post corrispondenti relativi a un periodo di interesse. Si tratta in genere di richieste una tantum a supporto di ricerche storiche. Le richieste di ricerca possono basarsi sui parametri di richiesta start\_time ed end\_time. L’endpoint della ricerca recente risponde con Post restituiti in ordine cronologico inverso, a partire dal Post corrispondente più recente.
+
+- **Polling** - Richiedere Post corrispondenti che sono stati pubblicati dall’ultimo Post ricevuto. Questi casi d’uso spesso hanno un focus quasi in tempo reale e sono caratterizzati da richieste frequenti, “in ascolto” di nuovi Post di interesse. L’endpoint della ricerca recente fornisce il parametro di richiesta since\_id a supporto del modello di “polling”. Per agevolare la navigazione per ID dei Post, è disponibile anche il parametro di richiesta until\_id.
+   
+
+A seguire, tratteremo la modalità storica. È la modalità predefinita dell’endpoint della ricerca recente e illustra i fondamenti della paginazione. Successivamente presenteremo esempi di casi d’uso di polling. Quando il polling comporta paginazione, è previsto un passaggio aggiuntivo per gestire le richieste di ricerca.
+ 
+
+<div id="retrieving-historical-data">
+  #### Recupero dei dati storici
+</div>
+
+Questa sezione illustra come recuperare Post relativi a un periodo di interesse (attualmente limitato agli ultimi sette giorni) utilizzando i parametri di richiesta start\_time ed end\_time. Le richieste storiche sono in genere richieste una tantum a supporto di attività di ricerca e analisi.
+
+L’invio di richieste per un intervallo temporale è la modalità predefinita dell’endpoint recent search. Se una richiesta di ricerca non specifica i parametri start\_time, end\_time o since\_id, end\_time assumerà per impostazione predefinita il valore “adesso” (in realtà 30 secondi prima dell’istante della query) e start\_time verrà impostato a sette giorni prima.
+
+L’endpoint risponderà con la prima “pagina” di Post in ordine cronologico inverso, a partire dal Post più recente. Il payload JSON di risposta includerà anche un next\_token se sono presenti pagine aggiuntive di dati. Per raccogliere l’intero set di Post corrispondenti, indipendentemente dal numero di pagine, si effettuano richieste fino a quando non viene più fornito alcun next\_token.
+
+Ad esempio, ecco una richiesta iniziale di Post con la keyword snow dell’ultima settimana:
+
+https://api.x.com/2/tweets/search/recent?query=snow
+
+La risposta include i 10 Post più recenti, insieme a questi attributi “meta” nella risposta JSON:
+
+```
+"meta": {
+        "newest_id": "1204860593741553664",
+        "oldest_id": "1204860580630278147",
+        "next_token": "b26v89c19zqg8o3fobd8v73egzbdt3qao235oql",
+        "result_count": 10
+    }
+```
+
+Per recuperare i 10 Post successivi, questo next\_token va aggiunto alla richiesta originale. La richiesta sarà:
+
+https://api.x.com/2/tweets/search/recent?query=snow\&next\_token=b26v89c19zqg8o3fobd8v73egzbdt3qao235oql
+
+Il processo di ricerca di un next\_token e della sua inclusione in una richiesta successiva può essere ripetuto fino a quando tutti (o una certa quantità di) Post sono stati raccolti, oppure fino al raggiungimento di un numero specificato di richieste. Se per il tuo caso d’uso è fondamentale la completezza dei dati (raccogliere tutte le corrispondenze della query), è sufficiente un semplice schema “ripeti finché request.next\_token è null”. 
+ 
+
+<div id="polling-and-listening-use-cases">
+  #### Casi d’uso di polling e listening
+</div>
+
+Questa sezione descrive come recuperare Post recenti effettuando il polling dell’endpoint di ricerca recente con il parametro di richiesta since\_id. 
+
+Nei casi d’uso di polling, le query "ci sono nuovi Post di interesse?" vengono eseguite in modo continuativo e frequente. A differenza dei casi d’uso storici, che basano le richieste sul tempo, i casi d’uso di polling in genere basano le richieste sugli ID dei Post.
+
+Elemento centrale del modello di utilizzo del polling è che ogni nuovo Post ha un [ID univoco](/it/resources/fundamentals/x-ids) che viene emesso dalla piattaforma X generalmente in ordine crescente. Se un Post ha un ID più piccolo di un altro, significa che è stato pubblicato prima.
+
+L’endpoint di ricerca recente consente di navigare nell’archivio dei Post per ID del Post. Le risposte dell’endpoint includono gli ID dei Post oldest\_id e newest\_id. In modalità polling, le richieste vengono effettuate con since\_id impostato sull’ID più grande/più recente ricevuto finora. 
+
+Ad esempio, supponiamo che una query per nuovi Post sulla neve venga eseguita ogni cinque minuti e che l’ultimo Post ricevuto avesse un ID del Post pari a 10000. Quando è il momento di effettuare il polling, la richiesta è:
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=10000
+
+Successivamente, supponiamo che siano stati pubblicati sette Post dalla nostra ultima richiesta. Poiché tutti rientrano in un’unica “pagina” di dati, non c’è alcun next\_token. La risposta fornisce l’ID del Post più recente (newest):
+
+```
+"meta": {
+        "newest_id": "12000",
+        "oldest_id": "10005",
+        "result_count": 7
+    }
+```
+
+Per effettuare la successiva query di polling, questo valore di newest\_id viene utilizzato per impostare il successivo parametro since\_id:
+
+`https://api.x.com/2/tweets/search/recent?query=snow&since_id=12000`
+
+Quando sono disponibili ulteriori dati e vengono forniti next\_token, è necessario solo il valore di newest\_id della prima pagina di risultati. Ogni pagina di dati includerà i valori newest\_id e oldest\_id, ma il valore fornito nella prima pagina è l’unico necessario per la successiva richiesta di polling pianificata. Quindi, se si implementa un design di polling o si cercano Post per intervallo di ID, la logica di paginazione è leggermente più complessa. 
+
+Ora supponiamo che ci siano altri 18 Post corrispondenti. L’endpoint risponderebbe con questa risposta iniziale con una pagina di dati completa e un next\_token per richiedere la pagina successiva di dati da questo intervallo di cinque minuti. Includerebbe anche l’ID del Post più recente necessario per il successivo intervallo di polling tra cinque minuti.  
+
+```
+"meta": {
+        "newest_id": "13800",
+        "oldest_id": "12500",
+        "next_token": "fnsih9chihsnkjbvkjbsc",
+        "result_count": 10
+    }
+```
+
+Per raccogliere tutti i dati corrispondenti per questo intervallo di cinque minuti, passa il next\_token nella richiesta successiva, insieme allo stesso valore di since\_id della richiesta precedente.
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=12000\&next\_token=fnsih9chihsnkjbvkjbsc
+
+```
+"meta": {
+        "newest_id": "12300",
+        "oldest_id": "12010",
+        "result_count": 8
+    }
+```
+
+Questa seconda risposta fornisce gli otto Post rimanenti e nessun next\_token. Nota che non aggiorniamo il valore di newest\_id (12300), ma basiamo invece la prossima richiesta since\_id sul valore di newest\_id della prima risposta:
+
+https://api.x.com/2/tweets/search/recent?query=snow\&since\_id=13800

@@ -1,0 +1,184 @@
+---
+title: v1 から v2
+sidebarTitle: v1 から v2
+---
+
+import { Button } from '/snippets/ja/button.mdx';
+
+<div id="standard-v11-timelines-to-x-api-v2-timelines">
+  ## 標準 v1.1 タイムラインから X API v2 タイムラインへ
+</div>
+
+v1.1 のタイムラインエンドポイント（statuses/user\_timeline および statuses/mentions\_timeline）を使用している場合、本ガイドの目的は、標準タイムラインと X API v2 タイムラインのエンドポイント間の共通点と相違点を理解し、現在の実装を新バージョンへ移行できるようにすることです。
+
+- **共通点:**
+  - 認証:
+    - OAuth 1.0a ユーザーコンテキスト（逆時系列のホームタイムライン、ユーザー投稿タイムライン、ユーザー言及タイムライン）
+    - OAuth 2.0 アプリ専用（ユーザー投稿タイムライン）
+  - 履歴アクセス制限: ユーザータイムライン（ユーザー投稿タイムライン）は直近の投稿3,200件にアクセス可能。言及タイムライン（ユーザー言及タイムライン）は直近の言及800件にアクセス可能。
+  - 投稿の編集履歴とメタデータのサポート
+  - レート制限（ユーザー投稿タイムライン）
+  - リフレッシュポーリング: since\_id 以降の新規結果を取得可能
+  - 投稿IDによるタイムラインの走査
+  - 結果の仕様:
+    - 結果の順序: 逆時系列で返却
+    - 返信の除外が可能（ユーザー投稿タイムラインのみ）
+    - リツイートの除外が可能（ユーザー投稿タイムラインのみ）
+- **相違点**
+  - 新しい認証機能:
+    - OAuth 2.0 アプリ専用（ユーザー言及タイムライン）
+    - OAuth 2.0 認可コードフロー（PKCE）（逆時系列のホームタイムライン、ユーザー投稿タイムライン、ユーザー言及タイムライン）
+  - アクセス要件: X API v2 のアプリおよびプロジェクト要件
+  - レート制限（ユーザー言及タイムラインおよび逆時系列のホームタイムライン）
+  - リクエスト上限およびボリューム上限の相違
+  - 追加のページネーション方法
+    - レスポンスごとの max\_results（count）の相違
+  - レスポンスデータ形式
+  - リクエストパラメータ
+    - v2 の fields と expansions を含む、リクエストパラメータに基づくカスタマイズ可能なデータ形式
+    - 追加で利用可能なデータ: メトリクス、投稿アノテーション、投票
+
+<div id="similarities">
+  ### 類似点
+</div>
+
+**認証**
+
+v1.1 の statuses/user\_timeline と X API v2 の user Post timeline エンドポイントは、[OAuth 1.0a User Context](/ja/resources/fundamentals/authentication) と [OAuth 2.0 App-Only](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) の両方をサポートしています。したがって、X API v2 版へ移行しても同じ認証方式とトークンを引き続き使用できます。
+
+**履歴アクセス**
+
+v1.1 の statuses/user\_timeline と X API v2 の user Post timeline エンドポイントは、リツイートを含む直近 3200 件の Post を返します。
+
+v1.1 の statuses/mentions\_timeline と X API v2 の user mention timeline エンドポイントは、直近 800 件の Post を返すことができます。
+
+**Post の編集履歴とメタデータのサポート**
+
+どちらのバージョンも、編集履歴を示すメタデータを提供します。詳細は [filtered stream API References](/ja/x-api/posts/filtered-stream#api-reference-index) と [Edit Posts fundamentals ページ](/ja/x-api/fundamentals/edit-posts) を参照してください。 
+
+**レート制限**
+
+|     |     |
+| :--- | :--- |
+| **Standard v1.1** | **X API v2** |
+| user\_timeline:<br /><br />OAuth 1.0a User Context で 15 分あたり 900 リクエスト<br /><br />OAuth 2.0 App-Only で 15 分あたり 1500 リクエスト | User Posts timeline:<br /><br />OAuth 1.0a User Context で 15 分ウィンドウあたり 900 リクエスト<br /><br />OAuth 2.0 App-Only で 15 分ウィンドウあたり 1500 リクエスト |
+
+**since\_id を用いたリフレッシュポーリング**
+
+両バージョンで、since\_id を使って最新結果をポーリングできます。
+
+**Post ID によるタイムラインの走査**
+
+両エンドポイントは、Post ID の構成方法に基づく Post ID の「タイムスタンプ」を用いてタイムラインを走査できます。機能は概ね同じですが、次の点が異なります。 
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| since\_id（排他的）<br /><br />max\_id（包括的） | since\_id（排他的）<br /><br />until\_id（こちらも排他的。v1.1 の max\_id は包括的） |
+
+**レスポンスフィルタリング用パラメータ**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| レスポンスフィルタリング用パラメータ:<br /><br />\* include\_rts<br />\* exclude\_replies | レスポンスフィルタリング用パラメータ:<br /><br />\* exclude=retweets,replies |
+| 例 <br /><br />https://api.x.com/1.1/statuses/user\_timeline.json?user\_id=2244994945\&include\_rts=0&\&exclude\_replies=1 | 例:<br /><br />https://api.x.com/2/users/2244994945/tweets?max\_results=100\&exclude=retweets,replies |
+| 注記:<br /><br />user\_timeline の場合:<br /><br />\* include\_rts=0 を使用しても、直近 3200 件という履歴 Post の上限は変わりません | 注記:<br /><br />user Posts timeline の場合:<br /><br />\* exclude=retweets を使用しても、直近 3200 件という履歴 Post の上限は変わりません <br />\* exclude=replies を使用すると、履歴 Post の上限は直近 800 件の返信に減少します |
+
+<div id="differences">
+  ### 違い
+</div>
+
+**認証**
+
+**v1.1 の statuses/mentions\_timeline エンドポイントは [OAuth 1.0a User Context](https://developer-staging.x.com/resources/fundamentals/authentication) のみをサポートしています。X API v2 の user mention timeline エンドポイントは [OAuth 1.0a User Context](/ja/resources/fundamentals/authentication)、[OAuth 2.0 App-Only](/ja/resources/fundamentals/authentication#bearer-token-also-known-as-app-only)、および [OAuth 2.0 Authorization Code with PKCE](/ja/resources/fundamentals/authenticationoauth-2-0/authorization-code "この方法により、認可済みのアプリがユーザーとしてユーザーの代理で動作できます。通常、特定ユーザーの公開情報へのアクセスや投稿に使用され、このエンドポイントの戻り値とユーザーの関係性をアプリが把握する必要がある場合に有用です。OAuth 2.0（PKCE）認可コードでの認証方法についてはこちらを参照してください。") をサポートしています。**
+
+X API v2 の user Post timeline エンドポイントで非公開またはプロモーションのメトリクスにアクセスするには、OAuth 1.0a User Context か OAuth 2.0 Authorization Code with PKCE を使用し、対象のメトリクスを取得したい Post を投稿したユーザーに紐づくユーザーアクセストークンを渡す必要があります。
+ 
+
+**エンドポイント URL**
+
+X API v2 の timelines エンドポイントでは、ユーザー ID を表すパスパラメータ :id が必要です。
+
+- 標準 v1.1 エンドポイント:
+  - https://api.x.com/1.1/statuses/home\_timeline
+  - https://api.x.com/1.1/statuses/user\_timeline
+  - https://api.x.com/1.1/statuses/mention\_timeline
+- X API v2 エンドポイント:
+  - https://api.x.com/2/users/:id/timelines/reverse\_chronological
+  - https://api.x.com/2/users/:id/tweets
+  - https://api.x.com/2/users/:id/mentions
+
+**アプリとプロジェクトの要件**
+
+X API v2 のエンドポイントでは、リクエストの認証時に [developer App](/ja/resources/fundamentals/developer-apps) の認証情報を使用し、そのアプリが [Project](/ja/resources/fundamentals/projects) に関連付けられている必要があります。X API v1.1 のすべてのエンドポイントは、スタンドアロンのアプリまたはプロジェクトに関連付けられたアプリの認証情報を使用できます。 
+ 
+
+**レート制限**
+
+|     |     |
+| :--- | :--- |
+| **mentions\_timeline:**<br /><br />OAuth 1.0a User Context で 15 分あたり 75 リクエスト | **user mention timeline:**<br /><br />OAuth 1.0a User Context で 15 分あたり 180 リクエスト  <br />OAuth 2.0 Bearer Token で 15 分あたり 450 リクエスト |
+| **home\_timeline:**<br /><br />15 分あたり 15 リクエスト  <br /><br />ホームタイムラインでは最大 800 件の Post を取得可能 | **reverse chronological home timeline:**<br /><br />15 分あたり 180 リクエスト<br /><br />直近 7 日間にタイムラインで作成されたすべての Post に加え、作成日時にかかわらず最新の 800 件を返すことができます。 |
+
+**リクエスト制限**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| 1 日のリクエスト上限<br /><br />\* 24 時間あたり 100,000 リクエストの上限。 | 1 日のリクエスト上限はありません。消費量のみで制限されます。 |
+
+**消費量の上限**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| リクエスト制限のみにより消費が制限<br /><br />\* 24 時間あたり 100,000 リクエストの上限。 | 消費は [アクセスレベル](/ja/x-api/getting-started/about-x-api) に基づく、プロジェクト単位の月次 [投稿上限](/ja/x-api/fundamentals/post-cap)（複数の v2 エンドポイントにまたがる）のみにより制限されます。<br /><br />\* Essential アクセスでは月 500,000 件の Post。<br />\* Elevated アクセスでは月 200 万件の Post。<br />\* Academic Research アクセスでは月 1,000 万件の Post。<br /><br />Reverse chronological home timeline は月次の投稿上限の対象外です。 |
+
+**リクエストパラメータ**
+
+|     |     |
+| :--- | :--- |
+| **Standard timelines v1.1** | **timelines v2** |
+| 必須: user\_id または screen\_name | 必須: 特定のユーザー ID をパスパラメータで指定 |
+| 任意:<br /><br />count - リクエストごとに返す結果の最大数を指定<br /><br />exclude\_replies - 結果から返信を除外<br /><br />include\_rts - 0 に設定すると結果からリツイートを除外<br /><br />trim\_user - 結果から再ハイドレートされたユーザーオブジェクトを除外<br /><br />tweet\_mode - 返されるデータ形式を指定。140 文字を超える投稿には extended を指定<br /><br />since\_id - 結果に含める最も早い投稿 ID を指定（除外／exclusive）<br /><br />max\_id - 結果に含める最新の投稿 ID を指定（含む／inclusive） | 任意:<br /><br />max\_results - リクエストごとに返す結果の最大数を指定<br /><br />exclude=retweets,replies - 結果からリツイートまたは返信を除外<br /><br />tweet.fields - 返す Post オブジェクトのフィールドを指定<br /><br />user.fields - 返す User オブジェクトのフィールドを指定<br /><br />place.fields - 返す place オブジェクトのフィールドを指定<br /><br />media.fields - 返す media オブジェクトのフィールドを指定<br /><br />poll.fields - 返す poll オブジェクトのフィールドを指定<br /><br />expansions - 展開して返すフィールドおよびデータを指定<br /><br />start\_time - 結果に含める最も早い created\_at の時刻を指定<br /><br />end\_time - 結果に含める最新の created\_at の時刻を指定<br /><br />since\_id - 結果に含める最も早い投稿 ID を指定（除外／exclusive）<br /><br />until\_id - 結果に含める最新の投稿 ID を指定（除外／exclusive） |
+
+**レスポンスデータ形式**
+
+|     |     |
+| :--- | :--- |
+| **Standard search v1.1** | **Search Posts v2** |
+| \[<br />    tweet object,<br />    tweet object<br />  ] | <br />  "data": \[id,text,id,text],<br />  "meta": <br />    "oldest\_id": "1337085692623646724",<br />    "newest\_id": "1334183616172019713",<br />    "previous\_token": "77qpymm88g5h9vqkluldpw91lr0qzfz1sqydh841iz48k",<br />    "result\_count": 10,<br />    "next\_token": "7140dibdnow9c7btw3w29gqolns6a1ipl3kzeae41vsxk"<br />  <br /> |
+
+**X API v2 の JSON 形式**
+
+X API v2 では、API が返すオブジェクト（[Post](/ja/x-api/fundamentals/data-dictionary#tweet) や [user](/ja/x-api/fundamentals/data-dictionary#user) など）に新しい JSON 設計を導入しています。X API v2 の形式や fields・expansions の使い方は、[ガイド](/ja/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions)および包括的な[データ辞書](/ja/x-api/fundamentals/data-dictionary)をご覧ください。
+
+- JSON のルートレベルでは、Standard エンドポイントは Post オブジェクトを statuses 配列で返しますが、X API v2 は data 配列で返します。 
+- リツイートおよび引用を「statuses」と呼ぶ代わりに、X API v2 の JSON ではリツイートおよび引用ツイートと表現します。contributors や user.translator\_type などの多くのレガシー／非推奨フィールドは削除されています。 
+- Post オブジェクト内の favorites と user オブジェクト内の favorites を併用する代わりに、X API v2 では like という用語を使用します。 
+- X では、値のない JSON 値（例: null）はペイロードに含めないという規約を採用しています。Post と user の属性は、非 null の値がある場合にのみ含まれます。
+   
+
+Standard v1.1 と X API v2 のエンドポイントバージョンの大きな違いのひとつは、ペイロードにどのフィールドを含めるかの指定方法です。Standard エンドポイントでは、ペイロードに返すフィールドやフィールドセットを指定するためのパラメータが複数ありましたが、X API v2 ではこれらを [fields](/ja/x-api/fundamentals/fields) と [expansions](/ja/x-api/fundamentals/expansions) に整理・簡素化しています。 
+
+- fields: X API v2 のエンドポイントでは、ペイロードに含めるフィールドを選択できます。たとえば、Post、User、Media、Place、Poll の各オブジェクトには、返す（または返さない）ことができるフィールドの一覧があります。 
+
+- expansions: Post の JSON ペイロード内で参照される関連オブジェクトを展開するために使用します。たとえば、すべてのリポストや返信は別の Post を参照しています。expansions=referenced\_tweets.id を設定すると、これらの Post オブジェクトが tweet.fields の設定に従って展開されます。ユーザー、投票、メディアなどの他のオブジェクトも展開できます。 
+
+- conversation\_id
+
+- 2 つの新しい [annotations](/ja/x-api/fundamentals/post-annotations) フィールド（context と entities を含む）
+
+- いくつかの新しい [metrics](/ja/x-api/fundamentals/metrics) フィールド 
+   
+
+標準 v1.1 のフィールドを新しい v2 のフィールドにマッピングするのに役立つ [データ形式移行ガイド](/ja/x-api/migrate/data-format-migration#migrating-from-standard-v1-1s-data-format-to-v2) を用意しています。このガイドでは、特定のフィールドを返すために v2 リクエストで指定すべき具体的な expansion と field パラメータも示しています。 
+
+**次のステップ**
+
+[X API v2 の Post ルックアップのクイックスタートガイドをご覧ください](/ja/x-api/posts/lookup/quickstart "X API v2 の Post ルックアップのクイックスタートガイドをご覧ください")
+
+[v2 の Post ルックアップの API リファレンスを確認してください](/ja/x-api/posts/lookup/migrate/overview "v2 の Post ルックアップの API リファレンスを確認してください")
+
+[タイムラインエンドポイントのサンプルコードをご覧ください](https://github.com/xdevplatform/Twitter-API-v2-sample-code "タイムラインエンドポイントのサンプルコードをご覧ください")

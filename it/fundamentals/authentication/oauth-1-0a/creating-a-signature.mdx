@@ -1,0 +1,167 @@
+---
+title: Creare una firma
+sidebarTitle: Creare una firma
+---
+
+import { Button } from "/snippets/it/button.mdx";
+
+<div id="creating-a-signature">
+  ### Creazione di una firma
+</div>
+
+Questa pagina spiega come generare una firma OAuth 1.0a HMAC-SHA1 per una richiesta HTTP. Questa firma è idonea per essere passata all’API X come parte di una richiesta autorizzata, come descritto in [autorizzare una richiesta.](/it/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request)
+
+La richiesta utilizzata per illustrare la firma è un POST a https://api.x.com/1.1/statuses/update.json. La richiesta non elaborata è la seguente:
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+**Raccolta del metodo e dell’URL della richiesta**
+
+Per generare una firma, inizia determinando il metodo HTTP e l’URL della richiesta. Questi due elementi sono noti al momento della creazione della richiesta, quindi sono facili da ottenere.
+
+Il metodo della richiesta sarà quasi sempre GET o POST per le richieste all’API X.
+
+|     |     |
+| :--- | :--- |
+| Metodo HTTP | POST |
+
+L’URL di base è l’URL a cui è indirizzata la richiesta, esclusi eventuali parametri di query o di hash. È importante utilizzare il protocollo corretto, quindi assicurati che la parte "https://" dell’URL corrisponda alla richiesta effettiva inviata all’API.
+
+|     |     |
+| :--- | :--- |
+| URL di base | https://api.x.com/1.1/statuses/update.json |
+
+<div id="collecting-parameters">
+  #### Raccolta dei parametri
+</div>
+
+Successivamente, raccogli tutti i parametri inclusi nella richiesta. Esistono due posizioni per questi parametri aggiuntivi: l'URL (come parte della query string) e il corpo della richiesta. La richiesta di esempio include un singolo parametro in entrambe le posizioni:
+
+```
+POST /1.1/statuses/update.json?include_entities=true HTTP/1.1
+Accept: */*
+Connection: close
+User-Agent: OAuth gem v0.4.4
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 76
+Host: api.x.com
+
+status=Hello%20Ladies%20%2b%20Gentlemen%2c%20a%20signed%20OAuth%20request%21
+```
+
+Una richiesta HTTP ha parametri codificati nell'URL, ma dovresti raccogliere i valori non elaborati. Oltre ai parametri della richiesta, ogni parametro oauth\_\* deve essere incluso nella firma, quindi raccogli anche quelli. Ecco i parametri da [autorizzare una richiesta](/it/resources/fundamentals/authentication/oauth-1-0a/authorizing-a-request):
+
+|     |     |
+| :--- | :--- |
+| status | Hello Ladies + Gentlemen, a signed OAuth request! |
+| include\_entities | true |
+| oauth\_consumer\_key | xvz1evFS4wEEPTGEFPHBog |
+| oauth\_nonce | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg |
+| oauth\_signature\_method | HMAC-SHA1 |
+| oauth\_timestamp | 1318622958 |
+| oauth\_token | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+| oauth\_version | 1.0 |
+
+Questi valori devono essere codificati in un'unica stringa, che verrà utilizzata in seguito. Il processo per costruire la stringa è molto specifico:
+
+1. [Applica la percent-encoding](/it/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) a ogni chiave e valore che verrà firmato.
+2. Ordina l'elenco dei parametri in ordine alfabetico [\[1\]](/it/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature) in base alla chiave codificata [\[2\]](/it/resources/fundamentals/authentication/oauth-1-0a/creating-a-signature).
+3. Per ogni coppia chiave/valore:
+4. Aggiungi la chiave codificata alla stringa di output.
+5. Aggiungi il carattere '=' alla stringa di output.
+6. Aggiungi il valore codificato alla stringa di output.
+7. Se restano altre coppie chiave/valore, aggiungi il carattere '&' alla stringa di output.
+    
+
+\[1] Le specifiche OAuth indicano di ordinare lessicograficamente, che è l'ordinamento alfabetico predefinito per molte librerie.
+
+\[2] Nel caso di due parametri con la stessa chiave codificata, le specifiche OAuth indicano di continuare l'ordinamento in base al valore. Tuttavia, X non accetta chiavi duplicate nelle richieste API
+ 
+
+**Stringa dei parametri**
+
+La seguente stringa dei parametri verrà prodotta ripetendo questi passaggi con i parametri raccolti sopra:
+
+| status                   | Hello Ladies + Gentlemen, a signed OAuth request!  |
+|:--------------------------|:----------------------------------------------------|
+| `include_entities`       | true                                               |
+| `oauth_consumer_key`     | xvz1evFS4wEEPTGEFPHBog                             |
+| `oauth_nonce`            | kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg         |
+| `oauth_signature_method` | HMAC-SHA1                                          |
+| `oauth_timestamp`        | 1318622958                                         |
+| `oauth_token`            | 370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb |
+| `oauth_version`          | 1.0                                                |
+
+<div id="creating-the-signature-base-string">
+  #### Creazione della signature base string
+</div>
+
+I tre valori raccolti finora devono essere uniti per formare un’unica stringa, da cui verrà generata la firma. Nella specifica OAuth questa è chiamata **signature base string**.
+
+Per codificare il metodo HTTP, la base URL e la stringa dei parametri in un’unica stringa:
+
+1. Converti il metodo HTTP in maiuscolo e imposta la stringa di output uguale a questo valore.
+2. Aggiungi il carattere ‘&’ alla stringa di output.
+3. [Codifica con percent-encoding](/it/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) l’URL e aggiungila alla stringa di output.
+4. Aggiungi il carattere ‘&’ alla stringa di output.
+5. [Codifica con percent-encoding](/it/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) la stringa dei parametri e aggiungila alla stringa di output.
+    
+
+Questo produrrà la seguente _signature base string_:
+
+```
+POST&https%3A%2F%2Fapi.x.com%2F1.1%2Fstatuses%2Fupdate.json&include\_entities%3Dtrue%26oauth\_consumer\_key%3Dxvz1evFS4wEEPTGEFPHBog%26oauth\_nonce%3DkYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg%26oauth\_signature\_method%3DHMAC-SHA1%26oauth\_timestamp%3D1318622958%26oauth\_token%3D370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb%26oauth_version%3D1.0%26status%3DHello%2520Ladies%2520%252B%2520Gentlemen%252C%2520a%2520signed%2520OAuth%2520request%2521
+```
+
+Assicurati di applicare il percent-encoding alla stringa dei parametri. La signature base string deve contenere esattamente 2 caratteri di e commerciale ‘&’. I caratteri percentuale ‘%’ nella stringa dei parametri devono essere codificati come %25 nella signature base string.
+ 
+
+<div id="getting-a-signing-key">
+  #### Ottenere una chiave di firma
+</div>
+
+Gli ultimi dati da raccogliere sono i segreti che identificano l’[app X](/it/resources/fundamentals/developer-apps) che effettua la richiesta e l’utente per conto del quale viene effettuata. È fondamentale ricordare che questi valori sono estremamente sensibili e non devono mai essere condivisi con nessuno.
+
+Il valore che identifica la tua app presso X è il **consumer secret** e si trova nel [portale per sviluppatori](/it/resources/fundamentals/developer-portal) nella [pagina dei dettagli dell’app](/it/resources/fundamentals/developer-apps). È lo stesso per ogni richiesta inviata dalla tua app X.
+
+|     |     |
+| :--- | :--- |
+| Consumer secret | kAcSOqF21Fu85e7zjz7ZN2U4ZRhfV3WpwPAoE3Z7kBw |
+
+Il valore che identifica l’account per conto del quale la tua applicazione agisce è il **OAuth token secret**. Questo valore può essere ottenuto in diversi modi, tutti descritti in [ottenere i token di accesso](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens).
+
+|     |     |
+| :--- | :--- |
+| OAuth token secret | LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE |
+
+Anche in questo caso, è fondamentale mantenere questi valori riservati all’applicazione. Se ritieni che siano stati compromessi, rigenera i token (i token in questa pagina sono stati contrassegnati come non validi per richieste reali).
+
+Entrambi questi valori devono essere combinati per formare una **chiave di firma**, che verrà utilizzata per generare la firma. La chiave di firma è semplicemente il token secret [percent-encoded](/it/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters):
+
+Tieni presente che esistono alcuni flow, ad esempio quando si ottiene un [request token](/it/resources/fundamentals/authentication/oauth-1-0a/obtaining-user-access-tokens), in cui il token secret non è ancora noto. In questo caso, la chiave di firma deve consistere nel **consumer secret** [percent-encoded](/it/resources/fundamentals/authentication/oauth-1-0a/percent-encoding-parameters) seguito da un carattere e commerciale “&”.
+
+|     |     |
+| :--- | :--- |
+| Signing key | kAcSOqF21Fu85e7zjz7ZN2U4ZRhfV3WpwPAoE3Z7kBw\&LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE |
+
+<div id="calculating-the-signature">
+  #### Calcolo della firma
+</div>
+
+Infine, la firma viene calcolata passando la stringa di base della firma e la chiave di firma all’algoritmo di hashing HMAC-SHA1. I dettagli dell’algoritmo sono descritti nella funzione hash\_hmac.
+
+L’output della funzione di firma HMAC è una stringa binaria. Questa deve essere codificata in base64 per ottenere la stringa della firma. Ad esempio, l’output, data la stringa di base e la chiave di firma fornite in questa pagina, è 2E CF 77 84 98 99 6D 0D DA 90 5D C7 17 7C 75 07 3F 3F CD 4E. Quel valore, quando convertito in base64, è la firma OAuth per questa richiesta:
+
+|     |     |
+| :--- | :--- |
+| Firma OAuth | Ls93hJiZbQ3akF3HF3x1Bz8/zU4= |

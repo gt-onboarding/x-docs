@@ -1,0 +1,106 @@
+---
+title: Streamingdaten verarbeiten
+sidebarTitle: Streamingdaten verarbeiten
+---
+
+<div id="building-a-client-to-consume-streaming-data">
+  ### Entwicklung eines Clients zur Verarbeitung von Streaming-Daten
+</div>
+
+Bei der Nutzung eines Streaming-Endpunkts gibt es einige allgemeine Best Practices, die Sie berücksichtigen sollten, um die Nutzung zu optimieren.  
+ 
+
+<div id="client-design">
+  #### Client-Design
+</div>
+
+Beim Erstellen einer Lösung mit dem Gefilterten-Stream-Endpoint benötigen Sie einen Client, der Folgendes kann:
+
+1. Eine HTTPS-Streamingverbindung zum Gefilterten-Stream-Endpoint herstellen.
+2. Asynchron POST-Anfragen an den Endpoint für Gefilterten-Stream-Regeln senden, um Regeln zum Stream hinzuzufügen und zu löschen.
+3. Niedrige Datenvolumina verarbeiten – die Streamingverbindung aufrechterhalten sowie Post-Objekte und Keep-Alive-Signale erkennen.
+4. Hohe Datenvolumina verarbeiten – die Stream-Ingestion mithilfe asynchroner Prozesse von der weiteren Verarbeitung entkoppeln und sicherstellen, dass clientseitige Puffer regelmäßig geleert werden.
+5. Das Volumen-Tracking clientseitig verwalten.
+6. Stream-Trennungen erkennen, bewerten und automatisch erneut verbinden.
+    
+
+<div id="connecting-to-a-streaming-endpoint">
+  #### Verbindung zu einem Streaming-Endpunkt herstellen
+</div>
+
+Eine Verbindung zu Streaming-Endpunkten der X-API v2 herzustellen bedeutet, eine sehr langlebige HTTP-Anfrage zu senden und die Antwort fortlaufend zu verarbeiten. Sie können sich das konzeptionell wie das Herunterladen einer unendlich langen Datei über HTTP vorstellen. Sobald die Verbindung hergestellt ist, übermittelt der X-Server Post-Ereignisse über die Verbindung, solange sie geöffnet bleibt.
+ 
+
+<div id="consuming-data">
+  #### Daten konsumieren
+</div>
+
+Beachten Sie, dass die einzelnen Felder von JSON-Objekten keine feste Reihenfolge haben und nicht in allen Fällen alle Felder vorhanden sind. Ebenso werden separate Aktivitäten nicht sortiert geliefert, und doppelte Nachrichten können auftreten. Bedenken Sie, dass im Laufe der Zeit neue Nachrichtentypen hinzugefügt und über den Stream gesendet werden können.
+
+Daher muss Ihr Client Folgendes tolerieren:
+
+- Felder in beliebiger Reihenfolge
+- Unerwartete oder fehlende Felder
+- Nicht sortierte Posts
+- Doppelte Nachrichten
+- Neue, beliebige Nachrichtentypen, die jederzeit im Stream auftreten können
+
+Zusätzlich zu relevanten Post-Daten und angeforderten Feldparametern können die folgenden Arten von Nachrichten über eine Stream-Verbindung zugestellt werden. Beachten Sie, dass diese Liste nicht vollständig ist — weitere Objekte können in Streams eingeführt werden. Stellen Sie sicher, dass Ihr Parser unerwartete Nachrichtenformate toleriert.
+ 
+
+#### Pufferung 
+
+Die Streaming-Endpunkte senden Daten, sobald sie verfügbar sind, was häufig zu hohen Datenmengen führen kann. Wenn der X-Server nicht sofort neue Daten in den Stream schreiben kann (zum Beispiel, wenn Ihr Client nicht schnell genug liest; siehe [Umgang mit Verbindungsabbrüchen](/de/x-api/posts/filtered-stream#what-is-a-disconnection) für weitere Informationen), puffert er die Inhalte serverseitig, damit Ihr Client aufholen kann. Ist dieser Puffer jedoch voll, wird eine erzwungene Trennung initiiert, die Verbindung wird beendet, und die gepufferten Posts werden verworfen und nicht erneut gesendet. Weitere Details finden Sie unten.
+
+Eine Möglichkeit, Zeiten zu erkennen, in denen Ihre App zurückliegt, besteht darin, den Zeitstempel der empfangenen Posts mit der aktuellen Uhrzeit zu vergleichen und dies über die Zeit zu beobachten.
+
+Auch wenn sich Rückstaus im Stream aufgrund potenzieller Latenzen und Störungen im öffentlichen Internet nie vollständig vermeiden lassen, können sie durch eine geeignete Konfiguration Ihrer App weitgehend verhindert werden. Um Rückstaus zu minimieren:
+
+- Stellen Sie sicher, dass Ihr Client den Stream schnell genug liest. In der Regel sollten Sie beim Lesen des Streams keine eigentliche Verarbeitungslogik ausführen. Lesen Sie den Stream und übergeben Sie die Arbeit an einen anderen Thread/Prozess/Datenspeicher, der die Verarbeitung asynchron übernimmt.
+- Stellen Sie sicher, dass Ihr Rechenzentrum über ausreichende eingehende Bandbreite für große, anhaltende Datenmengen sowie deutlich größere Spitzen (z. B. das 5- bis 10‑Fache des Normalvolumens) verfügt. Beim Gefilterten Stream hängen das Volumen und die entsprechend benötigte Bandbreite auf Ihrer Seite vollständig davon ab, welche Posts Ihre Regeln treffen.
+   
+
+<div id="usage-tracking-and-rule-management">
+  #### Nutzungsüberwachung und Regelverwaltung
+</div>
+
+Da die Erwartungen von Entwicklerinnen und Entwicklern daran, welches Datenvolumen für ihre Streams als „normal“ gilt, variieren, geben wir keine allgemeine Empfehlung für einen bestimmten prozentualen Rückgang/Anstieg oder einen Zeitraum.
+
+Überwachen Sie die Datenvolumina Ihres Streams auf unerwartete Abweichungen. Ein Rückgang des Datenvolumens kann auf ein anderes Problem als eine Stream-Trennung hinweisen. In einem solchen Fall würde ein Stream weiterhin das Keep-Alive-Signal und wahrscheinlich einige neue Aktivitätsdaten empfangen. Eine deutlich geringere Anzahl von Posts sollte Sie jedoch dazu veranlassen zu prüfen, ob es Ursachen für den Rückgang des eingehenden Datenvolumens in Ihrer Anwendung oder Ihrem Netzwerk gibt, und die [Statusseite](https://api.twitterstat.us/) auf entsprechende Hinweise zu prüfen.
+
+Um eine solche Überwachung aufzusetzen, können Sie die Anzahl neuer Posts erfassen, die Sie in einem bestimmten Zeitraum erwarten. Fällt das Datenvolumen eines Streams deutlich unter den festgelegten Schwellenwert und erholt sich innerhalb eines definierten Zeitfensters nicht, sollten Warnungen und Benachrichtigungen ausgelöst werden. Überwachen Sie auch starke Anstiege des Datenvolumens, insbesondere wenn Sie Regeln in einem Gefilterter Stream anpassen oder wenn ein Ereignis einen Spike in der Post-Aktivität verursacht.
+
+Es ist wichtig zu beachten, dass über den Gefilterter Stream zugestellte Posts auf das gesamte monatliche Post-Volumen angerechnet werden. Sie sollten daher die Nutzung verfolgen und bei Bedarf anpassen, um zu optimieren. Wenn das Volumen hoch ist, fügen Sie nach Möglichkeit jeder Ihrer Regeln einen sample:-Operator hinzu, um die Übereinstimmung von 100 % auf sample:50 oder sample:25 zu reduzieren.
+
+Zusätzlich empfehlen wir, in Ihrer App Maßnahmen zu implementieren, die Ihr Team alarmieren, wenn das Volumen einen vordefinierten Schwellenwert überschreitet, sowie gegebenenfalls weitere Maßnahmen wie das automatische Löschen von Regeln, die zu viele Daten einbringen, oder in Extremfällen die vollständige Trennung vom Stream.
+ 
+
+<div id="responding-to-system-messages">
+  #### Reagieren auf Systemnachrichten
+</div>
+
+Keep-alive-Signale
+Mindestens alle 20 Sekunden sendet der Stream ein Keep-alive-Signal bzw. einen Heartbeat in Form eines \r\n-Wagenrücklaufs über die offene Verbindung, um zu verhindern, dass Ihr Client in einen Timeout läuft. Ihre Client-Anwendung sollte gegenüber den \r\n-Zeichen im Stream tolerant sein.
+
+Wenn Ihr Client in Ihrer HTTP-Bibliothek ordnungsgemäß einen Lese-Timeout implementiert, kann sich Ihre App auf das HTTP-Protokoll und Ihre HTTP-Bibliothek verlassen, die ein Ereignis auslösen, wenn innerhalb dieses Zeitraums keine Daten gelesen werden. Dann müssen Sie nicht explizit auf das \r\n-Zeichen achten.
+
+Dieses Ereignis ist typischerweise eine ausgelöste Exception oder ein anderes Ereignis, abhängig von der verwendeten HTTP-Bibliothek. Es wird dringend empfohlen, Ihre HTTP-Methoden mit Fehler-/Ereignis-Handlern zu versehen, um diese Timeouts zu erkennen. Bei einem Timeout sollte Ihre Anwendung versuchen, die Verbindung wiederherzustellen.
+
+Fehlermeldungen
+Die v2-Streaming-Endpunkte können auch Fehlermeldungen im Stream liefern. Nachfolgend ist das grundlegende Format dieser Nachrichten zusammen mit einigen Beispielen aufgeführt. Bitte beachten Sie, dass sich die gelieferten Nachrichten ändern können und neue Nachrichten hinzukommen. Client-Anwendungen müssen gegenüber sich ändernden Systemnachrichten-Payloads tolerant sein.
+
+Beachten Sie, dass Fehlermeldungen auf die Dokumentation verlinken, die beschreibt, wie das Problem zu lösen ist.
+
+Nachrichtenformat:
+
+```{
+	"errors": [{
+		"title": "operational-disconnect",
+		"disconnect_type": "UpstreamOperationalDisconnect",
+		"detail": "This stream has been disconnected upstream for operational reasons.",
+		"type": "https://api.x.com/2/problems/operational-disconnect"
+	}]
+}
+```
+
+Beachten Sie, dass Fehlermeldungen, die eine erzwungene Trennung aufgrund eines vollen Puffers anzeigen, Ihren Client möglicherweise nie erreichen, wenn der Rückstau, der die erzwungene Trennung verursacht hat, die Zustellung verhindert. Dementsprechend sollte sich Ihre App nicht auf diese Nachrichten verlassen, um einen erneuten Verbindungsaufbau zu initiieren.

@@ -1,0 +1,159 @@
+---
+title: Guia de integração
+sidebarTitle: Guia de integração
+---
+
+<div id="how-to-integrate-with-the-timelines-endpoints">
+  ## Como integrar aos endpoints de Timelines
+</div>
+
+Esta página contém informações sobre várias ferramentas e conceitos importantes que você deve conhecer ao integrar os endpoints de timelines ao seu sistema. Dividimos a página nas seguintes seções:
+
+- [Ferramentas úteis](#helpful-tools)
+- Conceitos importantes
+  - [Autenticação](#authentication)
+  - [Portal do desenvolvedor, Projetos e Apps](#portal)
+  - [Limites de taxa](#rate-limits)
+  - [Campos e expansões](#fields)
+  - [Métricas de posts](/pt-BR/x-api/posts/timelines#timelines-integration-guide)
+  - [Paginação](#pagination)
+  - [Filtragem de resultados](#filtering)
+  - [Limites de posts e volume de posts retornados](#caps)
+  - [Editar posts](#edits)
+  - [Casos de borda](#edge)[](#edge)
+
+<div id="helpful-tools">
+  ### Ferramentas úteis
+</div>
+
+Antes de explorarmos alguns conceitos importantes, recomendamos usar uma das seguintes ferramentas ou exemplos de código para começar a testar a funcionalidade desses endpoints.
+
+**Exemplos de código**
+
+Quer configurar esses endpoints com código na sua linguagem de programação preferida? Temos vários exemplos de código disponíveis que você pode usar como ponto de partida na nossa [página no GitHub](https://github.com/xdevplatform/Twitter-API-v2-sample-code).
+
+**Bibliotecas**
+
+Aproveite uma de nossas [bibliotecas de terceiros mantidas pela comunidade](/pt-BR/x-api/tools-and-libraries/overview) para ajudar você a começar. Você pode encontrar uma biblioteca compatível com os endpoints v2 procurando a tag de versão adequada.
+
+**Postman**
+
+O Postman é uma ótima ferramenta para testar esses endpoints. Cada requisição no Postman inclui todos os parâmetros de path e de body para ajudar você a entender rapidamente o que está disponível. Para saber mais sobre nossas coleções do Postman, visite a página [Usando o Postman](/pt-BR/tutorials/postman-getting-started).
+
+<div id="key-concepts">
+  ### Conceitos-chave
+</div>
+
+**Autenticação**
+
+Todos os endpoints da API do X v2 exigem que as solicitações sejam [autenticadas](/pt-BR/resources/fundamentals/authentication) com um conjunto de credenciais, também conhecidas como keys e tokens. Você pode usar OAuth 1.0a User Context ou OAuth 2.0 Authorization Code com PKCE para autenticar solicitações a esses endpoints. Você pode usar OAuth 2.0 App-Only para a timeline de Posts do usuário e a timeline de menções ao usuário.
+
+[OAuth 1.0a User Context](/pt-BR/resources/fundamentals/authentication#oauth-1-0a-2) exige que você utilize suas API Keys, user Access Tokens e alguns outros parâmetros para [criar um cabeçalho de autorização](https://developer-staging.x.com/resources/fundamentals/authentication/authorizing-a-request), que você então enviará junto com sua solicitação. Os Access Tokens devem estar associados ao usuário em nome de quem você está fazendo a solicitação. Se você quiser gerar um conjunto de Access Tokens para outro usuário, ele deve autorizar seu App usando o [fluxo OAuth de 3 etapas](https://developer-staging.x.com/resources/fundamentals/authentication/obtaining-user-access-tokens).
+
+Observe que o OAuth 1.0a pode ser difícil de usar. Se você não estiver familiarizado com esse método de autenticação, recomendamos usar uma [biblioteca](/pt-BR/x-api/tools-and-libraries/overview), uma ferramenta como o Postman ou OAuth 2.0 para autenticar suas solicitações. Se você quiser solicitar um Post ou métricas privadas desses endpoints, será necessário usar OAuth 1.0a User Context ou OAuth 2.0 Authorization Code com PKCE, o que garantirá que você tenha as permissões adequadas do usuário proprietário desse conteúdo.
+
+[OAuth 2.0 App-Only](/pt-BR/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) exige apenas que você envie um [OAuth 2.0 App Access Token](/pt-BR/resources/fundamentals/authentication#bearer-token-also-known-as-app-only) com sua solicitação. Você pode gerar um App Access Token diretamente em um developer App ou gerar um usando o endpoint [POST oauth2/token](/pt-BR/resources/fundamentals/authentication#post-oauth2-token). Você pode usar isso para a timeline de Posts do usuário ou a timeline de menções ao usuário.
+
+[OAuth 2.0 Authorization Code com PKCE](/pt-BR/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3) permite maior controle sobre o escopo de uma aplicação e fluxos de autorização em vários dispositivos. O OAuth 2.0 permite escolher escopos específicos e granulares que concedem permissões específicas em nome de um usuário.
+
+Para habilitar o OAuth 2.0 no seu App, você deve ativá-lo nas configurações de autenticação do seu App, na seção de configurações do App no portal de desenvolvedores.
+
+<Info>
+  **Observe**
+
+  Se você estiver solicitando os seguintes [fields](/pt-BR/x-api/fundamentals/fields), é necessário OAuth 1.0a User Context ou OAuth 2.0 Authorization Code:
+
+  - `tweet.fields.non_public_metrics`
+  - `tweet.fields.promoted_metrics`
+  - `tweet.fields.organic_metrics`
+  - `media.fields.non_public_metrics`
+  - `media.fields.promoted_metrics`
+  - `media.fields.organic_metrics`
+</Info>
+
+**[](/pt-BR/x-api/fundamentals/pagination)Developer portal, Projects e developer Apps**
+
+Para trabalhar com quaisquer endpoints da API do X v2, você deve [inscrever-se para uma conta de desenvolvedor](https://developer.x.com/en/portal/petition/essential/basic-info), configurar um [Project](/pt-BR/resources/fundamentals/projects) nessa conta e criar um [developer App](/pt-BR/resources/fundamentals/developer-apps) dentro desse Project. Suas keys e tokens desse developer App funcionarão para esses endpoints de timelines.
+
+**Limites de taxa**
+
+Todos os dias, muitos milhares de desenvolvedores fazem solicitações à API do X. Para ajudar a gerenciar o volume, [limites de taxa](/pt-BR/x-api/fundamentals/rate-limits) são aplicados a cada endpoint, limitando o número de solicitações que cada desenvolvedor pode fazer em nome de um app ou de um usuário autenticado.
+
+Há diferentes limites de taxa aplicados a esses endpoints dependendo do método de autenticação usado. Os limites de taxa no nível do app se aplicam a um App que faz solicitações usando OAuth 2.0 App-Only, enquanto o limite de taxa no nível do usuário se aplica a solicitações feitas em nome do usuário autorizador específico usando OAuth 1.0a User Context. Esses dois limites de taxa são baseados na frequência de solicitações em uma janela de 15 minutos.
+
+Por exemplo, um app usando autenticação OAuth 2.0 App-Only para ambos esses endpoints de timelines pode fazer 1.500 solicitações (incluindo as de paginação) para a timeline de posts do usuário e 450 solicitações (incluindo as de paginação) para a timeline de menções do usuário dentro de uma janela de 15 minutos. Esse mesmo app, dentro da mesma janela de 15 minutos, com dois usuários autorizados diferentes (usando OAuth 1.0a User Context), pode fazer 900 solicitações (incluindo as de paginação) para a timeline de posts do usuário e 180 solicitações (incluindo as de paginação) para a timeline de menções do usuário para cada usuário autenticado.
+
+A timeline inicial em ordem cronológica inversa tem um limite por usuário de 180 solicitações por janela de 15 minutos. Com esse endpoint, você pode retornar todos os posts criados em uma timeline nos últimos 7 dias, bem como os 800 mais recentes, independentemente da data de criação.
+
+**Campos e expansões**
+
+A API do X v2 permite selecionar exatamente quais dados você quer receber da API usando [campos](/pt-BR/x-api/fundamentals/fields) e [expansões](/pt-BR/x-api/fundamentals/expansions). O parâmetro de expansões permite incluir objetos referenciados no payload. Por exemplo, este endpoint permite solicitar objetos de enquete, local, mídia e outros usando o parâmetro de expansões.
+
+O parâmetro de campos permite selecionar exatamente quais campos, dentro dos diferentes objetos de dados, você deseja receber. Por padrão, o objeto principal de post retornado por esses endpoints inclui os campos id e text. Para receber campos adicionais, como author\_id ou public\_metrics, você terá que solicitá-los especificamente usando os parâmetros de campos. Alguns campos importantes que você pode considerar usar na sua integração são nossos dados de enquete, [métricas](/pt-BR/x-api/fundamentals/metrics), [anotações de post](/pt-BR/x-api/fundamentals/post-annotations) e campos de [ID de conversa](/pt-BR/x-api/fundamentals/conversation-id).
+
+Adicionamos um guia sobre [como usar campos e expansões](/pt-BR/x-api/fundamentals/data-dictionary#how-to-use-fields-and-expansions) em conjunto ao nosso [dicionário de dados da API do X v2](/pt-BR/x-api/fundamentals/data-dictionary).
+
+**Métricas de post**
+
+Os endpoints da API do X v2 permitem solicitar métricas de post diretamente do objeto de post retornado, desde que você inclua os campos apropriados na sua solicitação.
+
+Há algumas limitações nas métricas de post das quais você deve estar ciente, especificamente relacionadas à privacidade do usuário e aos seguintes campos de resposta:
+
+- `tweet.fields.non_public_metrics`
+- `tweet.fields.promoted_metrics`
+- `tweet.fields.organic_metrics`
+- `media.fields.non_public_metrics`
+- `media.fields.promoted_metrics`
+- `media.fields.organic_metrics`
+
+Os campos mencionados incluem dados de métricas privadas, o que significa que você deve ser autorizado pelo autor do post para recuperar esses dados em nome dele ao usar o endpoint de timeline de posts do usuário; ou seja, você deve usar [OAuth 1.0a User Context](/pt-BR/resources/fundamentals/authentication) ou [OAuth 2.0 Authorization Code Flow with PKCE](/pt-BR/resources/fundamentals/authentication#oauth-2-0-authorization-code-flow-with-pkce-3).
+
+Por exemplo, para receber `non_public_metrics` para a timeline de posts do usuário de ID 1234, você precisará incluir tokens de acesso associados a esse usuário na sua solicitação. Você pode fazer com que os usuários autorizem seu app e receber um conjunto de tokens de acesso associados a eles usando o [fluxo OAuth de 3 etapas](/pt-BR/resources/fundamentals/authentication#obtaining-access-tokens-using-3-legged-oauth-flow).
+
+Se você estiver usando a timeline de menções do usuário, os campos mencionados não estarão disponíveis a menos que o autor que mencionou tenha autorizado seu app a acessar seus dados de métricas privadas e você esteja usando os tokens de acesso desse usuário ao fazer a solicitação com OAuth 1.0a User Context.
+
+Todos os `non_public_metrics`, organic\_metrics e promoted\_metrics estão disponíveis apenas para posts criados nos últimos 30 dias. Isso significa que, ao solicitar os campos mencionados, os resultados serão ajustados automaticamente para incluir apenas posts dos últimos 30 dias.
+
+Se esses campos mencionados forem solicitados, somente posts que sejam de autoria do usuário autenticado serão retornados; todos os demais posts resultarão em uma mensagem de erro.
+
+**Paginação**
+
+Esses endpoints utilizam paginação para que as respostas sejam retornadas rapidamente. Nos casos em que há mais resultados do que o que pode ser enviado em uma única resposta (até 100 posts para os endpoints de timelines), você precisará paginar. Use o parâmetro max\_results para definir quantos resultados retornar por página e o parâmetro pagination\_token para retornar a próxima página de resultados. Você pode saber mais consultando nosso [guia de paginação](/pt-BR/x-api/fundamentals/pagination).
+
+**Filtrando resultados**
+
+Esses endpoints incluem vários parâmetros que você pode usar para filtrar os resultados. Usando start\_date e end\_date, você pode restringir os resultados a um período específico. Se preferir usar IDs de Posts para selecionar um conjunto específico de Posts, use since\_id e until\_id. A timeline de Posts do usuário também tem um parâmetro exclude que pode remover Retweets e respostas dos seus resultados. 
+
+**Limites de posts e volume de Posts retornados**
+
+Os endpoints de timeline de Posts do usuário e de menções ao usuário têm limite quanto ao número de Posts que podem retornar em um determinado mês. O endpoint da timeline inicial em ordem cronológica inversa não está sujeito a essa limitação.
+
+Independentemente de qual endpoint de timelines você use, os Posts retornados contarão para os [Limites de posts](/pt-BR/x-api/fundamentals/post-cap) no nível do Projeto. O uso é exibido no portal do desenvolvedor, e o “mês” começa no dia de renovação da sua assinatura exibido no [dashboard do portal do desenvolvedor](https://developer.x.com/en/portal/dashboard). 
+
+O endpoint da timeline de Posts do usuário retornará apenas os 3.200 Posts mais recentes publicados na timeline de um usuário. Ao definir start\_time e end\_time para um período que inclua Posts além dos 3.200 mais recentes, você receberá uma resposta bem-sucedida, porém sem Posts.
+
+Também é importante observar que, se você passar excludes=replies nas solicitações da timeline de Posts do usuário, apenas os 800 Posts mais recentes serão retornados.
+
+O endpoint da timeline de menções ao usuário retornará apenas as 800 menções de Post mais recentes.
+
+O endpoint da timeline inicial em ordem cronológica inversa retorna os últimos 3.200 Posts.
+
+**Edições de Posts**
+
+Posts elegíveis para edição podem ser editados até cinco vezes nos 30 minutos após a publicação do Post original. Os endpoints de busca sempre fornecerão a versão mais recente do Post. Se você solicitar apenas Posts publicados há 30 minutos ou mais, sempre receberá a versão final do Post. Porém, se você tiver um caso de uso quase em tempo real e estiver consultando Posts publicados nos últimos 30 minutos, esses Posts podem ter sido editados após você tê-los recebido. Esses Posts podem ser reidratados com a busca ou com o endpoint de Post Lookup para confirmar seu estado final. Para saber mais sobre como funcionam as edições de Post, consulte a página [Fundamentos de edição de Posts](/pt-BR/x-api/fundamentals/edit-posts).  
+
+**Casos extremos**
+
+- Ao solicitar métricas não públicas no endpoint de timeline de Posts do usuário para Posts com mais de 30 dias, você pode ver um next\_token na resposta com contagem de resultados igual a 0. Para evitar esse problema, garanta que o período solicitado com o parâmetro non\_public\_metrics esteja dentro dos 30 dias mais recentes. Além disso, o valor mínimo de max\_results deve ser 10. Isso pode ajudar a evitar esse cenário, mas ainda pode ocorrer.
+
+- Solicitar métricas promovidas para Posts que não foram promovidos retorna uma resposta vazia, em vez dos dados do Post. Nossa equipe está trabalhando para corrigir esse problema.
+
+- Para um Retweet que contenha texto do Post com mais de 140 caracteres, o campo text será truncado em vez de retornar o texto completo do Post. A solução de curto prazo é expandir o Post referenciado e recuperar o texto completo a partir da expansão. Esse é um bug que corrigiremos no futuro.
+
+**Próximas etapas**
+
+\[Faça sua primeira solicitação a um endpoint de Timelines]/x-api/posts/timelines#getting-started-with-reverse-chronological-home-timeline "Faça sua primeira solicitação a um endpoint de Timelines")
+
+[Veja a lista completa de parâmetros, campos e mais nas nossas páginas de Referência da API](/pt-BR/x-api/posts/timelines#api-reference-index)
+
+[Obtenha suporte ou solucione um erro](https://developer.x.com/en/support/x-api)

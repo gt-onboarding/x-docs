@@ -1,0 +1,190 @@
+---
+title: Introdução ao R e à API do X v2
+mode: wide
+---
+
+<div id="introduction">
+  ## Introdução
+</div>
+
+Este tutorial explicará o que você precisa para começar a usar a
+linguagem de programação R e a API do X v2. Usando o R para se conectar ao endpoint
+[user lookup](/pt-BR/x-api/users/lookup/introduction), vou mostrar como trabalhar
+com o JSON retornado pela API do X. O user lookup é um método GET e retorna
+informações sobre um usuário ou um grupo de usuários, especificados por ID de usuário ou
+nome de usuário.
+
+Se você não estiver familiarizado, R é uma das linguagens mais populares para tarefas comuns de
+Ciência de Dados, como análise de séries temporais, modelagem, visualização e outras análises de
+dados, e é frequentemente usado em conjunto com a API do X. Com o endpoint de user
+lookup, você pode usar o
+[user object](/pt-BR/x-api/fundamentals/data-dictionary#user) para
+determinar a correlação entre o número de seguidores de uma pessoa e a
+pontuação de sentimento da sua bio. O user object também pode ser usado para mapear um grupo de
+contas com base na localização listada publicamente em seus perfis.
+
+<div id="getting-started-with-the-x-api">
+  ### Introdução à API do X
+</div>
+
+Antes de usar a API do X v2, você precisará
+[se inscrever](https://developer.x.com/en/portal/petition/essential/basic-info)
+para obter uma conta de desenvolvedor.
+
+Depois que sua conta de desenvolvedor for aprovada, você deverá primeiro criar um
+[Projeto](/pt-BR/resources/fundamentals/projects). Projetos permitem organizar seu trabalho
+com base em como você pretende usar a API do X, para que você possa gerenciar de forma eficaz
+seu acesso à API e monitorar seu uso.
+
+Cada Projeto contém um [App](/pt-BR/resources/fundamentals/developer-apps), com o qual você pode
+gerar as credenciais necessárias para usar a API do X. Você pode saber mais
+sobre como começar a usar a API do X na seção
+[Primeiros passos](/pt-BR/x-api/getting-started/about-x-api) da nossa
+documentação.
+
+<div id="getting-your-r-environment-set-up">
+  ### Configurando seu ambiente R
+</div>
+
+Primeiro, você precisa [baixar o R](https://cloud.r-project.org/), o que pode fazer
+no [site do CRAN](https://cran.r-project.org/).
+
+Depois, para configurar um ambiente de trabalho com R, você pode usar
+[RStudio](https://www.rstudio.com/), o pacote de extensões do R para o
+[Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=Ikuyadeu.r-pack),
+ou um
+[Jupyter Notebook](https://docs.anaconda.com/anaconda/navigator/tutorials/r-lang/)
+se você vem do mundo Python.
+
+<div id="setting-up-your-environment-variable">
+  ### Configurando a variável de ambiente
+</div>
+
+Para os exemplos de código que vou mostrar hoje, você vai querer criar uma
+variável de ambiente para o seu bearer token. O Bearer Token é o que permite
+autenticar na API do X e começar a fazer requisições. Primeiro, substitua
+"your-bearer-token" pelo seu próprio bearer token, que pode ser obtido na seção
+de chaves e tokens do seu App no portal do desenvolvedor. Você precisará executar
+esta linha de código no console antes de começar a escrever um script.
+
+```r
+Sys.setenv(BEARER_TOKEN = "your-bearer-token")
+```
+
+<div id="making-your-request">
+  ### Fazendo sua solicitação
+</div>
+
+Você pode usar o pacote
+[httr](https://cran.r-project.org/web/packages/httr/index.html) para fazer
+requisições HTTP à API do X. Se você ainda não o instalou, instale o pacote
+no seu console. Você também precisará instalar
+[jsonlite](https://cran.r-project.org/web/packages/jsonlite/index.html) para trabalhar
+com objetos JSON e [dplyr](https://dplyr.tidyverse.org/) para manipulação
+de dados.
+
+```r
+install.packages("httr")
+install.packages("jsonlite")
+install.packages("dplyr")
+```
+
+Agora você pode começar a escrever seu script em R para se conectar à API. No
+início do arquivo, carregue os pacotes httr, jsonlite e dplyr.
+
+```r
+require(httr)
+require(jsonlite)
+require(dplyr)
+```
+
+A primeira etapa no seu exemplo de código é preparar a autenticação na
+API do X. Obtenha o
+[Bearer Token](/pt-BR/resources/fundamentals/authentication#using-and-generating-an-app-only-bearer-token) que você recuperou do
+seu App e passe-o nos headers para autenticação. No exemplo abaixo,
+substitua $BEARER\_TOKEN pelo seu token.
+
+```r
+bearer_token <- Sys.getenv("$BEARER_TOKEN")
+headers <- c(`Authorization` = sprintf('Bearer %s', bearer_token))
+```
+
+Depois que a autenticação estiver configurada, defina os parâmetros da sua solicitação.
+Por padrão, você receberá o id, name e username de cada usuário retornado.
+Você pode ajustar esse payload adicionando
+[fields](/pt-BR/x-api/fundamentals/fields) e
+[expansions](/pt-BR/x-api/fundamentals/expansions). Para este exemplo, você vai querer
+a bio do perfil do usuário, solicitada com user.fields=description,
+e uma expansão que contenha o Post fixado do usuário.
+
+```r
+params <- list(`user.fields` = 'description', `expansions` = 'pinned_tweet_id')
+```
+
+Agora você está pronto para formatar sua URL com o handle do X, também conhecido como
+conta, sobre a qual você deseja obter mais informações. Use o método readline
+para tornar este exemplo reutilizável. Depois de digitar o handle que você deseja consultar,
+formate sua URL para incluir o handle definido, substituindo $USERNAME pelo
+handle desejado do X.
+
+```r
+handle <- readline('$USERNAME')
+url_handle <- sprintf('https://api.x.com/2/users/by?usernames=%s', handle)
+```
+
+Neste ponto, use o pacote httr para fazer uma requisição GET para a URL que você acabou de
+criar, passe nossa credencial de autenticação via header e informe os
+parâmetros que você definiu. Você pode salvar a resposta como um texto na
+variável obj e imprimi-la para ver o resultado da solicitação feita.
+
+```r
+response <-
+  httr::GET(url = url_handle,
+    httr::add_headers(.headers = headers),
+    query = params)
+obj <- httr::content(response, as = "text")
+print(obj)
+```
+
+<div id="working-with-our-json-payload">
+  ### Trabalhando com nosso payload JSON
+</div>
+
+Uma das minhas formas favoritas de trabalhar com JSON é usar um data frame, que permite acessar com facilidade dados complexos e aninhados. Para isso, use o método fromJSON do pacote jsonlite para achatar o arquivo, de modo que os campos fiquem no mesmo objeto. Em seguida, passe esse objeto para um data frame. Agora você está pronto para visualizar esse data frame.
+
+```
+json_data <- fromJSON(obj, flatten = TRUE) %>% as.data.frame
+View(json_data)
+```
+
+Você pode acessar os campos dos dados a partir do data frame e inseri-los em uma string que contenha o handle, o nome de usuário e a bio.
+
+```r
+final <-
+  sprintf(
+    "Handle: %s\nBio: %s\nPinned Post: %s",
+    json_data$data.username,
+    json_data$data.description,
+    json_data$includes.tweets.text
+  )
+```
+
+Use cat em vez de print para visualizar o objeto com quebras de linha entre cada campo extraído.
+
+```r
+cat(final)
+```
+
+Se você tiver vários handles para os quais fez solicitações, poderá usar facilmente um loop para acessar cada elemento do data frame.
+
+<div id="conclusion">
+  ### Conclusão
+</div>
+
+Esperamos que este tutorial sirva como ponto de partida para trabalhar com R e a
+API do X. Como próximo passo, você pode conferir nossos exemplos em R para busca recente,
+consulta de posts e consulta de usuários em nosso
+[v2 sample code](https://github.com/xdevplatform). Não deixe de nos avisar nos
+[fóruns](https://devcommunity.x.com/) se encontrar algum problema pelo
+caminho ou de nos marcar em [@XDevelopers](https://x.com/XDevelopers) se este
+tutorial inspirar você a criar algo.

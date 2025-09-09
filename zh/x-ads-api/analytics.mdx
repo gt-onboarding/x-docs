@@ -1,0 +1,1467 @@
+---
+title: 分析
+---
+
+import { Button } from '/snippets/zh/button.mdx';
+
+<div id="introduction">
+  ## 介绍
+</div>
+
+分析指标帮助合作伙伴和广告主了解其在 X 上推广内容的表现。这包括展示量、点击量、视频播放量和花费等信息。此外，合作伙伴和广告主还可以获取所触达受众不同细分群体的详细指标。
+
+X 广告 API 支持两种获取详细广告系列表现指标的方式：同步与异步。使用同步分析调用时，请求的指标会在响应中直接返回。使用异步分析端点时，请求的指标会在关联“作业”处理完成后，通过可下载的结果文件提供。同步端点适用于较短的时间范围，理想用于实时优化广告系列。异步端点支持更长的时间范围，适合获取更多数据，非常适用于生成报表或进行历史回填。
+
+<div id="details">
+  ## 详情
+</div>
+
+<div id="synchronous-vs-asynchronous">
+  ### 同步与异步
+</div>
+
+同步与异步分析端点之间的差异总结如下表。此信息旨在帮助开发者选择使用哪一组端点。
+
+| 功能 | 同步 | 异步 |
+|:---------|:------------|:--------------|
+| 速率限制 | 用户级：每 15 分钟 250 次请求 | 账户级：最多并发进行 100 个\*作业 |
+| 时间范围 | 7 天 | 90 天（未分段）<br />45 天（已分段） |
+| 分段 | 否 | 是 |
+| 返回内容 | 指标数据 | 作业\*\*的处理状态 |
+| 推荐使用场景 | 实时优化<br />用户界面请求 | 定期同步<br />回填历史数据 |
+
+<Note>
+  \* 指在任一时间点处于处理状态的作业数量上限。
+
+  \*\* 作业成功处理完成后，会返回一个 URL，可从该地址下载压缩（gzip）结果文件。
+
+  除此之外，这些端点提供相同的功能。
+</Note>
+
+<div id="use-cases">
+  ### 使用场景
+</div>
+
+主要有三种分析使用场景。
+
+1. 实时优化：使用绩效指标更新正在投放的广告系列
+2. 同步：按计划定期进行的后台同步
+3. 新账户上手：回填历史数据
+
+同步分析端点可用于实时优化，依据过去 5 至 15 分钟内指标的变化来更新广告系列。任一端点均可用于分析同步。请注意，所需的时间范围以及是否需要细分将决定使用哪个端点。新账户上手只能通过异步分析端点完成。（切勿使用同步分析端点来检索大量数据。）
+
+若将指标通过后端流程进行同步，异步分析端点可为仪表板和其他 UI 元素提供支持。你的实现应避免为满足用户界面请求而直接调用异步分析端点。
+
+<div id="request-options">
+  ### 请求选项
+</div>
+
+分析请求以广告账户为作用域，因此需要在资源路径中包含账户 ID。如下所列的请求选项通过查询参数指定。以下类型的值为必填。
+
+- 实体：实体类型，以及最多 20 个需要获取分析数据的实体 ID
+- 时间范围：开始时间和结束时间，使用 ISO 8601 表示
+  - 注意：必须以整点小时表示
+- 指标组：一个或多个相关指标集合（各指标组内的指标列表见“指标与分段”）
+- 粒度：指定返回指标的聚合层级
+- 投放位置：决定是否为在 X 内或 X 站外投放的广告提取指标
+  - 注意：每个请求只能指定一个投放位置值
+
+使用 `start_time` 和 `end_time` 请求参数指定时间范围。这些值必须与所选粒度按以下方式对齐。
+
+1. `TOTAL`：可指定任意时间范围（在该端点的限制内）
+2. `DAY`：开始时间和结束时间必须与账户时区的午夜对齐
+3. `HOUR`：可指定任意时间范围（在该端点的限制内）
+
+结束时间为不包含。例如，请求 `start_time=2019-01-01T00:00:00Z` 和 `end_time=2019-01-02T00:00:00Z` 将仅返回一天的分析指标（而非两天），因为该时间范围仅覆盖 24 小时。
+
+**分段**
+
+仅通过我们的异步分析端点提供，分段允许合作伙伴和广告主按特定定向值拆分并检索指标。要请求分段指标，请使用 `segmentation_type` 请求参数。有关分段选项的更多信息，请参阅[指标与分段](/zh/x-ads-api/analytics#metrics-and-segmentation)。
+
+<div id="faqs">
+  ## 常见问题
+</div>
+
+为什么 X 广告 API 的数值与 X Ads UI 中显示的不一致？
+
+- 请确保你已请求所有投放位置的数据：`ALL_ON_TWITTER`、`PUBLISHER_NETWORK`、`SPOTLIGHT` 和 `TREND`。
+- 请记住，X 广告 API 中的结束时间为“排除”；而在 Ads UI 中为“包含”。
+
+为什么我请求数据的时间不同，数值会发生变化？
+
+- 指标一旦可用，你就可以检索到，且几乎是实时更新。但这些早期结果是预估值，因此预期会发生变动。除花费数据外，指标会在 24 小时后最终定版。
+- 花费类指标通常会在事件发生后 3 天内最终确定。不过，我们会在事件发生之日起最长 14 天内处理计费数据（例如用于垃圾信息过滤）。
+
+如何确定在特定时间段应请求哪些实体 ID？
+
+- 使用[活跃实体端点](/zh/x-ads-api/analytics#active-entities-2)
+
+为什么分析响应中的所有值都是 `null`？
+
+- 很可能是该广告系列在所请求的时间段内未投放
+- 使用[活跃实体端点](/zh/x-ads-api/analytics#active-entities-2)来确定应获取哪些实体的分析以及对应的时间范围
+
+为什么 API 显示 `null` 值，而 UI 显示为 0？
+
+- UI 选择以 0 展示这些值，但两者在意义上等价
+
+如何请求与更细粒度投放位置关联的指标，例如 X 时间线？
+
+- 我们在分析中支持以下投放位置取值：`ALL_ON_TWITTER`、`PUBLISHER_NETWORK`、`SPOTLIGHT` 和 `TREND`（即 [X Audience Platform](/zh/x-ads-api/audiences)）
+
+是否可以检索已删除或已暂停的实体的指标？
+
+- 可以。实体状态不影响分析指标的可用性。
+
+为什么分段后的数值与未分段的数值不匹配？
+
+- 由于数据生成方式所致，分段数据并不预期能 100% 汇总到未分段数据。
+
+是否可以按多个维度请求分段数据？
+
+- 我们不支持多重分段。
+
+<div id="best-practices">
+  ## 最佳实践
+</div>
+
+通过 X 广告 API 收集[分析](/zh/x-ads-api/analytics)数据时的若干最佳实践。
+
+<div id="rate-limiting-and-retries">
+  ### 速率限制与重试
+</div>
+
+- 对于受到速率限制的查询（返回 `HTTP 429` 状态码），必须检查 `x-rate-limit-reset` 头部，并仅在所示时间点或之后重试。
+- 对于返回 HTTP 503 Service Unavailable 状态码的查询，必须检查 `retry-after` 头部，并仅在所示时间之后重试。
+- 不按指示的重试时间执行的应用，可能在未事先通知的情况下被撤销或限速其对 X 广告 API 的访问。
+
+<div id="analytics-metrics-in-a-nutshell">
+  ### 分析指标一览
+</div>
+
+- 所有分析指标在 24 小时后即锁定且不再变更，`billed_charge_local_micro` 除外。
+- `billed_charge_local_micro` 指标在数据返回后的最多 3 天内为估算值。
+- 24 小时后，该指标可能因超支抵扣（在给定 `end_time` 之后投放的广告）以及被判定为无效的可计费事件而下降。该指标在 24 小时后仅会发生极小幅度的变动。
+- 更多信息请参见 [Analytics](/zh/x-ads-api/analytics)。
+
+<div id="fetching-real-time-non-segmented-data">
+  ### 获取实时、非分段数据
+</div>
+
+- 始终同时提供 `start_time` 和 `end_time`。
+- 不要为早于 7 天的任何实体拉取数据。
+- 建议以 `HOUR` 粒度请求数据，因为你始终可以先细粒度获取，再聚合汇总为 `DAY` 或 `TOTAL` 粒度。
+- 建议在 `line_items` 和 `promoted_tweets` 层级请求数据，因为你始终可以聚合汇总这些指标，得到整个广告实体层级的总计（例如 campaign、funding instrument 或 account 层级）。
+- 在你这边（本地）保存并持久化分析指标的数值。
+- 不要反复查询早于 30 天的数据。此类数据不会变更，应该本地存储。
+- 所有非分段数据均为实时数据，事件发生后的数秒内即可可用。
+- 将转化指标与非转化指标分成单独的请求。
+
+<div id="fetching-segmented-data">
+  ### 获取分段数据
+</div>
+
+- 请参考上文“获取实时、非分段数据”的指南。以下为补充建议。
+- 对于大多数分段数据类型，数据在某些情况下可能在最长 1 小时内不完整。按 `INTERESTS` 分段的数据的可用性可能会延迟最长 12 小时。
+- 由于该信息的生成方式，分段数据的汇总不一定会与非分段数据完全对齐（不保证 100% 一致）。
+
+<div id="fetching-historical-data">
+  ### 获取历史数据
+</div>
+
+- 在回填数据时（例如添加新的广告主账户），你可能需要将请求拆分为较小的 `start_time` 与 `end_time` 时间段，多次发起请求。
+- 将拉取范围限制在 30 天的时间窗口内。
+- 对这些请求进行限速，并在一段时间内分散执行，避免耗尽该类拉取的速率上限。
+
+<div id="sample">
+  ### 示例
+</div>
+
+你可以在我们的 [ads-platform-tools GitHub](https://github.com/xdevplatform/ads-platform-tools) 仓库中找到一个示例脚本（`fetch_stats`），展示了其中一些最佳实践。
+
+<div id="metrics-by-objective">
+  ## 按目标划分的指标
+</div>
+
+某个实体适用的指标取决于其[广告系列目标](/zh/x-ads-api/campaign-management)。使用本指南确定每种目标类型应获取的相关指标组，以及如何计算额外的派生指标。
+
+<div id="engagements">
+  ### `ENGAGEMENTS`
+</div>
+
+**相关指标组：**`ENGAGEMENT` 和 `BILLING`。如果创意中包含媒体，`MEDIA` 也适用。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 公开指标计算公式 |
+| 互动率 | `engagements/impressions` |
+| CPE | `billed_charge_local_micro/engagements` |
+| 媒体观看率 | `media_views/impressions` |
+
+<div id="website_clicks-and-website_conversions">
+  ### `WEBSITE_CLICKS` 和 `WEBSITE_CONVERSIONS`
+</div>
+
+**相关指标组：**`ENGAGEMENT`、`BILLING` 和 `WEB_CONVERSION`。如果创意中使用了媒体，`MEDIA` 也适用。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 暴露指标计算方式 |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| 点击率 | `clicks/impressions` |
+| CPLC | `billed_charge_local_micro/clicks` |
+| 总转化数 | `conversion_custom` + `conversion_site_visits` + `conversion_sign_ups` + `conversion_downloads` + `conversion_purchases` |
+| 转化率 | 总转化数 / `impressions` |
+| CPA | `billed_charge_local_micro` / 总转化数 |
+
+<div id="app_installs-and-app_engagements">
+  ### `APP_INSTALLS` 和 `APP_ENGAGEMENTS`
+</div>
+
+**相关指标组：**`ENGAGEMENT`、`BILLING`、`MOBILE_CONVERSION` 和 `LIFE_TIME_VALUE_MOBILE_CONVERSION`。如果创意中使用了媒体或视频应用卡片，则 `MEDIA` 和 `VIDEO` 也适用。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 公开指标计算 |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| 应用点击率 | `app_clicks/impressions` |
+| CPAC | `billed_charge_local_micro/app_clicks` |
+| CPI | `billed_charge_local_micro/mobile_conversion_installs` |
+
+<div id="followers">
+  ### `FOLLOWERS`
+</div>
+
+**相关指标组：**`ENGAGEMENT` 和 `BILLING`。如果创意中包含媒体，`MEDIA` 也适用。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 公开指标计算 |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| 关注率 | `follows/impressions` |
+| CPF | `billed_charge_local_micro/follows` |
+| 媒体观看率 | `media_views/impressions` |
+
+<div id="lead_generation">
+  ### `LEAD_GENERATION`
+</div>
+
+**相关指标组：**`ENGAGEMENT` 和 `BILLING`。如果创意中包含媒体，`MEDIA` 也适用。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 暴露指标计算方式 |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| 潜在客户数 | `card_engagements` |
+| 潜在客户率 | `card_engagements/impressions` |
+| 单个潜在客户成本 | `billed_charge_local_micro/card_engagements` |
+
+<div id="video_views">
+  ### `VIDEO_VIEWS`
+</div>
+
+**相关指标组：**`ENGAGEMENT`、`BILLING` 和 `VIDEO`。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 暴露指标的计算方式 |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| 视频观看率 | `video_total_views/impressions` |
+| 每次观看成本 | `billed_charge_local_micro/video_total_views` |
+
+<div id="video_views_preroll">
+  ### `VIDEO_VIEWS_PREROLL`
+</div>
+
+**相关指标组：**`ENGAGEMENT`、`BILLING` 和 `VIDEO`。
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 公开指标计算 |
+| CPM | `billed_charge_local_micro/impressions/1000` |
+| 视频观看率 | `video_total_views/impressions` |
+| 每次观看成本 | `billed_charge_local_micro/video_total_views` |
+
+<div id="metrics-and-segmentation">
+  ## 指标与细分
+</div>
+
+本文档概述了我们的 [Analytics](/zh/x-ads-api/analytics) 针对各类实体可用的指标，以及每类指标支持的细分方式。
+
+|     |     |     |     |     |     |     |     |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+|     | 指标组 |     |     |     |     |     |     |
+| 实体 | [`ENGAGEMENT`](#engagement) | [`BILLING`](#BILLING) | [`VIDEO`](#VIDEO) | [`MEDIA`](#MEDIA) | [`WEB_CONVERSION`](#WEB_CONVERSION) | [`MOBILE_CONVERSION`](#MOBILE_CONVERSION) | [`LIFE_TIME_VALUE_MOBILE_CONVERSION`](#LIFE_TIME_VALUE_MOBILE_CONVERSION) |
+| `ACCOUNT` | ✔\*  |     |     |     |     |     |     |
+| `FUNDING_INSTRUMENT` | ✔\*  | ✔   |     |     |     |     |     |
+| `CAMPAIGN` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `LINE_ITEM` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `PROMOTED_TWEET` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `MEDIA_CREATIVE` | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   | ✔   |
+| `ORGANIC_TWEET` | ✔   |     | ✔   |     |     |     |     |
+
+\*`ENGAGEMENT` 指标组中的部分指标在账号和资金工具级别不可用。详情请参见 `ENGAGEMENT` 部分。
+
+<div id="available-metrics-by-metrics-group">
+  ### 按指标组划分的可用指标
+</div>
+
+<div id="engagement">
+  #### `ENGAGEMENT`
+</div>
+
+|     |     |     |     |     |
+| :--- | :--- | :--- | :--- | :--- |
+| Metric | 描述 | 可细分 | 数据类型 | 适用于账号 / 资金工具 |
+| `engagements` | 互动总数 | ✔   | 整数数组 | ✔   |
+| `impressions` | 展示总数 | ✔   | 整数数组 | ✔   |
+| `retweets` | 转推总数 | ✔   | 整数数组 | ✔   |
+| `replies` | 回复总数 | ✔   | 整数数组 | ✔   |
+| `likes` | 点赞总数 | ✔   | 整数数组 | ✔   |
+| `follows` | 关注总数 | ✔   | 整数数组 | ✔   |
+| `card_engagements` | 卡片互动总数 | ✔   | 整数数组 |     |
+| `clicks` | 点击总数（包括收藏及其他互动） | ✔   | 整数数组 |     |
+| `app_clicks` | 应用安装或打开尝试次数 | ✔   | 整数数组 |     |
+| url\_clicks | 广告中链接或网站卡片的总点击数（含自然获得） | ✔   | 整数数组 |     |
+| `qualified_impressions` | 有效展示总数 | ✔   | 整数数组 |     |
+| `carousel_swipes` | 轮播图片或视频的总滑动次数 | ✔   | 整数数组 |     |
+
+<div id="billing">
+  #### `BILLING`
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| 指标 | 描述 | 可分段 | 数据类型 |
+| `billed_engagements` | 计费互动总数 | ✔   | 整数数组 |
+| `billed_charge_local_micro` | 本地货币微单位的总花费 | ✔   | 整数数组 |
+
+<div id="video">
+  #### `VIDEO`
+</div>
+
+关于视频指标定义变更的通知：
+
+根据 MRC 标准，`VIDEO` 指标组中的 `video_total_views` 指标将统计在画面至少有 50% 处于可见状态且持续 2 秒的观看次数。
+
+我们原先的视频观看定义（至少 3 秒且 100% 可见）将继续以新的 `video_3s100pct_views` 指标在 `VIDEO` 指标组中提供。若要继续基于原始观看定义出价并计费，请使用新提供的 `VIEW_3S_100PCT` bid\_unit。
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metric | Description | Segmentation Available | Data Type |
+| `video_total_views` | 视频观看总次数 | ✔   | Array of ints |
+| `video_views_25` | 至少观看了视频时长的 25% 的总次数。 | ✔   | Array of ints |
+| `video_views_50` | 至少观看了视频时长的 50% 的总次数。 | ✔   | Array of ints |
+| `video_views_75` | 至少观看了视频时长的 75% 的总次数。 | ✔   | Array of ints |
+| `video_views_100` | 至少观看了视频时长的 100% 的总次数。 | ✔   | Array of ints |
+| `video_cta_clicks` | 号召性用语按钮的总点击次数 | ✔   | Array of ints |
+| `video_content_starts` | 视频开始播放的总次数 | ✔   | Array of ints |
+| `video_3s100pct_views` | 在 100% 可见状态下播放至少 3 秒的观看总次数（旧版 `video_total_views`） | ✔   | Array of ints |
+| `video_6s_views` | 至少观看了 6 秒视频的总次数 | ✔   | Array of ints |
+| `video_15s_views` | 至少观看了 15 秒或观看了总时长 95% 的总次数 | ✔   | Array of ints |
+
+<div id="media">
+  #### `MEDIA`
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| 指标 | 描述 | 支持分段 | 数据类型 |
+| `media_views` | 覆盖视频、Vine、GIF 和图片的媒体总观看次数（含自动播放与点击播放）。 | ✔   | 整数数组 |
+| `media_engagements` | 覆盖视频、Vine、GIF 和图片的媒体总点击次数。 | ✔   | 整数数组 |
+
+<div id="web_conversion">
+  #### `WEB_CONVERSION`
+</div>
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| Metric | 描述 | 可用细分 | 数据类型 |
+| `conversion_purchases` | PURCHASE 类型的转化次数，以及对应的销售金额和订单数量 | 仅 `PLATFORMS` | JSON 对象 |
+| `conversion_sign_ups` | SIGN\_UP 类型的转化次数，以及对应的销售金额和订单数量 | 仅 `PLATFORMS` | JSON 对象 |
+| `conversion_site_visits` | SITE\_VISIT 类型的转化次数，以及对应的销售金额和订单数量 | 仅 `PLATFORMS` | JSON 对象 |
+| `conversion_downloads` | DOWNLOAD 类型的转化次数，以及对应的销售金额和订单数量 | 仅 `PLATFORMS` | JSON 对象 |
+| `conversion_custom` | CUSTOM 类型的转化次数，以及对应的销售金额和订单数量 | 仅 `PLATFORMS` | JSON 对象 |
+
+<div id="mobile_conversion">
+  #### `MOBILE_CONVERSION`
+</div>
+
+仅对启用了 MACT 的广告主账户提供移动端转化统计。
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| 指标 | 说明 | 可用分段 | 数据类型 |
+| `mobile_conversion_spent_credits` | 类型为 SPENT\_CREDIT 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_installs` | 类型为 INSTALL 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_content_views` | 类型为 CONTENT\_VIEW 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_add_to_wishlists` | 类型为 ADD\_TO\_WISHLIST 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_checkouts_initiated` | 类型为 CHECKOUT\_INITIATED 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_reservations` | 类型为 RESERVATION 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_tutorials_completed` | 类型为 TUTORIAL\_COMPLETED 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_achievements_unlocked` | 类型为 ACHIEVEMENT\_UNLOCKED 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_searches` | 类型为 SEARCH 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_add_to_carts` | 类型为 ADD\_TO\_CART 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_payment_info_additions` | 类型为 PAYMENT\_INFO\_ADDITION 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_re_engages` | 类型为 RE\_ENGAGE 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_shares` | 类型为 SHARE 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_rates` | 类型为 RATE 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_logins` | 类型为 LOGIN 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_updates` | 类型为 UPDATE 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_levels_achieved` | 类型为 LEVEL\_ACHIEVED 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_invites` | 类型为 INVITE 的移动端转化，按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 进行细分 | ✔   | JSON 对象 |
+| `mobile_conversion_key_page_views` | 类型为 KEY\_PAGE\_VIEW 的移动端转化，按 post\_view 和 post\_engagement 进行细分 | ✔   | JSON 对象 |
+| mobile\_conversion\_downloads | 按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 维度细分的移动端转化（类型：DOWNLOAD） | ✔   | JSON 对象 |
+| mobile\_conversion\_purchases | 按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 维度细分的移动端转化（类型：PURCHASE） | ✔   | JSON 对象 |
+| mobile\_conversion\_sign\_ups | 按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 维度细分的移动端转化（类型：SIGN\_UP） | ✔   | JSON 对象 |
+| mobile\_conversion\_site\_visits | 按 post\_view、post\_engagement、assisted、order\_quantity 和 sale\_amount 维度细分的移动端转化（类型：SITE\_VISIT） | ✔   | JSON 对象 |
+
+<div id="life_time_value_mobile_conversion">
+  #### `LIFE_TIME_VALUE_MOBILE_CONVERSION`
+</div>
+
+仅对已启用 MACT 的广告主账户提供全生命周期移动转化统计。
+
+|     |     |     |     |
+| :--- | :--- | :--- | :--- |
+| 指标 | 说明 | 可用细分 | 数据类型 |
+| `mobile_conversion_lifetime_value_purchases` | PURCHASE 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_sign_ups` | SIGN\_UP 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_updates` | UPDATE 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_tutorials_completed` | TUTORIAL\_COMPLETED 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_reservations` | RESERVATION 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_add_to_carts` | ADD\_TO\_CART 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_add_to_wishlists` | ADD\_TO\_WISHLIST 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_checkouts_initiated` | CHECKOUT\_INITIATED 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_levels_achieved` | LEVEL\_ACHIEVED 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_achievements_unlocked` | ACHIEVEMENT\_UNLOCKED 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_shares` | SHARE 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_invites` | INVITE 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_payment_info_additions` | PAYMENT\_INFO\_ADDITION 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_spent_credits` | SPENT\_CREDIT 类型的移动转化明细 |     | JSON 对象 |
+| `mobile_conversion_lifetime_value_rates` | RATE 类型的移动转化明细 |     | JSON 对象 |
+
+<div id="segmentation">
+  ### 分段
+</div>
+
+分段报告可按指定定向类型的各个取值拆分并获取指标。由于复杂度较高，分段仅可通过[异步分析查询](/zh/x-ads-api/analytics#asynchronous-analytics)使用。
+
+`MEDIA_CREATIVE` 或 `ORGANIC_TWEET` 实体不支持分段。
+
+某些分段类型需要传入额外参数，详见下文。
+
+当按 `CITIES` 或 `POSTAL_CODES` 分段时，API 将**仅**返回已定向的位置。区域（Region）和都市圈（Metro）分段将返回已定向和未定向的位置。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| 分段类型 | 需要 `country` 参数 | 需要 `platform` 参数 |
+| `AGE` |     |     |
+| `APP_STORE_CATEGORY` |     |     |
+| `AUDIENCES` |     |     |
+| `CITIES` | ✔   |     |
+| `CONVERSATIONS` |     |     |
+| `CONVERSION_TAGS` |     |     |
+| `DEVICES` |     | ✔   |
+| `EVENTS` |     |     |
+| `GENDER` |     |     |
+| `INTERESTS` |     |     |
+| `KEYWORDS` |     |     |
+| `LANGUAGES` |     |     |
+| `LOCATIONS` |     |     |
+| `METROS` | ✔   |     |
+| `PLATFORMS` |     |     |
+| `PLATFORM_VERSIONS` |     | ✔   |
+| `POSTAL_CODES` | ✔   |     |
+| `REGIONS` | ✔   |     |
+| `SLIDES` |     |     |
+| `SIMILAR_TO_FOLLOWERS_OF_USER` |     |     |
+| `TV_SHOWS` |     |     |
+
+<div id="derived-metrics">
+  ## 衍生指标
+</div>
+
+广告系列指标取决于其[广告系列目标](/zh/x-ads-api/campaign-management)。请使用本指南，根据当前采用的目标确定如何计算相应的衍生指标。
+
+任何不带花括号的 `metric` 都是由 X 广告 API 的[分析](/zh/x-ads-api/analytics#synchronous-analytics)端点返回的。任何用 \{花括号} 括起的名称表示该类别的衍生指标。
+
+<div id="engagements">
+  ### 互动
+</div>
+
+|     |     |
+| :--- | :--- |
+| 衍生指标 | 公开指标计算方式 |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Total Engagements} | `promoted_account_follows + promoted_tweet_search_engagements + promoted_tweet_timeline_engagements + promoted_tweet_profile_engagements` 或者 `promoted_account_follows + promoted_tweet_search_clicks + promoted_tweet_search_replies + promoted_tweet_search_retweets + promoted_tweet_search_follows + promoted_tweet_timeline_clicks + promoted_tweet_timeline_replies + promoted_tweet_timeline_retweets + promoted_tweet_timeline_follows + promoted_tweet_profile_clicks + promoted_tweet_profile_replies + promoted_tweet_profile_retweets + promoted_tweet_profile_follows` |
+| \{Engagement Rate} | `{Total Engagements} / {Impressions}` |
+| {CPE} | `billed_charge_local_micro / {Total Engagements}` |
+| \{Media Views} | `promoted_tweet_timeline_media_views + promoted_tweet_search_media_views + promoted_tweet_profile_media_views` |
+| \{Media View Rate} | `{Media Views} / {Impressions}` |
+
+### WEBSITE\_CLICKS
+
+|     |     |
+| :--- | :--- |
+| Derived Metric | Exposed Metric Calculation |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Link Clicks} | `promoted_tweet_search_url_clicks + promoted_tweet_timeline_url_clicks + promoted_tweet_profile_url_clicks` |
+| \{Click Rate} | `{Link Clicks} / {Impressions}` |
+| {CPLC} | `billed_charge_local_micro / {Link Clicks}` |
+| {Conversion} | `conversion_site_visits` |
+| \{Conversion Rate} | `conversion_site_visits / {Impressions}` |
+| {CPA} | `billed_charge_local_micro / conversion_site_visits` |
+
+### APP\_INSTALLS 和 APP\_ENGAGEMENTS
+
+|     |     |
+| :--- | :--- |
+| 推导指标 | 显式指标计算 |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{App Clicks} | `promoted_tweet_app_install_attempts + promoted_tweet_app_open_attempts + promoted_tweet_timeline_url_clicks + promoted_tweet_search_url_clicks` |
+| \{App Click Rate} | `{App Clicks} / {Impressions}` |
+| {CPAC} | `billed_charge_local_micro / {App Clicks}` |
+| {CPI} | `billed_charge_local_micro / mobile_conversion_installs` |
+
+<div id="followers">
+  ### 关注者
+</div>
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 指标公开计算方式 |
+| {Impressions} | `promoted_account_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| {Followers} | `promoted_account_follows` |
+| \{Follow Rate} | `promoted_account_follow_rate` |
+| {CPF} | `billed_charge_local_micro / promoted_account_follows` |
+| \{Media Views} | `promoted_tweet_timeline_media_views + promoted_tweet_search_media_views + promoted_tweet_profile_media_views` |
+| \{Media View Rate} | `{Media Views} / {Impressions}` |
+
+### LEAD\_GENERATION
+
+|     |     |
+| :--- | :--- |
+| 推导指标 | 公开指标计算 |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| {Leads} | `promoted_tweet_search_card_engagements + promoted_tweet_timeline_card_engagements + promoted_tweet_profile_card_engagements` |
+| \{Lead Rate} | `{Leads} / {Impressions}` |
+| \{Cost Per Lead} | `billed_charge_local_micro / {Leads}` |
+
+### VIDEO\_VIEWS
+
+|     |     |
+| :--- | :--- |
+| 衍生指标 | 公开指标计算 |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Video Views} | `promoted_video_total_views` |
+| \{Video Rate} | `promoted_video_total_views / {Impressions}` |
+| \{Cost Per View} | `billed_charge_local_micro / promoted_video_total_views` |
+
+### QUALIFIED\_IMPRESSIONS
+
+|     |     |
+| :--- | :--- |
+| 派生指标 | 已公开指标的计算方式 |
+| {Impressions} | `promoted_tweet_search_impressions + promoted_tweet_timeline_impressions + promoted_tweet_profile_impressions` |
+| {CPM} | `billed_charge_local_micro / {Impressions} / 1000` |
+| \{Qualified Impressions} | `promoted_tweet_timeline_qualified_impressions + promoted_tweet_search_qualified_impressions + promoted_tweet_profile_qualified_impressions` |
+| \{Qualified Impression Rate} | `{Qualified Impressions} / {Impressions}` |
+| \{Cost Per 1000 Qualified Impressions } | `billed_charge_local_micro / {Qualified Impressions} / 1000` |
+
+<div id="custom">
+  ### CUSTOM
+</div>
+
+对于 `placement_type` 为 `PROMOTED_ACCOUNT` 的情况，请参阅上方的 `FOLLOWERS` 目标。对于与该目标相关的其他所有投放位置，请参阅 `ENGAGEMENTS` 以获取相应的衍生指标。
+
+<div id="guides">
+  ## 指南
+</div>
+
+<div id="active-entities">
+  ### 活跃实体
+</div>
+
+<div id="introduction">
+  #### 介绍
+</div>
+
+[活跃实体端点](/zh/x-ads-api/analytics#get-stats-accounts-account-id-active-entities)旨在与我们的[同步](/zh/x-ads-api/analytics#get-stats-accounts-account-id)和[异步](/zh/x-ads-api/analytics#asynchronous-analytics)分析端点配合使用，因为它会告知应为哪些广告系列请求分析。其实现方式是返回广告实体及其指标发生变化的时间等详细信息。使用此端点将显著简化你的代码与分析获取逻辑。
+
+本指南提供有关该端点及其数据源的信息与背景，还包含[使用指南](#usage)和一系列[示例请求](#example)，演示如何将活跃实体与我们的分析端点结合使用。[摘要部分](#summary)给出了推荐方法的概览性说明。
+
+<div id="data">
+  #### 数据
+</div>
+
+每当广告实体的指标发生变动时，我们都会记录相应信息。这些变更事件按小时分桶存储，既包含该实体的详细信息，也包含该变更所对应的生效时间。之所以需要后者，是因为变更事件并不总与其被记录的时间一致。账单调整是常见原因之一，但也可能有其他原因。
+
+<div id="endpoint">
+  #### 终端节点
+</div>
+
+<div id="request">
+  ### 请求
+</div>
+
+活跃实体请求以广告账户为作用范围，并包含三个必需的查询参数：`entity`、`start_time` 和 `end_time`。
+
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=PROMOTED_TWEET&start_time=2019-03-05T00:00:00Z&end_time=2019-03-06T00:00:00Z"`
+
+支持以下 `entity` 取值：`CAMPAIGN`、`FUNDING_INSTRUMENT`、`LINE_ITEM`、`MEDIA_CREATIVE`、`PROMOTED_ACCOUNT` 和 `PROMOTED_TWEET`。这与我们的分析端点所支持的实体类型一致。
+
+`start_time` 和 `end_time` 的值必须采用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 格式，指定要查询的按小时聚合的时间桶，且必须为整点小时。
+
+此端点还支持三个可选参数用于过滤结果：`funding_instrument_ids`、`campaign_ids` 和 `line_item_ids`。这些参数适用于广告层级的所有级别，且可与任意指定的 `entity` 类型配合使用。
+
+<div id="response">
+  ### 响应
+</div>
+
+上述请求的活跃实体响应如下所示。
+
+```json
+    {
+      "request": {
+        "params": {
+          "account_id": "18ce54d4x5t",
+          "entity": "PROMOTED_TWEET",
+          "start_time": "2019-03-05T00:00:00Z",
+          "end_time": "2019-03-06T00:00:00Z"
+        }
+      },
+      "data": [
+        {
+          "entity_id": "2r0wxw",
+          "activity_start_time": "2019-03-04T20:55:20Z",
+          "activity_end_time": "2019-03-05T03:43:56Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        },
+        {
+          "entity_id": "2r30fn",
+          "activity_start_time": "2019-03-05T08:11:08Z",
+          "activity_end_time": "2019-03-05T14:40:59Z",
+          "placements": [
+            "ALL_ON_TWITTER",
+            "PUBLISHER_NETWORK"
+          ]
+        }
+      ]
+    }
+```
+
+`data` 数组为每个应在后续分析请求中包含的实体提供一个对象。请勿为不在此集合中的 ID 请求分析数据。
+
+每个对象包含四个字段：`entity_id`、`activity_start_time`、`activity_end_time` 和 `placements`。活动开始与结束时间表示关联实体变更事件生效的时间范围，因此决定后续分析请求中应指定的日期。`placements` 数组可能包含以下取值：`ALL_ON_TWITTER`、`PUBLISHER_NETWORK`、`SPOTLIGHT` 和 `TREND`，用于指示针对该实体 ID 应请求的投放位置。
+
+<div id="usage">
+  #### 使用说明
+</div>
+
+应以“活跃实体”端点为依据来决定如何发起分析请求。以下使用指南旨在支持分析同步，帮助合作伙伴使其数据存储与 Twitter 保持一致。换言之，它说明了如何执行定期的后台同步。
+
+开发者需要做两个决定：
+
+1. 多久请求一次活跃实体信息，从而多久拉取一次分析数据。
+2. 如何利用活动的开始与结束时间来确定分析请求的 `start_time` 和 `end_time` 值。
+
+在下文的两个小节中，将在摘要之后对这些内容进行更为详细的说明。
+
+<div id="summary">
+  ### 摘要
+</div>
+
+按以下方式使用“活跃实体”端点来指导如何发起分析请求。在你已确定请求活跃实体信息的频率，也就确定了拉取分析的频率后，再按如下步骤操作。
+
+1. 发起“活跃实体”请求。
+2. 按投放位置拆分响应。分别为 `ALL_ON_TWITTER`、`PUBLISHER_NETWORK`、`SPOTLIGHT` 和 `TREND` 建立分组。
+3. 对每个投放位置分组，执行以下操作。
+   1. 提取实体 ID。
+   2. 确定分析的 `start_time` 和 `end_time`。
+      - 找到最小的 `activity_start_time`，向下取整。
+      - 找到最大的 `activity_end_time`，向上取整。
+   3. 发起分析请求。
+      - 将实体 ID 按每批 20 个进行分组。
+      - 使用第 3b 步得到的 `start_time` 和 `end_time`。
+      - 指定相应的 `placement` 值。
+   4. 写入你的数据存储。
+
+请参阅 [active\_entities.py](https://github.com/xdevplatform/twitter-python-ads-sdk/blob/master/examples/active_entities.py)，该示例使用了 Python SDK。
+
+<div id="frequency">
+  ### 频率
+</div>
+
+对第一个问题的回答将决定在活跃实体请求中应使用的时间范围。比如，如果每小时请求一次活跃实体信息，时间范围应为一小时；如果每天请求一次，时间范围应为一天。换言之，应选择这样的时间范围：当前请求的 `start_time` 等于上一次请求的 `end_time`。
+
+<Note>
+  **注意**：同一时间窗口只应请求一次。对同一时间窗口进行多次请求会造成不必要的分析请求。（例外情况见下文。）
+</Note>
+
+对于希望在当前小时内每小时发起多次分析请求的合作伙伴，同样的规则适用——频率决定时间范围。下表展示了此场景下活跃实体的示例开始和结束时间戳。
+
+|     |     |     |
+| :--- | :--- | :--- |
+| **请求时间** | **`start_time` 时间戳** | **`end_time` 时间戳** |
+| 00:15:00 | 00:00:00 | 00:15:00 |
+| 00:30:00 | 00:15:00 | 00:30:00 |
+| 00:45:00 | 00:30:00 | 00:45:00 |
+| 01:00:00 | 00:45:00 | 01:00:00 |
+
+鉴于变更事件的存储方式，上述四个活跃实体请求实际上查询的是同一个按小时分桶的数据，这对于该用例是必要的。然而，一旦过了当前小时，就不应再查询该小时的分桶。
+
+<div id="activity-times">
+  ### 活动时间
+</div>
+
+我们建议按以下方式处理活动开始和结束时间。在活跃实体（Active Entities）响应的所有对象中，找出最小的 `activity_start_time` 和最大的 `activity_end_time`。将最小开始时间向下取整、最大结束时间向上取整来调整这些值。具体而言，将两者的时间戳的小时、分钟和秒设为 0，并在结束时间上加一天，如下表所示。这些就是后续分析请求中应指定的开始和结束时间。
+
+|     |     |
+| :--- | :--- |
+| **最小、最大活动时间** | **推导时间** |
+| 2019-03-04T20:55:20Z  <br />  <br />2019-03-05T14:40:59Z | 2019-03-04T00:00:00Z  <br />  <br />2019-03-06T00:00:00Z |
+
+**注意**：务必包含小时、分钟和秒均为 0 的时间戳。否则，如果仅传入日期，我们将默认你请求的分析在广告账户所在时区的午夜开始并在午夜结束，这可能不是你想要的。例如，若最小活动开始时间为 2019-02-28T01:30:07Z，而对时区偏移为 -08:00:00 的广告账户省略了时间戳，则该分析请求将错过 01:30 到 08:00 之间发生的变更。
+
+另外，如果你希望仅针对返回的活动时间窗口请求分析，而不扩展到整天，也可以。采用这种方法，推导出的开始和结束时间分别为 2019-03-04T20:00:00Z 和 2019-03-05T15:00:00Z。（请注意，如果在分析请求中指定了 `DAY` 粒度，将不接受此类时间范围。）
+
+<div id="example">
+  #### 示例
+</div>
+
+本节演示如何将活跃实体与同步分析端点结合使用。（为便于阅读，响应已略作修改。）在此示例中，每到整点都会调用活跃实体端点，每个请求都会查看前一小时。响应结果将决定如何使用同步分析端点。
+
+第一次活跃实体请求在 03:00:00 发起。响应显示投放单元 dvcz7 的指标发生了变化，这些变更事件适用于 02:02:55 到 02:58:12 之间的时间窗口。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=LINE_ITEM&start_time=2019-02-11T02:00:00Z&end_time=2019-02-11T03:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": [
+        {
+          "entity_id": "dvcz7",
+          "activity_start_time": "2019-02-11T02:02:55Z",
+          "activity_end_time": "2019-02-11T02:58:12Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        }
+      ]
+    }
+```
+
+基于这些活动开始和结束时间，并采用上述方法，分析的 `start_time` 和 `end_time` 分别设为 2019-02-11T00:00:00Z 和 2019-02-12T00:00:00Z。可以看到下方各指标数组中的第三个元素均为非零值，与活跃实体信息的预期一致。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=dvcz7&start_time=2019-02-11T00:00:00Z&end_time=2019-02-12T00:00:00Z&granularity=HOUR&metric_groups=ENGAGEMENT,VIDEO&placement=ALL_ON_TWITTER"`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 24,
+      "data": [
+        {
+          "id": "dvcz7",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  0,0,2792,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "engagements": [
+                  0,0,60,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "video_total_views": [
+                  0,0,1326,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "request": {}
+    }
+```
+
+下一次活跃实体请求发生在 04:00:00，并且只查看上一小时。正如上文所述，一个时间窗口只应请求一次。根据响应，我们看到该投放单元的变更事件同时适用于 02:00:00 和 03:00:00。随后发起的分析请求中，我们预计这两个小时都会出现变化。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity= LINE_ITEM&start_time=2019-02-11T03:00:00Z&end_time=2019-02-11T04:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": [
+        {
+          "entity_id": "dvcz7",
+          "activity_start_time": "2019-02-11T02:07:17Z",
+          "activity_end_time": "2019-02-11T03:49:22Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        }
+      ]
+    }
+```
+
+除了在 03:00:00 出现非零指标外，我们还看到展示量、花费和 MRC 视频观看次数已从先前的数值更新。以展示量为例，02:00:00 的小时段现在为 2,995，高于之前的 2,792。这表明在 03:00:00 小时段记录的变更事件会回溯应用到 02:00:00 小时段。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=dvcz7&start_time=2019-02-11T00:00:00Z&end_time=2019-02-12T00:00:00Z&granularity=HOUR&metric_groups=ENGAGEMENT,VIDEO&placement=ALL_ON_TWITTER"`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 24,
+      "data": [
+        {
+          "id": "dvcz7",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  0,0,2995,734,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "engagements": [
+                  0,0,65,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "video_total_views": [
+                  0,0,1449,342,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "request": {}
+    }
+```
+
+05:00:00 的活跃实体请求（同样仅查看前一小时）显示变更事件只适用于 03:00:00 小时段。随后一次请求中的分析指标变化也印证了这一点。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=LINE_ITEM&start_time=2019-02-11T04:00:00Z&end_time=2019-02-11T05:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": [
+        {
+          "entity_id": "dvcz7",
+          "activity_start_time": "2019-02-11T03:42:39Z",
+          "activity_end_time": "2019-02-11T03:48:48Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        }
+      ]
+    }
+```
+
+分析响应显示，只有 03:00:00 小时段的指标发生了变化；02:00:00 小时段的数值与上一条分析请求时相同。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids= dvcz7&start_time=2019-02-11T00:00:00Z&end_time=2019-02-12T00:00:00Z&granularity=HOUR&metric_groups=ENGAGEMENT,VIDEO&placement=ALL_ON_TWITTER"`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 24,
+      "data": [
+        {
+          "id": "dvcz7",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  0,0,2995,753,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "engagements": [
+                  0,0,65,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ],
+                "video_total_views": [
+                  0,0,1449,351,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "request": {}
+    }
+```
+
+最后，在 06:00:00 我们看到没有额外的变更事件。注意：这并不意味着该投放项的指标今后不会发生变化。
+
+```
+`twurl -H ads-api.x.com "/11/stats/accounts/18ce54d4x5t/active_entities?entity=LINE_ITEM&start_time=2019-02-11T05:00:00Z&end_time=2019-02-11T06:00:00Z"`
+```
+
+```json
+    {
+      "request": {},
+      "data": []
+    }
+```
+
+<div id="asynchronous-guide">
+  ### 异步使用指南
+</div>
+
+<div id="api-reference">
+  ## API 参考
+</div>
+
+<div id="asynchronous-analytics">
+  ### 异步分析
+</div>
+
+<div id="introduction">
+  #### 介绍
+</div>
+
+异步分析端点允许合作伙伴和广告主通过提交由服务器异步处理的创建请求来获取指标（我们称之为异步分析“作业”）。采用这种方式，客户端无需保持连接直至请求完成。
+
+这些端点与其同步对应端点类似，允许合作伙伴和广告主请求广告系列表现的详细统计数据。它们支持为账户、资金工具、广告系列、投放项、推广推文以及媒体素材请求数据。与同步端点的区别在于，异步分析端点支持更长的日期范围（最长 90 天），并支持分段。有关两者差异的更多信息，请参见我们的[分析总览](/zh/x-ads-api/analytics)页面。
+
+与我们的同步端点不同，速率限制基于某一账户的并发作业数量。换句话说，即在任一时刻处于“处理中”状态的作业数量。我们在广告账户层级进行统计。
+
+<div id="usage">
+  #### 用法
+</div>
+
+通过异步分析端点检索广告系列指标是一个多步骤流程：先创建作业，轮询检查作业是否已完成处理，最后下载数据。数据文件须解压。以下列出四个具体步骤。
+
+1. 使用 [POST stats/jobs/accounts/:account\_id](/zh/x-ads-api/analytics#asynchronous-analytics) 端点创建作业。
+2. 以固定间隔向 [GET stats/jobs/accounts/:account\_id](/zh/x-ads-api/analytics#asynchronous-analytics) 端点发起请求，以确定作业是否已处理完成。
+3. 作业处理完成后，下载数据文件。
+4. 解压数据文件。
+
+数据文件中返回的响应对象与同步分析端点的响应具有相同的 JSON 模式。
+
+分段的广告系列指标仅能通过异步分析端点获取。广告系列指标可按位置、性别、兴趣、关键词等进行细分。完整选项列表请参见 [Metrics and Segmentation](/zh/x-ads-api/analytics#metrics-and-segmentation) 页面。要请求分段指标，请在创建作业时使用 `segmentation_type` 请求参数。
+
+<div id="example">
+  #### 示例
+</div>
+
+本节演示如何使用异步分析端点。
+
+首先，使用 [POST stats/jobs/accounts/:account\_id](/zh/x-ads-api/analytics#asynchronous-analytics) 端点创建一个作业。下面的示例请求某个特定 line item 在一周内的互动指标（如展示次数、点赞、点击等）。请注意，请求的时间范围截至但不包含 3 月 20 日，因为时间戳设为午夜。
+
+```
+$ twurl -X POST -H ads-api.x.com "/9/stats/jobs/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=el32n&start_time=2019-03-12T00:00:00Z&end_time=2019-03-20T00:00:00Z&granularity=TOTAL&placement=ALL_ON_TWITTER&metric_groups=ENGAGEMENT"
+```
+
+```json
+    {
+      "request": {
+        "params": {
+          "start_time": "2019-03-12T00:00:00Z",
+          "entity_ids": [
+            "el32n"
+          ],
+          "end_time": "2019-03-20T00:00:00Z",
+          "placement": "ALL_ON_TWITTER",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      },
+      "data": {
+        "start_time": "2019-03-12T00:00:00Z",
+        "segmentation_type": null,
+        "url": null,
+        "id_str": "1120829647711653888",
+        "entity_ids": [
+          "el32n"
+        ],
+        "end_time": "2019-03-20T00:00:00Z",
+        "country": null,
+        "placement": "ALL_ON_TWITTER",
+        "id": 1120829647711653888,
+        "expires_at": null,
+        "account_id": "18ce54d4x5t",
+        "status": "PROCESSING",
+        "granularity": "TOTAL",
+        "entity": "LINE_ITEM",
+        "created_at": "2019-04-23T23:19:46Z",
+        "platform": null,
+        "updated_at": "2019-04-23T23:19:46Z",
+        "metric_groups": [
+          "ENGAGEMENT"
+        ]
+      }
+    }
+```
+
+该响应不会返回该 line item 的具体指标，仅提供你刚创建的作业信息。检查作业状态需要作业 ID，它同时显示在 `id` 和 `id_str` 响应属性中。
+
+接下来，使用上一个响应中的 `id_str` 检查你创建的作业是否已完成处理；当响应中出现 `"status": "SUCCESS"` 时，表示已完成，数据可下载。`url` 字段包含下载链接。
+
+```
+$ twurl -H ads-api.x.com "/9/stats/jobs/accounts/18ce54d4x5t?job_ids=1120829647711653888"
+```
+
+```json
+    {
+      "request": {
+        "params": {
+          "job_ids": [
+            1120829647711653888
+          ]
+        }
+      },
+      "next_cursor": "1120828505715920896",
+      "data": [
+        {
+          "start_time": "2019-03-12T00:00:00Z",
+          "segmentation_type": null,
+          "url": "https://ton.twimg.com/advertiser-api-async-analytics/zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz",
+          "id_str": "1120829647711653888",
+          "entity_ids": [
+            "el32n"
+          ],
+          "end_time": "2019-03-20T00:00:00Z",
+          "country": null,
+          "placement": "ALL_ON_TWITTER",
+          "id": 1120829647711653900,
+          "expires_at": "2019-04-25T23:19:48Z",
+          "account_id": "18ce54d4x5t",
+          "status": "SUCCESS",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "created_at": "2019-04-23T23:19:46Z",
+          "platform": null,
+          "updated_at": "2019-04-23T23:19:48Z",
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      ]
+    }
+```
+
+虽然上述示例仅传入了一个作业 ID，但在实际使用中，建议通过 `job_ids` 参数一次检查多个作业的状态，最多可指定 200 个作业 ID。
+
+接下来，使用返回的 `url` 值下载数据文件。
+
+```
+    $ wget https://ton.twimg.com/advertiser-api-async-analytics/zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz
+    --2019-04-23 17:52:12--  https://ton.twimg.com/advertiser-api-async-analytics/zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz
+    Resolving ton.twimg.com (ton.twimg.com)... 72.21.91.70
+    Connecting to ton.twimg.com (ton.twimg.com)|72.21.91.70|:443... connected.
+    HTTP request sent, awaiting response... 200 OK
+    Length: 381 [application/gzip]
+    Saving to: 'zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz'
+
+    zBkuuPeEVx-5OygDVcZpqNtwt51Z5 100%[=================================================>]     381  --.-KB/s    in 0s
+
+    2019-04-23 17:52:12 (5.27 MB/s) - 'zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz' saved [381/381]
+```
+
+最后，解压缩该文件。
+
+```
+`$ gunzip zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json.gz`
+```
+
+文件内容如下。
+
+```json
+`$ cat zBkuuPeEVx-5OygDVcZpqNtwt51Z5X9d-_AXNRcyhBlhBOgOfi6UDmGBvUFJAKnHY9ABN8z9f9V3Wn4l3OmF4KzJDmTUjNCikq9JwBUYm2AP8pRRoV-kPUgR0PaIqAb4.json`
+```
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 1,
+      "data": [
+        {
+          "id": "el32n",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  3482
+                ],
+                "tweets_send": null,
+                "qualified_impressions": null,
+                "follows": null,
+                "app_clicks": null,
+                "retweets": [
+                  102
+                ],
+                "unfollows": null,
+                "likes": [
+                  15
+                ],
+                "engagements": [
+                  171
+                ],
+                "clicks": [
+                  30
+                ],
+                "card_engagements": null,
+                "poll_card_vote": null,
+                "replies": null,
+                "carousel_swipes": null
+              }
+            }
+          ]
+        }
+      ],
+      "request": {
+        "params": {
+          "start_time": "2019-03-12T00:00:00Z",
+          "segmentation_type": null,
+          "entity_ids": [
+            "el32n"
+          ],
+          "end_time": "2019-03-20T00:00:00Z",
+          "country": null,
+          "placement": "ALL_ON_TWITTER",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "platform": null,
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      }
+    }
+```
+
+<div id="reach-and-average-frequency">
+  ### 覆盖与平均频次
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  在 Postman 中运行
+</Button>
+
+#### GET stats/accounts/:account\_id/reach/campaigns[](#get-stats-accounts-account-id-reach-campaigns "该标题的永久链接")
+
+获取指定广告系列的触达与平均频次分析数据。
+
+<div id="resource-url">
+  ### 资源 URL[](#resource-url "Permalink to this headline")
+</div>
+
+`https://ads-api.x.com/stats/accounts/:account_id/reach/campaigns`
+
+<div id="parameters">
+  ### 参数[](#parameters "Permalink to this headline")
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 目标账户的标识符。出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 之外所有 Advertiser API 请求的必填参数。指定的账户必须与已认证用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| campaign\_ids  <br />_必填_ | 通过指定以逗号分隔的标识符列表，将响应限定为所需的广告活动。最多可提供 20 个 ID。<br /><br />**注意**：最多可提供 20 个广告活动 ID。<br /><br />类型：string<br /><br />示例：`8fgzf` |
+| end\_time  <br />_必填_ | 将检索到的数据限定到指定的结束时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示。<br /><br />**注意**：必须为整点（0 分钟、0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-26T07:00:00Z` |
+| start\_time  <br />_必填_ | 将检索到的数据限定到指定的开始时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示。<br /><br />**注意**：必须为整点（0 分钟、0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-19T07:00:00Z` |
+
+<div id="example-request">
+  ### 示例请求[](#example-request "跳转到此标题的固定链接")
+</div>
+
+`GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t/reach/campaigns?campaign_ids=8fgzf&start_time=2017-05-19&end_time=2017-05-26`
+
+<div id="example-response">
+  ### 示例响应[](#example-response "此标题的永久链接")
+</div>
+
+```json
+    {
+      "request": {
+        "params": {
+          "campaign_ids": [
+            "8fgzf"
+          ],
+          "start_time": "2017-05-19T00:00:00Z",
+          "end_time": "2017-05-26T00:00:00Z",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data_type": "reach",
+      "data": [
+        {
+          "id": "8fgzf",
+          "total_audience_reach": 1217,
+          "average_frequency": 1.01
+        }
+      ]
+    }
+```
+
+#### GET stats/accounts/:account\_id/reach/funding\_instruments[](#get-stats-accounts-account-id-reach-funding-instruments "此标题的永久链接")
+
+获取指定资助工具的触达与平均频次指标分析。
+
+<div id="resource-url">
+  ### 资源 URL[](#resource-url "Permalink to this headline")
+</div>
+
+`https://ads-api.x.com/stats/accounts/:account_id/reach/funding_instruments`
+
+<div id="parameters">
+  ### 参数[](#parameters "Permalink to this headline")
+</div>
+
+| 名称 | 描述 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被使用的账户标识符。出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 外所有 Advertiser API 请求所需的参数。指定的账户必须与已认证用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| funding\_instrument\_ids  <br />_必填_ | 通过指定以逗号分隔的标识符列表，将响应限定为所需的资金工具。最多可提供 20 个 ID。<br /><br />**注意**：最多可提供 20 个资金工具 ID。<br /><br />类型：string<br /><br />示例：`lygyi` |
+| end\_time  <br />_必填_ | 将检索到的数据限定到指定的结束时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示。<br /><br />**注意**：必须以整点表示（0 分钟且 0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-26T07:00:00Z` |
+| start\_time  <br />_必填_ | 将检索到的数据限定到指定的开始时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示。<br /><br />**注意**：必须以整点表示（0 分钟且 0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-19T07:00:00Z` |
+
+### 示例请求[](#example-request "Permalink to this headline")
+
+```
+GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t/reach/funding_instruments?funding_instrument_ids=lygyi&start_time=2017-05-19&end_time=2017-05-26
+```
+
+### 示例响应[](#example-response "跳转到此标题的永久链接")
+
+```json
+    {
+      "request": {
+        "params": {
+          "funding_instrument_ids": [
+            "lygyi"
+          ],
+          "start_time": "2017-05-19T00:00:00Z",
+          "end_time": "2017-05-26T00:00:00Z",
+          "account_id": "18ce54d4x5t"
+        }
+      },
+      "data_type": "reach",
+      "data": [
+        {
+          "id": "lygyi",
+          "total_audience_reach": 1217,
+          "average_frequency": 1.01
+        }
+      ]
+    }
+```
+
+<div id="synchronous-analytics">
+  ### 同步分析
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  在 Postman 中运行
+</Button>
+
+#### GET stats/accounts/:account\_id[](#get-stats-accounts-account-id "Permalink to this headline")
+
+获取当前账户的同步分析数据。时间范围（`end_time` - `start_time`）最多为 7 天。
+
+<div id="resource-url">
+  ### 资源 URL[](#resource-url "Permalink to this headline")
+</div>
+
+`https://ads-api.x.com/12/stats/accounts/:account_id`
+
+<div id="parameters">
+  ### 参数[](#parameters "Permalink to this headline")
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被使用的账户标识符。出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 以外所有 Advertiser API 请求的必填参数。指定的账户必须与已认证用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| end\_time  <br />_必填_ | 将检索数据限定到指定的结束时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表达。<br /><br />**注意**：必须以整点表示（0 分钟、0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-26T07:00:00Z` |
+| entity  <br />_必填_ | 要检索数据的实体类型。<br /><br />类型：enum<br /><br />可能的取值：`ACCOUNT`、`CAMPAIGN`、`FUNDING_INSTRUMENT`、`LINE_ITEM`、`ORGANIC_TWEET`、`PROMOTED_ACCOUNT`、`PROMOTED_TWEET`、`MEDIA_CREATIVE` |
+| entity\_ids  <br />_必填_ | 要检索数据的具体实体。指定以逗号分隔的实体 ID 列表。<br /><br />**注意**：最多可提供 20 个实体 ID。<br /><br />类型：string<br /><br />示例：`8u94t` |
+| granularity  <br />_必填_ | 指定检索数据的聚合粒度。<br /><br />类型：enum<br /><br />可能的取值：`DAY`、`HOUR`、`TOTAL` |
+| metric\_groups  <br />_必填_ | 需返回的指标组。指定以逗号分隔的指标组列表。更多信息见 [指标与分段](/zh/x-ads-api/analytics#metrics-and-segmentation)。<br /><br />**注意**：`MOBILE_CONVERSION` 数据应单独请求。<br /><br />类型：enum<br /><br />可能的取值：`BILLING`、`ENGAGEMENT`、`LIFE_TIME_VALUE_MOBILE_CONVERSION`、`MEDIA`、`MOBILE_CONVERSION`、`VIDEO`、`WEB_CONVERSION` |
+| placement  <br />_必填_ | 将检索数据限定到特定的投放位置。<br /><br />**注意**：每个请求仅接受一个取值。对于同时具有 X 与 X Audience Platform 投放位置的实体，需要分别发起请求，每个投放位置一个请求。<br /><br />类型：enum<br /><br />可能的取值：`ALL_ON_TWITTER`、`PUBLISHER_NETWORK`、`SPOTLIGHT`、`TREND` |
+| start\_time  <br />_必填_ | 将检索数据限定到指定的开始时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表达。<br /><br />**注意**：必须以整点表示（0 分钟、0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-19T07:00:00Z` |
+
+### 示例请求[](#example-request "此标题的永久链接")
+
+```
+GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t?entity=LINE_ITEM&entity_ids=8u94t&start_time=2017-05-19&end_time=2017-05-26&granularity=TOTAL&placement=ALL_ON_TWITTER&metric_groups=ENGAGEMENT
+```
+
+### 示例响应[](#example-response "Permalink to this headline")
+
+```json
+    {
+      "data_type": "stats",
+      "time_series_length": 1,
+      "data": [
+        {
+          "id": "8u94t",
+          "id_data": [
+            {
+              "segment": null,
+              "metrics": {
+                "impressions": [
+                  1233
+                ],
+                "tweets_send": null,
+                "qualified_impressions": null,
+                "follows": null,
+                "app_clicks": null,
+                "retweets": null,
+                "likes": [
+                  1
+                ],
+                "engagements": [
+                  58
+                ],
+                "clicks": [
+                  58
+                ],
+                "card_engagements": null,
+                "poll_card_vote": null,
+                "replies": null,
+                "carousel_swipes": null
+              }
+            }
+          ]
+        }
+      ],
+      "request": {
+        "params": {
+          "start_time": "2017-05-19T07:00:00Z",
+          "segmentation_type": null,
+          "entity_ids": [
+            "8u94t"
+          ],
+          "end_time": "2017-05-26T07:00:00Z",
+          "country": null,
+          "placement": "ALL_ON_TWITTER",
+          "granularity": "TOTAL",
+          "entity": "LINE_ITEM",
+          "platform": null,
+          "metric_groups": [
+            "ENGAGEMENT"
+          ]
+        }
+      }
+    }
+```
+
+<div id="active-entities">
+  ### 活跃实体
+</div>
+
+<Button href="https://app.getpostman.com/run-collection/1d12b9fc623b8e149f87">
+  在 Postman 中运行
+</Button>
+
+#### GET stats/accounts/:account\_id/active\_entities[](#get-stats-accounts-account-id-active-entities "Permalink to this headline")
+
+检索在指定时间段内分析指标发生变化的实体详情。
+
+此端点应与我们的分析端点配合使用。其结果用于指示应为哪些广告实体请求分析。有关使用指南，请参阅我们的[活跃实体指南](/zh/x-ads-api/analytics#active-entities)。
+
+变更事件按小时分段提供。
+
+- `start_time` 和 `end_time` 指定要查询的小时段。
+- 返回的 `data` 数组会为每个应包含在后续分析请求中的实体提供一个对象。
+- **重要**：后续分析请求中应指定的日期应依据 `activity_start_time` 和 `activity_end_time` 来确定。
+  - 这些值表示存储的变更事件所适用的时间范围。该信息按实体返回。
+
+**注意**：允许的最大时间范围（`end_time` - `start_time`）为 90 天。
+
+<div id="resource-url">
+  ### 资源 URL[](#resource-url "Permalink to this headline")
+</div>
+
+`https://ads-api.x.com/12/stats/accounts/:account_id/active_entities`
+
+<div id="parameters">
+  ### 参数[](#parameters "Permalink to this headline")
+</div>
+
+| 名称 | 说明 |
+| :--- | :--- |
+| account\_id  <br />_必填_ | 被使用的账户标识符。出现在资源路径中，通常是除 [GET accounts](/zh/x-ads-api/campaign-management#accounts) 之外所有 Advertiser API 请求必需的参数。指定的账户必须与已验证用户关联。<br /><br />类型：string<br /><br />示例：`18ce54d4x5t` |
+| end\_time  <br />_必填_ | 将检索到的数据限定到指定的结束时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示。<br /><br />**注意**：必须以整点表示（0 分钟、0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-26T07:00:00Z` |
+| entity  <br />_必填_ | 要检索数据的实体类型。<br /><br />类型：enum<br /><br />可能的取值：`CAMPAIGN`、`FUNDING_INSTRUMENT`、`LINE_ITEM`、`MEDIA_CREATIVE`、`PROMOTED_ACCOUNT`、`PROMOTED_TWEET` |
+| start\_time  <br />_必填_ | 将检索到的数据限定到指定的开始时间，使用 [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) 表示。<br /><br />**注意**：必须以整点表示（0 分钟、0 秒）。<br /><br />类型：string<br /><br />示例：`2017-05-19T07:00:00Z` |
+| campaign\_ids  <br />_可选_ | 通过指定以逗号分隔的标识符列表，将响应限定为仅包含与目标广告系列关联的实体。最多可提供 200 个 ID。<br /><br />**注意**：与 `funding_instrument_ids` 和 `line_item_ids` 互斥。<br /><br />类型：string<br /><br />示例：`8wku2` |
+| funding\_instrument\_ids  <br />_可选_ | 通过指定以逗号分隔的标识符列表，将响应限定为仅包含与目标资金工具关联的实体。最多可提供 200 个 ID。<br /><br />**注意**：与 `campaign_ids` 和 `line_item_ids` 互斥。<br /><br />类型：string<br /><br />示例：`lygyi` |
+| line\_item\_ids  <br />_可选_ | 通过指定以逗号分隔的标识符列表，将响应限定为仅包含与目标投放单元关联的实体。最多可提供 200 个 ID。<br /><br />**注意**：与 `campaign_ids` 和 `line_item_ids` 互斥。<br /><br />类型：string<br /><br />示例：`8v7jo` |
+
+### 示例请求[](#example-request "固定链接到此标题")
+
+`GET https://ads-api.x.com/12/stats/accounts/18ce54d4x5t/active_entities?entity=PROMOTED_TWEET&start_time=2019-02-28&end_time=2019-03-01`
+
+### 示例响应[](#example-response "Permalink to this headline")
+
+```json
+    {
+      "request": {
+        "params": {
+          "account_id": "18ce54d4x5t",
+          "entity": "PROMOTED_TWEET",
+          "start_time": "2019-02-28T08:00:00Z",
+          "end_time": "2019-03-01T08:00:00Z"
+        }
+      },
+      "data": [
+        {
+          "entity_id": "2mvb28",
+          "activity_start_time": "2019-02-28T01:30:07Z",
+          "activity_end_time": "2019-03-01T07:42:55Z",
+          "placements": [
+            "ALL_ON_TWITTER"
+          ]
+        },
+        {
+          "entity_id": "2mvb29",
+          "activity_start_time": "2019-02-27T11:30:07Z",
+          "activity_end_time": "2019-03-01T07:42:50Z",
+          "placements": [
+            "ALL_ON_TWITTER",
+            "PUBLISHER_NETWORK"
+          ]
+        },
+        {
+          "entity_id": "2mvfan",
+          "activity_start_time": "2019-02-27T09:00:05Z",
+          "activity_end_time": "2019-03-01T06:06:36Z",
+          "placements": [
+            "PUBLISHER_NETWORK"
+          ]
+        },
+        {
+          "entity_id": "2n17dx",
+          "activity_start_time": "2019-02-28T02:02:26Z",
+          "activity_end_time": "2019-03-01T07:52:44Z",
+          "placements": [
+            "ALL_ON_TWITTER",
+            "PUBLISHER_NETWORK"
+          ]
+        }
+      ]
+    }
+```

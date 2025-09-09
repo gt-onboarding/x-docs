@@ -1,0 +1,947 @@
+<div id="v2-account-activity-api">
+  # V2 계정 활동 API
+</div>
+
+<Note>
+  이제 [**Pro**](https://developer.x.com/en/portal/products)에서 Account Activity API v2를 사용할 수 있습니다.
+</Note>
+
+<div id="overview">
+  ## 개요
+</div>
+
+Account Activity API(AAA)는 웹훅을 통해 X 사용자 계정과 관련된 실시간 이벤트를 수신하는 방법을 제공합니다. 사전에 구성된 웹훅에 특정 사용자 계정을 구독하면, 단일 연결로 소유하거나 구독 중인 하나 이상의 계정에서 게시물, 다이렉트 메시지, 좋아요, 팔로우, 차단 등 다양한 활동에 대한 알림을 애플리케이션이 받을 수 있습니다.\
+이 API는 사용자 동작에 즉시 반응하거나 사용자 활동을 기반으로 최신 상태를 유지해야 하는 애플리케이션을 구축하는 데 주로 사용됩니다. 웹훅 등록 시 각 사용자 구독에 대해 아래의 모든 관련 활동을 수신합니다:
+
+<div id="activity-types">
+  ## 활동 유형
+</div>
+
+- **포스트** (사용자가 작성)
+- **포스트 삭제** (사용자가 수행)
+- **@멘션** (사용자에 대한)
+- **답글** (사용자에게 또는 사용자로부터)
+- **리포스트** (사용자가 하거나 사용자를 리포스트한)
+- **인용 포스트** (사용자가 하거나 사용자를 인용한)
+- **인용 포스트의 리포스트** (사용자가 하거나 사용자를 대상으로 한)
+- **좋아요** (사용자가 하거나 사용자가 받은)
+- **팔로우** (사용자가 하거나 사용자를 대상으로 한)
+- **언팔로우** (사용자가 하거나 사용자를 대상으로 한)
+- **차단** (사용자가 하거나 사용자를 대상으로 한)
+- **차단 해제** (사용자가 하거나 사용자를 대상으로 한)
+- **뮤트** (사용자가 하거나 사용자를 대상으로 한)
+- **뮤트 해제** (사용자가 하거나 사용자를 대상으로 한)
+- **다이렉트 메시지 발신** (사용자가 보냄)
+- **다이렉트 메시지 수신** (사용자가 받음)
+- **입력 중 표시** (사용자에게 전송)
+- **읽음 확인** (사용자에게 전송)
+- **구독 철회** (사용자가 수행)
+
+**참고**: 홈 타임라인 데이터는 Account Activity API로 제공되지 않습니다. 이 데이터를 가져오려면 User ID로 조회하는 User Posts 타임라인 엔드포인트를 사용하세요.
+
+Account Activity API에서 반환된 포스트는 월간 [트윗 한도(게시 한도)](https://docs.x.com/x-api/fundamentals/post-cap)에 포함됩니다.
+
+<div id="feature-summary">
+  ## 기능 요약
+</div>
+
+| 티어 | 가격 | 고유 구독 수 | 웹훅 수 |
+| :----- | :----- | :----- | :----- |
+| Pro | 월 $5,000 | 3 | 1 |
+| Enterprise | [영업팀에 문의](/ko/enterprise/forms/enterprise-api-interest) | 5,000+ | 5+ |
+
+이 문서는 v2 Account Activity API 엔드포인트를 사용하여 웹훅에 연결된 사용자 구독을 관리하는 방법에 초점을 맞춥니다.
+
+<div id="manage-subscriptions">
+  ## 구독 관리
+</div>
+
+Account Activity API는 서비스에 구독된 X 계정과 관련된 이벤트가 발생할 때마다 웹훅 기반 JSON 메시지를 제공합니다. X는 해당 활동을 등록된 웹훅으로 전달합니다. 다음 단계에서는 사용자 계정에 대한 구독을 설정하고 관리하는 방법을 알아봅니다.
+
+<div id="1-create-an-x-app">
+  ### 1. X 앱 만들기
+</div>
+
+[개발자 포털](https://developer.x.com/en/portal/products/enterprise)에서 승인된 개발자 계정으로 X 앱을 생성하세요. 회사 명의로 앱을 생성하는 경우 회사 X 계정을 사용하세요.
+
+- 앱 페이지의 권한 탭에서 “Read, Write, and Access direct messages”를 활성화하세요.
+- "Keys and Access Tokens" 탭에서 앱의 **Consumer Key (API Key)**, **Consumer Secret (API Secret)**, **Bearer Token**을 메모해 두세요.
+- 앱의 **Access Token**과 **Access Token Secret**을 생성하세요. 이는 사용자 계정 구독에 필요합니다.
+- X 로그인과 사용자 컨텍스트에 익숙하지 않다면 [Access Token 획득](https://developer.x.com/en/docs/authentication)을 참조하세요.
+- 개발자 포털의 "Apps" 페이지에서 앱의 숫자 ID를 메모해 두세요. 이는 Account Activity API 액세스를 신청할 때 필요합니다.
+
+<div id="2-get-account-activity-api-access">
+  ### 2. Account Activity API 액세스 받기
+</div>
+
+Account Activity API는 Enterprise 티어에서만 사용할 수 있습니다. [개발자 포털](https://developer.x.com/en/portal/products/enterprise)을 통해 Enterprise 액세스를 신청하세요.
+
+<div id="3-register-a-webhook">
+  ### 3. 웹훅 등록
+</div>
+
+Account Activity 이벤트를 수신하려면 공개적으로 접근 가능한 HTTPS URL로 웹훅을 등록해야 합니다. 웹훅 컨슈머 앱 개발, 웹훅 등록, 보안 설정, 그리고 Challenge-Response Checks(CRC) 처리에 대한 자세한 내용은 V2 Webhooks API 문서를 참고하세요.
+
+- 웹훅이 JSON으로 인코딩된 이벤트 페이로드를 포함한 POST 요청을 처리하도록 구성되어 있는지 확인하세요.
+- 구독 관리를 위해 필요하므로 웹훅 등록 응답에서 **webhook\_id**를 확인해 두세요.
+
+<div id="4-validate-setup">
+  ### 4. 설정 검증
+</div>
+
+앱과 웹훅이 올바르게 구성되었는지 확인하려면:
+
+- 사용자 계정을 웹훅에 구독하세요(아래 "구독 추가" 참조).
+- 앱이 구독한 X 계정 중 하나가 게시한 포스트를 즐겨찾기하세요.
+- 웹훅 URL로의 POST 요청을 통해 favorite\_events 페이로드를 수신해야 합니다.
+- **참고**: 구독을 추가한 후 이벤트 전송이 시작되기까지 최대 10초가 걸릴 수 있습니다.
+
+<div id="important-notes">
+  ### 중요 안내 사항
+</div>
+
+- **인증**: 사용자를 구독할 때는 해당 사용자의 계정용 consumer key, consumer secret, access token, 그리고 access token secret을 사용하세요.
+- **다이렉트 메시지**: 모든 수신 및 발신 다이렉트 메시지(POST /2/dm\_conversations/with/:participant\_id/messages로 전송됨)는 웹훅으로 전달되어 앱이 모든 DM 활동을 파악할 수 있도록 합니다.
+- **이벤트 중복**:
+  - 두 명의 구독 사용자(구독된 사용자)가 동일한 DM 대화에 있는 경우, 웹훅은 중복 이벤트를 수신합니다(사용자당 1개). for\_user\_id 필드를 사용해 구분하세요.
+  - 여러 앱이 동일한 웹훅 URL과 사용자를 공유하는 경우, 이벤트는 여러 번 전송됩니다(앱당 1회).
+  - 가끔 발생하는 중복을 처리하기 위해, 앱에서 event ID로 이벤트를 중복 제거해야 합니다.
+- **예시 코드**: 웹훅 이벤트를 표시하는 웹 앱은 [Account Activity API 설정](https://github.com/xdevplatform/account-activity-dashboard-enterprise/tree/master)을 참고하세요.
+
+<div id="managing-subscribed-users-v2-api">
+  ## 구독 사용자 관리(v2 API)
+</div>
+
+유효한 webhook\_id로 등록된 웹후크가 있으면 해당 계정 활동을 수신하기 위한 사용자 구독을 관리할 수 있습니다. 다음 엔드포인트를 사용해 구독을 추가, 조회 또는 제거하세요.
+
+<div id="adding-a-subscription">
+  ### [구독 추가](https://docs.x.com/x-api/account-activity/subscribes-the-provided-application-to-all-events-for-the-provided-user-context-for-all-message-types)
+</div>
+
+**엔드포인트**: POST /2/account\_activity/webhooks/:webhook\_id/subscriptions/all\
+**설명**: 지정된 webhook을 통해 이벤트를 수신하도록 인증된 사용자를 구독시킵니다.\
+**인증**: OAuthUser(구독 대상 사용자를 대표하는 3-legged OAuth 플로우 필요)
+
+- **Consumer Key**: 예: xvz1evFS...
+- **Access Token**: 예: 370773112-GmHxMAgYyLbN...
+
+**경로 매개변수**:
+
+| 매개변수 | 설명 |
+| :----- | :----- |
+| webhook\_id | 구독을 연결할 webhook의 ID입니다. |
+
+**요청**:\
+bash
+
+```
+curl --request POST --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all' \
+--header 'authorization: OAuth oauth_consumer_key="<CONSUMER_KEY>", oauth_nonce="GENERATED", oauth_signature="GENERATED", oauth_signature_method="HMAC-SHA1", oauth_timestamp="GENERATED", oauth_token="<ACCESS_TOKEN>", oauth_version="1.0"'
+```
+
+**응답**:
+
+- **성공 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": true
+  }
+}
+```
+
+- **실패 (400 Bad Request)**:
+
+| 이유 | 설명 |
+| :---- | :---- |
+| WebhookIdInvalid | 제공된 webhook\_id를 찾을 수 없거나 앱과 연결되어 있지 않습니다. |
+| DuplicateSubscriptionFailed | 해당 사용자에 대한 구독이 지정된 webhook\_id에 이미 존재합니다. |
+| SubscriptionLimitExceeded | 애플리케이션이 모든 webhook에서 구독 한도에 도달했습니다. |
+
+###
+
+<div id="checking-a-subscription">
+  ### [구독 확인](https://docs.x.com/x-api/account-activity/check-if-a-subscription-exists-for-a-given-webhook-and-user)
+</div>
+
+**엔드포인트**: GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all\
+**설명**: 인증 사용자(Authenticating user)가 지정된 webhook에 구독되어 있는지 확인합니다.\
+**인증**: OAuthUser(3-legged OAuth 플로우 필요).\
+**경로 매개변수**:
+
+| 매개변수 | 설명 |
+| :----- | :----- |
+| webhook\_id | 확인할 webhook의 ID입니다. |
+
+**요청**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all' \
+--header 'authorization: OAuth oauth_consumer_key="<CONSUMER_KEY>", oauth_nonce="GENERATED", oauth_signature="GENERATED", oauth_signature_method="HMAC-SHA1", oauth_timestamp="GENERATED", oauth_token="<ACCESS_TOKEN>", oauth_version="1.0"'
+```
+
+**응답**:
+
+- **성공(200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": true // 또는 false
+  }
+}
+```
+
+- **실패(400 Bad Request)**:
+
+| 이유 | 설명 |
+| :---- | :---- |
+| WebhookIdInvalid | 제공된 webhook\_id를 찾을 수 없거나 앱과 연결되어 있지 않습니다. |
+
+###
+
+<div id="removing-subscriptions">
+  ### [구독 제거](https://docs.x.com/x-api/account-activity/deactivates-a-subscription-for-the-specified-webhook-and-user-id)
+</div>
+
+**엔드포인트**: DELETE /2/account\_activity/webhooks/:webhook\_id/subscriptions/:user\_id/all\
+**설명**: 특정 사용자 ID의 구독을 비활성화하여 해당 웹훅으로 이벤트가 전달되지 않도록 합니다.\
+**인증**: OAuth2 앱 전용 베어러 토큰.
+
+- **베어러 토큰**: 예: AAAAAAAAAAAA0%2EUifi76ZC9Ub0wn...
+
+**경로 매개변수**:
+
+| 매개변수 | 설명 |
+| :----- | :----- |
+| webhook\_id | 구독이 포함된 웹훅의 ID입니다. |
+| user\_id | 구독을 해지할 사용자의 숫자 ID입니다. |
+
+**요청**:\
+bash
+
+```
+curl --request DELETE --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/:USER_ID/all' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**응답**:
+
+- **성공 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "subscribed": false
+  }
+}
+```
+
+- **실패 (400 Bad Request)**:
+
+| 사유 | 설명 |
+| :---- | :---- |
+| SubscriptionNotFound | 지정된 webhook\_id에서 해당 user\_id의 구독이 존재하지 않습니다. |
+| WebhookIdInvalid | 제공된 webhook\_id를 찾을 수 없거나 앱과 연결되어 있지 않습니다. |
+
+<div id="viewing-all-subscriptions">
+  ### [모든 구독 보기](https://docs.x.com/x-api/account-activity/get-a-list-of-the-current-all-activity-type-subscriptions-for-the-specified-webhook)
+</div>
+
+**엔드포인트**: GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all/list\
+**설명**: 지정된 웹후크에 현재 구독된 모든 사용자 ID 목록을 조회합니다.\
+**인증**: OAuth2 앱 전용 베어러 토큰.\
+**경로 매개변수**:
+
+| 매개변수 | 설명 |
+| :----- | :----- |
+| webhook\_id | 구독을 나열할 웹후크의 ID입니다. |
+
+**요청**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/webhooks/:WEBHOOK_ID/subscriptions/all/list' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**응답**:
+
+- **성공 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "application_id": "<your app id>",
+    "webhook_id": "<webhook id>",
+    "webhook_url": "<the webhook's callback url>",
+    "subscriptions": [
+      { "user_id": "<user_id_1>" },
+      { "user_id": "<user_id_2>" }
+    ]
+  }
+}
+```
+
+- **실패 (400 Bad Request)**:
+
+| 사유 | 설명 |
+| :---- | :---- |
+| WebhookIdInvalid | 제공된 webhook\_id를 찾을 수 없거나 앱과 연결되어 있지 않습니다. |
+
+###
+
+<div id="subscriptions-count">
+  ### [구독 수](https://docs.x.com/x-api/account-activity/get-a-count-of-subscriptions-that-are-currently-active-on-your-account)
+</div>
+
+**엔드포인트**: GET /2/account\_activity/subscriptions/count\
+**설명**: 인증 애플리케이션에 대해 활성 구독의 총계와 할당된 한도를 반환합니다.\
+**인증**: OAuth2 앱 전용 베어러 토큰.\
+**요청**:\
+bash
+
+```
+curl --request GET --url 'https://api.twitter.com/2/account_activity/subscriptions/count' \
+--header 'authorization: Bearer <BEARER_TOKEN>'
+```
+
+**응답**:
+
+- **성공 (200 OK)**:
+- json
+
+```
+{
+  "data": {
+    "account_name": "<your application name>",
+    "provisioned_count": "<subscription limit allocated>",
+    "subscriptions_count_all": "<current active subscription count>",
+    "subscriptions_count_direct_messages": "0" // DM 전용 구독은 더 이상 지원되지 않습니다
+  }
+}
+```
+
+<div id="replay">
+  ## [재생(Replay)](https://docs.x.com/x-api/account-activity/request-activity-replay)
+</div>
+
+AAAv2는 지정된 시간 범위의 과거 이벤트를 조회해 웹훅으로 재전달할 수 있는 재생 기능을 제공합니다. 이는 다운타임으로 인해 누락된 이벤트를 복구하는 데 유용합니다.
+
+**엔드포인트**: POST /2/account\_activity/replay/webhooks/:webhook\_id/subscriptions/all
+
+**설명**: 재생 작업을 시작합니다.
+
+**인증**: OAuth2 App Only Bearer Token
+
+**경로 매개변수**:
+
+| 매개변수 | 설명 |
+| :----- | :----- |
+| webhook\_id | 재생을 시작할 웹훅의 ID |
+
+**쿼리 매개변수**:
+
+| 매개변수 | 설명 |
+| :----- | :----- |
+| from\_date | 이벤트가 제공될 가장 오래된(시작) UTC 타임스탬프로, ‘yyyymmddhhmm’ 형식이어야 합니다. 타임스탬프의 세분화 수준은 분이며 포함적입니다(예: 12:00은 00분을 포함). 유효한 시간은 UTC 기준 지난 24시간 이내, 현재 시점으로부터 최소 31분 이전이어야 합니다. from\_date와 to\_date는 약 2시간 이내 범위로 설정하는 것을 권장합니다. |
+| to\_date | 이벤트가 제공될 가장 최신(종료) UTC 타임스탬프로, ‘yyyymmddhhmm’ 형식이어야 합니다. 타임스탬프의 세분화 수준은 분이며 배타적입니다(예: 12:30은 해당 시간의 30분을 포함하지 않음). 유효한 시간은 UTC 기준 지난 24시간 이내, 현재 시점으로부터 최소 10분 이전이어야 합니다. |
+
+**응답**:
+
+성공:
+
+```
+200
+
+{
+  "for_user_id": "<USER_ID>"
+  "replay_event": {
+    "job_id": <REPLAY_JOB_ID>",
+    "created_at: "yyyy-mm-ddThh:mm:ss.000Z"
+  }
+}
+```
+
+실패:
+
+| 사유 | 설명 |
+| :---- | :---- |
+| QueryParamInvalid | from\_date가 현재 시간으로부터 24시간보다 이전입니다. |
+| QueryParamInvalid | from\_date가 to\_date보다 더 최근입니다. |
+| QueryParamInvalid | from\_date가 미래 시점입니다. |
+| QueryParamInvalid | to\_date가 미래 시점입니다. |
+| QueryParamInvalid | from\_date 또는 to\_date의 형식이 올바르지 않습니다. |
+| CrcValidationFailed | CRC 검증 중 웹훅 URL에서 올바르지 않은 응답을 수신했습니다. |
+| ReplayConflictError | 지정된 웹훅에 대해 이미 재생 작업이 진행 중입니다. |
+| WebhookIdInvalid | 제공된 webhook\_id가 유효하지 않거나 앱과 연결되어 있지 않습니다.  |
+
+<div id="job-completed-messages">
+  ### 작업 완료 메시지
+</div>
+
+리플레이 작업이 성공적으로 완료되면 X에서 다음과 같은 작업 완료 이벤트를 전송합니다. 이 이벤트를 수신하면 작업 실행이 끝났으며 다른 작업을 제출할 수 있습니다.
+
+```
+{
+  "replay_job_status": {
+    "webhook_id": "<WEBHOOK_ID>",
+    "job_state": "Complete",
+    "job_state_description": "Job completed successfully",
+    "job_id": "<JOB_ID>"
+  }
+}
+```
+
+작업이 성공적으로 완료되지 않은 경우 리플레이 작업을 다시 시도하도록 권장하는 다음 메시지를 반환합니다. 이 이벤트를 수신하면 작업 실행이 끝났으며 다른 작업을 제출할 수 있습니다.
+
+```
+{
+  "replay_job_status": {
+    "webhook_id": "<WEBHOOK_ID>",
+    "job_state": "Incomplete",
+    "job_state_description": "Job failed to deliver all events, please retry your replay job",
+    "job_id": "<JOB_ID>"
+  }
+}
+```
+
+<div id="account-activity-data-object-structure">
+  ## 계정 활동 데이터 객체 구조
+</div>
+
+| 객체 | 세부 정보 |
+| :----- | :----- |
+| for\_user\_id | 이벤트와 관련된 사용자 구독을 식별합니다. |
+| is\_blocked\_by | (조건부) 언급한 사용자가 구독한 사용자에게 차단된 경우에만 게시물 언급 이벤트에 표시됩니다. |
+| source | 활동을 수행하는 사용자(예: 팔로우, 차단, 음소거를 하는 사용자). |
+| target | 활동이 적용되는 사용자(예: 팔로우되거나, 차단되거나, 음소거되는 사용자). |
+
+<div id="available-activities">
+  ### 사용 가능한 활동
+</div>
+
+| 메시지 유형 | 세부 정보 |
+| :----- | :----- |
+| tweet\_create\_events | 게시물, 리포스트, 답글, @멘션, 인용 게시물, 또는 인용 게시물 리포스트의 게시 상태. |
+| favorite\_events | 사용자와 대상이 포함된 좋아요 이벤트. |
+| follow\_events | 사용자와 대상이 포함된 팔로우 이벤트. |
+| unfollow\_events | 사용자와 대상이 포함된 언팔로우 이벤트. |
+| block\_events | 사용자와 대상이 포함된 차단 이벤트. |
+| unblock\_events | 사용자와 대상이 포함된 차단 해제 이벤트. |
+| mute\_events | 사용자와 대상이 포함된 음소거 이벤트. |
+| unmute\_events | 사용자와 대상이 포함된 음소거 해제 이벤트. |
+| user\_event | 사용자가 앱 권한을 제거할 때의 권한 해지 이벤트(구독 자동 삭제). |
+| direct\_message\_events | 보낸/받은 메시지에 대한 DM 상태. |
+| direct\_message\_indicate\_typing\_events | 사용자와 대상이 포함된 DM 입력 중 표시 이벤트. |
+| direct\_message\_mark\_read\_events | 사용자와 대상이 포함된 DM 읽음 표시 이벤트. |
+| tweet\_delete\_events | 컴플라이언스를 위한 게시물 삭제 알림. |
+| spaces\_events | 현재는 지원되지 않습니다. 곧 제공 예정입니다. |
+
+<div id="payload-examples">
+  ## 페이로드 예시
+</div>
+
+아래는 각 Account Activity 이벤트의 페이로드 예시입니다.
+
+### tweet\_create\_events (게시물, 리포스트, 답글, 인용)
+
+```json
+{
+  "for_user_id": "2244994945",
+  "tweet_create_events": [
+    {
+      <Tweet Object>
+    }
+  ]
+}
+```
+
+###
+
+### tweet\_create\_events (@멘션)
+
+```json
+{
+  "for_user_id": "2244994945",
+  "user_has_blocked": "false",
+  "tweet_create_events": [
+    {
+      <Tweet Object>
+    }
+  ]
+}
+```
+
+### favorite\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "favorite_events": [{
+    "id": "a7ba59eab0bfcba386f7acedac279542",
+    "created_at": "Mon Mar 26 16:33:26 +0000 2018",
+    "timestamp_ms": 1522082006140,
+    "favorited_status": {
+      <Tweet Object>
+    },
+    "user": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### follow\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "follow_events": [{
+    "type": "follow",
+    "created_timestamp": "1517588749178",
+    "target": {
+      <User Object>
+    },
+    "source": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### unfollow\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "follow_events": [{
+    "type": "unfollow",
+    "created_timestamp": "1517588749178",
+    "target": {
+      <User Object>
+    },
+    "source": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### block\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "block_events": [{
+    "type": "block",
+    "created_timestamp": "1518127020304",
+    "source": {
+      <User Object>
+    },
+    "target": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### unblock\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "block_events": [{
+    "type": "unblock",
+    "created_timestamp": "1518127020304",
+    "source": {
+      <User Object>
+    },
+    "target": {
+      <User Object>
+    }
+  }]
+}
+```
+
+### mute\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "mute_events": [
+    {
+      "type": "mute",
+      "created_timestamp": "1518127020304",
+      "source": {
+        <User Object>
+      },
+      "target": {
+        <User Object>
+      }
+    }
+  ]
+}
+```
+
+### unmute\_events
+
+```json
+{
+  "for_user_id": "2244994945",
+  "mute_events": [
+    {
+      "type": "unmute",
+      "created_timestamp": "1518127020304",
+      "source": {
+        <User Object>
+      },
+      "target": {
+        <User Object>
+      }
+    }
+  ]
+}
+```
+
+### user\_event
+
+```json
+{
+  "user_event": {
+    "revoke": {
+      "date_time": "2018-05-24T09:48:12+00:00",
+      "target": {
+        "app_id": "13090192"
+      },
+      "source": {
+        "user_id": "63046977"
+      }
+    }
+  }
+}
+```
+
+### direct\_message\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_events": [{
+    "type": "message_create",
+    "id": "954491830116155396",
+    "created_timestamp": "1516403560557",
+    "message_create": {
+      "target": {
+        "recipient_id": "4337869213"
+      },
+      "sender_id": "3001969357",
+      "source_app_id": "13090192",
+      "message_data": {
+        "text": "Hello World!",
+        "entities": {
+          "hashtags": [],
+          "symbols": [],
+          "user_mentions": [],
+          "urls": []
+        }
+      }
+    }
+  }],
+  "apps": {
+    "13090192": {
+      "id": "13090192",
+      "name": "FuriousCamperTestApp1",
+      "url": "https://x.com/furiouscamper"
+    }
+  },
+  "users": {
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter Ego - X PE opinions-are-my-own",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 22,
+      "friends_count": 45,
+      "statuses_count": 494,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    },
+    "4337869213": {
+      "id": "4337869213",
+      "created_timestamp": "1448312972328",
+      "name": "Harrison Test",
+      "screen_name": "Harris_0ff",
+      "location": "Burlington, MA",
+      "protected": false,
+      "verified": false,
+      "followers_count": 8,
+      "friends_count": 8,
+      "statuses_count": 240,
+      "profile_image_url_https": "https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png"
+    }
+  }
+}
+```
+
+### direct\_message\_indicate\_typing\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_indicate_typing_events": [{
+    "created_timestamp": "1518127183443",
+    "sender_id": "3284025577",
+    "target": {
+      "recipient_id": "3001969357"
+    }
+  }],
+  "users": {
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter Ego - X PE opinions-are-my-own",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 23,
+      "friends_count": 47,
+      "statuses_count": 509,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    },
+    "3284025577": {
+      "id": "3284025577",
+      "created_timestamp": "1437281176085",
+      "name": "Bogus Bogart",
+      "screen_name": "bogusbogart",
+      "protected": true,
+      "verified": false,
+      "followers_count": 1,
+      "friends_count": 4,
+      "statuses_count": 35,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/763383202857779200/ndvZ96mE_normal.jpg"
+    }
+  }
+}
+```
+
+### direct\_message\_mark\_read\_events
+
+```json
+{
+  "for_user_id": "4337869213",
+  "direct_message_mark_read_events": [{
+    "created_timestamp": "1518452444662",
+    "sender_id": "199566737",
+    "target": {
+      "recipient_id": "3001969357"
+    },
+    "last_read_event_id": "963085315333238788"
+  }],
+  "users": {
+    "199566737": {
+      "id": "199566737",
+      "created_timestamp": "1286429788000",
+      "name": "Le Braat",
+      "screen_name": "LeBraat",
+      "location": "Denver, CO",
+      "description": "data by day @X, design by dusk",
+      "protected": false,
+      "verified": false,
+      "followers_count": 299,
+      "friends_count": 336,
+      "statuses_count": 752,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/936652894371119105/YHEozVAg_normal.jpg"
+    },
+    "3001969357": {
+      "id": "3001969357",
+      "created_timestamp": "1422556069340",
+      "name": "Jordan Brinks",
+      "screen_name": "furiouscamper",
+      "location": "Boulder, CO",
+      "description": "Alter Ego - X PE opinions-are-my-own",
+      "url": "https://t.co/SnxaA15ZuY",
+      "protected": false,
+      "verified": false,
+      "followers_count": 23,
+      "friends_count": 48,
+      "statuses_count": 510,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/851526626785480705/cW4WTi7C_normal.jpg"
+    }
+  }
+}
+```
+
+### tweet\_delete\_events
+
+```json
+{
+  "for_user_id": "930524282358325248",
+  "tweet_delete_events": [
+    {
+      "status": {
+        "id": "1045405559317569537",
+        "user_id": "930524282358325248"
+      },
+      "timestamp_ms": "1432228155593"
+    }
+  ]
+}
+```
+
+<div id="support-for-longform-posts">
+  ## 장문 게시물 지원
+</div>
+
+V2 Account Activity API가 이제 280자를 초과하는 게시물인 **장문** 게시물을 지원합니다. 장문 게시물이 tweet\_create\_events 페이로드에 포함되면 text 필드에는 처음 140자(또는 그 이하)만 포함되고, truncated 필드는 true로 설정됩니다. 전체 게시물 내용은 다음을 포함하는 extended\_tweet 객체로 전달됩니다:
+
+- full\_text: 280자 제한을 넘어서는 모든 문자를 포함한 게시물의 전체 텍스트.
+- entities: 전체 텍스트에 나타나는 모든 엔터티(예: 해시태그, URL, 사용자 멘션, 기호)로, 280번째 문자 이후의 항목도 포함.
+- display\_text\_range: 전체 텍스트를 고려한 표시용 문자 범위.
+
+이를 통해 애플리케이션은 텍스트 후반부에 나타나는 멘션이나 기타 엔터티를 포함해 장문 게시물의 전체 내용을 처리할 수 있습니다. 아래는 장문 게시물에 대한 tweet\_create\_events 페이로드 예시입니다:
+
+```json
+{
+  "for_user_id": "1603419180975409153",
+  "tweet_create_events": [
+    {
+      "created_at": "Mon May 19 14:01:46 +0000 2025",
+      "id": 1924465506158879000,
+      "id_str": "1924465506158878979",
+      "text": "안티키티라 메커니즘: 고대의 기 ingenuity를 들여다보는 창 1901년 그리스 안티키티라 섬 앞바다에서 침몰한 로마 선박의 잔해 속에서 발견된 안티키티라 메커니즘은 종종 세계 최초의 아날로그 컴퓨터로 불린다.… https://t.co/bzbEKj8cd8",
+      "display_text_range": [
+        0,
+        140
+      ],
+      ...
+      "user": {
+        ...
+      },
+      ...
+      "extended_tweet": {
+        "full_text": "안티키티라 메커니즘: 고대의 기지를 들여다보는 창 1901년 그리스 안티키티라 섬 앞바다에서 로마 선박의 난파선 가운데에서 발견된 안티키티라 메커니즘은 종종 세계 최초의 아날로그 컴퓨터로 불린다. 기원전 100년경으로 거슬러 올라가는 이 정교한 청동 장치는 정밀한 설계와 신비로운 용도로 역사학자, 고고학자, 과학자들을 사로잡아 왔다. 이 메커니즘은 복잡한 기어 시스템으로 이루어져 있으며, 당시로서는 놀라울 정도로 앞선 계산을 수행하도록 세밀하게 제작되었다. 이 발견은 고대 세계의 기술적 역량에 대한 오랜 가정을 뒤흔들었다. 안티키티라 메커니즘의 주된 기능은 천문 관측에 있었던 것으로 보인다. 태양과 달, 그리고 어쩌면 행성의 위치를 예측하고, 월식과 일식을 추적하며, 심지어 올림픽 경기의 날짜까지 계산할 수 있었다. 장치의 다이얼과 지침, 그리고 고대 그리스어 비문은 이것이 과학적 탐구와 문화적 행사를 위한 도구였음을 시사한다. 19세기 시계 제작에 견줄 만한 정밀도는 헬레니즘 세계의 장인들이 지닌 놀라운 창의성을 보여준다. 수십 년에 걸친 연구에도 불구하고 많은 질문이 남아 있다. 누가, 누구를 위해 만들었을까? 역사 속에 사라진 더 넓은 기계 장치 전통의 일부였을까, 아니면 단 하나의 걸작이었을까? X선 촬영과 현대 계산 기법은 내부 작동에 대해 많은 것을 밝혀냈지만, 그 능력의 전모는 여전히 논쟁 중이다. 일부는 점성술적 예측에 사용되었다고 보고, 다른 이들은 천문학 교육용 도구로 본다. 안티키티라 메커니즘은 인간의 호기심과 혁신의 증거로서, 고대와 현대를 잇는 다리로 남아 있다. 이는 고대에도 사람들이 오늘날의 기술에 필적하는 복잡한 도구로 우주를 이해하고자 했음을 상기시킨다. 그 끝없는 미스터리는 계속해서 경외와 탐구를 불러일으키며, 지금까지 발굴된 유물 가운데 가장 놀라운 것 중 하나로 손꼽힌다.\n@xai\n@HistoryInPics",
+        "display_text_range": [
+          0,
+          2051
+        ],
+        "entities": {
+          "hashtags": [],
+          "urls": [],
+          "user_mentions": [
+            {
+              "screen_name": "xai",
+              "name": "xAI",
+              "id": 1661523610111193000,
+              "id_str": "1661523610111193088",
+              "indices": [
+                2032,
+                2036
+              ]
+            },
+            {
+              "screen_name": "HistoryInPics",
+              "name": "History Photographed",
+              "id": 1582853809,
+              "id_str": "1582853809",
+              "indices": [
+                2037,
+                2051
+              ]
+            }
+          ],
+          "symbols": []
+        }
+      },
+      ...
+      "entities": {
+        "hashtags": [],
+        "urls": [
+          {
+            "url": "https://t.co/bzbEKj8cd8",
+            "expanded_url": "https://twitter.com/i/web/status/1924465506158878979",
+            "display_url": "twitter.com/i/web/status/1…",
+            "indices": [
+              117,
+              140
+            ]
+          }
+        ],
+        "user_mentions": [],
+        "symbols": []
+      },
+      ...
+    }
+  ]
+}
+```
+
+<div id="account-activity-api-migrating-from-legacy-enterprise-to-v2">
+  ## Account Activity API: 레거시 엔터프라이즈에서 v2로 이전
+</div>
+
+[마이그레이션 가이드](https://docs.x.com/x-api/account-activity/migrate/overview)를 참고하세요!
+
+<div id="frequently-asked-questions">
+  ## 자주 묻는 질문
+</div>
+
+**Account Activity API를 사용하면 어떤 이점이 있나요?**
+
+Account Activity API는 웹후크를 사용하여 스트리밍 API처럼 연결을 계속 열어두거나 REST API처럼 빈번히 폴링할 필요 없이 실시간으로 데이터를 전달합니다. 주요 이점은 다음과 같습니다.
+
+- **속도**: X의 속도로 데이터를 전달합니다.
+- **단순성**: 단일 웹후크 연결을 통해 Posts, @mentions, Replies, Reposts, Quote Tweets, Likes, DMs, Follows, Blocks, Mutes 등 모든 계정 이벤트를 제공합니다.
+- **확장성**: 관리되는 계정의 모든 활동을 속도 제한이나 이벤트 한도 없이 지원합니다(Enterprise 티어).
+
+**Account Activity API에 개발, 스테이징, 프로덕션 환경이 모두 필요합니다. 가능한가요?**
+
+예! [V2 Webhooks API](https://docs.x.com/x-api/webhooks/introduction)를 통해 여러 웹후크 URL을 등록하고 구독을 별도로 관리할 수 있습니다.
+
+**Account Activity API 설정을 위한 단계별 가이드가 있나요?**
+
+예! [웹후크 시작하기 가이드](https://docs.x.com/x-api/webhooks/introduction)와 [Account Activity API 샘플 애플리케이션](https://github.com/m-rosinsky/XWebhookTest/blob/main/app.py)을 참고하세요.
+
+**Account Activity API에는 어떤 인증을 사용해야 하나요?**
+
+인증 요구 사항은 엔드포인트별로 다릅니다. 자세한 내용은 [Authentication 섹션](https://developer.x.com/en/docs/authentication)을 확인하세요.
+
+**서로 상호작용하는 사용자를 구독하면 중복 활동을 받게 되나요?**
+
+예. 앱이 사용자 A와 사용자 B를 모두 구독하고 있고, 사용자 A가 게시물에서 사용자 B를 언급하면 웹후크에는 두 개의 이벤트(각 사용자당 하나)가 전달됩니다. 구독을 식별하려면 for\_user\_id 필드를 사용하세요.
+
+**내 웹후크에 구독을 생성할 때, 전달되는 활동을 제한하기 위해 엔드포인트의** /all/ **부분을 다른 계정 활동 데이터 객체로 바꿀 수 있나요?**
+
+아니요. /all/ 제품만 사용 가능하며 지원되는 모든 이벤트 유형을 제공합니다.
+
+**세 개의 웹후크에 대한 권한이 있다면, 엔터프라이즈 용도로 등록한 각 앱에 세 개의 웹후크를 사용할 수 있나요?**
+
+웹후크 한도는 앱 단위가 아니라 계정 단위로 설정됩니다. 예를 들어, 웹후크가 세 개이고 앱이 두 개인 경우 한 앱에는 두 개, 다른 앱에는 하나를 사용할 수 있지만 앱당 세 개씩 사용할 수는 없습니다.
+
+<div id="account-activity-api-reference-index">
+  ## Account Activity API 참고 색인
+</div>
+
+| 목적 | V2 엔드포인트 |
+| :----- | :----- |
+| 애플리케이션을 계정 이벤트에 구독시킵니다 | POST /2/account\_activity/webhooks/:webhook\_id/subscriptions/all |
+| 현재 활성 구독 수를 반환합니다 | GET /2/account\_activity/subscriptions/count |
+| 웹후크가 계정에 구독되어 있는지 확인합니다 | GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all |
+| 현재 활성 구독 목록을 반환합니다 | GET /2/account\_activity/webhooks/:webhook\_id/subscriptions/all/list |
+| 앱 전용 OAuth로 구독을 비활성화합니다 | DELETE /2/account\_activity/webhooks/:webhook\_id/subscriptions/:user\_id/all |
+| 재생 작업을 생성합니다 | POST /2/account\_activity/replay/webhooks/:webhook\_id/subscriptions/all |
+
+웹후크 관리 엔드포인트(등록, 조회, 검증, 삭제)는 [V2 Webhooks API 문서](https://docs.x.com/x-api/webhooks/introduction)를 참조하세요

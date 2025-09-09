@@ -1,0 +1,162 @@
+---
+title: SDKs
+---
+
+<div id="introduction">
+  ## Introducción
+</div>
+
+Un kit de desarrollo de software (SDK) es un conjunto de herramientas y programas de software diseñados para una plataforma o API específica. El objetivo de un SDK es crear o ampliar la funcionalidad de las aplicaciones proporcionando bibliotecas o bases de código que los desarrolladores pueden usar dentro de sus aplicaciones, de forma eficiente y con un mínimo de código. Esto acelera significativamente el proceso de desarrollo, ahorrando tiempo, dinero y esfuerzo.
+
+> La Plataforma de Desarrolladores de X ahora ofrece 2 SDK oficiales para quienes desarrollan en TypeScript/JavaScript y Java. Estos permitirán a los desarrolladores crear de forma más eficaz al eliminar la necesidad de programar manualmente las complejidades de la API de X v2, aprovechando las funciones predefinidas para todos los endpoints disponibles de v2 y simplificando el proceso de autenticación. Al estar creados y mantenidos por el equipo de la Plataforma de Desarrolladores, siempre estarán actualizados con las futuras versiones de la API de X v2.
+
+Dado que estos SDK envuelven la API de X, debe tener una [cuenta de desarrollador](https://developer.x.com/en/portal/dashboard) para autenticar solicitudes utilizando las credenciales de una [App de desarrollador](/es/resources/fundamentals/developer-apps), ubicada dentro de un [Proyecto](/es/resources/fundamentals/projects).
+
+<div id="installing">
+  #### Instalación
+</div>
+
+<Tabs>
+  <Tab title="Java">
+    Hay varias formas de instalar el paquete de Java (requiere Java 1.8+):
+
+    - Usuarios de Maven: agreguen esta dependencia al archivo POM de su proyecto:
+
+    ```xml
+    <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>twitter-api-java-sdk</artifactId>
+      <version>1.1.4</version>
+    </dependency>
+    ```
+
+    - Usuarios de Gradle: agreguen esta dependencia al archivo de compilación de su proyecto:
+      `implementation "com.twitter:twitter-api-java-sdk:1.1.4"`
+
+    - Otros: primero generen el JAR ejecutando el siguiente comando:
+      `mvn clean package`
+      Luego instalen manualmente los siguientes JAR:
+
+    `target/twitter-api-java-sdk-1.1.4.jar`
+
+    `target/lib/*.jar`
+  </Tab>
+
+  <Tab title="TypeScript">
+    Este paquete es compatible con Node.js 14+; para instalar, ejecuten el siguiente comando en el directorio del proyecto de Node:
+    `npm install twitter-api-sdk`
+  </Tab>
+</Tabs>
+
+<div id="client-basics">
+  #### Conceptos básicos del cliente
+</div>
+
+Importa las clases (Java) y el paquete (TypeScript) al inicio de un archivo de trabajo para acceder a la autenticación y a los clientes de la biblioteca. Para usar los métodos del cliente de la biblioteca, debes proporcionar las credenciales de autenticación; esto puede ser un Bearer Token (solo app) o un client\_id/client\_secret si te autenticas con contexto de usuario mediante OAuth 2.0.
+
+A continuación, algunos ejemplos de cómo se vería:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // Import classes:
+    import com.twitter.clientlib.ApiClient;
+    import com.twitter.clientlib.ApiException;
+    import com.twitter.clientlib.Configuration;
+    import com.twitter.clientlib.auth.*;
+    import com.twitter.clientlib.model.*;
+    import com.twitter.clientlib.TwitterCredentialsBearer;
+    import com.twitter.clientlib.api.TwitterApi;
+
+    // Instantiate library client
+    TwitterApi apiInstance = new TwitterApi();
+
+    // Instantiate auth credentials (App-only example)
+    TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(System.getenv("APP-ONLY-ACCESS-TOKEN"));
+
+    // Pass credentials to library client
+    apiInstance.setTwitterCredentials(credentials);
+    ```
+  </Tab>
+
+  <Tab title="TypeScript">
+    ```typescript
+    //Import package
+    import { Client, auth } from "twitter-api-sdk";
+
+    // Initialize auth client first
+    const authClient = new auth.OAuth2User({
+     client_id: process.env.CLIENT_ID as string,
+     client_secret: process.env.CLIENT_SECRET as string,
+     callback: "YOUR-CALLBACK",
+     scopes: ["tweet.read", "users.read", "offline.access"],
+    });
+
+     // Pass auth credentials to the library client
+     const twitterClient = new Client(authClient);
+    ```
+  </Tab>
+</Tabs>
+
+<div id="authentication-flow">
+  #### Flujo de autenticación
+</div>
+
+Si utiliza la opción de solo aplicación para autenticar los SDK, únicamente deberá proporcionar el token y el cliente de la biblioteca quedará listo para usar los métodos del endpoint de inmediato. Tenga en cuenta que los tokens de solo aplicación no se pueden usar en endpoints que requieren autenticación con contexto de usuario.
+
+La autenticación con contexto de usuario mediante OAuth 2.0 requiere algunos pasos adicionales después de crear el cliente de autenticación.
+
+- Generar la URL de autorización
+- Autorizar la aplicación desde la URL de autorización
+- Redirigir al callback (esto debe coincidir con la URL de callback configurada en la página de ajustes de autenticación del Portal para Desarrolladores).
+- Analizar el verificador de código para canjearlo por un token de acceso
+
+Los SDK ofrecen métodos en el cliente de autenticación que simplifican estos pasos. Para ver un ejemplo completo de cómo realizar una solicitud autenticándose con el contexto de usuario de OAuth 2.0, consulte los repositorios de GitHub.
+
+- [TypeScript](https://github.com/xdevplatform/twitter-api-typescript-sdk/blob/main/examples/oauth2-callback_pkce_s256.ts)
+
+- [Java](https://github.com/xdevplatform/twitter-api-java-sdk/blob/main/examples/src/main/java/com/twitter/clientlib/auth/OAuth20GetAccessToken.java)
+
+<div id="endpoint-methods">
+  #### Métodos de endpoints
+</div>
+
+Los métodos que ofrece el cliente de la biblioteca están claramente nombrados para corresponder a cada endpoint y todos los parámetros se pasan como argumentos.
+A continuación, un ejemplo de búsqueda de publicación por ID:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    String id = "1511757922354663425"; // String | Un único ID de Tweet.
+    Set<String> expansions = new HashSet<>(Arrays.asList("author_id")); // Set<String> | Lista separada por comas de campos a expandir.
+    Set<String> tweetFields = new HashSet<>(Arrays.asList("created_at", "lang", "context_annotations")); // Set<String> | Lista separada por comas de campos de Tweet a mostrar.
+    Set<String> userFields = new HashSet<>(Arrays.asList("created_at", "description", "name")); // Set<String> | Lista separada por comas de campos de Usuario a mostrar.
+
+    try {
+     SingleTweetLookupResponse result = apiInstance.tweets().findTweetById(id, expansions, tweetFields, userFields, null, null, null);
+     System.out.println(result);
+    } catch (ApiException e) {
+     System.err.println("Exception when calling TweetsApi#findTweetById");
+     System.err.println("Status code: " + e.getCode());
+     System.err.println("Reason: " + e.getResponseBody());
+     System.err.println("Response headers: " + e.getResponseHeaders());
+     e.printStackTrace();
+    }
+
+    ```
+  </Tab>
+
+  <Tab title="TypeScript">
+    ```typescript
+    const lookupTweetById = await client.tweets.findTweetById(
+      // ID del Tweet
+      "1511757922354663425",
+      {
+        // Parámetros opcionales
+        expansions: ["author_id"],
+        "user.fields": ["created_at", "description", "name"],
+      }
+    );
+    ```
+  </Tab>
+</Tabs>

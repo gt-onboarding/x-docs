@@ -1,0 +1,162 @@
+---
+title: SDK
+---
+
+<div id="introduction">
+  ## 소개
+</div>
+
+소프트웨어 개발 키트(SDK)는 특정 플랫폼 또는 API에 맞게 설계된 소프트웨어 도구와 프로그램의 모음입니다. SDK의 목적은 개발자가 애플리케이션에서 바로 활용할 수 있는 라이브러리나 코드베이스를 제공해 최소한의 코딩으로 효율적으로 애플리케이션 기능을 구축하거나 확장할 수 있도록 하는 것입니다. 이는 개발 속도를 크게 높여 시간과 비용, 노력을 절감합니다.
+
+> X Developer Platform은 TypeScript/JavaScript와 Java 개발자를 위해 이제 공식 SDK 2가지를 제공합니다. 이를 통해 개발자는 사용 가능한 모든 v2 엔드포인트에 대한 사전 구성된 함수를 활용하고 인증 과정을 단순화하여, X API v2의 복잡한 부분을 직접 구현할 필요 없이 더 효율적으로 개발할 수 있습니다. 이 SDK는 Developer Platform 팀에서 직접 구축하고 유지 관리하므로, X API v2의 향후 릴리스와 함께 항상 최신 상태를 유지합니다.
+
+이 SDK는 X API를 래핑하므로, [프로젝트](/ko/resources/fundamentals/projects) 내에 있는 [개발자 앱](/ko/resources/fundamentals/developer-apps)의 자격 증명을 사용해 요청을 인증하려면 [개발자 계정](https://developer.x.com/en/portal/dashboard)이 필요합니다.
+
+<div id="installing">
+  #### 설치
+</div>
+
+<Tabs>
+  <Tab title="Java">
+    Java 패키지를 설치하는 방법은 여러 가지가 있습니다(Java 1.8+ 필요)
+
+    - Maven 사용자: 프로젝트의 POM 파일에 다음 종속성을 추가하세요:
+
+    ```xml
+    <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>twitter-api-java-sdk</artifactId>
+      <version>1.1.4</version>
+    </dependency>
+    ```
+
+    - Gradle 사용자: 프로젝트의 빌드 파일에 다음 종속성을 추가하세요:
+      `implementation "com.twitter:twitter-api-java-sdk:1.1.4"`
+
+    - 기타: 먼저 다음 명령을 실행해 JAR을 생성하세요
+      `mvn clean package`
+      그런 다음 아래 JAR을 수동으로 설치하세요:
+
+    `target/twitter-api-java-sdk-1.1.4.jar`
+
+    `target/lib/*.jar`
+  </Tab>
+
+  <Tab title="TypeScript">
+    이 패키지는 Node.js 14+를 지원합니다. 설치하려면 Node 프로젝트 디렉터리에서 다음 명령을 실행하세요:
+    `npm install twitter-api-sdk`
+  </Tab>
+</Tabs>
+
+<div id="client-basics">
+  #### 클라이언트 기본
+</div>
+
+인증 및 라이브러리 클라이언트에 접근하려면 작업 파일의 상단에서 클래스(Java)와 패키지(TypeScript)를 임포트합니다. 라이브러리 클라이언트의 메서드를 사용하려면 인증 자격 증명을 전달해야 하며, 이는 Bearer 토큰(앱 전용) 또는 OAuth 2.0 사용자 컨텍스트 인증 시 클라이언트 ID/클라이언트 시크릿이 될 수 있습니다.
+
+예시는 다음과 같습니다:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // 클래스 임포트:
+    import com.twitter.clientlib.ApiClient;
+    import com.twitter.clientlib.ApiException;
+    import com.twitter.clientlib.Configuration;
+    import com.twitter.clientlib.auth.*;
+    import com.twitter.clientlib.model.*;
+    import com.twitter.clientlib.TwitterCredentialsBearer;
+    import com.twitter.clientlib.api.TwitterApi;
+
+    // 라이브러리 클라이언트 인스턴스화
+    TwitterApi apiInstance = new TwitterApi();
+
+    // 인증 자격 증명 인스턴스화(앱 전용 예)
+    TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(System.getenv("APP-ONLY-ACCESS-TOKEN"));
+
+    // 자격 증명을 라이브러리 클라이언트에 전달
+    apiInstance.setTwitterCredentials(credentials);
+    ```
+  </Tab>
+
+  <Tab title="TypeScript">
+    ```typescript
+    // 패키지 임포트
+    import { Client, auth } from "twitter-api-sdk";
+
+    // 먼저 인증 클라이언트를 초기화
+    const authClient = new auth.OAuth2User({
+     client_id: process.env.CLIENT_ID as string,
+     client_secret: process.env.CLIENT_SECRET as string,
+     callback: "YOUR-CALLBACK",
+     scopes: ["tweet.read", "users.read", "offline.access"],
+    });
+
+    // 인증 자격 증명을 라이브러리 클라이언트에 전달
+    const twitterClient = new Client(authClient);
+    ```
+  </Tab>
+</Tabs>
+
+<div id="authentication-flow">
+  #### 인증 플로우
+</div>
+
+SDK를 애플리케이션 전용 옵션으로 인증하는 경우 토큰만 제공하면 라이브러리 클라이언트가 즉시 엔드포인트 메서드를 사용할 수 있습니다. 단, 애플리케이션 전용 토큰은 사용자 컨텍스트 인증이 필요한 엔드포인트에서는 사용할 수 없습니다.
+
+OAuth 2.0 사용자 컨텍스트 인증은 인증 클라이언트 생성 이후 몇 가지 추가 단계가 필요합니다.
+
+- 인증 URL 생성
+- 인증 URL에서 애플리케이션 허용
+- 콜백으로 리디렉션(Developer Portal의 인증 설정 페이지에 지정한 콜백 URL과 일치해야 함)
+- 액세스 토큰 교환을 위한 코드 검증 값 파싱
+
+SDK는 인증 클라이언트에 위 단계를 단순화하는 메서드를 제공합니다. OAuth 2.0 사용자 컨텍스트로 인증하여 요청을 보내는 전체 예시는 GitHub 리포지토리를 참조하세요.
+
+- [TypeScript](https://github.com/xdevplatform/twitter-api-typescript-sdk/blob/main/examples/oauth2-callback_pkce_s256.ts)
+
+- [Java](https://github.com/xdevplatform/twitter-api-java-sdk/blob/main/examples/src/main/java/com/twitter/clientlib/auth/OAuth20GetAccessToken.java)
+
+<div id="endpoint-methods">
+  #### 엔드포인트 메서드
+</div>
+
+라이브러리 클라이언트에서 제공되는 메서드는 각 엔드포인트에 대응하도록 명확하게 이름이 지정되어 있으며, 모든 매개변수는 인수로 전달됩니다.
+다음은 ID로 게시물을 조회하는 예시입니다:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    String id = "1511757922354663425"; // String | 단일 트윗 ID.
+    Set<String> expansions = new HashSet<>(Arrays.asList("author_id")); // Set<String> | 확장할 필드의 쉼표로 구분된 목록.
+    Set<String> tweetFields = new HashSet<>(Arrays.asList("created_at", "lang", "context_annotations")); // Set<String> | 표시할 트윗 필드의 쉼표로 구분된 목록.
+    Set<String> userFields = new HashSet<>(Arrays.asList("created_at", "description", "name")); // Set<String> | 표시할 사용자 필드의 쉼표로 구분된 목록.
+
+    try {
+     SingleTweetLookupResponse result = apiInstance.tweets().findTweetById(id, expansions, tweetFields, userFields, null, null, null);
+     System.out.println(result);
+    } catch (ApiException e) {
+     System.err.println("TweetsApi#findTweetById 호출 중 예외 발생");
+     System.err.println("상태 코드: " + e.getCode());
+     System.err.println("사유: " + e.getResponseBody());
+     System.err.println("응답 헤더: " + e.getResponseHeaders());
+     e.printStackTrace();
+    }
+
+    ```
+  </Tab>
+
+  <Tab title="TypeScript">
+    ```typescript
+    const lookupTweetById = await client.tweets.findTweetById(
+      // 트윗 ID
+      "1511757922354663425",
+      {
+        // 선택 매개변수
+        expansions: ["author_id"],
+        "user.fields": ["created_at", "description", "name"],
+      }
+    );
+    ```
+  </Tab>
+</Tabs>

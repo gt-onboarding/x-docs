@@ -1,0 +1,92 @@
+---
+title: "フィールド"
+---
+
+X API v2 の各エンドポイントには「フィールド」と呼ばれるパラメータ群が用意されており、レスポンス内の各オブジェクトから必要なデータだけを選択できます。
+
+既定では、Post オブジェクトは `id` と `text` フィールド、そして 2022 年 9 月 29 日以降に作成された Post については `edit_history_tweet_ids` フィールドのみを返します。Post の作成日時や公開メトリクスが必要な場合は、それらを取得するために `tweet.fields` パラメータで明示的に指定する必要があります。これにより、ユースケースに応じて必要なフィールドだけをリクエストでき、より高い柔軟性が得られます。例として、次のクエリ文字列をリクエストに含めます。
+
+`?tweet.fields=created_at,public_metrics`
+
+各オブジェクトには、そのオブジェクトに紐づくフィールドを個別にリクエストするための専用パラメータがあります。現在利用可能なフィールドパラメータは以下のとおりです。
+
+- [Post](/ja/x-api/fundamentals/data-dictionary#tweet) → `tweet.fields`
+- [User](/ja/x-api/fundamentals/data-dictionary#user) → `user.fields`
+- [Media](/ja/x-api/fundamentals/data-dictionary#media) → `media.fields`
+- [Poll](/ja/x-api/fundamentals/data-dictionary#poll) → `poll.fields`
+- [Place](/ja/x-api/fundamentals/data-dictionary#place) → `place.fields`
+
+主に特定のオブジェクトを返すエンドポイントを使用する場合は、対応するフィールドパラメータを指定し、取得したいフィールドをカンマ区切りで列挙してそのパラメータの値に設定するだけで、レスポンスにそれらのフィールドが含まれます。
+
+<div id="example">
+  ### 例
+</div>
+
+[GET /tweets/search/recent](/ja/x-api/posts/recent-search) エンドポイントを使用している場合、そのレスポンスには主に [Tweet objects](/ja/x-api/fundamentals/data-dictionary#tweet) が含まれます。`fields` パラメータを指定しない場合、返されるのはデフォルト値である `id` と `text` のみです。レスポンスで返る投稿の公開メトリクスを取得したい場合は、リクエストに `tweet.fields` パラメータを含め、値に `public_metrics` を指定してください。
+
+このリクエストは次のとおりです。このリクエストを使用する場合は、`$BEARER_TOKEN` を [Bearer Token](/ja/resources/fundamentals/authentication) に置き換え、コマンドラインツールで送信してください。
+
+```bash
+curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+このリクエストをターミナルで送信すると、返される各投稿に次のフィールドが含まれます。
+
+```
+{
+   "data": {
+       "id": "1263150595717730305",
+       "public_metrics": {
+           "retweet_count": 12,
+           "reply_count": 14,
+           "like_count": 49,
+           "quote_count": 7
+       },
+       "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER"
+   }
+}
+```
+
+エンドポイントが返す一次オブジェクトに関連付けられた二次オブジェクトからフィールドの集合を取得したい場合は、追加で `expansions` パラメータを含める必要があります。たとえば、先ほどと同じ GET search/tweets/recent エンドポイントを使用し、投稿者のプロフィールの説明文を取得したい場合は、リクエストに `expansions=author_id` と `user.fields=description` を指定します。以下はその例です。このリクエストを試す場合は、コマンドラインツールに貼り付ける前に、`$BEARER_TOKEN` を [Bearer Token](/ja/resources/fundamentals/authentication) に置き換えてください。
+
+```bash
+  curl --request GET \
+  --url 'https://api.x.com/2/tweets/search/recent?query=from%3Atwitterdev&tweet.fields=public_metrics&expansions=author_id&user.fields=description' \
+  --header 'Authorization: Bearer $BEARER_TOKEN'
+```
+
+これをリクエストで指定すると、返される各投稿には以下のフィールドが含まれ、関連する [user object](/ja/x-api/fundamentals/data-dictionary#user) のデフォルトおよび指定したフィールドが `includes` に返されます。`tweet.author_id` と `users.id` を突き合わせることで、ユーザーオブジェクトを対応する投稿にマッピングできます。
+
+```
+{
+  "data": [
+    {
+      "id": "1263150595717730305",
+      "author_id": "2244994945",
+      "text": "Do you 👀our new Tweet settings?\n\nWe want to know how and why you’d use a feature like this in the API. Get the details and let us know what you think👇\nhttps://t.co/RtMhhfAcIB https://t.co/8wxeZ9fJER",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 13,
+        "like_count": 51,
+        "quote_count": 7
+      }
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "username": "TwitterDev",
+        "description": "The voice of the #TwitterDev team and your official source for updates, news, and events, related to the #TwitterAPI.",
+        "name": "Twitter Dev"
+      }
+    ]
+  }
+}
+```
+
+特定のサブフィールド（例：`public_metrics.retweet_count`）を個別にリクエストすることはできません。トップレベルフィールド（`public_metrics`）を指定すると、すべてのサブフィールドが返されます。各エンドポイントの API リファレンスページのパラメータ表に、リクエスト可能なすべてのフィールドを掲載しています。 
+
+フィールドの全一覧は[オブジェクトモデル](/ja/x-api/fundamentals/data-dictionary#tweet)に掲載されています。エンドポイントの主要リソースではないオブジェクトのフィールドを取得するには、フィールド指定と併せて[expansions](/ja/x-api/fundamentals/expansions)パラメータを使用してください。
